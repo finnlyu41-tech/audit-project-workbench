@@ -2,6 +2,8 @@
 
 一个面向电脑窗口、以本机数据为主的审计项目进度工作台。它把“项目节点及达成条件”和会持续变化的“待清事项”分开管理，适合同时追踪多个审计项目。
 
+**[直接打开在线工作台](https://finnlyu41-tech.github.io/audit-progress-workbench/)**
+
 > This repository is bilingual. The English introduction follows the Chinese section.
 
 ## 主要功能

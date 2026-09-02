@@ -6,6 +6,12 @@ The project follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.1.1] - 2026-09-02
+
+### Fixed
+
+- Added an automatic GitHub Pages deployment and a direct live-workbench link.
+
 ## [0.1.0] - 2026-09-02
 
 ### Added
