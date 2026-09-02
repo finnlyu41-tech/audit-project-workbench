@@ -1,16 +1,13 @@
 import React from "react";
 import { ProgressBar } from "./components.jsx";
-import { GROUP_AUDIT_TYPES, collectGroupOutstandingEntries, formatDate, groupProgress, memberIsReady,
-  memberProgressPercentage, outstandingIsOpen, projectStats, uid } from "./model.js";
+import { GROUP_AUDIT_TYPES, GROUP_AUDIT_TYPE_KEYS, collectGroupOutstandingEntries, formatDate, groupProgress, makeGroupMember,
+  memberIsReady, memberProgressPercentage, outstandingIsOpen, projectStats, uid } from "./model.js";
 import { useUiLanguage } from "./i18n.jsx";
 
-export const auditTypeKeys = {
-  internal_team: "本团队审计",
-  component_auditor: "其他审计师负责",
-  management_accounts: "无需法定审计／管理账",
-};
+export const auditTypeKeys = GROUP_AUDIT_TYPE_KEYS;
 
-export function GroupForm({ initial, sampleName, allowTemplate = true, onSubmit, onClose }) {
+export function GroupForm({ initial, sampleName, allowTemplate = true, memberTargets = { projects: [], groups: [] },
+  availableProjects = [], availableGroups = [], groupSample, onSubmit, onClose }) {
   const { t } = useUiLanguage();
   const [values, setValues] = React.useState(() => ({
     name: initial?.name || "",
@@ -20,12 +17,40 @@ export function GroupForm({ initial, sampleName, allowTemplate = true, onSubmit,
     notes: initial?.notes || "",
     consolidationEnabled: initial?.consolidationEnabled !== false,
   }));
+  const [members, setMembers] = React.useState(() => JSON.parse(JSON.stringify(initial?.members || [])));
+  const [memberKind, setMemberKind] = React.useState("project");
+  const [memberRefId, setMemberRefId] = React.useState("");
   const [useStarter, setUseStarter] = React.useState(true);
   const update = (field) => (event) => setValues((current) => ({ ...current, [field]: event.target.value }));
+  const initialProjectTargets = (initial?.members || []).filter((member) => member.kind === "project")
+    .map((member) => memberTargets.projects.find((project) => project.id === member.refId)).filter(Boolean);
+  const initialGroupTargets = (initial?.members || []).filter((member) => member.kind === "group")
+    .map((member) => memberTargets.groups.find((group) => group.id === member.refId)).filter(Boolean);
+  const uniqueTargets = (targets) => [...new Map(targets.map((target) => [target.id, target])).values()];
+  const projectCandidates = uniqueTargets([...availableProjects, ...initialProjectTargets])
+    .filter((project) => !project.archived && !members.some((member) => member.kind === "project" && member.refId === project.id));
+  const groupCandidates = uniqueTargets([...availableGroups, ...initialGroupTargets])
+    .filter((group) => !group.archived && !members.some((member) => member.kind === "group" && member.refId === group.id));
+  const candidates = memberKind === "project" ? projectCandidates : groupCandidates;
+  const effectiveRefId = candidates.some((candidate) => candidate.id === memberRefId) ? memberRefId : candidates[0]?.id || "";
+  const memberTarget = (member) => (member.kind === "project" ? memberTargets.projects : memberTargets.groups)
+    .find((target) => target.id === member.refId);
+  const updateMember = (memberId, patch) => setMembers((current) => current.map((member) => member.id === memberId
+    ? { ...member, ...patch } : member));
+  const changeMemberAuditType = (member, auditType) => updateMember(member.id, { auditType,
+    readinessConditions: (groupSample?.readinessTemplates?.[auditType] || []).map((condition) => ({
+      id: uid("readiness-condition"), label: condition.label, done: false,
+    })) });
+  const addMember = () => {
+    if (!effectiveRefId) return;
+    setMembers((current) => [...current, makeGroupMember({ kind: memberKind, refId: effectiveRefId,
+      auditType: "internal_team", role: "" }, groupSample)]);
+    setMemberRefId("");
+  };
   return <form className="workbench-form" onSubmit={(event) => {
     event.preventDefault();
     if (values.name.trim()) onSubmit({ ...values, name: values.name.trim(), period: values.period.trim(),
-      owner: values.owner.trim(), notes: values.notes.trim() }, useStarter);
+      owner: values.owner.trim(), notes: values.notes.trim(), ...(initial ? { members } : {}) }, useStarter);
   }}>
     <label><span>{t("集团名称 *")}</span><input autoFocus required value={values.name} onChange={update("name")}
       placeholder={t("例如：[集团名称] 2025年度集团审计")} /></label>
@@ -41,6 +66,32 @@ export function GroupForm({ initial, sampleName, allowTemplate = true, onSubmit,
       <span><strong>{t("本级需要独立合并流程")}</strong><small>{t("关闭后，本级只作分类并直接汇总下级进度。")}</small></span></label>
     <label><span>{t("备注")}</span><textarea rows="3" value={values.notes} onChange={update("notes")}
       placeholder={t("可记录集团范围、报告要求或其他背景")} /></label>
+    {initial && <section className="group-membership-editor"><header><div><strong>{t("集团成员")}</strong>
+      <span>{t("在集团资料中直接添加、移除或修改公司与子集团。")}</span></div>
+      <em>{t("{count} 个组成部分", { count: members.length })}</em></header>
+      <div className="group-membership-list">{members.map((member) => {
+        const target = memberTarget(member);
+        const archived = Boolean(target?.archived);
+        return <article className="group-membership-row" key={member.id} data-archived={archived || undefined}>
+          <div className="group-member-identity"><i>{member.kind === "project" ? "C" : "G"}</i><span><strong>{target?.name || t("未找到组成部分")}</strong>
+            <small>{t(member.kind === "project" ? "公司项目" : "子集团")}{archived ? ` · ${t("已归档")}` : ""}</small></span></div>
+          <label><span>{t("集团角色")}</span><input disabled={archived} value={member.role || ""}
+            onChange={(event) => updateMember(member.id, { role: event.target.value })} placeholder={t("例如：母公司、子公司或地区子集团")} /></label>
+          {member.kind === "project" ? <label><span>{t("审计类别")}</span><select disabled={archived} value={member.auditType}
+            onChange={(event) => changeMemberAuditType(member, event.target.value)}>{GROUP_AUDIT_TYPES.map((value) =>
+              <option value={value} key={value}>{t(auditTypeKeys[value])}</option>)}</select></label>
+            : <div className="group-member-type"><span>{t("组成部分类型")}</span><strong>{t("子集团")}</strong></div>}
+          <button type="button" disabled={archived} onClick={() => setMembers((current) => current.filter((item) => item.id !== member.id))}>{t("移除")}</button>
+        </article>;
+      })}{!members.length && <div className="group-membership-empty">{t("这个集团还没有公司或子集团。")}</div>}</div>
+      <div className="group-member-adder"><div className="choice-tabs" role="tablist"><button type="button" aria-selected={memberKind === "project"}
+        onClick={() => { setMemberKind("project"); setMemberRefId(""); }}>{t("公司项目")}</button>
+        <button type="button" aria-selected={memberKind === "group"} onClick={() => { setMemberKind("group"); setMemberRefId(""); }}>{t("子集团")}</button></div>
+        <select aria-label={t("选择要加入的组成部分")} value={effectiveRefId} onChange={(event) => setMemberRefId(event.target.value)}>
+          {candidates.map((candidate) => <option value={candidate.id} key={candidate.id}>{candidate.name}</option>)}</select>
+        <button type="button" className="button secondary" disabled={!effectiveRefId} onClick={addMember}>{t("添加到集团")}</button></div>
+      {!candidates.length && <small className="form-help">{t(memberKind === "project" ? "没有可加入的独立公司项目。" : "没有可加入的集团。")}</small>}
+    </section>}
     {allowTemplate && values.consolidationEnabled && <label className="check-option">
       <input type="checkbox" checked={useStarter} onChange={(event) => setUseStarter(event.target.checked)} />
       <span><strong>{t("套用集团范本：{name}", { name: sampleName })}</strong>

@@ -5,6 +5,7 @@ import {
   CORE_GROUP_SAMPLE_KEY,
   STORE_VERSION,
   activeOutstandingItems,
+  assignProjectToGroup,
   canNestGroup,
   collectGroupOutstandingEntries,
   createDefaultGroupSample,
@@ -398,4 +399,31 @@ test("legacy internal shorthand migrates to professional terminology without bre
   assert.doesNotMatch(serializedNodes, /A4/u);
   assert.match(serializedNodes, /试算表及总账衔接/u);
   assert.equal(migrated.groups[0].members[0].refId, project.id);
+});
+
+test("company details can preserve, move and remove a project group assignment", () => {
+  const groupSample = createDefaultGroupSample();
+  const project = makeProject(projectValues, true, createDefaultSample().nodes);
+  const firstGroup = makeGroup({ name: "First Group", period: "FY2025", consolidationEnabled: true }, true, groupSample);
+  const secondGroup = makeGroup({ name: "Second Group", period: "FY2025", consolidationEnabled: true }, true, groupSample);
+  const member = makeGroupMember({ kind: "project", refId: project.id, role: "Component", auditType: "internal_team" }, groupSample);
+  member.readinessConditions[0].done = true;
+  firstGroup.members.push(member);
+  const store = normalizeStore({ version: STORE_VERSION, projects: [project], groups: [firstGroup, secondGroup],
+    samples: [createDefaultSample()], groupSamples: [groupSample], outstandingStatuses: createDefaultOutstandingStatuses() });
+
+  const updated = assignProjectToGroup(store, project.id,
+    { groupId: firstGroup.id, role: "Subsidiary", auditType: "internal_team" }, groupSample);
+  const updatedMember = updated.groups.find((group) => group.id === firstGroup.id).members[0];
+  assert.equal(updatedMember.role, "Subsidiary");
+  assert.equal(updatedMember.readinessConditions[0].done, true);
+
+  const moved = assignProjectToGroup(updated, project.id,
+    { groupId: secondGroup.id, role: "Associate", auditType: "component_auditor" }, groupSample);
+  assert.equal(moved.groups.find((group) => group.id === firstGroup.id).members.length, 0);
+  assert.equal(moved.groups.find((group) => group.id === secondGroup.id).members[0].role, "Associate");
+  assert.equal(moved.groups.find((group) => group.id === secondGroup.id).members[0].auditType, "component_auditor");
+
+  const detached = assignProjectToGroup(moved, project.id, { groupId: "" }, groupSample);
+  assert.equal(detached.groups.some((group) => group.members.some((item) => item.refId === project.id)), false);
 });

@@ -4,7 +4,7 @@ import { Modal, NodeBoard, NodeForm, OutstandingStatusEditor, ProgressBar, Proje
 import { GroupForm, GroupMatrix, GroupMemberAddForm, GroupMemberForm, GroupSampleEditor, GroupSampleLibrary,
   WorkspaceTree } from "./group-components.jsx";
 import { BUILTIN_WORKSTREAM_TYPES, STORAGE_KEY, WORKSTREAM_TYPES, WORKSTREAM_TYPE_KEYS, activeOutstandingItems,
-  canNestGroup, collectGroupOutstandingEntries, createDefaultGroupSample, createDefaultSample, duplicateGroupSample,
+  assignProjectToGroup, canNestGroup, collectGroupOutstandingEntries, createDefaultGroupSample, createDefaultSample, duplicateGroupSample,
   duplicateSample, findParentMembership, formatDate, groupProgress, isValidStore, loadStore, localizeGroupSample,
   localizeGroupWorkflowNodes, localizeOutstandingStatuses, localizeReadinessConditions, localizeSample, localizeWorkstream, makeBlankGroupSample,
   makeBlankSample, makeGroup, makeGroupMember, makeNode, makeOutstandingItem, makeProject, makeWorkstream,
@@ -83,6 +83,8 @@ function DashboardWorkbench() {
     ? store.projects.find((project) => project.id === selection.id) || null : null;
   const selectedGroupSource = selection?.kind === "group"
     ? store.groups.find((group) => group.id === selection.id) || null : null;
+  const selectedProjectMembership = selectedProjectSource
+    ? findParentMembership(store, "project", selectedProjectSource.id) : null;
   const selectedProject = selectedProjectSource ? { ...selectedProjectSource,
     workstreams: selectedProjectSource.workstreams.map((workstream) => localizeWorkstream(workstream, language)) } : null;
   const selectedGroup = selectedGroupSource ? { ...selectedGroupSource,
@@ -296,6 +298,7 @@ function DashboardWorkbench() {
       </aside>
       <main className="project-detail" aria-label={t(selectedGroup ? "集团工作区" : "项目工作区")}>
         {selectedProject ? <ProjectDetail project={selectedProject} rawProject={selectedProjectSource} statuses={outstandingStatusViews}
+          parentMembership={selectedProjectMembership}
           activeWorkstreamId={activeWorkstreamId} setActiveWorkstreamId={setActiveWorkstreamId} updateWorkflowNodes={updateWorkflowNodes}
           setModal={setModal} duplicateProject={duplicateProject} archiveTarget={archiveTarget} restoreTarget={restoreTarget} />
           : selectedGroup ? <GroupDetail store={store} group={selectedGroup} statuses={outstandingStatusViews}
@@ -323,14 +326,25 @@ function DashboardWorkbench() {
     {modal?.type === "create-project" && <Modal title={t("新建项目")} onClose={() => setModal(null)} wide>
       <ProjectForm samples={sampleViews} selectedSampleIdsByType={store.selectedSampleIdsByType}
         initialWorkstreamTypes={modal.initialWorkstreamTypes} onSubmit={createProject} onClose={() => setModal(null)} /></Modal>}
-    {modal?.type === "edit-project" && selectedProjectSource && <Modal title={t("编辑项目资料")} onClose={() => setModal(null)}>
+    {modal?.type === "edit-project" && selectedProjectSource && <Modal title={t("编辑项目资料")} onClose={() => setModal(null)} wide>
       <ProjectForm initial={selectedProjectSource} allowWorkstreams={false} onClose={() => setModal(null)} submitLabel="保存修改"
-        onSubmit={(values) => { updateProject(selectedProjectSource.id, (project) => ({ ...project, ...values }));
-          setModal(null); notify(t("项目资料已更新")); }} /></Modal>}
+        initialMembership={selectedProjectMembership} groupOptions={store.groups.filter((group) => !group.archived
+          || group.id === selectedProjectMembership?.group.id)} onSubmit={(values) => {
+          const { groupAssignment, ...projectValues } = values;
+          setStore((current) => {
+            const next = { ...current, projects: current.projects.map((project) => project.id === selectedProjectSource.id
+              ? { ...project, ...projectValues, updatedAt: new Date().toISOString() } : project) };
+            const groupSample = current.groupSamples.find((sample) => sample.id === current.selectedGroupSampleId)
+              || current.groupSamples[0] || createDefaultGroupSample();
+            return assignProjectToGroup(next, selectedProjectSource.id, groupAssignment, groupSample);
+          });
+          setModal(null); notify(t("项目资料及集团归属已更新")); }} /></Modal>}
     {modal?.type === "create-group" && <Modal title={t(modal.parentGroupId ? "新建子集团" : "新建集团")} onClose={() => setModal(null)}>
       <GroupForm sampleName={selectedGroupSample?.name || t("未选择范本")} onSubmit={createGroup} onClose={() => setModal(null)} /></Modal>}
-    {modal?.type === "edit-group" && selectedGroupSource && <Modal title={t("编辑集团资料")} onClose={() => setModal(null)}>
+    {modal?.type === "edit-group" && selectedGroupSource && <Modal title={t("编辑集团资料")} onClose={() => setModal(null)} wide>
       <GroupForm initial={selectedGroupSource} sampleName={selectedGroupSample?.name || ""} allowTemplate={false}
+        memberTargets={{ projects: store.projects, groups: store.groups }} availableProjects={availableProjects}
+        availableGroups={availableGroups} groupSample={selectedGroupSample || createDefaultGroupSample()}
         onSubmit={(values) => { updateGroup(selectedGroupSource.id, (group) => ({ ...group, ...values,
           nodes: values.consolidationEnabled ? group.nodes : [] })); setModal(null); notify(t("集团资料已更新")); }}
         onClose={() => setModal(null)} /></Modal>}
@@ -404,7 +418,7 @@ function DashboardWorkbench() {
   </article>;
 }
 
-function ProjectDetail({ project, rawProject, statuses, activeWorkstreamId, setActiveWorkstreamId,
+function ProjectDetail({ project, rawProject, statuses, parentMembership, activeWorkstreamId, setActiveWorkstreamId,
   updateWorkflowNodes, setModal, duplicateProject, archiveTarget, restoreTarget }) {
   const { language, t } = useUiLanguage();
   const stats = projectStats(project);
@@ -421,12 +435,13 @@ function ProjectDetail({ project, rawProject, statuses, activeWorkstreamId, setA
         <button type="button" className="button secondary" onClick={() => restoreTarget("project", rawProject.id)}>{t("恢复")}</button>
         <button type="button" className="button danger-quiet" onClick={() => setModal({ type: "delete-target", targetKind: "project",
           targetId: rawProject.id, name: rawProject.name })}>{t("永久删除")}</button></> : <>
-        <button type="button" className="button secondary" onClick={() => setModal({ type: "edit-project" })}>{t("编辑资料")}</button>
+        <button type="button" className="button primary" onClick={() => setModal({ type: "edit-project" })}>{t("编辑公司及集团归属")}</button>
         <button type="button" className="button secondary" onClick={() => duplicateProject(rawProject)}>{t("复制项目")}</button>
         <button type="button" className="button secondary" onClick={() => archiveTarget("project", rawProject.id)}>{t("归档项目")}</button></>}</div>
     </header>
     <dl className="detail-facts"><div><dt>{t("负责人")}</dt><dd>{project.owner || t("未设置")}</dd></div>
       <div><dt>{t("目标完成日期")}</dt><dd>{formatDate(project.dueDate, language)}</dd></div>
+      <div><dt>{t("所属集团")}</dt><dd>{parentMembership?.group.name || t("独立公司")}</dd></div>
       <div><dt>{t("业务模块")}</dt><dd>{t("已完成 {done}/{total}", { done: stats.completedWorkstreams, total: stats.workstreams })}</dd></div>
       <div><dt>{t("项目状态")}</dt><dd>{t(stats.complete ? "已完成" : "进行中")}</dd></div></dl>
 
@@ -472,7 +487,7 @@ function GroupDetail({ store, group, statuses, updateWorkflowNodes, setModal, se
         <button type="button" className="button secondary" onClick={() => restoreTarget("group", group.id)}>{t("恢复")}</button>
         <button type="button" className="button danger-quiet" onClick={() => setModal({ type: "delete-target", targetKind: "group",
           targetId: group.id, name: group.name })}>{t("永久删除")}</button></> : <>
-        <button type="button" className="button secondary" onClick={() => setModal({ type: "edit-group" })}>{t("编辑资料")}</button>
+        <button type="button" className="button primary" onClick={() => setModal({ type: "edit-group" })}>{t("编辑集团及成员")}</button>
         <button type="button" className="button secondary" onClick={() => archiveTarget("group", group.id)}>{t("归档集团")}</button></>}</div></header>
     <section className="group-scorecards"><article><span>{t("组成部分进度")}</span><strong>{stats.componentPercentage}%</strong>
       <ProgressBar value={stats.componentPercentage} compact /></article><article><span>{t("公司合并就绪")}</span>
@@ -499,7 +514,7 @@ function GroupDetail({ store, group, statuses, updateWorkflowNodes, setModal, se
       <div><dt>{t("组成部分")}</dt><dd>{rawGroup.members.length}</dd></div></dl>
       {group.notes && <p className="group-notes">{group.notes}</p>}
       <header className="section-heading"><div><h3>{t("公司与子集团")}</h3><p>{t("管理集团层级、角色和合并就绪条件。")}</p></div>
-        {!readOnly && <button type="button" className="button secondary" onClick={() => setModal({ type: "member-add" })}>{t("加入组成部分")}</button>}</header>
+        {!readOnly && <button type="button" className="button primary" onClick={() => setModal({ type: "member-add" })}>{t("添加公司／子集团")}</button>}</header>
       <div className="settings-member-list">{rawGroup.members.map((member) => {
         const target = member.kind === "project" ? store.projects.find((item) => item.id === member.refId)
           : store.groups.find((item) => item.id === member.refId);

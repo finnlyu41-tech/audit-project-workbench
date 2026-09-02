@@ -15,6 +15,8 @@ The project follows [Semantic Versioning](https://semver.org/).
 - Simplified Chinese, Traditional Chinese and English system interfaces.
 - Per-status colour controls and workstream-linked outstanding items.
 - Read-only archive details, restoration and archive-only permanent deletion.
+- Direct group assignment, role and audit-category controls in company details.
+- In-place company and subgroup membership management in group details.
 
 ### Changed
 

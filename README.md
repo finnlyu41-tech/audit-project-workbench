@@ -15,6 +15,7 @@
 - 多层集团审计：集团可包含公司项目或子集团，每一级可选择独立合并流程或仅作分类。
 - 集团总览同时显示公司平均进度、合并流程进度、70%／30%整体进度及公司合并就绪门槛。
 - 公司可新建或关联现有项目，并按本团队审计、其他审计师或管理账设置不同的合并就绪条件。
+- 公司资料可直接选择或变更所属集团；集团资料可集中添加、移除及修改公司与子集团。
 - 集团待清事项与下级公司事项集中汇总，同时保留来源和跳转入口。
 - 节点横向排列；所选节点的达成条件固定显示在下方，不会把相邻节点推离视野。
 - 独立待清中心不影响节点进度；状态可新增、改名、排序、定义“已清”语义并自定义颜色，事项可归属项目级或指定业务模块。
@@ -65,6 +66,7 @@ Audit Project Workbench (APW) is a desktop-first, local-first tracker for profes
 - Multi-level group audits with company projects, optional subgroup consolidation workflows and classification-only levels.
 - A group dashboard showing company-average progress, consolidation progress, a 70% / 30% overall score and explicit readiness gates.
 - New or existing company projects can be linked to a group with readiness defaults for internal audits, other component auditors or management accounts.
+- Company details can change group assignment directly, while group details manage companies and subgroups in one member roster.
 - Group outstanding items roll up company and subgroup items while preserving their source and navigation.
 - Horizontal stages with a stable detail panel below, so opening one stage never displaces its neighbours.
 - A separate outstanding centre that never changes stage progress, with custom labels, ordering, cleared-state semantics and colours; items can be project-level or linked to a workstream.

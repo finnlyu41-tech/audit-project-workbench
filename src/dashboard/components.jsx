@@ -1,6 +1,6 @@
 import React from "react";
-import { BUILTIN_WORKSTREAM_TYPES, WORKSTREAM_TYPE_KEYS, dueTone, formatDate, nodeStatus, outstandingIsOpen,
-  projectStats, uid, workstreamStats, workstreamTypeLabel } from "./model.js";
+import { BUILTIN_WORKSTREAM_TYPES, GROUP_AUDIT_TYPES, GROUP_AUDIT_TYPE_KEYS, WORKSTREAM_TYPE_KEYS, dueTone, formatDate,
+  nodeStatus, outstandingIsOpen, projectStats, uid, workstreamStats, workstreamTypeLabel } from "./model.js";
 import { useUiLanguage } from "./i18n.jsx";
 
 export function Modal({ title, onClose, children, wide = false }) {
@@ -20,7 +20,7 @@ export function Modal({ title, onClose, children, wide = false }) {
   </div>;
 }
 export function ProjectForm({ initial, onSubmit, onClose, submitLabel, allowWorkstreams = true,
-  samples = [], selectedSampleIdsByType = {}, initialWorkstreamTypes }) {
+  samples = [], selectedSampleIdsByType = {}, initialWorkstreamTypes, groupOptions = null, initialMembership }) {
   const { language, t } = useUiLanguage();
   const [values, setValues] = React.useState(() => ({
     name: initial?.name || "",
@@ -29,6 +29,11 @@ export function ProjectForm({ initial, onSubmit, onClose, submitLabel, allowWork
     dueDate: initial?.dueDate || "",
     owner: initial?.owner || "",
     notes: initial?.notes || "",
+  }));
+  const [membership, setMembership] = React.useState(() => ({
+    groupId: initialMembership?.group?.id || "",
+    role: initialMembership?.member?.role || "",
+    auditType: initialMembership?.member?.auditType || "internal_team",
   }));
   const [useStarter, setUseStarter] = React.useState(true);
   const [selections, setSelections] = React.useState(() => (initialWorkstreamTypes?.length
@@ -45,7 +50,9 @@ export function ProjectForm({ initial, onSubmit, onClose, submitLabel, allowWork
     event.preventDefault();
     const validSelections = selections.filter((item) => item.type !== "custom" || item.customName.trim());
     if (values.name.trim() && (!allowWorkstreams || validSelections.length)) {
-      onSubmit(allowWorkstreams ? { ...values, workstreamSelections: validSelections } : values, useStarter);
+      const submittedValues = allowWorkstreams ? { ...values, workstreamSelections: validSelections } : values;
+      onSubmit(groupOptions ? { ...submittedValues, groupAssignment: { ...membership, role: membership.role.trim() } }
+        : submittedValues, useStarter);
     }
   }}>
     <label><span>{t("项目名称 *")}</span><input autoFocus required value={values.name} onChange={update("name")}
@@ -61,6 +68,21 @@ export function ProjectForm({ initial, onSubmit, onClose, submitLabel, allowWork
     </div>
     <label><span>{t("备注")}</span><textarea rows="3" value={values.notes} onChange={update("notes")}
       placeholder={t("可记录负责人、客户要求或其他背景")} /></label>
+    {groupOptions && <section className="project-group-assignment"><header><strong>{t("集团归属")}</strong>
+      <span>{t("可在公司资料中直接加入、变更或移出集团。")}</span></header>
+      <label><span>{t("所属集团")}</span><select value={membership.groupId}
+        onChange={(event) => setMembership((current) => ({ ...current, groupId: event.target.value }))}>
+        <option value="">{t("独立公司（不属于集团）")}</option>
+        {groupOptions.map((group) => <option value={group.id} key={group.id} disabled={group.archived}>
+          {group.name}{group.archived ? ` · ${t("已归档")}` : ""}</option>)}</select></label>
+      {membership.groupId && <div className="form-grid"><label><span>{t("集团角色")}</span><input value={membership.role}
+        onChange={(event) => setMembership((current) => ({ ...current, role: event.target.value }))}
+        placeholder={t("例如：母公司、子公司或联营公司")} /></label>
+        <label><span>{t("审计类别")}</span><select value={membership.auditType}
+          onChange={(event) => setMembership((current) => ({ ...current, auditType: event.target.value }))}>
+          {GROUP_AUDIT_TYPES.map((value) => <option value={value} key={value}>{t(GROUP_AUDIT_TYPE_KEYS[value])}</option>)}</select></label></div>}
+      <small>{t("保存后，项目导航和集团汇总会立即更新。")}</small>
+    </section>}
     {allowWorkstreams && <section className="project-workstream-picker"><header><strong>{t("选择业务模块")}</strong>
       <span>{t("每个模块独立追踪进度、负责人和截止日。")}</span></header>
       <div className="workstream-choice-grid">{BUILTIN_WORKSTREAM_TYPES.map((type) => <label className="workstream-choice" key={type}

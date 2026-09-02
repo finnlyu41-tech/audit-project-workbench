@@ -22,6 +22,11 @@ export const WORKSTREAM_SAMPLE_KEYS = {
 };
 
 export const GROUP_AUDIT_TYPES = ["internal_team", "component_auditor", "management_accounts"];
+export const GROUP_AUDIT_TYPE_KEYS = {
+  internal_team: "本团队审计",
+  component_auditor: "其他审计师负责",
+  management_accounts: "无需法定审计／管理账",
+};
 
 export const groupStarterNodes = [
   ["集团范围与架构", "确认集团边界、组成部分及合并责任。", ["集团架构已确认", "合并范围已确认", "组成部分重要性已确定"]],
@@ -888,6 +893,27 @@ export function findParentMembership(store, kind, refId) {
     if (member) return { group, member };
   }
   return null;
+}
+
+export function assignProjectToGroup(store, projectId, assignment, groupSample = createDefaultGroupSample()) {
+  const groupId = assignment?.groupId || "";
+  const current = findParentMembership(store, "project", projectId);
+  const requestedGroup = groupId ? store.groups.find((group) => group.id === groupId) : null;
+  const targetGroup = requestedGroup && (!requestedGroup.archived || current?.group.id === requestedGroup.id) ? requestedGroup : null;
+  const auditType = GROUP_AUDIT_TYPES.includes(assignment?.auditType) ? assignment.auditType : "internal_team";
+  let nextMember = null;
+  if (targetGroup) {
+    nextMember = current?.group.id === targetGroup.id && current.member.auditType === auditType
+      ? { ...current.member, role: assignment?.role?.trim() || "", auditType }
+      : makeGroupMember({ kind: "project", refId: projectId, role: assignment?.role?.trim() || "", auditType }, groupSample);
+  }
+  const now = new Date().toISOString();
+  return { ...store, groups: store.groups.map((group) => {
+    const members = group.members.filter((member) => !(member.kind === "project" && member.refId === projectId));
+    if (group.id === targetGroup?.id && nextMember) members.push(nextMember);
+    if (members.length === group.members.length && group.id !== targetGroup?.id) return group;
+    return { ...group, members, updatedAt: now };
+  }) };
 }
 
 export function groupContainsGroup(store, rootGroupId, targetGroupId, visited = new Set()) {
