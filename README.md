@@ -8,8 +8,8 @@
 
 ## 主要功能
 
-- 固定三区桌面布局：左侧项目导航、中间公司／控股公司工作区、右侧待清中心；左右区域均可收起。项目导航提供统一的“新建公司”入口，并可拖动公司或控股公司改变归属及层级；点击控股公司整行即可展开或收起。
-- 顶部使用紧凑工具列，只保留范本库、使用指南、备份及语言等全局工具；建立公司放在项目导航的视觉热区。
+- Obsidian 式主工作区布局：左侧紧凑树状导航、中间宽工作区、右侧按需待清中心；左右区域均可收起，窄桌面窗口展开待清中心时不会挤压工作区。项目导航提供统一的“新建公司”入口，可拖动公司或控股公司改变归属及层级，并以加减号和连续层级线明确显示控股关系。
+- 顶部和工作区采用统一线性图标压缩高频操作；悬停或键盘聚焦会显示完整功能说明，同时保留无障碍名称。建立公司仍放在项目导航的视觉热区。
 - 内置分章节使用指南，逐项说明入口、操作步骤和完成结果。
 - 每个项目记录法律实体、可自定义财务报告准则／框架，以及可覆盖短期或长期间的报告期开始日和结束日；多个业务模块可并行启用，并各自拥有负责人、截止日、横向节点和客观达成条件。
 - 项目显示“已完成模块数／全部模块数”，只有全部启用模块完成后才算完成，不使用容易误导的混合百分比。
@@ -61,8 +61,8 @@ Audit Project Workbench (APW) is an English-first, desktop-first and local-first
 
 ### Features
 
-- A fixed three-pane desktop layout: project navigation, company/holding-company workspace and outstanding centre, with collapsible side panes. Project navigation contains the single New company entry point and supports exact-level drag-and-drop reassignment; selecting a holding-company row expands or collapses it.
-- A compact global toolbar for the template library, user guide, backups and language; record creation stays in the navigation work area.
+- An Obsidian-inspired, centre-first desktop layout with compact tree navigation, a wide company/holding-company workspace and an on-demand outstanding centre. The side panes collapse, and opening outstanding items on a narrower desktop does not resize the workspace. Project navigation contains the single New company entry point, exact-level drag-and-drop reassignment, explicit plus/minus disclosure controls and continuous hierarchy guides.
+- Consistent line icons condense frequent toolbar and workspace actions; hover or keyboard focus reveals the full explanation while preserving accessible names. Record creation stays in the navigation work area.
 - A built-in, sectioned user guide explaining each entry point, procedure and expected result.
 - Project details capture the legal entity, a customisable financial reporting standard or framework, and reporting-period start and end dates suitable for short or extended periods; parallel workstreams retain independent owners, deadlines, horizontal stages and objective completion criteria.
 - Project completion shown as completed workstreams out of total workstreams; all enabled workstreams must finish before the project completes.

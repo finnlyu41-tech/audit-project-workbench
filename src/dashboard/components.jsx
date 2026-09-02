@@ -1,4 +1,5 @@
 import React from "react";
+import { ArrowLeft, ArrowRight, Pencil, Plus, Trash2, X } from "lucide-react";
 import { GROUP_AUDIT_TYPES, GROUP_AUDIT_TYPE_KEYS, createDefaultWorkstreamCategories, dueTone, formatDate,
   nodeStatus, outstandingIsOpen, projectStats, reportingPeriodLabel, uid, workstreamCategoryLabel, workstreamStats,
   workstreamTypeLabel } from "./model.js";
@@ -16,7 +17,8 @@ export function Modal({ title, onClose, children, wide = false, large = false })
     <section className="workbench-modal" data-wide={wide || undefined} data-large={large || undefined}
       role="dialog" aria-modal="true" aria-label={title}
       onMouseDown={(event) => event.stopPropagation()}>
-      <header><h2>{title}</h2><button type="button" className="icon-button" onClick={onClose} aria-label={t("关闭")}>×</button></header>
+      <header><h2>{title}</h2><button type="button" className="icon-button icon-only" onClick={onClose}
+        aria-label={t("关闭")} data-tooltip={t("关闭")} data-tooltip-side="left"><X aria-hidden="true" /></button></header>
       {children}
     </section>
   </div>;
@@ -354,10 +356,13 @@ export function UserGuide() {
       { title: "认识三区工作台", steps: ["左侧“项目导航”用于搜索、筛选和切换项目或集团。", "中间“项目工作区”或“集团工作区”用于处理模块、节点及合并工作。",
         "右侧“待清中心”用于持续追踪缺少文件、等待签署和其他阻塞事项。", "左右区域都可以收起，需要时再展开。"],
       result: "日常工作集中在中间视觉热区，导航和待清事项仍保持随手可用。" },
+      { title: "识别图标和悬停说明", steps: ["常用的编辑、复制、归档、新增和面板开关以统一线性图标显示。",
+        "把鼠标停在图标上，会显示该按钮的完整功能说明。", "使用键盘移动焦点到图标时，也会显示相同说明，并保留屏幕阅读器名称。"],
+      result: "工具栏保持紧凑，同时不需要记住每个图标的含义。" },
     ] },
     { id: "projects", title: "公司与业务模块", summary: "公司记录是年度委聘容器，多个业务模块可以同时推进。", topics: [
       { title: "寻找和筛选项目", steps: ["在项目导航的搜索框输入项目、集团或负责人名称。", "使用“进行中”“已完成”“全部”及“归档”筛选所需记录。",
-        "选择项目名称可打开项目；选择集团名称会同时打开集团并展开或收起下级。"], result: "你只会在当前筛选范围内看到相关记录。" },
+        "选择名称可打开资料；使用控股公司前的加减号展开或收起下级，层级线会显示归属。"], result: "你只会在当前筛选范围内看到相关记录。" },
       { title: "拖动调整集团归属和层级", steps: ["按住公司或控股公司名称开始拖动。", "所有可接收的控股公司行会显示“可放入”；直接拖到所需层级并松开。",
         "拖到导航底部的“移到顶层”区域，即可移出当前控股公司。", "控股公司不能拖入自身或其下级控股公司，归档记录也不能拖动。"],
       result: "公司及子集团层级会立即更新，现有角色和合并就绪条件会保留。" },
@@ -554,12 +559,14 @@ export function NodeBoard({ nodes, readOnly = false, actions }) {
   }, [nodes, selectedId, currentNode?.id]);
   const selected = nodes.find((node) => node.id === selectedId) || nodes[0];
   return <div className="node-board" style={{ "--node-count": Math.max(nodes.length, 1) }}>
-    {!readOnly && <div className="node-structure-actions"><button type="button" className="button secondary" onClick={actions.addNode}>{t("添加节点")}</button>
-      <button type="button" className="button danger-quiet" disabled={!selected}
-        onClick={() => selected && actions.deleteNode(selected)}>{t("删除所选节点")}</button></div>}
+    {!readOnly && <div className="node-structure-actions"><button type="button" className="button secondary icon-only"
+      aria-label={t("添加节点")} data-tooltip={t("添加节点")} onClick={actions.addNode}><Plus aria-hidden="true" /></button>
+      <button type="button" className="button danger-quiet icon-only" disabled={!selected} aria-label={t("删除所选节点")}
+        data-tooltip={t("删除所选节点")} data-tooltip-side="left"
+        onClick={() => selected && actions.deleteNode(selected)}><Trash2 aria-hidden="true" /></button></div>}
     {nodes.length ? <div className="node-track" role="tablist" aria-label={t("项目节点")}>{nodes.map((node, index) => {
       const status = nodeStatus(node); const done = node.conditions.filter((condition) => condition.done).length;
-      return <button type="button" role="tab" aria-selected={selected?.id === node.id} className="node-track-card"
+      return <button type="button" role="tab" aria-selected={selected?.id === node.id} className="node-track-card" title={node.title}
         data-status={status} data-current={currentNode?.id === node.id || undefined} key={node.id} onClick={() => setSelectedId(node.id)}>
         <span className="node-track-number">{index + 1}</span><span><strong>{node.title}</strong>
           <small>{done}/{node.conditions.length} {t("项条件")}</small></span><i>{t(status)}</i></button>;
@@ -567,14 +574,20 @@ export function NodeBoard({ nodes, readOnly = false, actions }) {
       <span>{readOnly ? t("此记录没有保存节点。") : t("添加第一个节点后，即可设置完成条件。")}</span></div>}
     {selected && <section className="node-detail-panel"><header><div><span>{t("节点详情")}</span><h4>{selected.title}</h4>
       {selected.description && <p>{selected.description}</p>}</div>{!readOnly && <div className="node-detail-actions">
-        <button type="button" disabled={nodes.indexOf(selected) === 0} onClick={() => actions.move(selected.id, -1)} aria-label={t("上移节点")}>←</button>
-        <button type="button" disabled={nodes.indexOf(selected) === nodes.length - 1} onClick={() => actions.move(selected.id, 1)} aria-label={t("下移节点")}>→</button>
-        <button type="button" onClick={() => actions.editNode(selected)}>{t("编辑节点")}</button></div>}</header>
+        <button type="button" className="icon-only" disabled={nodes.indexOf(selected) === 0} onClick={() => actions.move(selected.id, -1)}
+          aria-label={t("上移节点")} data-tooltip={t("上移节点")}><ArrowLeft aria-hidden="true" /></button>
+        <button type="button" className="icon-only" disabled={nodes.indexOf(selected) === nodes.length - 1} onClick={() => actions.move(selected.id, 1)}
+          aria-label={t("下移节点")} data-tooltip={t("下移节点")}><ArrowRight aria-hidden="true" /></button>
+        <button type="button" className="icon-only" onClick={() => actions.editNode(selected)} aria-label={t("编辑节点")}
+          data-tooltip={t("编辑节点")}><Pencil aria-hidden="true" /></button></div>}</header>
       {selected.conditions.length ? <div className="condition-list">{selected.conditions.map((condition) => <div className="condition-row"
         data-done={condition.done || undefined} key={condition.id}><label><input type="checkbox" disabled={readOnly}
           checked={condition.done} onChange={() => actions.toggle(selected.id, condition.id)} /><span>{condition.label}</span></label>
-        {!readOnly && <div className="condition-actions"><button type="button" onClick={() => actions.editCondition(selected, condition)}>{t("修改")}</button>
-          <button type="button" onClick={() => actions.deleteCondition(selected.id, condition.id)}>{t("删除")}</button></div>}</div>)}</div>
+        {!readOnly && <div className="condition-actions"><button type="button" className="icon-only"
+          onClick={() => actions.editCondition(selected, condition)} aria-label={t("修改")} data-tooltip={t("修改")}>
+          <Pencil aria-hidden="true" /></button><button type="button" className="icon-only"
+            onClick={() => actions.deleteCondition(selected.id, condition.id)} aria-label={t("删除")}
+            data-tooltip={t("删除")} data-tooltip-side="left"><Trash2 aria-hidden="true" /></button></div>}</div>)}</div>
         : <div className="condition-empty">{t("这个节点还没有完成条件。")}</div>}
       {!readOnly && <footer className="node-footer"><button type="button" className="add-condition" onClick={() => actions.addCondition(selected)}>{t("＋ 添加完成条件")}</button></footer>}
     </section>}

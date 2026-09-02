@@ -1,4 +1,5 @@
 import React from "react";
+import { Building, Building2, Minus, Plus } from "lucide-react";
 import { ProgressBar } from "./components.jsx";
 import { GROUP_AUDIT_TYPES, GROUP_AUDIT_TYPE_KEYS, canMoveWorkspaceItem, collectGroupOutstandingEntries, formatDate,
   groupProgress, makeGroupMember, memberIsReady, memberProgressPercentage, outstandingIsOpen, projectStats,
@@ -80,7 +81,7 @@ export function GroupForm({ initial, sampleName, allowTemplate = true, memberTar
         const target = memberTarget(member);
         const archived = Boolean(target?.archived);
         return <article className="group-membership-row" key={member.id} data-archived={archived || undefined}>
-          <div className="group-member-identity"><i>{member.kind === "project" ? "C" : "H"}</i><span><strong>{target?.name || t("未找到组成部分")}</strong>
+          <div className="group-member-identity"><i>{member.kind === "project" ? <Building aria-hidden="true" /> : <Building2 aria-hidden="true" />}</i><span><strong>{target?.name || t("未找到组成部分")}</strong>
             <small>{t(member.kind === "project" ? "公司项目" : "子集团")}{archived ? ` · ${t("已归档")}` : ""}</small></span></div>
           <label><span>{t("集团角色")}</span><input disabled={archived} value={member.role || ""}
             onChange={(event) => updateMember(member.id, { role: event.target.value })} placeholder={t("例如：母公司、子公司或地区子集团")} /></label>
@@ -186,13 +187,14 @@ export function WorkspaceTree({ store, selection, onSelect, onMove, search, filt
     if (!visibleProject(project)) return null;
     const stats = projectStats(project);
     const outstanding = project.outstandingItems.filter((item) => outstandingIsOpen(item, statuses)).length;
-    return <button type="button" className="tree-row tree-project-row" style={{ "--tree-depth": depth }} key={project.id}
+    return <button type="button" className="tree-row tree-project-row" data-depth={depth}
+      style={{ "--tree-depth": depth }} key={project.id}
       data-selected={selection?.kind === "project" && selection.id === project.id || undefined}
       data-dragging={dragging?.kind === "project" && dragging.id === project.id || undefined}
       draggable={!archiveMode} title={!archiveMode ? t("拖动以更改所属集团或层级") : undefined}
       onDragStart={(event) => beginDrag(event, "project", project.id)} onDragEnd={finishDrag}
       onClick={() => onSelect({ kind: "project", id: project.id })}>
-      <span className="tree-kind-mark">C</span><span className="tree-copy"><strong>{project.name}</strong>
+      <span className="tree-kind-mark"><Building aria-hidden="true" /></span><span className="tree-copy"><strong>{project.name}</strong>
         <small>{project.owner || project.entity || reportingPeriodLabel(project, language) || t("尚未填写项目资料")}</small></span>
       {outstanding > 0 && <em>{outstanding}</em>}<span className="tree-progress">{stats.completedWorkstreams}/{stats.workstreams}</span>
     </button>;
@@ -215,22 +217,26 @@ export function WorkspaceTree({ store, selection, onSelect, onMove, search, filt
     const hasChildren = children.length > 0;
     const open = hasChildren && groupOpen(group.id);
     const dropEligible = Boolean(dragging && canDrop(group.id));
-    return <React.Fragment key={group.id}><div className="tree-group-line" style={{ "--tree-depth": depth }}>
-      <button type="button" className="tree-row tree-group-row" aria-expanded={hasChildren ? open : undefined}
+    return <div className="tree-branch" key={group.id}><div className="tree-group-line" data-depth={depth}
+      style={{ "--tree-depth": depth }}>
+      {hasChildren ? <button type="button" className="tree-expander" aria-expanded={open}
+        aria-label={t(open ? "收起集团" : "展开集团")} title={t(open ? "收起集团" : "展开集团")}
+        onClick={() => toggle(group.id)}>{open ? <Minus aria-hidden="true" /> : <Plus aria-hidden="true" />}</button>
+        : <span className="tree-expander-spacer" aria-hidden="true" />}
+      <button type="button" className="tree-row tree-group-row"
         data-selected={selection?.kind === "group" && selection.id === group.id || undefined}
         data-dragging={dragging?.kind === "group" && dragging.id === group.id || undefined}
         data-drop-eligible={dropEligible || undefined} data-drop-target={dropTarget === group.id || undefined}
         draggable={!archiveMode} title={!archiveMode ? t("拖动以更改所属集团或层级") : undefined}
         onDragStart={(event) => beginDrag(event, "group", group.id)} onDragEnd={finishDrag}
         onDragEnter={(event) => dragOver(event, group.id)} onDragOver={(event) => dragOver(event, group.id)}
-        onDrop={(event) => drop(event, group.id)}
-        onClick={() => { onSelect({ kind: "group", id: group.id }); if (hasChildren) toggle(group.id); }}>
-        <span className="tree-kind-mark">H</span><span className="tree-copy"><strong>{group.name}</strong>
+        onDrop={(event) => drop(event, group.id)} onClick={() => onSelect({ kind: "group", id: group.id })}>
+        <span className="tree-kind-mark"><Building2 aria-hidden="true" /></span><span className="tree-copy"><strong>{group.name}</strong>
           <small>{group.owner || reportingPeriodLabel(group, language) || t("尚未填写集团资料")}</small></span>
         {openOutstanding > 0 && <em>{openOutstanding}</em>}<span className="tree-progress">{dropEligible
           ? <span className="tree-drop-hint">{t(dropTarget === group.id ? "松开放入" : "可放入")}</span>
-          : <><span>{stats.percentage}%</span>{hasChildren && <i className="tree-disclosure" aria-hidden="true">{open ? "▾" : "›"}</i>}</>}</span>
-      </button></div>{open && <div className="tree-children">{children}</div>}</React.Fragment>;
+          : <span>{stats.percentage}%</span>}</span>
+      </button></div>{open && <div className="tree-children" style={{ "--tree-line-offset": `${depth * 15 + 9}px` }}>{children}</div>}</div>;
   };
 
   const rootGroups = store.groups.filter((group) => !groupParents.has(group.id));
@@ -299,7 +305,7 @@ export function GroupMatrix({ store, group, statuses, onOpen, onConfigure, readO
         const completedReadiness = member.readinessConditions?.filter((condition) => condition.done).length || 0;
         return <div className="group-matrix-row" role="row" key={member.id}>
           <button type="button" className="matrix-name" style={{ "--matrix-depth": depth }} onClick={() => onOpen(member.kind, target.id)}>
-            <span className="matrix-kind">{isGroup ? "H" : "C"}</span><span><strong>{target.name}</strong>
+            <span className="matrix-kind">{isGroup ? <Building2 aria-hidden="true" /> : <Building aria-hidden="true" />}</span><span><strong>{target.name}</strong>
               <small>{target.entity || reportingPeriodLabel(target, language) || t(isGroup ? "子集团" : "公司项目")}</small></span></button>
           <span>{member.role || t(isGroup ? "子集团" : "组成部分")}</span>
           <span>{isGroup ? t(target.consolidationEnabled ? "子集团合并" : "分类集团") : t(auditTypeKeys[member.auditType])}</span>

@@ -25,6 +25,7 @@ The project follows [Semantic Versioning](https://semver.org/).
 - Storage V7 fields for reporting-period start/end dates and a customisable financial reporting standard or framework, while preserving legacy period text.
 - A unified New company flow for creating either a company or a holding company.
 - Explicit drop targets on every eligible holding-company row, including expanded middle levels.
+- A centre-first, Obsidian-inspired workspace mode with an on-demand outstanding panel for narrower desktop windows.
 
 ### Changed
 
@@ -41,6 +42,8 @@ The project follows [Semantic Versioning](https://semver.org/).
 - Removed the toolbar creation menu and moved the single creation entry point into Project navigation.
 - Made English the default language for new users and refined English-first labels, form hierarchy and feedback.
 - Increased small interface type and added responsive pane, toolbar, form and card layouts for browser zoom and narrower desktop windows.
+- Added explicit plus/minus disclosure controls and hierarchy guide lines to the holding-company navigation tree.
+- Replaced long high-frequency action labels with consistent Lucide icons, full hover/focus explanations and accessible labels.
 
 ## [0.2.0] - 2026-09-02
 

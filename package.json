@@ -21,6 +21,7 @@
     "check": "node --test && vite build"
   },
   "dependencies": {
+    "lucide-react": "^1.39.0",
     "react": "^19.2.3",
     "react-dom": "^19.2.3"
   },

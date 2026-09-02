@@ -1,4 +1,6 @@
 import React from "react";
+import { Archive, ArchiveRestore, BookOpen, Building, Building2, Copy, DatabaseBackup, Languages, LibraryBig, ListPlus, Palette,
+  PanelLeftClose, PanelLeftOpen, PanelRightClose, PanelRightOpen, Pencil, Plus, Search, Trash2 } from "lucide-react";
 import { Modal, NodeBoard, NodeForm, OutstandingStatusEditor, ProgressBar, ProjectForm, SampleEditor,
   SampleLibrary, UserGuide, WorkstreamCard, WorkstreamCategoryEditor, WorkstreamForm } from "./components.jsx";
 import { GroupForm, GroupMatrix, GroupMemberAddForm, GroupMemberForm, GroupSampleEditor, GroupSampleLibrary,
@@ -36,6 +38,10 @@ function DashboardWorkbench() {
   const [outstandingCollapsed, setOutstandingCollapsed] = React.useState(() => {
     try { return localStorage.getItem(OUTSTANDING_PREFERENCE_KEY) === "true"; } catch { return false; }
   });
+  const [compactLayout, setCompactLayout] = React.useState(() => {
+    try { return window.matchMedia("(max-width: 1399px)").matches; } catch { return false; }
+  });
+  const [compactOutstandingOpen, setCompactOutstandingOpen] = React.useState(false);
   const importRef = React.useRef(null);
   const toolbarRef = React.useRef(null);
   const toolbarMenuRefs = React.useRef([]);
@@ -55,6 +61,16 @@ function DashboardWorkbench() {
   React.useEffect(() => {
     try { localStorage.setItem(OUTSTANDING_PREFERENCE_KEY, String(outstandingCollapsed)); } catch { /* optional */ }
   }, [outstandingCollapsed]);
+  React.useEffect(() => {
+    const query = window.matchMedia("(max-width: 1399px)");
+    const updateCompactLayout = (event) => {
+      setCompactLayout(event.matches);
+      if (!event.matches) setCompactOutstandingOpen(false);
+    };
+    updateCompactLayout(query);
+    query.addEventListener?.("change", updateCompactLayout);
+    return () => query.removeEventListener?.("change", updateCompactLayout);
+  }, []);
   React.useEffect(() => {
     const matchesFilter = (item, kind) => {
       if (filter === "archived") return item.archived;
@@ -334,19 +350,26 @@ function DashboardWorkbench() {
     && canNestGroup(store, selectedGroupSource?.id, group.id));
   const activeOutstandingCount = activeOutstandingItems(store).filter((item) => outstandingIsOpen(item, store.outstandingStatuses)).length;
   const languageLabel = language === "en" ? "English" : language === "zh-Hant" ? "繁體中文" : "简体中文";
+  const languageCode = language === "en" ? "EN" : language === "zh-Hant" ? "繁" : "简";
+  const outstandingPanelCollapsed = compactLayout ? !compactOutstandingOpen : outstandingCollapsed;
+  const expandOutstandingPanel = () => compactLayout ? setCompactOutstandingOpen(true) : setOutstandingCollapsed(false);
+  const collapseOutstandingPanel = () => compactLayout ? setCompactOutstandingOpen(false) : setOutstandingCollapsed(true);
 
   return <article className="audit-workbench">
     {message && <div className="save-toast" role="status">{message}</div>}
     <header className="workbench-toolbar"><div className="workbench-brand"><h1>{t("审计项目工作台")}</h1>
       <p>{t("以项目为容器，并行追踪审计、税务、客户尽职调查及收费工作。")}</p></div>
       <nav className="toolbar-actions" aria-label={t("工作台操作")} ref={toolbarRef}>
-        <button type="button" className="toolbar-action-button" onClick={() => { closeMenu(); setModal({ type: "template-library" }); }}>
-          {t("范本库")}…</button>
-        <button type="button" className="toolbar-action-button" onClick={() => { closeMenu(); setModal({ type: "user-guide" }); }}>
-          {t("使用指南")}…</button>
+        <button type="button" className="toolbar-action-button icon-only" aria-label={t("范本库")}
+          data-tooltip={t("范本库")} onClick={() => { closeMenu(); setModal({ type: "template-library" }); }}>
+          <LibraryBig aria-hidden="true" /></button>
+        <button type="button" className="toolbar-action-button icon-only" aria-label={t("使用指南")}
+          data-tooltip={t("使用指南")} onClick={() => { closeMenu(); setModal({ type: "user-guide" }); }}>
+          <BookOpen aria-hidden="true" /></button>
         <span className="toolbar-divider" aria-hidden="true" />
         <details className="toolbar-menu" ref={(element) => { toolbarMenuRefs.current[0] = element; }}>
-          <summary onClick={() => closeOtherMenus(0)}>{t("备份")}</summary>
+          <summary className="toolbar-icon-summary" aria-label={t("备份")} data-tooltip={t("备份")}
+            onClick={() => closeOtherMenus(0)}><DatabaseBackup aria-hidden="true" /></summary>
           <div className="toolbar-menu-popover"><input ref={importRef} type="file" accept="application/json" hidden
             onChange={(event) => importBackup(event.target.files?.[0])} />
             <button type="button" onClick={() => { closeMenu(); importRef.current?.click(); }}>{t("恢复备份")}…</button>
@@ -354,7 +377,9 @@ function DashboardWorkbench() {
             <button type="button" className="toolbar-menu-danger" onClick={() => { closeMenu(); setModal({ type: "initialize-workbench" }); }}>
               {t("初始化工作台")}…</button></div></details>
         <details className="toolbar-menu" ref={(element) => { toolbarMenuRefs.current[1] = element; }}>
-          <summary className="language-summary" onClick={() => closeOtherMenus(1)}><span>{t("语言")}</span><small>{languageLabel}</small></summary>
+          <summary className="language-summary toolbar-icon-summary" aria-label={`${t("语言")} · ${languageLabel}`}
+            data-tooltip={`${t("语言")} · ${languageLabel}`} data-tooltip-side="left"
+            onClick={() => closeOtherMenus(1)}><Languages aria-hidden="true" /><small>{languageCode}</small></summary>
           <div className="toolbar-menu-popover language-menu"><button type="button" aria-pressed={language === "zh-Hans"}
             onClick={() => { setLanguage("zh-Hans"); closeMenu(); }}><span>{t("简体中文")}</span>{language === "zh-Hans" && <small>{t("当前")}</small>}</button>
             <button type="button" aria-pressed={language === "zh-Hant"} onClick={() => { setLanguage("zh-Hant"); closeMenu(); }}>
@@ -364,17 +389,19 @@ function DashboardWorkbench() {
       </nav></header>
 
     <section className="workbench-layout" data-sidebar-collapsed={sidebarCollapsed || undefined}
-      data-outstanding-collapsed={outstandingCollapsed || undefined}>
+      data-compact-layout={compactLayout || undefined} data-outstanding-collapsed={outstandingPanelCollapsed || undefined}>
       <aside className="project-panel" aria-label={t("项目导航")}>
         {sidebarCollapsed ? <button type="button" className="sidebar-rail-toggle" aria-expanded="false" aria-label={t("展开项目导航")}
-          title={t("展开项目导航")} onClick={() => setSidebarCollapsed(false)}><span aria-hidden="true">›</span><small>{t("项目")}</small></button> : <>
+          data-tooltip={t("展开项目导航")} data-tooltip-side="right"
+          onClick={() => setSidebarCollapsed(false)}><PanelLeftOpen aria-hidden="true" /><small>{t("项目")}</small></button> : <>
           <div className="project-panel-controls"><div className="project-panel-title"><div><button type="button" className="sidebar-toggle"
-            aria-expanded="true" aria-label={t("收起项目导航")} title={t("收起项目导航")} onClick={() => setSidebarCollapsed(true)}>‹</button>
-            <strong>{t("项目导航")}</strong></div><button type="button" className="project-panel-new"
-              onClick={() => setModal({ type: "create-company" })}>{t("新建公司")}</button></div>
-            <label className="search-field"><span aria-hidden="true">⌕</span><input value={search} onChange={(event) => setSearch(event.target.value)}
-              placeholder={t("搜索项目、集团或负责人")} aria-label={t("搜索项目、集团或负责人")} /></label>
-            <div className="filter-tabs" role="tablist" aria-label={t("项目状态")}>{[["active", "进行中"], ["completed", "已完成"],
+            aria-expanded="true" aria-label={t("收起项目导航")} data-tooltip={t("收起项目导航")}
+            onClick={() => setSidebarCollapsed(true)}><PanelLeftClose aria-hidden="true" /></button>
+            <strong>{t("公司列表")}</strong></div><button type="button" className="project-panel-new"
+              onClick={() => setModal({ type: "create-company" })}><Plus aria-hidden="true" /><span>{t("新建公司")}</span></button></div>
+            <label className="search-field"><Search aria-hidden="true" /><input value={search} onChange={(event) => setSearch(event.target.value)}
+              placeholder={t("搜索公司或负责人")} aria-label={t("搜索公司、控股公司或负责人")} /></label>
+            <div className="filter-tabs" role="tablist" aria-label={t("项目状态")}>{[["active", "活跃"], ["completed", "已完成"],
               ["all", "全部"], ["archived", "归档"]].map(([value, label]) => <button type="button" role="tab" key={value}
                 aria-selected={filter === value} onClick={() => setFilter(value)}>{t(label)}</button>)}</div></div>
           <WorkspaceTree store={store} selection={selection} onSelect={setSelection} search={search} filter={filter}
@@ -392,11 +419,14 @@ function DashboardWorkbench() {
               <p>{t("选择后可查看业务模块、集团合并及待清事项。")}</p></div>}
       </main>
       <aside className="outstanding-center-shell" aria-label={t("待清中心")}>
-        {outstandingCollapsed ? <button type="button" className="outstanding-rail-toggle" aria-expanded="false"
-          aria-label={t("展开待清中心")} title={t("展开待清中心")} onClick={() => setOutstandingCollapsed(false)}>
-          <span>‹</span><strong>{activeOutstandingCount}</strong><small>{t("待清")}</small></button> : <>
+        {outstandingPanelCollapsed ? <button type="button" className="outstanding-rail-toggle" aria-expanded="false"
+          aria-label={t("展开待清中心")} data-tooltip={t("展开待清中心")}
+          data-tooltip-side="left" onClick={expandOutstandingPanel}>
+          <PanelRightOpen aria-hidden="true" /><strong>{activeOutstandingCount}</strong><small>{t("待清")}</small></button> : <>
           <header className="outstanding-shell-title"><div><strong>{t("待清中心")}</strong><span>{t("项目级及业务模块阻塞事项")}</span></div>
-            <button type="button" aria-label={t("收起待清中心")} title={t("收起待清中心")} onClick={() => setOutstandingCollapsed(true)}>›</button></header>
+            <button type="button" className="icon-only" aria-label={t("收起待清中心")}
+              data-tooltip={t("收起待清中心")} data-tooltip-side="left" onClick={collapseOutstandingPanel}>
+              <PanelRightClose aria-hidden="true" /></button></header>
           {selectedProject ? <OutstandingCenter store={store} target={selectedProjectSource} targetKind="project" statuses={outstandingStatusViews}
             updateProject={updateProject} updateGroup={updateGroup} setModal={setModal} setSelection={setSelection} notify={notify}
             readOnly={selectedProjectSource.archived} activeWorkstreamId={activeWorkstreamId} />
@@ -556,12 +586,17 @@ function ProjectDetail({ project, rawProject, statuses, parentMembership, active
     <header className="detail-header"><div className="detail-title"><div><span className="workspace-label">{t("项目工作区")}</span><h2>{primaryName}</h2></div>
       <p>{subtitle}</p></div>
       <div className="detail-actions">{readOnly ? <>
-        <button type="button" className="button secondary" onClick={() => restoreTarget("project", rawProject.id)}>{t("恢复")}</button>
-        <button type="button" className="button danger-quiet" onClick={() => setModal({ type: "delete-target", targetKind: "project",
-          targetId: rawProject.id, name: rawProject.name })}>{t("永久删除")}</button></> : <>
-        <button type="button" className="button primary" onClick={() => setModal({ type: "edit-project" })}>{t("编辑公司及集团归属")}</button>
-        <button type="button" className="button secondary" onClick={() => duplicateProject(rawProject)}>{t("复制项目")}</button>
-        <button type="button" className="button secondary" onClick={() => archiveTarget("project", rawProject.id)}>{t("归档项目")}</button></>}</div>
+        <button type="button" className="button secondary icon-only" aria-label={t("恢复")} data-tooltip={t("恢复")}
+          onClick={() => restoreTarget("project", rawProject.id)}><ArchiveRestore aria-hidden="true" /></button>
+        <button type="button" className="button danger-quiet icon-only" aria-label={t("永久删除")}
+          data-tooltip={t("永久删除")} onClick={() => setModal({ type: "delete-target", targetKind: "project",
+            targetId: rawProject.id, name: rawProject.name })}><Trash2 aria-hidden="true" /></button></> : <>
+        <button type="button" className="button primary icon-only" aria-label={t("编辑公司及集团归属")}
+          data-tooltip={t("编辑公司及集团归属")} onClick={() => setModal({ type: "edit-project" })}><Pencil aria-hidden="true" /></button>
+        <button type="button" className="button secondary icon-only" aria-label={t("复制项目")}
+          data-tooltip={t("复制项目")} onClick={() => duplicateProject(rawProject)}><Copy aria-hidden="true" /></button>
+        <button type="button" className="button secondary icon-only" aria-label={t("归档项目")}
+          data-tooltip={t("归档项目")} onClick={() => archiveTarget("project", rawProject.id)}><Archive aria-hidden="true" /></button></>}</div>
     </header>
     <dl className="detail-facts"><div><dt>{t("负责人")}</dt><dd>{project.owner || t("未设置")}</dd></div>
       <div><dt>{t("目标完成日期")}</dt><dd>{formatDate(project.dueDate, language)}</dd></div>
@@ -572,8 +607,9 @@ function ProjectDetail({ project, rawProject, statuses, parentMembership, active
 
     <section className="workstream-overview"><header className="section-heading"><div><h3>{t("业务模块")}</h3>
       <p>{t("各模块并行推进，并分别追踪负责人、截止日和完成条件。")}</p></div>
-      {!readOnly && <button type="button" className="button secondary" onClick={() => setModal({ type: "workstream-add",
-        targetKind: "project", targetId: rawProject.id })}>{t("添加业务模块")}</button>}</header>
+      {!readOnly && <button type="button" className="button secondary icon-only" aria-label={t("添加业务模块")}
+        data-tooltip={t("添加业务模块")} onClick={() => setModal({ type: "workstream-add",
+          targetKind: "project", targetId: rawProject.id })}><ListPlus aria-hidden="true" /></button>}</header>
       <div className="workstream-card-grid">{project.workstreams.map((workstream) => <WorkstreamCard key={workstream.id}
         workstream={workstream} selected={workstream.id === activeWorkstream?.id}
         openItems={rawProject.outstandingItems.filter((item) => item.workstreamId === workstream.id
@@ -607,11 +643,15 @@ function GroupDetail({ store, group, statuses, updateWorkflowNodes, setModal, se
       <span>{t("归档记录不能编辑；恢复后才可继续更新。")}</span></div>}
     <header className="detail-header"><div className="detail-title"><div><span className="workspace-label">{t("集团工作区")}</span><h2>{group.name}</h2></div>
       <p>{reportingPeriodLabel(group, language) || t("尚未填写集团资料")}</p></div><div className="detail-actions">{readOnly ? <>
-        <button type="button" className="button secondary" onClick={() => restoreTarget("group", group.id)}>{t("恢复")}</button>
-        <button type="button" className="button danger-quiet" onClick={() => setModal({ type: "delete-target", targetKind: "group",
-          targetId: group.id, name: group.name })}>{t("永久删除")}</button></> : <>
-        <button type="button" className="button primary" onClick={() => setModal({ type: "edit-group" })}>{t("编辑集团及成员")}</button>
-        <button type="button" className="button secondary" onClick={() => archiveTarget("group", group.id)}>{t("归档集团")}</button></>}</div></header>
+        <button type="button" className="button secondary icon-only" aria-label={t("恢复")} data-tooltip={t("恢复")}
+          onClick={() => restoreTarget("group", group.id)}><ArchiveRestore aria-hidden="true" /></button>
+        <button type="button" className="button danger-quiet icon-only" aria-label={t("永久删除")}
+          data-tooltip={t("永久删除")} onClick={() => setModal({ type: "delete-target", targetKind: "group",
+            targetId: group.id, name: group.name })}><Trash2 aria-hidden="true" /></button></> : <>
+        <button type="button" className="button primary icon-only" aria-label={t("编辑集团及成员")}
+          data-tooltip={t("编辑集团及成员")} onClick={() => setModal({ type: "edit-group" })}><Pencil aria-hidden="true" /></button>
+        <button type="button" className="button secondary icon-only" aria-label={t("归档集团")}
+          data-tooltip={t("归档集团")} onClick={() => archiveTarget("group", group.id)}><Archive aria-hidden="true" /></button></>}</div></header>
     <section className="group-status-strip" aria-label={t("集团状态")}><article><span>{t("组成部分进度")}</span>
       <div><strong>{stats.componentPercentage}%</strong></div><ProgressBar value={stats.componentPercentage} compact /></article>
       <article><span>{t("公司合并就绪")}</span><div><strong>{stats.readyCompanies}/{stats.totalCompanies}</strong><small>{t("家公司")}</small></div></article>
@@ -643,7 +683,7 @@ function GroupDetail({ store, group, statuses, updateWorkflowNodes, setModal, se
         if (!target) return null;
         return <button type="button" disabled={readOnly} key={member.id}
           onClick={() => setModal({ type: "member-edit", sourceGroupId: rawGroup.id, memberId: member.id })}>
-          <span>{member.kind === "project" ? "C" : "H"}</span><strong>{target.name}</strong>
+          <span>{member.kind === "project" ? <Building aria-hidden="true" /> : <Building2 aria-hidden="true" />}</span><strong>{target.name}</strong>
           <small>{member.role || t(member.kind === "project" ? "组成部分" : "子集团")}</small></button>;
       })}</div></section>}
   </div>;
@@ -720,9 +760,11 @@ function OutstandingCenter({ store, target, targetKind, statuses, updateProject,
       <select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)} aria-label={t("按待清状态筛选")}>
         <option value="open">{t("全部未清")}</option><option value="all">{t("全部状态")}</option>
         {statuses.map((status) => <option value={status.id} key={status.id}>{status.label}</option>)}</select></div>
-    {!readOnly && <div><button type="button" onClick={() => setModal({ type: "outstanding-statuses" })}>{t("状态与颜色")}</button>
-      <button type="button" className="button primary" onClick={() => setModal({ type: "outstanding", targetKind,
-        targetId: target.id, defaultWorkstreamId: targetKind === "project" ? activeWorkstreamId : null })}>{t("添加待清")}</button></div>}</div>
+    {!readOnly && <div className="outstanding-center-actions"><button type="button" className="icon-only" aria-label={t("状态与颜色")}
+      data-tooltip={t("状态与颜色")} onClick={() => setModal({ type: "outstanding-statuses" })}><Palette aria-hidden="true" /></button>
+      <button type="button" className="button primary icon-only" aria-label={t("添加待清")}
+        data-tooltip={t("添加待清")} data-tooltip-side="left" onClick={() => setModal({ type: "outstanding", targetKind,
+          targetId: target.id, defaultWorkstreamId: targetKind === "project" ? activeWorkstreamId : null })}><ListPlus aria-hidden="true" /></button></div>}</div>
     <div className="outstanding-list">{visible.map((entry) => {
       const status = statusById(entry.item.status);
       return <article className="outstanding-item" style={{ "--status-color": status?.color || "#778078" }} key={`${entry.sourceId}-${entry.item.id}`}>
