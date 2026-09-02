@@ -42,12 +42,11 @@ function DashboardWorkbench() {
   const closeMenu = React.useCallback(() => toolbarMenuRefs.current.forEach((menu) => {
     if (menu) menu.open = false;
   }), []);
-  const handleToolbarMenuToggle = (index, event) => {
-    if (!event.currentTarget.open) return;
+  const closeOtherMenus = React.useCallback((index) => {
     toolbarMenuRefs.current.forEach((menu, itemIndex) => {
       if (menu && itemIndex !== index) menu.open = false;
     });
-  };
+  }, []);
 
   React.useEffect(() => localStorage.setItem(STORAGE_KEY, JSON.stringify(store)), [store]);
   React.useEffect(() => {
@@ -292,22 +291,22 @@ function DashboardWorkbench() {
     <header className="workbench-toolbar"><div><h1>{t("审计项目工作台")}</h1>
       <p>{t("以项目为容器，并行追踪审计、税务、客户尽职调查及收费工作。")}</p></div>
       <nav className="toolbar-actions" aria-label={t("工作台操作")} ref={toolbarRef}>
-        <details className="toolbar-menu" data-primary ref={(element) => { toolbarMenuRefs.current[0] = element; }}
-          onToggle={(event) => handleToolbarMenuToggle(0, event)}><summary>{t("新建")}</summary>
+        <details className="toolbar-menu" data-primary ref={(element) => { toolbarMenuRefs.current[0] = element; }}>
+          <summary onClick={() => closeOtherMenus(0)}>{t("新建")}</summary>
           <div className="toolbar-menu-popover"><button type="button" onClick={() => { closeMenu(); setModal({ type: "create-project" }); }}>
             {t("新建项目")}…</button><button type="button" onClick={() => { closeMenu(); setModal({ type: "create-group" }); }}>
               {t("新建集团")}…</button></div></details>
         <button type="button" className="toolbar-action-button" onClick={() => { closeMenu(); setModal({ type: "template-library" }); }}>
           {t("范本库")}…</button>
         <span className="toolbar-divider" aria-hidden="true" />
-        <details className="toolbar-menu" ref={(element) => { toolbarMenuRefs.current[1] = element; }}
-          onToggle={(event) => handleToolbarMenuToggle(1, event)}><summary>{t("备份")}</summary>
+        <details className="toolbar-menu" ref={(element) => { toolbarMenuRefs.current[1] = element; }}>
+          <summary onClick={() => closeOtherMenus(1)}>{t("备份")}</summary>
           <div className="toolbar-menu-popover"><input ref={importRef} type="file" accept="application/json" hidden
             onChange={(event) => importBackup(event.target.files?.[0])} />
             <button type="button" onClick={() => { closeMenu(); importRef.current?.click(); }}>{t("恢复备份")}…</button>
             <button type="button" onClick={exportBackup}>{t("导出备份")}</button></div></details>
-        <details className="toolbar-menu" ref={(element) => { toolbarMenuRefs.current[2] = element; }}
-          onToggle={(event) => handleToolbarMenuToggle(2, event)}><summary className="language-summary"><span>{t("语言")}</span><small>{languageLabel}</small></summary>
+        <details className="toolbar-menu" ref={(element) => { toolbarMenuRefs.current[2] = element; }}>
+          <summary className="language-summary" onClick={() => closeOtherMenus(2)}><span>{t("语言")}</span><small>{languageLabel}</small></summary>
           <div className="toolbar-menu-popover language-menu"><button type="button" aria-pressed={language === "zh-Hans"}
             onClick={() => { setLanguage("zh-Hans"); closeMenu(); }}><span>{t("简体中文")}</span>{language === "zh-Hans" && <small>{t("当前")}</small>}</button>
             <button type="button" aria-pressed={language === "zh-Hant"} onClick={() => { setLanguage("zh-Hant"); closeMenu(); }}>
