@@ -8,22 +8,23 @@
 
 ## 主要功能
 
-- 固定三区桌面布局：左侧项目导航、中间项目／集团工作区、右侧待清中心；左右区域均可收起。
-- 顶部操作按用途分为新建、范本库、备份及语言四组；常用入口直接显示，同类次要操作才使用短菜单。
-- 每个项目可启用多个并行业务模块，各自拥有负责人、截止日、横向节点和客观达成条件。
+- 固定三区桌面布局：左侧项目导航、中间项目／集团工作区、右侧待清中心；左右区域均可收起。项目导航提供直接新建入口，并可拖动项目或集团改变归属及层级；点击集团整行即可展开或收起。
+- 顶部使用紧凑工具列，操作按用途分为新建、范本库、备份及语言四组；常用入口直接显示，同类次要操作才使用短菜单。
+- 内置分章节使用指南，逐项说明入口、操作步骤和完成结果。
+- 每个项目记录法律实体、可自定义财务报告准则／框架，以及可覆盖短期或长期间的报告期开始日和结束日；多个业务模块可并行启用，并各自拥有负责人、截止日、横向节点和客观达成条件。
 - 项目显示“已完成模块数／全部模块数”，只有全部启用模块完成后才算完成，不使用容易误导的混合百分比。
 - 多层集团审计：集团可包含公司项目或子集团，每一级可选择独立合并流程或仅作分类。
-- 集团总览同时显示公司平均进度、合并流程进度、70%／30%整体进度及公司合并就绪门槛。
+- 集团总览以紧凑状态栏显示组成部分进度、公司合并就绪、本级合并流程及未清事项，让公司清单和合并节点优先进入首屏。
 - 公司可新建或关联现有项目，并按本团队审计、其他审计师或管理账设置不同的合并就绪条件。
 - 公司资料可直接选择或变更所属集团；集团资料可集中添加、移除及修改公司与子集团。
 - 集团待清事项与下级公司事项集中汇总，同时保留来源和跳转入口。
 - 节点横向排列；所选节点的达成条件固定显示在下方，不会把相邻节点推离视野。
 - 独立待清中心不影响节点进度；状态可新增、改名、排序、定义“已清”语义并自定义颜色，事项可归属项目级或指定业务模块。
-- 范本库按业务模块分类，每类可保存多个范本；另有集团范本保存合并节点和审计类别默认就绪条件。
+- 范本库按业务模块分类，每类可保存多个范本；可新增、改名及排序自定义种类，另有集团范本保存合并节点和审计类别默认就绪条件。
 - 范本公司名称精确去敏：只替换使用者输入的完整公司名称，不自动猜测。
 - 完整的简体中文、繁体中文和英文系统界面；内置内容随语言切换，自定义范本、项目名称和使用者资料保持原文。
 - 归档项目和集团与活跃统计及汇总隔离；归档详情只读，只可恢复或永久删除。
-- 本机浏览器自动保存，并支持 JSON 备份导入、导出。
+- 本机浏览器自动保存，并支持 JSON 备份导入、导出及受保护的工作台初始化。
 
 ## 快速开始
 
@@ -59,22 +60,23 @@ Audit Project Workbench (APW) is a desktop-first, local-first tracker for profes
 
 ### Features
 
-- A fixed three-pane desktop layout: project navigation, project/group workspace and outstanding centre, with collapsible side panes.
-- A purpose-grouped toolbar for creating records, opening the template library, managing backups and changing language; frequent actions stay visible while related secondary actions use short menus.
-- Parallel workstreams with independent owners, deadlines, horizontal stages and objective completion criteria.
+- A fixed three-pane desktop layout: project navigation, project/group workspace and outstanding centre, with collapsible side panes. Project navigation includes a direct create action and drag-and-drop reassignment or nesting; selecting a group row expands or collapses it.
+- A compact, purpose-grouped toolbar for creating records, opening the template library, managing backups and changing language; frequent actions stay visible while related secondary actions use short menus.
+- A built-in, sectioned user guide explaining each entry point, procedure and expected result.
+- Project details capture the legal entity, a customisable financial reporting standard or framework, and reporting-period start and end dates suitable for short or extended periods; parallel workstreams retain independent owners, deadlines, horizontal stages and objective completion criteria.
 - Project completion shown as completed workstreams out of total workstreams; all enabled workstreams must finish before the project completes.
 - Multi-level group audits with company projects, optional subgroup consolidation workflows and classification-only levels.
-- A group dashboard showing company-average progress, consolidation progress, a 70% / 30% overall score and explicit readiness gates.
+- A compact group status strip for component progress, company readiness, consolidation progress and open items, keeping the company matrix and consolidation stages in the first screenful.
 - New or existing company projects can be linked to a group with readiness defaults for internal audits, other component auditors or management accounts.
 - Company details can change group assignment directly, while group details manage companies and subgroups in one member roster.
 - Group outstanding items roll up company and subgroup items while preserving their source and navigation.
 - Horizontal stages with a stable detail panel below, so opening one stage never displaces its neighbours.
 - A separate outstanding centre that never changes stage progress, with custom labels, ordering, cleared-state semantics and colours; items can be project-level or linked to a workstream.
-- Multiple templates per workstream category plus separate group templates for consolidation stages and readiness defaults.
+- Multiple templates per workstream category, user-defined category names and ordering, plus separate group templates for consolidation stages and readiness defaults.
 - Exact-match company-name de-identification within templates.
 - Complete Simplified Chinese, Traditional Chinese and English system UI; built-in content follows the interface language while custom content remains unchanged.
 - Archived records are isolated from active calculations and are read-only until restored; permanent deletion is available only from the archive.
-- Browser-local autosave plus JSON backup and restore.
+- Browser-local autosave, JSON backup and restore, plus protected workbench initialisation.
 
 ### Local development
 

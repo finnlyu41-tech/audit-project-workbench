@@ -1,7 +1,8 @@
 import React from "react";
 import { ProgressBar } from "./components.jsx";
-import { GROUP_AUDIT_TYPES, GROUP_AUDIT_TYPE_KEYS, collectGroupOutstandingEntries, formatDate, groupProgress, makeGroupMember,
-  memberIsReady, memberProgressPercentage, outstandingIsOpen, projectStats, uid } from "./model.js";
+import { GROUP_AUDIT_TYPES, GROUP_AUDIT_TYPE_KEYS, canMoveWorkspaceItem, collectGroupOutstandingEntries, formatDate,
+  groupProgress, makeGroupMember, memberIsReady, memberProgressPercentage, outstandingIsOpen, projectStats,
+  reportingPeriodLabel, uid } from "./model.js";
 import { useUiLanguage } from "./i18n.jsx";
 
 export const auditTypeKeys = GROUP_AUDIT_TYPE_KEYS;
@@ -12,6 +13,8 @@ export function GroupForm({ initial, sampleName, allowTemplate = true, memberTar
   const [values, setValues] = React.useState(() => ({
     name: initial?.name || "",
     period: initial?.period || "",
+    periodStart: initial?.periodStart || "",
+    periodEnd: initial?.periodEnd || "",
     dueDate: initial?.dueDate || "",
     owner: initial?.owner || "",
     notes: initial?.notes || "",
@@ -54,11 +57,15 @@ export function GroupForm({ initial, sampleName, allowTemplate = true, memberTar
   }}>
     <label><span>{t("集团名称 *")}</span><input autoFocus required value={values.name} onChange={update("name")}
       placeholder={t("例如：[集团名称] 2025年度集团审计")} /></label>
-    <div className="form-grid">
-      <label><span>{t("报告期间")}</span><input value={values.period} onChange={update("period")}
-        placeholder={t("例如：截至2025年3月31日")} /></label>
+    <div className="form-grid" data-columns="3">
+      <label><span>{t("报告期开始日")}</span><input type="date" value={values.periodStart} max={values.periodEnd || undefined}
+        required={Boolean(values.periodEnd)} onChange={update("periodStart")} /></label>
+      <label><span>{t("报告期结束日")}</span><input type="date" value={values.periodEnd} min={values.periodStart || undefined}
+        required={Boolean(values.periodStart)} onChange={update("periodEnd")} /></label>
       <label><span>{t("目标完成日期")}</span><input type="date" value={values.dueDate} onChange={update("dueDate")} /></label>
     </div>
+    {values.period && !values.periodStart && !values.periodEnd && <small className="form-help">
+      {t("原有报告期间：{period}。请在适当时补充开始日和结束日。", { period: values.period })}</small>}
     <label><span>{t("集团负责人")}</span><input value={values.owner} onChange={update("owner")}
       placeholder={t("例如：集团项目经理")} /></label>
     <label className="check-option"><input type="checkbox" checked={values.consolidationEnabled}
@@ -111,9 +118,11 @@ function itemMatchesFilter(item, kind, filter, store) {
   return true;
 }
 
-export function WorkspaceTree({ store, selection, onSelect, search, filter, statuses }) {
-  const { t } = useUiLanguage();
+export function WorkspaceTree({ store, selection, onSelect, onMove, search, filter, statuses }) {
+  const { language, t } = useUiLanguage();
   const [expanded, setExpanded] = React.useState(() => new Set());
+  const [dragging, setDragging] = React.useState(null);
+  const [dropTarget, setDropTarget] = React.useState(null);
   const archiveMode = filter === "archived";
   const eligibleParentGroups = store.groups.filter((group) => group.archived === archiveMode);
   const projectParents = new Set(eligibleParentGroups.flatMap((group) => group.members
@@ -123,7 +132,8 @@ export function WorkspaceTree({ store, selection, onSelect, search, filter, stat
     .filter((member) => member.kind === "group" && store.groups.some((child) => child.id === member.refId
       && child.archived === archiveMode)).map((member) => member.refId)));
   const query = search.trim().toLowerCase();
-  const matchesText = (item) => !query || [item.name, item.entity, item.period, item.owner]
+  const matchesText = (item) => !query || [item.name, item.entity, item.reportingFramework, item.period, item.periodStart,
+    item.periodEnd, reportingPeriodLabel(item, language), item.owner]
     .some((value) => value?.toLowerCase().includes(query));
   const visibleProject = (project) => itemMatchesFilter(project, "project", filter, store) && matchesText(project);
   const groupHasVisibleContent = (group, visited = new Set()) => {
@@ -141,6 +151,31 @@ export function WorkspaceTree({ store, selection, onSelect, search, filter, stat
     if (next.has(groupId)) next.delete(groupId); else next.add(groupId);
     return next;
   });
+  const beginDrag = (event, kind, id) => {
+    const payload = JSON.stringify({ kind, id });
+    event.dataTransfer.effectAllowed = "move";
+    event.dataTransfer.setData("application/x-audit-workbench-item", payload);
+    event.dataTransfer.setData("text/plain", payload);
+    setDragging({ kind, id });
+  };
+  const finishDrag = () => { setDragging(null); setDropTarget(null); };
+  const canDrop = (parentGroupId) => dragging
+    && canMoveWorkspaceItem(store, dragging.kind, dragging.id, parentGroupId);
+  const dragOver = (event, parentGroupId) => {
+    if (!canDrop(parentGroupId)) return;
+    event.preventDefault();
+    event.stopPropagation();
+    event.dataTransfer.dropEffect = "move";
+    setDropTarget(parentGroupId || "root");
+  };
+  const drop = (event, parentGroupId) => {
+    if (!canDrop(parentGroupId)) return;
+    event.preventDefault();
+    event.stopPropagation();
+    onMove?.(dragging.kind, dragging.id, parentGroupId);
+    if (parentGroupId) setExpanded((current) => new Set(current).add(parentGroupId));
+    finishDrag();
+  };
 
   const renderProject = (project, depth) => {
     if (!visibleProject(project)) return null;
@@ -148,9 +183,12 @@ export function WorkspaceTree({ store, selection, onSelect, search, filter, stat
     const outstanding = project.outstandingItems.filter((item) => outstandingIsOpen(item, statuses)).length;
     return <button type="button" className="tree-row tree-project-row" style={{ "--tree-depth": depth }} key={project.id}
       data-selected={selection?.kind === "project" && selection.id === project.id || undefined}
+      data-dragging={dragging?.kind === "project" && dragging.id === project.id || undefined}
+      draggable={!archiveMode} title={!archiveMode ? t("拖动以更改所属集团或层级") : undefined}
+      onDragStart={(event) => beginDrag(event, "project", project.id)} onDragEnd={finishDrag}
       onClick={() => onSelect({ kind: "project", id: project.id })}>
       <span className="tree-kind-mark">C</span><span className="tree-copy"><strong>{project.name}</strong>
-        <small>{project.owner || project.entity || project.period || t("尚未填写项目资料")}</small></span>
+        <small>{project.owner || project.entity || reportingPeriodLabel(project, language) || t("尚未填写项目资料")}</small></span>
       {outstanding > 0 && <em>{outstanding}</em>}<span className="tree-progress">{stats.completedWorkstreams}/{stats.workstreams}</span>
     </button>;
   };
@@ -161,31 +199,39 @@ export function WorkspaceTree({ store, selection, onSelect, search, filter, stat
     const stats = groupProgress(store, group.id);
     const openOutstanding = collectGroupOutstandingEntries(store, group.id)
       .filter((entry) => outstandingIsOpen(entry.item, statuses)).length;
-    const open = groupOpen(group.id);
-    return <React.Fragment key={group.id}><div className="tree-group-line" style={{ "--tree-depth": depth }}>
-      <button type="button" className="tree-expand" aria-label={t(open ? "收起集团" : "展开集团")}
-        aria-expanded={open} onClick={() => toggle(group.id)}>{open ? "−" : "+"}</button>
-      <button type="button" className="tree-row tree-group-row"
+    const children = group.members.map((member) => {
+      if (member.kind === "project") {
+        const project = store.projects.find((item) => item.id === member.refId);
+        return project ? renderProject(project, depth + 1) : null;
+      }
+      const child = store.groups.find((item) => item.id === member.refId);
+      return child ? renderGroup(child, depth + 1, next) : null;
+    }).filter(Boolean);
+    const hasChildren = children.length > 0;
+    const open = hasChildren && groupOpen(group.id);
+    return <React.Fragment key={group.id}><div className="tree-group-line" style={{ "--tree-depth": depth }}
+      data-drop-target={dropTarget === group.id || undefined}
+      onDragOver={(event) => dragOver(event, group.id)} onDrop={(event) => drop(event, group.id)}>
+      <button type="button" className="tree-row tree-group-row" aria-expanded={hasChildren ? open : undefined}
         data-selected={selection?.kind === "group" && selection.id === group.id || undefined}
-        onClick={() => onSelect({ kind: "group", id: group.id })}>
+        data-dragging={dragging?.kind === "group" && dragging.id === group.id || undefined}
+        draggable={!archiveMode} title={!archiveMode ? t("拖动以更改所属集团或层级") : undefined}
+        onDragStart={(event) => beginDrag(event, "group", group.id)} onDragEnd={finishDrag}
+        onClick={() => { onSelect({ kind: "group", id: group.id }); if (hasChildren) toggle(group.id); }}>
         <span className="tree-kind-mark">G</span><span className="tree-copy"><strong>{group.name}</strong>
-          <small>{group.owner || group.period || t("尚未填写集团资料")}</small></span>
-        {openOutstanding > 0 && <em>{openOutstanding}</em>}<span className="tree-progress">{stats.percentage}%</span>
-      </button></div>{open && <div className="tree-children">{group.members.map((member) => {
-        if (member.kind === "project") {
-          const project = store.projects.find((item) => item.id === member.refId);
-          return project ? renderProject(project, depth + 1) : null;
-        }
-        const child = store.groups.find((item) => item.id === member.refId);
-        return child ? renderGroup(child, depth + 1, next) : null;
-      })}</div>}</React.Fragment>;
+          <small>{group.owner || reportingPeriodLabel(group, language) || t("尚未填写集团资料")}</small></span>
+        {openOutstanding > 0 && <em>{openOutstanding}</em>}<span className="tree-progress"><span>{stats.percentage}%</span>
+          {hasChildren && <i className="tree-disclosure" aria-hidden="true">{open ? "▾" : "›"}</i>}</span>
+      </button></div>{open && <div className="tree-children">{children}</div>}</React.Fragment>;
   };
 
   const rootGroups = store.groups.filter((group) => !groupParents.has(group.id));
   const standalone = store.projects.filter((project) => !projectParents.has(project.id));
   const content = [...rootGroups.map((group) => renderGroup(group, 0)),
     ...standalone.map((project) => renderProject(project, 0))].filter(Boolean);
-  return <div className="workspace-tree">{content.length ? content
+  return <div className="workspace-tree">{dragging && !archiveMode && <div className="tree-root-drop"
+    data-drop-target={dropTarget === "root" || undefined} onDragOver={(event) => dragOver(event, "")}
+    onDrop={(event) => drop(event, "")}>{t("移到顶层（不属于集团）")}</div>}{content.length ? content
     : <div className="list-empty"><strong>{t(store.projects.length || store.groups.length
       ? "没有符合筛选的项目" : "还没有审计项目")}</strong>
       <span>{t(store.projects.length || store.groups.length
@@ -245,7 +291,7 @@ export function GroupMatrix({ store, group, statuses, onOpen, onConfigure, readO
         return <div className="group-matrix-row" role="row" key={member.id}>
           <button type="button" className="matrix-name" style={{ "--matrix-depth": depth }} onClick={() => onOpen(member.kind, target.id)}>
             <span className="matrix-kind">{isGroup ? "G" : "C"}</span><span><strong>{target.name}</strong>
-              <small>{target.entity || target.period || t(isGroup ? "子集团" : "公司项目")}</small></span></button>
+              <small>{target.entity || reportingPeriodLabel(target, language) || t(isGroup ? "子集团" : "公司项目")}</small></span></button>
           <span>{member.role || t(isGroup ? "子集团" : "组成部分")}</span>
           <span>{isGroup ? t(target.consolidationEnabled ? "子集团合并" : "分类集团") : t(auditTypeKeys[member.auditType])}</span>
           <span>{target.owner || "—"}</span><span className="matrix-progress"><strong>{percentage}%</strong>

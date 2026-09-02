@@ -1,15 +1,15 @@
 import React from "react";
 import { Modal, NodeBoard, NodeForm, OutstandingStatusEditor, ProgressBar, ProjectForm, SampleEditor,
-  SampleLibrary, WorkstreamCard, WorkstreamForm } from "./components.jsx";
+  SampleLibrary, UserGuide, WorkstreamCard, WorkstreamCategoryEditor, WorkstreamForm } from "./components.jsx";
 import { GroupForm, GroupMatrix, GroupMemberAddForm, GroupMemberForm, GroupSampleEditor, GroupSampleLibrary,
   WorkspaceTree } from "./group-components.jsx";
-import { BUILTIN_WORKSTREAM_TYPES, STORAGE_KEY, WORKSTREAM_TYPES, WORKSTREAM_TYPE_KEYS, activeOutstandingItems,
-  assignProjectToGroup, canNestGroup, collectGroupOutstandingEntries, createDefaultGroupSample, createDefaultSample, duplicateGroupSample,
-  duplicateSample, findParentMembership, formatDate, groupProgress, isValidStore, loadStore, localizeGroupSample,
+import { STORAGE_KEY, activeOutstandingItems,
+  assignProjectToGroup, canMoveWorkspaceItem, canNestGroup, collectGroupOutstandingEntries, createDefaultGroupSample, createDefaultSample, duplicateGroupSample,
+  duplicateSample, emptyStore, findParentMembership, formatDate, groupProgress, isValidStore, loadStore, localizeGroupSample,
   localizeGroupWorkflowNodes, localizeOutstandingStatuses, localizeReadinessConditions, localizeSample, localizeWorkstream, makeBlankGroupSample,
-  makeBlankSample, makeGroup, makeGroupMember, makeNode, makeOutstandingItem, makeProject, makeWorkstream,
-  normalizeStore, outstandingIsOpen, projectStats, redactSampleCompanies, uid, workstreamStats,
-  workstreamTypeLabel } from "./model.js";
+  makeBlankSample, makeGroup, makeGroupMember, makeNode, makeOutstandingItem, makeProject, makeWorkstream, moveWorkspaceItem,
+  normalizeStore, outstandingIsOpen, projectStats, redactSampleCompanies, reportingPeriodLabel, uid, workstreamStats,
+  workstreamCategoryLabel, workstreamTypeLabel } from "./model.js";
 import { LanguageProvider, useUiLanguage } from "./i18n.jsx";
 import "./dashboard.css";
 
@@ -111,6 +111,8 @@ function DashboardWorkbench() {
   const selectedGroup = selectedGroupSource ? { ...selectedGroupSource,
     nodes: localizeGroupWorkflowNodes(selectedGroupSource.nodes, language) } : null;
   const sampleViews = store.samples.map((sample) => localizeSample(sample, language));
+  const workstreamCategoryViews = store.workstreamCategories.map((category) => ({ ...category,
+    label: workstreamCategoryLabel(category, language) }));
   const groupSampleViews = store.groupSamples.map((sample) => localizeGroupSample(sample, language));
   const selectedGroupSample = groupSampleViews.find((sample) => sample.id === store.selectedGroupSampleId)
     || groupSampleViews[0] || null;
@@ -119,6 +121,11 @@ function DashboardWorkbench() {
   const outstandingStatusUsage = allOutstandingItems.reduce((counts, item) => ({
     ...counts, [item.status]: (counts[item.status] || 0) + 1,
   }), {});
+  const workstreamCategoryUsage = Object.fromEntries(store.workstreamCategories.map((category) => [category.id, {
+    templates: store.samples.filter((sample) => sample.categoryId === category.id).length,
+    workstreams: store.projects.reduce((count, project) => count
+      + project.workstreams.filter((workstream) => workstream.categoryId === category.id).length, 0),
+  }]));
 
   const updateProject = React.useCallback((projectId, updater) => setStore((current) => ({ ...current,
     projects: current.projects.map((project) => project.id === projectId
@@ -128,6 +135,23 @@ function DashboardWorkbench() {
     groups: current.groups.map((group) => group.id === groupId
       ? { ...updater(group), updatedAt: new Date().toISOString() } : group),
   })), []);
+  const moveNavigationItem = (kind, refId, parentGroupId) => {
+    if (!canMoveWorkspaceItem(store, kind, refId, parentGroupId)) {
+      notify(t("无法移动到这个集团")); return;
+    }
+    const currentParentId = findParentMembership(store, kind, refId)?.group.id || "";
+    if (currentParentId === parentGroupId) return;
+    const source = kind === "project" ? store.projects.find((item) => item.id === refId)
+      : store.groups.find((item) => item.id === refId);
+    const target = store.groups.find((item) => item.id === parentGroupId);
+    setStore((current) => {
+      const groupSample = current.groupSamples.find((sample) => sample.id === current.selectedGroupSampleId)
+        || current.groupSamples[0] || createDefaultGroupSample();
+      return moveWorkspaceItem(current, kind, refId, parentGroupId, groupSample);
+    });
+    notify(target ? t("{name} 已移到“{group}”", { name: source?.name || "", group: target.name })
+      : t("{name} 已移到顶层", { name: source?.name || "" }));
+  };
   const updateWorkflowNodes = (targetKind, targetId, workstreamId, updater) => {
     if (targetKind === "group") updateGroup(targetId, (group) => ({ ...group, nodes: updater(group.nodes) }));
     else updateProject(targetId, (project) => ({ ...project, workstreams: project.workstreams.map((workstream) =>
@@ -135,7 +159,7 @@ function DashboardWorkbench() {
   };
 
   const createProject = (values, useStarter) => {
-    const project = makeProject(values, useStarter, store.samples);
+    const project = makeProject(values, useStarter, store.samples, store.workstreamCategories);
     const parentGroupId = modal?.parentGroupId;
     setStore((current) => ({ ...current, projects: [project, ...current.projects],
       groups: parentGroupId ? current.groups.map((group) => group.id === parentGroupId
@@ -156,7 +180,8 @@ function DashboardWorkbench() {
     const now = new Date().toISOString();
     const copy = { ...project, id: uid("project"), name: `${project.name}${t("（副本）")}`, archived: false,
       createdAt: now, updatedAt: now, outstandingItems: [], workstreams: project.workstreams.map((workstream) => makeWorkstream({
-        type: workstream.type, customName: workstream.customName, owner: workstream.owner, dueDate: workstream.dueDate,
+        type: workstream.type, categoryId: workstream.categoryId, customName: workstream.customName,
+        owner: workstream.owner, dueDate: workstream.dueDate,
       }, workstream.nodes)) };
     setStore((current) => ({ ...current, projects: [copy, ...current.projects] }));
     setSelection({ kind: "project", id: copy.id }); setActiveWorkstreamId(copy.workstreams[0]?.id || null); setFilter("active");
@@ -181,7 +206,7 @@ function DashboardWorkbench() {
   };
 
   const addWorkstream = (projectId, values) => {
-    const sample = store.samples.find((item) => item.id === values.sampleId && item.workstreamType === values.type) || null;
+    const sample = store.samples.find((item) => item.id === values.sampleId && item.categoryId === values.categoryId) || null;
     const workstream = makeWorkstream(values, sample);
     updateProject(projectId, (project) => ({ ...project, workstreams: [...project.workstreams, workstream] }));
     setActiveWorkstreamId(workstream.id); setModal(null); notify(t("业务模块已添加"));
@@ -206,11 +231,16 @@ function DashboardWorkbench() {
 
   const saveSample = (sample) => {
     const saved = { ...sample, updatedAt: new Date().toISOString() };
-    setStore((current) => ({ ...current,
-      samples: current.samples.some((item) => item.id === saved.id)
-        ? current.samples.map((item) => item.id === saved.id ? saved : item) : [...current.samples, saved],
-      selectedSampleIdsByType: { ...current.selectedSampleIdsByType, [saved.workstreamType]: saved.id } }));
-    setTemplateType(saved.workstreamType); setModal({ type: "template-library" }); notify(t("范本已更新；现有项目不受影响"));
+    setStore((current) => {
+      const previous = current.samples.find((item) => item.id === saved.id);
+      const samples = previous ? current.samples.map((item) => item.id === saved.id ? saved : item) : [...current.samples, saved];
+      const selected = { ...current.selectedSampleIdsByCategory, [saved.categoryId]: saved.id };
+      if (previous && previous.categoryId !== saved.categoryId && selected[previous.categoryId] === saved.id) {
+        selected[previous.categoryId] = samples.find((item) => item.categoryId === previous.categoryId)?.id || null;
+      }
+      return { ...current, samples, selectedSampleIdsByCategory: selected };
+    });
+    setTemplateType(saved.categoryId); setModal({ type: "template-library" }); notify(t("范本已更新；现有项目不受影响"));
   };
   const saveGroupSample = (sample) => {
     const saved = { ...sample, updatedAt: new Date().toISOString() };
@@ -235,8 +265,8 @@ function DashboardWorkbench() {
     }
     const source = store.samples.find((sample) => sample.id === sampleId); if (!source) return;
     const copy = duplicateSample(source, t("（副本）"));
-    setStore((current) => ({ ...current, samples: [...current.samples, copy], selectedSampleIdsByType: {
-      ...current.selectedSampleIdsByType, [copy.workstreamType]: copy.id } })); notify(t("范本已复制"));
+    setStore((current) => ({ ...current, samples: [...current.samples, copy], selectedSampleIdsByCategory: {
+      ...current.selectedSampleIdsByCategory, [copy.categoryId]: copy.id } })); notify(t("范本已复制"));
   };
   const deleteSample = (sampleId, groupType = false) => {
     if (groupType) {
@@ -248,14 +278,29 @@ function DashboardWorkbench() {
       notify(t("集团范本已删除")); return;
     }
     const source = store.samples.find((sample) => sample.id === sampleId); if (!source) return;
-    const sameType = store.samples.filter((sample) => sample.workstreamType === source.workstreamType);
-    if (sameType.length <= 1) { window.alert(t("每种业务至少保留一个范本。")); return; }
+    const category = store.workstreamCategories.find((item) => item.id === source.categoryId);
+    const sameType = store.samples.filter((sample) => sample.categoryId === source.categoryId);
+    if (category?.builtinType && sameType.length <= 1) { window.alert(t("每个系统种类至少保留一个范本。")); return; }
     if (!window.confirm(t("删除范本“{name}”？", { name: source.name }))) return;
     setStore((current) => { const next = current.samples.filter((sample) => sample.id !== sampleId);
-      const replacement = next.find((sample) => sample.workstreamType === source.workstreamType)?.id || null;
-      return { ...current, samples: next, selectedSampleIdsByType: { ...current.selectedSampleIdsByType,
-        [source.workstreamType]: current.selectedSampleIdsByType[source.workstreamType] === sampleId
-          ? replacement : current.selectedSampleIdsByType[source.workstreamType] } }; }); notify(t("范本已删除"));
+      const replacement = next.find((sample) => sample.categoryId === source.categoryId)?.id || null;
+      return { ...current, samples: next, selectedSampleIdsByCategory: { ...current.selectedSampleIdsByCategory,
+        [source.categoryId]: current.selectedSampleIdsByCategory[source.categoryId] === sampleId
+          ? replacement : current.selectedSampleIdsByCategory[source.categoryId] } }; }); notify(t("范本已删除"));
+  };
+  const saveWorkstreamCategories = (categories) => {
+    const customNames = Object.fromEntries(categories.filter((category) => !category.builtinType)
+      .map((category) => [category.id, category.name]));
+    setStore((current) => ({ ...current, workstreamCategories: categories,
+      selectedSampleIdsByCategory: Object.fromEntries(categories.map((category) => [category.id,
+        current.selectedSampleIdsByCategory[category.id]
+          || current.samples.find((sample) => sample.categoryId === category.id)?.id || null])),
+      projects: current.projects.map((project) => ({ ...project, workstreams: project.workstreams.map((workstream) =>
+        workstream.type === "custom" && customNames[workstream.categoryId]
+          ? { ...workstream, customName: customNames[workstream.categoryId], updatedAt: new Date().toISOString() } : workstream) })),
+    }));
+    if (templateType !== "group" && !categories.some((category) => category.id === templateType)) setTemplateType("audit");
+    setModal({ type: "template-library" }); notify(t("范本种类已更新"));
   };
 
   const exportBackup = () => {
@@ -274,6 +319,10 @@ function DashboardWorkbench() {
     } catch { window.alert(t("这不是有效的工作台备份文件。")); }
     finally { if (importRef.current) importRef.current.value = ""; closeMenu(); }
   };
+  const initializeWorkbench = () => {
+    setStore(emptyStore()); setSelection(null); setActiveWorkstreamId(null); setFilter("active"); setSearch("");
+    setTemplateType("audit"); setModal(null); notify(t("工作台已初始化"));
+  };
 
   const modalTargetProject = modal?.targetKind === "project" ? store.projects.find((item) => item.id === modal.targetId) : null;
   const modalTargetGroup = modal?.targetKind === "group" ? store.groups.find((item) => item.id === modal.targetId) : null;
@@ -288,7 +337,7 @@ function DashboardWorkbench() {
 
   return <article className="audit-workbench">
     {message && <div className="save-toast" role="status">{message}</div>}
-    <header className="workbench-toolbar"><div><h1>{t("审计项目工作台")}</h1>
+    <header className="workbench-toolbar"><div className="workbench-brand"><h1>{t("审计项目工作台")}</h1>
       <p>{t("以项目为容器，并行追踪审计、税务、客户尽职调查及收费工作。")}</p></div>
       <nav className="toolbar-actions" aria-label={t("工作台操作")} ref={toolbarRef}>
         <details className="toolbar-menu" data-primary ref={(element) => { toolbarMenuRefs.current[0] = element; }}>
@@ -298,13 +347,17 @@ function DashboardWorkbench() {
               {t("新建集团")}…</button></div></details>
         <button type="button" className="toolbar-action-button" onClick={() => { closeMenu(); setModal({ type: "template-library" }); }}>
           {t("范本库")}…</button>
+        <button type="button" className="toolbar-action-button" onClick={() => { closeMenu(); setModal({ type: "user-guide" }); }}>
+          {t("使用指南")}…</button>
         <span className="toolbar-divider" aria-hidden="true" />
         <details className="toolbar-menu" ref={(element) => { toolbarMenuRefs.current[1] = element; }}>
           <summary onClick={() => closeOtherMenus(1)}>{t("备份")}</summary>
           <div className="toolbar-menu-popover"><input ref={importRef} type="file" accept="application/json" hidden
             onChange={(event) => importBackup(event.target.files?.[0])} />
             <button type="button" onClick={() => { closeMenu(); importRef.current?.click(); }}>{t("恢复备份")}…</button>
-            <button type="button" onClick={exportBackup}>{t("导出备份")}</button></div></details>
+            <button type="button" onClick={exportBackup}>{t("导出备份")}</button>
+            <button type="button" className="toolbar-menu-danger" onClick={() => { closeMenu(); setModal({ type: "initialize-workbench" }); }}>
+              {t("初始化工作台")}…</button></div></details>
         <details className="toolbar-menu" ref={(element) => { toolbarMenuRefs.current[2] = element; }}>
           <summary className="language-summary" onClick={() => closeOtherMenus(2)}><span>{t("语言")}</span><small>{languageLabel}</small></summary>
           <div className="toolbar-menu-popover language-menu"><button type="button" aria-pressed={language === "zh-Hans"}
@@ -322,14 +375,15 @@ function DashboardWorkbench() {
           title={t("展开项目导航")} onClick={() => setSidebarCollapsed(false)}><span aria-hidden="true">›</span><small>{t("项目")}</small></button> : <>
           <div className="project-panel-controls"><div className="project-panel-title"><div><button type="button" className="sidebar-toggle"
             aria-expanded="true" aria-label={t("收起项目导航")} title={t("收起项目导航")} onClick={() => setSidebarCollapsed(true)}>‹</button>
-            <strong>{t("项目导航")}</strong></div><span>{store.projects.length + store.groups.length}</span></div>
+            <strong>{t("项目导航")}</strong></div><button type="button" className="project-panel-new"
+              onClick={() => setModal({ type: "create-project" })}>{t("新建项目")}</button></div>
             <label className="search-field"><span aria-hidden="true">⌕</span><input value={search} onChange={(event) => setSearch(event.target.value)}
               placeholder={t("搜索项目、集团或负责人")} aria-label={t("搜索项目、集团或负责人")} /></label>
             <div className="filter-tabs" role="tablist" aria-label={t("项目状态")}>{[["active", "进行中"], ["completed", "已完成"],
               ["all", "全部"], ["archived", "归档"]].map(([value, label]) => <button type="button" role="tab" key={value}
                 aria-selected={filter === value} onClick={() => setFilter(value)}>{t(label)}</button>)}</div></div>
           <WorkspaceTree store={store} selection={selection} onSelect={setSelection} search={search} filter={filter}
-            statuses={store.outstandingStatuses} /></>}
+            statuses={store.outstandingStatuses} onMove={moveNavigationItem} /></>}
       </aside>
       <main className="project-detail" aria-label={t(selectedGroup ? "集团工作区" : "项目工作区")}>
         {selectedProject ? <ProjectDetail project={selectedProject} rawProject={selectedProjectSource} statuses={outstandingStatusViews}
@@ -359,8 +413,9 @@ function DashboardWorkbench() {
     </section>
 
     {modal?.type === "create-project" && <Modal title={t("新建项目")} onClose={() => setModal(null)} wide>
-      <ProjectForm samples={sampleViews} selectedSampleIdsByType={store.selectedSampleIdsByType}
-        initialWorkstreamTypes={modal.initialWorkstreamTypes} onSubmit={createProject} onClose={() => setModal(null)} /></Modal>}
+      <ProjectForm samples={sampleViews} workstreamCategories={workstreamCategoryViews}
+        selectedSampleIdsByCategory={store.selectedSampleIdsByCategory}
+        initialWorkstreamSelections={modal.initialWorkstreamSelections} onSubmit={createProject} onClose={() => setModal(null)} /></Modal>}
     {modal?.type === "edit-project" && selectedProjectSource && <Modal title={t("编辑项目资料")} onClose={() => setModal(null)} wide>
       <ProjectForm initial={selectedProjectSource} allowWorkstreams={false} onClose={() => setModal(null)} submitLabel="保存修改"
         initialMembership={selectedProjectMembership} groupOptions={store.groups.filter((group) => !group.archived
@@ -384,11 +439,13 @@ function DashboardWorkbench() {
           nodes: values.consolidationEnabled ? group.nodes : [] })); setModal(null); notify(t("集团资料已更新")); }}
         onClose={() => setModal(null)} /></Modal>}
     {modal?.type === "workstream-add" && modalTargetProject && <Modal title={t("添加业务模块")} onClose={() => setModal(null)}>
-      <WorkstreamForm availableTypes={[...BUILTIN_WORKSTREAM_TYPES.filter((type) => !modalTargetProject.workstreams.some((item) => item.type === type)), "custom"]}
-        samples={sampleViews} selectedSampleIdsByType={store.selectedSampleIdsByType} onSubmit={(values) => addWorkstream(modalTargetProject.id, values)}
+      <WorkstreamForm availableCategories={workstreamCategoryViews.filter((category) => !category.builtinType
+        || category.builtinType === "custom" || !modalTargetProject.workstreams.some((item) => item.type === category.builtinType))}
+        samples={sampleViews} selectedSampleIdsByCategory={store.selectedSampleIdsByCategory} onSubmit={(values) => addWorkstream(modalTargetProject.id, values)}
         onClose={() => setModal(null)} /></Modal>}
     {modal?.type === "workstream-edit" && modalTargetProject && modalTargetWorkstream && <Modal title={t("业务模块设置")} onClose={() => setModal(null)}>
-      <WorkstreamForm initial={modalTargetWorkstream} samples={sampleViews} selectedSampleIdsByType={store.selectedSampleIdsByType}
+      <WorkstreamForm initial={modalTargetWorkstream} availableCategories={workstreamCategoryViews} samples={sampleViews}
+        selectedSampleIdsByCategory={store.selectedSampleIdsByCategory}
         onSubmit={(values) => updateWorkstream(modalTargetProject.id, modalTargetWorkstream.id, values)}
         onRemove={() => removeWorkstream(modalTargetProject.id, modalTargetWorkstream.id)} onClose={() => setModal(null)} /></Modal>}
     {modal?.type === "node" && modalWorkflowNodes && <Modal title={t(modalNode ? "编辑节点" : "添加节点")} onClose={() => setModal(null)}>
@@ -413,22 +470,34 @@ function DashboardWorkbench() {
             : [...target.outstandingItems, makeOutstandingItem(values, store.outstandingStatuses)] }));
           setModal(null); notify(t(modal.item ? "待清事项已更新" : "待清事项已添加")); }} /></Modal>}
     {modal?.type === "template-library" && <Modal title={t("范本库")} onClose={() => setModal(null)} wide>
-      <div className="template-type-tabs" role="tablist">{[...WORKSTREAM_TYPES, "group"].map((type) => <button type="button" key={type}
-        aria-selected={templateType === type} onClick={() => setTemplateType(type)}>{t(type === "group" ? "集团范本" : WORKSTREAM_TYPE_KEYS[type])}</button>)}</div>
+      <div className="template-category-bar"><div className="template-type-tabs" role="tablist">
+        {[...workstreamCategoryViews, { id: "group", label: t("集团范本") }].map((category) => <button type="button" key={category.id}
+          aria-selected={templateType === category.id} onClick={() => setTemplateType(category.id)}>{category.label}</button>)}</div>
+        <button type="button" className="template-category-manage" onClick={() => setModal({ type: "workstream-categories" })}>{t("管理种类")}…</button></div>
       {templateType === "group" ? <GroupSampleLibrary samples={groupSampleViews} selectedSampleId={store.selectedGroupSampleId}
         onSelect={(sampleId) => setStore((current) => ({ ...current, selectedGroupSampleId: sampleId }))}
         onCreate={() => setModal({ type: "group-sample-edit", sample: makeBlankGroupSample(language) })}
         onEdit={(sampleId) => setModal({ type: "group-sample-edit", sampleId })} onDuplicate={(sampleId) => copySample(sampleId, true)}
         onDelete={(sampleId) => deleteSample(sampleId, true)} onUse={() => setModal({ type: "create-group" })} />
-        : <SampleLibrary samples={sampleViews.filter((sample) => sample.workstreamType === templateType)}
-          selectedSampleId={store.selectedSampleIdsByType?.[templateType]}
-          onSelect={(sampleId) => setStore((current) => ({ ...current, selectedSampleIdsByType: { ...current.selectedSampleIdsByType, [templateType]: sampleId } }))}
-          onCreate={() => setModal({ type: "sample-edit", sample: makeBlankSample(language, templateType) })}
+        : <SampleLibrary samples={sampleViews.filter((sample) => sample.categoryId === templateType)}
+          categoryLabel={workstreamCategoryViews.find((category) => category.id === templateType)?.label}
+          selectedSampleId={store.selectedSampleIdsByCategory?.[templateType]}
+          onSelect={(sampleId) => setStore((current) => ({ ...current, selectedSampleIdsByCategory: {
+            ...current.selectedSampleIdsByCategory, [templateType]: sampleId } }))}
+          onCreate={() => { const category = store.workstreamCategories.find((item) => item.id === templateType);
+            if (category) setModal({ type: "sample-edit", sample: makeBlankSample(language, category.builtinType || "custom", category.id) }); }}
           onEdit={(sampleId) => setModal({ type: "sample-edit", sampleId })} onDuplicate={copySample} onDelete={deleteSample}
-          onUse={() => setModal({ type: "create-project", initialWorkstreamTypes: [templateType] })} />}
+          onUse={(sampleId) => setModal({ type: "create-project", initialWorkstreamSelections: [{ categoryId: templateType, sampleId }] })} />}
     </Modal>}
+    {modal?.type === "workstream-categories" && <Modal title={t("范本种类")} onClose={() => setModal({ type: "template-library" })} wide>
+      <WorkstreamCategoryEditor categories={store.workstreamCategories} usageCounts={workstreamCategoryUsage}
+        onSave={saveWorkstreamCategories} onClose={() => setModal({ type: "template-library" })} /></Modal>}
+    {modal?.type === "user-guide" && <Modal title={t("使用指南")} onClose={() => setModal(null)} large>
+      <UserGuide /></Modal>}
+    {modal?.type === "initialize-workbench" && <Modal title={t("初始化工作台")} onClose={() => setModal(null)}>
+      <InitializeWorkbenchConfirm onExport={exportBackup} onInitialize={initializeWorkbench} onClose={() => setModal(null)} /></Modal>}
     {modal?.type === "sample-edit" && <SampleEditModal modal={modal} store={store} language={language} t={t}
-      saveSample={saveSample} resetSample={resetSample} setModal={setModal} />}
+      categories={workstreamCategoryViews} saveSample={saveSample} resetSample={resetSample} setModal={setModal} />}
     {modal?.type === "sample-redact" && <Modal title={t("范本公司名称去敏")} onClose={() => setModal(null)}>
       <SampleRedactionForm language={language} onClose={() => setModal(null)} onSubmit={(names, replacement) => {
         const result = redactSampleCompanies(modal.sample, names, replacement); saveSample(result.sample);
@@ -461,11 +530,14 @@ function ProjectDetail({ project, rawProject, statuses, parentMembership, active
   const activeWorkstream = project.workstreams.find((workstream) => workstream.id === activeWorkstreamId)
     || project.workstreams[0] || null;
   const activeRawWorkstream = rawProject.workstreams.find((workstream) => workstream.id === activeWorkstream?.id) || null;
+  const periodLabel = reportingPeriodLabel(project, language);
+  const primaryName = project.entity || project.name;
+  const secondaryName = project.entity && project.name !== project.entity ? project.name : "";
   return <div className="workspace-detail-inner">
     {readOnly && <div className="archive-banner"><strong>{t("已归档，只读")}</strong>
       <span>{t("归档记录不能编辑；恢复后才可继续更新。")}</span></div>}
-    <header className="detail-header"><div><span className="workspace-label">{t("项目工作区")}</span><h2>{project.name}</h2>
-      <p>{[project.entity, project.period].filter(Boolean).join(" · ") || t("尚未填写项目资料")}</p></div>
+    <header className="detail-header"><div className="detail-title"><div><span className="workspace-label">{t("项目工作区")}</span><h2>{primaryName}</h2></div>
+      <p>{[secondaryName, periodLabel].filter(Boolean).join(" · ") || t("尚未填写法律实体及报告期间")}</p></div>
       <div className="detail-actions">{readOnly ? <>
         <button type="button" className="button secondary" onClick={() => restoreTarget("project", rawProject.id)}>{t("恢复")}</button>
         <button type="button" className="button danger-quiet" onClick={() => setModal({ type: "delete-target", targetKind: "project",
@@ -476,6 +548,7 @@ function ProjectDetail({ project, rawProject, statuses, parentMembership, active
     </header>
     <dl className="detail-facts"><div><dt>{t("负责人")}</dt><dd>{project.owner || t("未设置")}</dd></div>
       <div><dt>{t("目标完成日期")}</dt><dd>{formatDate(project.dueDate, language)}</dd></div>
+      <div><dt>{t("财务报告准则／框架")}</dt><dd>{project.reportingFramework || t("未设置")}</dd></div>
       <div><dt>{t("所属集团")}</dt><dd>{parentMembership?.group.name || t("独立公司")}</dd></div>
       <div><dt>{t("业务模块")}</dt><dd>{t("已完成 {done}/{total}", { done: stats.completedWorkstreams, total: stats.workstreams })}</dd></div>
       <div><dt>{t("项目状态")}</dt><dd>{t(stats.complete ? "已完成" : "进行中")}</dd></div></dl>
@@ -496,9 +569,7 @@ function ProjectDetail({ project, rawProject, statuses, parentMembership, active
       <span className="workspace-label">{t("模块节点")}</span><h3>{workstreamTypeLabel(activeWorkstream.type, language, activeWorkstream.customName)}</h3>
       <p>{t("横向查看全部节点；所选节点的完成条件固定显示在下方。")}</p></div>
       <div className="workflow-panel-progress"><strong>{workstreamStats(activeWorkstream).percentage}%</strong>
-        <ProgressBar value={workstreamStats(activeWorkstream).percentage} compact />
-        {!readOnly && <button type="button" className="button secondary" onClick={() => setModal({ type: "node",
-          targetKind: "project", targetId: rawProject.id, workstreamId: activeRawWorkstream.id })}>{t("添加节点")}</button>}</div></header>
+        <ProgressBar value={workstreamStats(activeWorkstream).percentage} compact /></div></header>
       <WorkflowNodes targetKind="project" targetId={rawProject.id} workstreamId={activeRawWorkstream.id}
         nodes={activeWorkstream.nodes} updateWorkflowNodes={updateWorkflowNodes} setModal={setModal} readOnly={readOnly} />
     </section>}
@@ -517,19 +588,19 @@ function GroupDetail({ store, group, statuses, updateWorkflowNodes, setModal, se
   return <div className="workspace-detail-inner">
     {readOnly && <div className="archive-banner"><strong>{t("已归档，只读")}</strong>
       <span>{t("归档记录不能编辑；恢复后才可继续更新。")}</span></div>}
-    <header className="detail-header"><div><span className="workspace-label">{t("集团工作区")}</span><h2>{group.name}</h2>
-      <p>{group.period || t("尚未填写集团资料")}</p></div><div className="detail-actions">{readOnly ? <>
+    <header className="detail-header"><div className="detail-title"><div><span className="workspace-label">{t("集团工作区")}</span><h2>{group.name}</h2></div>
+      <p>{reportingPeriodLabel(group, language) || t("尚未填写集团资料")}</p></div><div className="detail-actions">{readOnly ? <>
         <button type="button" className="button secondary" onClick={() => restoreTarget("group", group.id)}>{t("恢复")}</button>
         <button type="button" className="button danger-quiet" onClick={() => setModal({ type: "delete-target", targetKind: "group",
           targetId: group.id, name: group.name })}>{t("永久删除")}</button></> : <>
         <button type="button" className="button primary" onClick={() => setModal({ type: "edit-group" })}>{t("编辑集团及成员")}</button>
         <button type="button" className="button secondary" onClick={() => archiveTarget("group", group.id)}>{t("归档集团")}</button></>}</div></header>
-    <section className="group-scorecards"><article><span>{t("组成部分进度")}</span><strong>{stats.componentPercentage}%</strong>
-      <ProgressBar value={stats.componentPercentage} compact /></article><article><span>{t("公司合并就绪")}</span>
-      <strong>{stats.readyCompanies}/{stats.totalCompanies}</strong><small>{t("家公司")}</small></article>
-      <article><span>{t("本级合并流程")}</span><strong>{group.consolidationEnabled ? `${stats.consolidationPercentage}%` : t("不适用")}</strong>
+    <section className="group-status-strip" aria-label={t("集团状态")}><article><span>{t("组成部分进度")}</span>
+      <div><strong>{stats.componentPercentage}%</strong></div><ProgressBar value={stats.componentPercentage} compact /></article>
+      <article><span>{t("公司合并就绪")}</span><div><strong>{stats.readyCompanies}/{stats.totalCompanies}</strong><small>{t("家公司")}</small></div></article>
+      <article><span>{t("本级合并流程")}</span><div><strong>{group.consolidationEnabled ? `${stats.consolidationPercentage}%` : t("不适用")}</strong></div>
         {group.consolidationEnabled && <ProgressBar value={stats.consolidationPercentage} compact />}</article>
-      <article><span>{t("未清事项")}</span><strong>{openItems}</strong><small>{t("项")}</small></article></section>
+      <article><span>{t("未清事项")}</span><div><strong>{openItems}</strong><small>{t("项")}</small></div></article></section>
     <div className="group-tabs" role="tablist">{[["overview", "组成部分"], ["workflow", "合并节点"], ["settings", "集团资料"]]
       .map(([value, label]) => <button type="button" role="tab" aria-selected={tab === value} key={value}
         onClick={() => setTab(value)}>{t(label)}</button>)}</div>
@@ -538,8 +609,7 @@ function GroupDetail({ store, group, statuses, updateWorkflowNodes, setModal, se
         sourceGroupId, memberId: member.id })} />}
     {tab === "workflow" && <section className="workflow-panel"><header className="section-heading"><div><h3>{t("集团合并节点")}</h3>
       <p>{group.consolidationEnabled ? t("横向查看本级合并节点，并在下方管理完成条件。")
-        : t("此集团只用于分类，不设本级合并流程。")}</p></div>{group.consolidationEnabled && !readOnly && <button type="button"
-          className="button secondary" onClick={() => setModal({ type: "node", targetKind: "group", targetId: group.id })}>{t("添加节点")}</button>}</header>
+        : t("此集团只用于分类，不设本级合并流程。")}</p></div></header>
       {group.consolidationEnabled ? <WorkflowNodes targetKind="group" targetId={group.id} nodes={group.nodes}
         updateWorkflowNodes={updateWorkflowNodes} setModal={setModal} readOnly={readOnly} />
         : <div className="inline-empty">{t("本级无需独立合并；进度直接来自下级组成部分。")}</div>}</section>}
@@ -565,9 +635,8 @@ function GroupDetail({ store, group, statuses, updateWorkflowNodes, setModal, se
 function WorkflowNodes({ targetKind, targetId, workstreamId = null, nodes, updateWorkflowNodes, setModal, readOnly }) {
   const { t } = useUiLanguage();
   const update = (updater) => updateWorkflowNodes(targetKind, targetId, workstreamId, updater);
-  if (!nodes.length) return <div className="inline-empty"><strong>{t("还没有节点")}</strong>
-    <span>{readOnly ? t("此记录没有保存节点。") : t("添加第一个节点后，即可设置完成条件。")}</span></div>;
   const actions = {
+    addNode: () => setModal({ type: "node", targetKind, targetId, workstreamId }),
     move: (nodeId, direction) => update((current) => {
       const next = [...current]; const index = next.findIndex((node) => node.id === nodeId); const target = index + direction;
       if (index >= 0 && target >= 0 && target < next.length) [next[index], next[target]] = [next[target], next[index]];
@@ -708,12 +777,25 @@ function DeleteConfirm({ name, kind, onDelete, onClose }) {
       <button type="button" className="button danger" onClick={onDelete}>{t("确认永久删除")}</button></footer></div>;
 }
 
-function SampleEditModal({ modal, store, language, t, saveSample, resetSample, setModal }) {
+function InitializeWorkbenchConfirm({ onExport, onInitialize, onClose }) {
+  const { t } = useUiLanguage();
+  const [confirmed, setConfirmed] = React.useState(false);
+  return <div className="initialize-confirm"><strong>{t("恢复为全新工作台")}</strong>
+    <p>{t("初始化会清除当前浏览器内的全部项目、集团、待清事项、自定义范本、自定义种类及自定义状态，并恢复内置内容。此操作不可撤销。")}</p>
+    <section><span>{t("建议先导出当前备份；如需找回资料，只能从备份文件恢复。")}</span>
+      <button type="button" className="button secondary" onClick={onExport}>{t("先导出备份")}</button></section>
+    <label><input type="checkbox" checked={confirmed} onChange={(event) => setConfirmed(event.target.checked)} />
+      <span>{t("我已了解上述资料会被清除。")}</span></label>
+    <footer className="modal-actions"><button type="button" className="button secondary" onClick={onClose}>{t("取消")}</button>
+      <button type="button" className="button danger" disabled={!confirmed} onClick={onInitialize}>{t("确认初始化")}</button></footer></div>;
+}
+
+function SampleEditModal({ modal, store, language, t, categories, saveSample, resetSample, setModal }) {
   const source = modal.sample || store.samples.find((sample) => sample.id === modal.sampleId);
   if (!source) return null;
   const view = localizeSample(source, language);
   return <Modal title={t(source.id && store.samples.some((sample) => sample.id === source.id) ? "编辑范本" : "新建范本")}
-    onClose={() => setModal({ type: "template-library" })} wide><SampleEditor sample={view} onSave={saveSample}
+    onClose={() => setModal({ type: "template-library" })} wide><SampleEditor sample={view} categories={categories} onSave={saveSample}
       onClose={() => setModal({ type: "template-library" })} onReset={source.builtinKey ? () => resetSample(source.id) : null}
       onRedact={(draft) => setModal({ type: "sample-redact", sample: draft || view })} /></Modal>;
 }

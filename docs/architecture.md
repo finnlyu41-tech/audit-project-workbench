@@ -4,7 +4,7 @@ Audit Project Workbench (APW) is a small React application built with Vite.
 
 ## Layers
 
-- `src/dashboard/model.js`: pure data construction, V1–V5 migration, progress calculations and template de-identification.
+- `src/dashboard/model.js`: pure data construction, V1–V7 migration, progress calculations and template de-identification.
 - `src/dashboard/i18n.jsx`: UI-language state and system-text translations.
 - `src/dashboard/traditional.js`: deterministic Simplified-to-Traditional conversion for system-owned text only.
 - `src/dashboard/components.jsx`: reusable forms, rows, cards and modal components.
@@ -14,9 +14,9 @@ Audit Project Workbench (APW) is a small React application built with Vite.
 
 ## Persistence
 
-The application stores one versioned JSON object in browser `localStorage`. Backups use the same versioned structure. Storage version 5 adds project `workstreams`, outstanding-item `workstreamId`, template `workstreamType`, per-status colours and `selectedSampleIdsByType`. Versions 1–4 migrate automatically when stored or imported data is loaded.
+The application stores one versioned JSON object in browser `localStorage`. Backups use the same versioned structure. Storage version 5 added project `workstreams`, outstanding-item `workstreamId`, template `workstreamType`, per-status colours and `selectedSampleIdsByType`. Storage version 6 added `workstreamCategories`, template/workstream `categoryId` and `selectedSampleIdsByCategory`. Storage version 7 adds project/group `periodStart` and `periodEnd`, plus project `reportingFramework`; legacy free-text `period` values remain available as a fallback. Versions 1–6 migrate automatically when stored or imported data is loaded.
 
-Each project owns at least one `workstream`. Built-in types are `quote_collection`, `audit`, `tax_computation_filing` and `cdd`; each may appear once per project. Custom workstreams are unlimited. Legacy project `nodes` become one audit workstream without changing node or condition identities, completion state, owner, due date or group references.
+Each project owns at least one `workstream`. Built-in types are `quote_collection`, `audit`, `tax_computation_filing` and `cdd`; each may appear once per project. User-defined categories map to custom workstreams and can be added, renamed or reordered. Custom workstreams are unlimited. Legacy project `nodes` become one audit workstream without changing node or condition identities, completion state, owner, due date or group references.
 
 The historical `audit-progress-workbench:*` browser-storage keys are intentionally retained so the product rename does not discard existing local data.
 

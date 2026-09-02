@@ -1,7 +1,7 @@
 import { toTraditional } from "./traditional.js";
 
 export const STORAGE_KEY = "audit-progress-workbench:v1";
-export const STORE_VERSION = 5;
+export const STORE_VERSION = 7;
 export const CORE_SAMPLE_KEY = "core-audit";
 export const CORE_GROUP_SAMPLE_KEY = "core-group";
 
@@ -11,7 +11,7 @@ export const WORKSTREAM_TYPE_KEYS = {
   quote_collection: "报价与收款",
   audit: "审计",
   tax_computation_filing: "税务计算及报税",
-  cdd: "客户尽职调查（CDD）",
+  cdd: "客户尽职调查",
   custom: "自定义模块",
 };
 export const WORKSTREAM_SAMPLE_KEYS = {
@@ -132,14 +132,14 @@ export const cddStarterNodes = [
   ["身份资料", "确认客户及相关人士的身份资料。", ["客户身份资料已取得", "授权代表资料已确认"]],
   ["所有权与控制人", "记录最终实益拥有人及控制结构。", ["所有权结构已记录", "最终实益拥有人及控制人已确认"]],
   ["风险评估", "完成客户风险评估及所需跟进。", ["风险评级已完成", "高风险事项及额外程序已记录"]],
-  ["批准及复核日期", "完成内部批准并设定下次复核。", ["CDD 已获内部批准", "下次复核日期已记录"]],
+  ["批准及复核日期", "完成内部批准并设定下次复核。", ["客户尽职调查已获内部批准", "下次复核日期已记录"]],
 ];
 
 export const cddStarterNodesEnglish = [
   ["Identity information", "Confirm identity information for the client and relevant persons.", ["Client identity information obtained", "Authorised representative information confirmed"]],
   ["Ownership and control", "Record ultimate beneficial owners and the control structure.", ["Ownership structure recorded", "Ultimate beneficial owners and controllers confirmed"]],
   ["Risk assessment", "Complete the client risk assessment and required follow-up.", ["Risk rating completed", "High-risk matters and additional procedures recorded"]],
-  ["Approval and review date", "Complete internal approval and set the next review date.", ["CDD internally approved", "Next review date recorded"]],
+  ["Approval and review date", "Complete internal approval and set the next review date.", ["Customer due diligence internally approved", "Next review date recorded"]],
 ];
 
 const workflowDefinitions = {
@@ -150,7 +150,7 @@ const workflowDefinitions = {
   tax_computation_filing: { zh: taxStarterNodes, en: taxStarterNodesEnglish,
     names: ["税务计算及报税流程", "Tax Computation and Filing Workflow"], descriptions: ["内置税务计算及报税范本", "Built-in tax computation and filing template"] },
   cdd: { zh: cddStarterNodes, en: cddStarterNodesEnglish,
-    names: ["CDD 基础流程", "Core CDD Workflow"], descriptions: ["内置客户尽职调查范本", "Built-in customer due diligence template"] },
+    names: ["客户尽职调查基础流程", "Customer Due Diligence Workflow"], descriptions: ["内置客户尽职调查范本", "Built-in customer due diligence template"] },
 };
 
 const workflowTextPairs = Object.values(workflowDefinitions).flatMap((definition) => definition.zh.flatMap((node, index) => {
@@ -170,6 +170,7 @@ const sampleMetadataTextPairs = [
   ["内置审计流程范本", "Built-in audit workflow template"],
   ["内置流程范本", "Built-in audit workflow template"],
   ["固定流程范本", "Built-in workflow template"],
+  ["CDD 基础流程", "Core CDD Workflow"],
   ...Object.values(workflowDefinitions).flatMap((definition) => [definition.names, definition.descriptions]),
 ];
 const groupSampleMetadataTextPairs = [
@@ -178,6 +179,10 @@ const groupSampleMetadataTextPairs = [
 ];
 
 const legacyProfessionalText = new Map([
+  ["CDD 基础流程", "客户尽职调查基础流程"],
+  ["Core CDD Workflow", "Customer Due Diligence Workflow"],
+  ["CDD 已获内部批准", "客户尽职调查已获内部批准"],
+  ["CDD internally approved", "Customer due diligence internally approved"],
   ["TB／A4权威来源已确认", "试算表及总账权威版本已确认"],
   ["Authoritative TB / A4 source confirmed", "试算表及总账权威版本已确认"],
   ["TB／A4", "试算表及总账衔接"],
@@ -299,10 +304,31 @@ export function workstreamTypeLabel(type, language = "zh", customName = "") {
     quote_collection: ["报价与收款", "Quotation & collection"],
     audit: ["审计", "Audit"],
     tax_computation_filing: ["税务计算及报税", "Tax computation & filing"],
-    cdd: ["客户尽职调查（CDD）", "Customer due diligence (CDD)"],
+    cdd: ["客户尽职调查", "Customer due diligence"],
   };
   const label = labels[type]?.[language === "en" ? 1 : 0] || type;
   return language === "zh-Hant" ? toTraditional(label) : label;
+}
+
+export function createDefaultWorkstreamCategories() {
+  return WORKSTREAM_TYPES.map((type) => ({ id: type, builtinType: type, name: "" }));
+}
+
+export function normalizeWorkstreamCategories(value) {
+  const categories = createDefaultWorkstreamCategories();
+  const seen = new Set(categories.map((category) => category.id));
+  (Array.isArray(value) ? value : []).forEach((category) => {
+    const id = typeof category?.id === "string" ? category.id.trim() : "";
+    const name = typeof category?.name === "string" ? category.name.trim() : "";
+    if (!id || !name || seen.has(id) || id === "group") return;
+    seen.add(id);
+    categories.push({ id, name });
+  });
+  return categories;
+}
+
+export function workstreamCategoryLabel(category, language = "zh") {
+  return category?.builtinType ? workstreamTypeLabel(category.builtinType, language) : (category?.name || "");
 }
 
 export function createDefaultSample(language = "zh", workstreamType = "audit") {
@@ -313,6 +339,7 @@ export function createDefaultSample(language = "zh", workstreamType = "audit") {
     id: `sample-${WORKSTREAM_SAMPLE_KEYS[type]}`,
     builtinKey: WORKSTREAM_SAMPLE_KEYS[type],
     workstreamType: type,
+    categoryId: type,
     name: language === "zh-Hant" ? toTraditional(definition.names[0]) : definition.names[english ? 1 : 0],
     description: language === "zh-Hant" ? toTraditional(definition.descriptions[0]) : definition.descriptions[english ? 1 : 0],
     updatedAt: new Date().toISOString(),
@@ -352,7 +379,8 @@ export function normalizeSample(value) {
     id: value.id || "sample-main",
     builtinKey: knownBuiltinType ? value.builtinKey : undefined,
     workstreamType: type,
-    name: typeof value.name === "string" && value.name.trim() ? value.name.trim() : "未命名范本",
+    categoryId: typeof value.categoryId === "string" && value.categoryId.trim() ? value.categoryId.trim() : type,
+    name: typeof value.name === "string" && value.name.trim() ? professionalizeLegacyText(value.name.trim()) : "未命名范本",
     description: typeof value.description === "string" ? value.description : "",
     updatedAt: value.updatedAt || new Date().toISOString(),
     nodes: value.nodes.map((node) => ({
@@ -387,10 +415,11 @@ export function localizeSample(sample, language = "zh") {
   };
 }
 
-export function makeBlankSample(language = "zh", workstreamType = "audit") {
+export function makeBlankSample(language = "zh", workstreamType = "audit", categoryId = workstreamType) {
   return {
     id: uid("sample"),
     workstreamType: WORKSTREAM_TYPES.includes(workstreamType) ? workstreamType : "audit",
+    categoryId: typeof categoryId === "string" && categoryId.trim() ? categoryId.trim() : workstreamType,
     name: language === "en" ? "New Template" : language === "zh-Hant" ? "新範本" : "新范本",
     description: "",
     updatedAt: new Date().toISOString(),
@@ -420,6 +449,7 @@ export function makeWorkstream(values = {}, sample = null) {
   return {
     id: values.id || uid("workstream"),
     type,
+    categoryId: typeof values.categoryId === "string" && values.categoryId.trim() ? values.categoryId.trim() : type,
     customName: type === "custom" ? (values.customName?.trim() || "自定义模块") : "",
     owner: values.owner?.trim() || "",
     dueDate: values.dueDate || "",
@@ -439,6 +469,7 @@ export function normalizeWorkstream(value, projectDefaults = {}) {
   return {
     id: value?.id || uid("workstream"),
     type,
+    categoryId: typeof value?.categoryId === "string" && value.categoryId.trim() ? value.categoryId.trim() : type,
     customName: type === "custom" && typeof value?.customName === "string" && value.customName.trim()
       ? value.customName.trim() : (type === "custom" ? "自定义模块" : ""),
     owner: typeof value?.owner === "string" ? value.owner : (projectDefaults.owner || ""),
@@ -572,7 +603,9 @@ export function makeGroup(values, useStarter = true, groupSample = createDefault
   return {
     id: uid("group"),
     name: values.name.trim(),
-    period: values.period.trim(),
+    period: values.period?.trim() || "",
+    periodStart: values.periodStart || "",
+    periodEnd: values.periodEnd || "",
     dueDate: values.dueDate || "",
     owner: values.owner?.trim() || "",
     notes: values.notes?.trim() || "",
@@ -622,10 +655,16 @@ function normalizeNodeList(nodes, removeLegacyOutstanding = false) {
 
 export function normalizeStore(value) {
   const outstandingStatuses = normalizeOutstandingStatuses(value.outstandingStatuses);
+  const workstreamCategories = normalizeWorkstreamCategories(value.workstreamCategories);
+  const categoryById = new Map(workstreamCategories.map((category) => [category.id, category]));
   const rawSamples = Array.isArray(value.samples) ? value.samples : [value.sample];
   const seenSampleIds = new Set();
   const samples = rawSamples.filter(Boolean).map((sample) => {
     const normalized = normalizeSample(sample);
+    const category = categoryById.get(normalized.categoryId);
+    if (!category || (category.builtinType || "custom") !== normalized.workstreamType) {
+      normalized.categoryId = normalized.workstreamType;
+    }
     if (seenSampleIds.has(normalized.id)) normalized.id = uid("sample");
     seenSampleIds.add(normalized.id);
     return normalized;
@@ -640,11 +679,12 @@ export function normalizeStore(value) {
   });
   const legacySelectedSampleId = samples.some((sample) => sample.id === value.selectedSampleId)
     ? value.selectedSampleId : undefined;
-  const selectedSampleIdsByType = Object.fromEntries(WORKSTREAM_TYPES.map((type) => {
-    const requested = value.selectedSampleIdsByType?.[type] || (type === "audit" ? legacySelectedSampleId : undefined);
-    const selected = samples.find((sample) => sample.id === requested && sample.workstreamType === type)
-      || samples.find((sample) => sample.workstreamType === type);
-    return [type, selected?.id || null];
+  const selectedSampleIdsByCategory = Object.fromEntries(workstreamCategories.map((category) => {
+    const requested = value.selectedSampleIdsByCategory?.[category.id] || value.selectedSampleIdsByType?.[category.id]
+      || (category.id === "audit" ? legacySelectedSampleId : undefined);
+    const selected = samples.find((sample) => sample.id === requested && sample.categoryId === category.id)
+      || samples.find((sample) => sample.categoryId === category.id);
+    return [category.id, selected?.id || null];
   }));
   const rawGroupSamples = Array.isArray(value.groupSamples) ? value.groupSamples : [];
   const seenGroupSampleIds = new Set();
@@ -665,7 +705,12 @@ export function normalizeStore(value) {
       ? project.workstreams : [{ id: `${project.id || uid("project")}-audit`, type: "audit", owner, dueDate,
         createdAt: project.createdAt, updatedAt: project.updatedAt, nodes: normalizeNodeList(project.nodes, true) }];
     const seenBuiltinTypes = new Set();
-    const workstreams = rawWorkstreams.map((workstream) => normalizeWorkstream(workstream, { owner, dueDate }))
+    const workstreams = rawWorkstreams.map((workstream) => {
+      const normalized = normalizeWorkstream(workstream, { owner, dueDate });
+      const category = categoryById.get(normalized.categoryId);
+      return !category || (category.builtinType || "custom") !== normalized.type
+        ? { ...normalized, categoryId: normalized.type } : normalized;
+    })
       .filter((workstream) => {
         if (workstream.type === "custom") return true;
         if (seenBuiltinTypes.has(workstream.type)) return false;
@@ -683,7 +728,10 @@ export function normalizeStore(value) {
       id: project?.id || uid("project"),
       name: typeof project?.name === "string" && project.name.trim() ? project.name.trim() : "未命名项目",
       entity: typeof project?.entity === "string" ? project.entity : "",
+      reportingFramework: typeof project?.reportingFramework === "string" ? project.reportingFramework : "",
       period: typeof project?.period === "string" ? project.period : "",
+      periodStart: typeof project?.periodStart === "string" ? project.periodStart : "",
+      periodEnd: typeof project?.periodEnd === "string" ? project.periodEnd : "",
       dueDate,
       owner,
       notes: typeof project?.notes === "string" ? project.notes : "",
@@ -698,6 +746,8 @@ export function normalizeStore(value) {
     id: group?.id || uid("group"),
     name: typeof group?.name === "string" && group.name.trim() ? group.name.trim() : "未命名集团",
     period: typeof group?.period === "string" ? group.period : "",
+    periodStart: typeof group?.periodStart === "string" ? group.periodStart : "",
+    periodEnd: typeof group?.periodEnd === "string" ? group.periodEnd : "",
     dueDate: typeof group?.dueDate === "string" ? group.dueDate : "",
     owner: typeof group?.owner === "string" ? group.owner : "",
     notes: typeof group?.notes === "string" ? group.notes : "",
@@ -716,17 +766,20 @@ export function normalizeStore(value) {
     projects,
     groups,
     samples,
-    selectedSampleIdsByType,
+    workstreamCategories,
+    selectedSampleIdsByCategory,
     groupSamples,
     selectedGroupSampleId,
     outstandingStatuses,
   };
 }
 
-export function makeProject(values, useStarter = true, sampleSource = null) {
+export function makeProject(values, useStarter = true, sampleSource = null, categorySource = null) {
   const now = new Date().toISOString();
   const legacyNodes = Array.isArray(sampleSource) && (!sampleSource.length || "title" in sampleSource[0]) ? sampleSource : null;
   const availableSamples = Array.isArray(sampleSource) && !legacyNodes ? sampleSource : createDefaultSamples();
+  const availableCategories = normalizeWorkstreamCategories(categorySource);
+  const categoryById = new Map(availableCategories.map((category) => [category.id, category]));
   const selections = Array.isArray(values.workstreamSelections) && values.workstreamSelections.length
     ? values.workstreamSelections : [{ type: "audit" }];
   const seenBuiltinTypes = new Set();
@@ -740,18 +793,24 @@ export function makeProject(values, useStarter = true, sampleSource = null) {
   if (!cleanedSelections.length) cleanedSelections.push({ type: "audit" });
   const workstreams = cleanedSelections.map((selection) => {
     const type = WORKSTREAM_TYPES.includes(selection.type) ? selection.type : "audit";
+    const requestedCategory = categoryById.get(selection.categoryId || type);
+    const categoryId = requestedCategory && (requestedCategory.builtinType || "custom") === type
+      ? requestedCategory.id : type;
     const sample = legacyNodes && type === "audit" ? legacyNodes
-      : availableSamples.find((item) => item.id === selection.sampleId && item.workstreamType === type)
-        || availableSamples.find((item) => item.workstreamType === type)
+      : availableSamples.find((item) => item.id === selection.sampleId && item.categoryId === categoryId)
+        || availableSamples.find((item) => item.categoryId === categoryId)
         || (type !== "custom" ? createDefaultSample("zh", type) : null);
-    return makeWorkstream({ type, customName: selection.customName, owner: selection.owner || values.owner,
+    return makeWorkstream({ type, categoryId, customName: selection.customName, owner: selection.owner || values.owner,
       dueDate: selection.dueDate || values.dueDate }, useStarter ? sample : []);
   });
   return {
     id: uid("project"),
     name: values.name?.trim() || "未命名项目",
     entity: values.entity?.trim() || "",
+    reportingFramework: values.reportingFramework?.trim() || "",
     period: values.period?.trim() || "",
+    periodStart: values.periodStart || "",
+    periodEnd: values.periodEnd || "",
     dueDate: values.dueDate || "",
     owner: values.owner?.trim() || "",
     notes: values.notes?.trim() || "",
@@ -766,15 +825,16 @@ export function makeProject(values, useStarter = true, sampleSource = null) {
 export function emptyStore() {
   const samples = createDefaultSamples();
   const groupSample = createDefaultGroupSample();
-  return { version: STORE_VERSION, projects: [], groups: [], samples,
-    selectedSampleIdsByType: Object.fromEntries(WORKSTREAM_TYPES.map((type) => [type,
-      samples.find((sample) => sample.workstreamType === type)?.id || null])),
+  const workstreamCategories = createDefaultWorkstreamCategories();
+  return { version: STORE_VERSION, projects: [], groups: [], samples, workstreamCategories,
+    selectedSampleIdsByCategory: Object.fromEntries(workstreamCategories.map((category) => [category.id,
+      samples.find((sample) => sample.categoryId === category.id)?.id || null])),
     groupSamples: [groupSample], selectedGroupSampleId: groupSample.id,
     outstandingStatuses: createDefaultOutstandingStatuses() };
 }
 
 export function isValidStore(value) {
-  return value && [1, 2, 3, 4, STORE_VERSION].includes(value.version) && Array.isArray(value.projects);
+  return value && [1, 2, 3, 4, 5, 6, STORE_VERSION].includes(value.version) && Array.isArray(value.projects);
 }
 
 export function outstandingStatusLabel(value, statuses = createDefaultOutstandingStatuses(), language = "zh") {
@@ -893,6 +953,33 @@ export function findParentMembership(store, kind, refId) {
     if (member) return { group, member };
   }
   return null;
+}
+
+export function canMoveWorkspaceItem(store, kind, refId, parentGroupId = "") {
+  if (!["project", "group"].includes(kind)) return false;
+  const source = kind === "project" ? store.projects?.find((item) => item.id === refId)
+    : store.groups?.find((item) => item.id === refId);
+  if (!source || source.archived) return false;
+  if (!parentGroupId) return true;
+  const parent = store.groups?.find((group) => group.id === parentGroupId);
+  if (!parent || parent.archived) return false;
+  return kind !== "group" || (refId !== parentGroupId && !groupContainsGroup(store, refId, parentGroupId));
+}
+
+export function moveWorkspaceItem(store, kind, refId, parentGroupId = "", groupSample = createDefaultGroupSample()) {
+  if (!canMoveWorkspaceItem(store, kind, refId, parentGroupId)) return store;
+  const current = findParentMembership(store, kind, refId);
+  if ((current?.group.id || "") === parentGroupId) return store;
+  const target = parentGroupId ? store.groups.find((group) => group.id === parentGroupId) : null;
+  const member = target ? (current?.member || makeGroupMember({ kind, refId,
+    ...(kind === "project" ? { auditType: "internal_team" } : {}) }, groupSample)) : null;
+  const now = new Date().toISOString();
+  return { ...store, groups: store.groups.map((group) => {
+    const withoutSource = group.members.filter((entry) => !(entry.kind === kind && entry.refId === refId));
+    const members = group.id === target?.id && member ? [...withoutSource, member] : withoutSource;
+    return members.length === group.members.length && members.every((entry, index) => entry === group.members[index])
+      ? group : { ...group, members, updatedAt: now };
+  }) };
 }
 
 export function assignProjectToGroup(store, projectId, assignment, groupSample = createDefaultGroupSample()) {
@@ -1038,6 +1125,17 @@ export function formatDate(value, language = "zh") {
   if (Number.isNaN(date.getTime())) return value;
   return new Intl.DateTimeFormat(language === "en" ? "en-GB" : "zh-HK",
     { year: "numeric", month: "short", day: "numeric" }).format(date);
+}
+
+export function reportingPeriodLabel(item, language = "zh") {
+  const start = item?.periodStart;
+  const end = item?.periodEnd;
+  if (start && end) return `${formatDate(start, language)} – ${formatDate(end, language)}`;
+  if (start) return language === "en" ? `From ${formatDate(start, language)}`
+    : language === "zh-Hant" ? `自 ${formatDate(start, language)} 起` : `自 ${formatDate(start, language)} 起`;
+  if (end) return language === "en" ? `To ${formatDate(end, language)}`
+    : language === "zh-Hant" ? `截至 ${formatDate(end, language)}` : `截至 ${formatDate(end, language)}`;
+  return typeof item?.period === "string" ? item.period : "";
 }
 
 export function dueTone(project) {

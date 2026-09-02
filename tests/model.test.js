@@ -6,12 +6,15 @@ import {
   STORE_VERSION,
   activeOutstandingItems,
   assignProjectToGroup,
+  canMoveWorkspaceItem,
   canNestGroup,
   collectGroupOutstandingEntries,
   createDefaultGroupSample,
+  createDefaultWorkstreamCategories,
   createDefaultSample,
   createDefaultOutstandingStatuses,
   duplicateSample,
+  emptyStore,
   groupProgress,
   localizeGroupSample,
   localizeOutstandingStatuses,
@@ -23,18 +26,22 @@ import {
   makeProject,
   makeWorkstream,
   memberProgressPercentage,
+  moveWorkspaceItem,
   nodeIsComplete,
   normalizeStore,
   outstandingIsOpen,
   projectIsComplete,
   projectStats,
   redactSampleCompanies,
+  reportingPeriodLabel,
   workstreamStats,
+  workstreamTypeLabel,
 } from "../src/dashboard/model.js";
 
 const projectValues = {
   name: "[Company Name] FY2025 Audit",
   entity: "[Company Name] Limited",
+  reportingFramework: "HKFRS Accounting Standards",
   period: "Year ended 31 March 2025",
   dueDate: "2025-06-30",
   notes: "",
@@ -119,7 +126,7 @@ test("version 1 data migrates outstanding items separately and removes the retir
   assert.equal(migrated.projects[0].workstreams[0].nodes[0].description, "完成主要工作底稿并处理审计调整。");
   assert.deepEqual(migrated.projects[0].workstreams[0].nodes[0].conditions.map((condition) => condition.id), ["keep"]);
   assert.ok(migrated.samples[0].nodes.length > 0);
-  assert.equal(migrated.selectedSampleIdsByType.audit,
+  assert.equal(migrated.selectedSampleIdsByCategory.audit,
     migrated.samples.find((sample) => sample.workstreamType === "audit").id);
   assert.equal(migrated.outstandingStatuses.length, 5);
   assert.equal(migrated.groups.length, 0);
@@ -137,7 +144,7 @@ test("version 2 single-Sample data migrates into the Sample library", () => {
   assert.equal(migrated.samples.length, 4);
   const auditSample = migrated.samples.find((sample) => sample.workstreamType === "audit");
   assert.equal(auditSample.builtinKey, CORE_SAMPLE_KEY);
-  assert.equal(migrated.selectedSampleIdsByType.audit, auditSample.id);
+  assert.equal(migrated.selectedSampleIdsByCategory.audit, auditSample.id);
   assert.equal("sample" in migrated, false);
 });
 
@@ -306,6 +313,64 @@ test("version 4 project nodes migrate into one audit workstream without changing
   assert.equal(audit.nodes[0].conditions[0].done, true);
 });
 
+test("version 5 data migrates to template categories without changing the selected audit template", () => {
+  const auditSample = createDefaultSample();
+  const project = makeProject(projectValues, true, auditSample.nodes);
+  const migrated = normalizeStore({ version: 5, projects: [project], groups: [], samples: [auditSample],
+    selectedSampleIdsByType: { audit: auditSample.id }, groupSamples: [createDefaultGroupSample()],
+    outstandingStatuses: createDefaultOutstandingStatuses() });
+
+  assert.equal(migrated.version, STORE_VERSION);
+  assert.deepEqual(migrated.workstreamCategories.map((category) => category.id),
+    ["quote_collection", "audit", "tax_computation_filing", "cdd", "custom"]);
+  assert.equal(migrated.selectedSampleIdsByCategory.audit, auditSample.id);
+  assert.equal(migrated.projects[0].workstreams[0].categoryId, "audit");
+});
+
+test("initialising creates a clean version 7 workspace with built-in categories and templates", () => {
+  const initialised = emptyStore();
+
+  assert.equal(initialised.version, STORE_VERSION);
+  assert.deepEqual(initialised.projects, []);
+  assert.deepEqual(initialised.groups, []);
+  assert.equal(initialised.workstreamCategories.length, 5);
+  assert.equal(initialised.samples.length, 4);
+  assert.equal(initialised.groupSamples.length, 1);
+  assert.equal(initialised.selectedSampleIdsByCategory.audit, "sample-core-audit");
+});
+
+test("a custom template category can create an independent named workstream", () => {
+  const customCategory = { id: "company_secretarial", name: "公司秘书服务" };
+  const customSample = { id: "sample-company-secretarial", workstreamType: "custom",
+    categoryId: customCategory.id, name: "公司秘书年度流程", description: "", nodes: [{ id: "sample-stage",
+      title: "周年申报", description: "准备并提交周年申报表。",
+      conditions: [{ id: "sample-condition", label: "周年申报表已提交", done: false }] }] };
+  const migrated = normalizeStore({ version: STORE_VERSION, projects: [], groups: [], samples: [customSample],
+    workstreamCategories: [...createDefaultWorkstreamCategories(), customCategory],
+    selectedSampleIdsByCategory: { [customCategory.id]: customSample.id },
+    groupSamples: [createDefaultGroupSample()], outstandingStatuses: createDefaultOutstandingStatuses() });
+  const project = makeProject({ ...projectValues, workstreamSelections: [{ type: "custom", categoryId: customCategory.id,
+    customName: customCategory.name, sampleId: customSample.id }] }, true, migrated.samples, migrated.workstreamCategories);
+  const workstream = project.workstreams[0];
+
+  assert.equal(migrated.workstreamCategories.at(-1).name, customCategory.name);
+  assert.equal(migrated.selectedSampleIdsByCategory[customCategory.id], customSample.id);
+  assert.equal(workstream.categoryId, customCategory.id);
+  assert.equal(workstream.customName, customCategory.name);
+  assert.equal(workstream.nodes[0].title, "周年申报");
+  assert.notEqual(workstream.nodes[0].id, customSample.nodes[0].id);
+});
+
+test("customer due diligence labels use the full professional name without the abbreviation", () => {
+  const simplified = createDefaultSample("zh", "cdd");
+  const english = localizeSample(simplified, "en");
+
+  assert.equal(workstreamTypeLabel("cdd", "zh"), "客户尽职调查");
+  assert.equal(workstreamTypeLabel("cdd", "en"), "Customer due diligence");
+  assert.doesNotMatch(JSON.stringify(simplified), /CDD/u);
+  assert.doesNotMatch(JSON.stringify(english), /CDD/u);
+});
+
 test("parallel workstreams progress independently and a project completes only when every workstream completes", () => {
   const project = makeProject({ ...projectValues, workstreamSelections: [{ type: "audit" },
     { type: "tax_computation_filing" }] }, true);
@@ -426,4 +491,60 @@ test("company details can preserve, move and remove a project group assignment",
 
   const detached = assignProjectToGroup(moved, project.id, { groupId: "" }, groupSample);
   assert.equal(detached.groups.some((group) => group.members.some((item) => item.refId === project.id)), false);
+});
+
+test("navigation moves a project between groups while preserving its member settings", () => {
+  const groupSample = createDefaultGroupSample();
+  const project = makeProject(projectValues, true);
+  const firstGroup = makeGroup({ name: "First Group", period: "FY2025", consolidationEnabled: false }, false, groupSample);
+  const secondGroup = makeGroup({ name: "Second Group", period: "FY2025", consolidationEnabled: false }, false, groupSample);
+  const member = makeGroupMember({ kind: "project", refId: project.id, role: "Subsidiary",
+    auditType: "component_auditor" }, groupSample);
+  member.readinessConditions[0].done = true;
+  firstGroup.members.push(member);
+  const store = { projects: [project], groups: [firstGroup, secondGroup] };
+
+  const moved = moveWorkspaceItem(store, "project", project.id, secondGroup.id, groupSample);
+  const movedMember = moved.groups.find((group) => group.id === secondGroup.id).members[0];
+  assert.equal(moved.groups.find((group) => group.id === firstGroup.id).members.length, 0);
+  assert.equal(movedMember.id, member.id);
+  assert.equal(movedMember.role, "Subsidiary");
+  assert.equal(movedMember.auditType, "component_auditor");
+  assert.equal(movedMember.readinessConditions[0].done, true);
+
+  const detached = moveWorkspaceItem(moved, "project", project.id, "", groupSample);
+  assert.equal(detached.groups.some((group) => group.members.some((item) => item.refId === project.id)), false);
+});
+
+test("navigation rejects archived records and group hierarchy cycles", () => {
+  const groupSample = createDefaultGroupSample();
+  const child = makeGroup({ name: "Child", consolidationEnabled: false }, false, groupSample);
+  const parent = makeGroup({ name: "Parent", consolidationEnabled: false }, false, groupSample);
+  parent.members.push(makeGroupMember({ kind: "group", refId: child.id }, groupSample));
+  const project = makeProject(projectValues, false);
+  project.archived = true;
+  const store = { projects: [project], groups: [parent, child] };
+
+  assert.equal(canMoveWorkspaceItem(store, "group", parent.id, child.id), false);
+  assert.equal(moveWorkspaceItem(store, "group", parent.id, child.id, groupSample), store);
+  assert.equal(canMoveWorkspaceItem(store, "project", project.id, parent.id), false);
+});
+
+test("reporting periods use start and end dates while custom frameworks and legacy period text are preserved", () => {
+  const project = makeProject({ ...projectValues, period: "", periodStart: "2025-01-15", periodEnd: "2025-03-31" }, false);
+  assert.equal(project.periodStart, "2025-01-15");
+  assert.equal(project.periodEnd, "2025-03-31");
+  assert.match(reportingPeriodLabel(project, "en"), /15 Jan 2025.*31 Mar 2025/u);
+
+  const legacy = makeProject({ ...projectValues, periodStart: "", periodEnd: "" }, false);
+  const migrated = normalizeStore({ version: 6, projects: [legacy], groups: [] });
+  assert.equal(migrated.version, STORE_VERSION);
+  assert.equal(migrated.projects[0].period, projectValues.period);
+  assert.equal(migrated.projects[0].periodStart, "");
+  assert.equal(migrated.projects[0].periodEnd, "");
+  assert.equal(reportingPeriodLabel(migrated.projects[0], "en"), projectValues.period);
+  assert.equal(migrated.projects[0].reportingFramework, "HKFRS Accounting Standards");
+
+  const customFramework = makeProject({ ...projectValues, reportingFramework: "  Contractual reporting basis  " }, false);
+  assert.equal(customFramework.reportingFramework, "Contractual reporting basis");
 });

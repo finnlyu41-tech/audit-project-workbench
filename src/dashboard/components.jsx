@@ -1,9 +1,10 @@
 import React from "react";
-import { BUILTIN_WORKSTREAM_TYPES, GROUP_AUDIT_TYPES, GROUP_AUDIT_TYPE_KEYS, WORKSTREAM_TYPE_KEYS, dueTone, formatDate,
-  nodeStatus, outstandingIsOpen, projectStats, uid, workstreamStats, workstreamTypeLabel } from "./model.js";
+import { GROUP_AUDIT_TYPES, GROUP_AUDIT_TYPE_KEYS, createDefaultWorkstreamCategories, dueTone, formatDate,
+  nodeStatus, outstandingIsOpen, projectStats, reportingPeriodLabel, uid, workstreamCategoryLabel, workstreamStats,
+  workstreamTypeLabel } from "./model.js";
 import { useUiLanguage } from "./i18n.jsx";
 
-export function Modal({ title, onClose, children, wide = false }) {
+export function Modal({ title, onClose, children, wide = false, large = false }) {
   const { t } = useUiLanguage();
   React.useEffect(() => {
     const closeOnEscape = (event) => event.key === "Escape" && onClose();
@@ -12,7 +13,8 @@ export function Modal({ title, onClose, children, wide = false }) {
   }, [onClose]);
 
   return <div className="workbench-modal-backdrop" role="presentation" onMouseDown={onClose}>
-    <section className="workbench-modal" data-wide={wide || undefined} role="dialog" aria-modal="true" aria-label={title}
+    <section className="workbench-modal" data-wide={wide || undefined} data-large={large || undefined}
+      role="dialog" aria-modal="true" aria-label={title}
       onMouseDown={(event) => event.stopPropagation()}>
       <header><h2>{title}</h2><button type="button" className="icon-button" onClick={onClose} aria-label={t("关闭")}>×</button></header>
       {children}
@@ -20,12 +22,16 @@ export function Modal({ title, onClose, children, wide = false }) {
   </div>;
 }
 export function ProjectForm({ initial, onSubmit, onClose, submitLabel, allowWorkstreams = true,
-  samples = [], selectedSampleIdsByType = {}, initialWorkstreamTypes, groupOptions = null, initialMembership }) {
+  samples = [], workstreamCategories = createDefaultWorkstreamCategories(), selectedSampleIdsByCategory = {},
+  initialWorkstreamSelections, groupOptions = null, initialMembership }) {
   const { language, t } = useUiLanguage();
   const [values, setValues] = React.useState(() => ({
     name: initial?.name || "",
     entity: initial?.entity || "",
+    reportingFramework: initial?.reportingFramework || "",
     period: initial?.period || "",
+    periodStart: initial?.periodStart || "",
+    periodEnd: initial?.periodEnd || "",
     dueDate: initial?.dueDate || "",
     owner: initial?.owner || "",
     notes: initial?.notes || "",
@@ -36,14 +42,22 @@ export function ProjectForm({ initial, onSubmit, onClose, submitLabel, allowWork
     auditType: initialMembership?.member?.auditType || "internal_team",
   }));
   const [useStarter, setUseStarter] = React.useState(true);
-  const [selections, setSelections] = React.useState(() => (initialWorkstreamTypes?.length
-    ? initialWorkstreamTypes : ["audit"]).map((type) => ({ type, customName: "",
-      sampleId: selectedSampleIdsByType[type] || samples.find((sample) => sample.workstreamType === type)?.id || "" })));
+  const makeSelection = (source) => {
+    const requestedCategoryId = typeof source === "string" ? source : source?.categoryId;
+    const category = workstreamCategories.find((item) => item.id === requestedCategoryId)
+      || workstreamCategories.find((item) => item.id === "audit") || workstreamCategories[0];
+    const type = category?.builtinType || "custom";
+    return { categoryId: category?.id || "audit", type,
+      customName: type === "custom" && category?.id !== "custom" ? category?.name || "" : source?.customName || "",
+      sampleId: source?.sampleId || selectedSampleIdsByCategory[category?.id]
+        || samples.find((sample) => sample.categoryId === category?.id)?.id || "" };
+  };
+  const [selections, setSelections] = React.useState(() => (initialWorkstreamSelections?.length
+    ? initialWorkstreamSelections : [{ categoryId: "audit" }]).map(makeSelection));
   const update = (field) => (event) => setValues((current) => ({ ...current, [field]: event.target.value }));
-  const toggleBuiltin = (type) => setSelections((current) => current.some((item) => item.type === type)
-    ? (current.length === 1 ? current : current.filter((item) => item.type !== type))
-    : [...current, { type, customName: "", sampleId: selectedSampleIdsByType[type]
-      || samples.find((sample) => sample.workstreamType === type)?.id || "" }]);
+  const toggleCategory = (category) => setSelections((current) => current.some((item) => item.categoryId === category.id)
+    ? (current.length === 1 ? current : current.filter((item) => item.categoryId !== category.id))
+    : [...current, makeSelection({ categoryId: category.id })]);
   const updateSelection = (index, patch) => setSelections((current) => current.map((item, itemIndex) =>
     itemIndex === index ? { ...item, ...patch } : item));
   return <form className="workbench-form" onSubmit={(event) => {
@@ -57,17 +71,23 @@ export function ProjectForm({ initial, onSubmit, onClose, submitLabel, allowWork
   }}>
     <label><span>{t("项目名称 *")}</span><input autoFocus required value={values.name} onChange={update("name")}
       placeholder={t("例如：[公司名称] 2025年度审计")} /></label>
-    <div className="form-grid">
+    <div className="form-grid" data-columns="3">
       <label><span>{t("法律实体")}</span><input value={values.entity} onChange={update("entity")} placeholder={t("公司完整名称")} /></label>
-      <label><span>{t("报告期间")}</span><input value={values.period} onChange={update("period")}
-        placeholder={t("例如：截至2025年3月31日")} /></label>
-    </div>
-    <div className="form-grid">
-      <label><span>{t("目标完成日期")}</span><input type="date" value={values.dueDate} onChange={update("dueDate")} /></label>
+      <label><span>{t("财务报告准则／框架")}</span><input list="reporting-framework-options" value={values.reportingFramework}
+        onChange={update("reportingFramework")} placeholder={t("选择常用框架或直接输入")} /></label>
       <label><span>{t("负责人")}</span><input value={values.owner} onChange={update("owner")} placeholder={t("例如：项目经理或主审")}/></label>
     </div>
-    <label><span>{t("备注")}</span><textarea rows="3" value={values.notes} onChange={update("notes")}
-      placeholder={t("可记录负责人、客户要求或其他背景")} /></label>
+    <datalist id="reporting-framework-options">{["香港财务报告准则", "中小企财务报告框架及准则", "国际财务报告会计准则",
+      "香港私人公司财务报告准则"].map((framework) => <option value={t(framework)} key={framework} />)}</datalist>
+    <div className="form-grid" data-columns="3">
+      <label><span>{t("报告期开始日")}</span><input type="date" value={values.periodStart} max={values.periodEnd || undefined}
+        required={Boolean(values.periodEnd)} onChange={update("periodStart")} /></label>
+      <label><span>{t("报告期结束日")}</span><input type="date" value={values.periodEnd} min={values.periodStart || undefined}
+        required={Boolean(values.periodStart)} onChange={update("periodEnd")} /></label>
+      <label><span>{t("目标完成日期")}</span><input type="date" value={values.dueDate} onChange={update("dueDate")} /></label>
+    </div>
+    {values.period && !values.periodStart && !values.periodEnd && <small className="form-help">
+      {t("原有报告期间：{period}。请在适当时补充开始日和结束日。", { period: values.period })}</small>}
     {groupOptions && <section className="project-group-assignment"><header><strong>{t("集团归属")}</strong>
       <span>{t("可在公司资料中直接加入、变更或移出集团。")}</span></header>
       <label><span>{t("所属集团")}</span><select value={membership.groupId}
@@ -85,57 +105,71 @@ export function ProjectForm({ initial, onSubmit, onClose, submitLabel, allowWork
     </section>}
     {allowWorkstreams && <section className="project-workstream-picker"><header><strong>{t("选择业务模块")}</strong>
       <span>{t("每个模块独立追踪进度、负责人和截止日。")}</span></header>
-      <div className="workstream-choice-grid">{BUILTIN_WORKSTREAM_TYPES.map((type) => <label className="workstream-choice" key={type}
-        data-selected={selections.some((item) => item.type === type) || undefined}><input type="checkbox"
-          checked={selections.some((item) => item.type === type)} onChange={() => toggleBuiltin(type)} />
-        <span><strong>{t(WORKSTREAM_TYPE_KEYS[type])}</strong><small>{t(type === "audit" ? "新项目默认启用" : "按需要启用")}</small></span></label>)}</div>
+      <div className="workstream-choice-grid">{workstreamCategories.filter((category) => category.id !== "custom").map((category) =>
+        <label className="workstream-choice" key={category.id}
+          data-selected={selections.some((item) => item.categoryId === category.id) || undefined}><input type="checkbox"
+            checked={selections.some((item) => item.categoryId === category.id)} onChange={() => toggleCategory(category)} />
+          <span><strong>{workstreamCategoryLabel(category, language)}</strong><small>{t(category.id === "audit" ? "新项目默认启用" : "按需要启用")}</small></span></label>)}</div>
       {selections.map((selection, index) => {
-        const typeSamples = samples.filter((sample) => sample.workstreamType === selection.type);
-        return <div className="workstream-selection-row" key={`${selection.type}-${index}`}><strong>{workstreamTypeLabel(selection.type, language, selection.customName)}</strong>
-          {selection.type === "custom" && <input required value={selection.customName}
+        const category = workstreamCategories.find((item) => item.id === selection.categoryId);
+        const typeSamples = samples.filter((sample) => sample.categoryId === selection.categoryId);
+        return <div className="workstream-selection-row" key={`${selection.categoryId}-${index}`}><strong>{category
+          ? workstreamCategoryLabel(category, language) : workstreamTypeLabel(selection.type, language, selection.customName)}</strong>
+          {selection.type === "custom" && selection.categoryId === "custom" && <input required value={selection.customName}
             onChange={(event) => updateSelection(index, { customName: event.target.value })} placeholder={t("自定义模块名称")} />}
           <select value={selection.sampleId} onChange={(event) => updateSelection(index, { sampleId: event.target.value })}>
             <option value="">{t("空白流程")}</option>{typeSamples.map((sample) => <option value={sample.id} key={sample.id}>{sample.name}</option>)}</select>
-          {selection.type === "custom" && <button type="button" onClick={() => setSelections((current) => current.filter((_, itemIndex) => itemIndex !== index))}>{t("移除")}</button>}</div>;
+          {selection.categoryId === "custom" && <button type="button" onClick={() => setSelections((current) => current.filter((_, itemIndex) => itemIndex !== index))}>{t("移除")}</button>}</div>;
       })}
       <button type="button" className="add-custom-workstream" onClick={() => setSelections((current) => [...current,
-        { type: "custom", customName: "", sampleId: selectedSampleIdsByType.custom || "" }])}>{t("＋ 添加自定义模块")}</button>
+        makeSelection({ categoryId: "custom" })])}>{t("＋ 添加自定义模块")}</button>
       <label className="check-option"><input type="checkbox" checked={useStarter}
         onChange={(event) => setUseStarter(event.target.checked)} /><span><strong>{t("套用所选业务范本")}</strong>
           <small>{t("建立后仍可自由增加、修改、排序或删除。")}</small></span></label></section>}
+    <label><span>{t("备注")}</span><textarea rows="3" value={values.notes} onChange={update("notes")}
+      placeholder={t("可记录负责人、客户要求或其他背景")} /></label>
     <footer className="modal-actions"><button type="button" className="button secondary" onClick={onClose}>{t("取消")}</button>
       <button type="submit" className="button primary">{t(submitLabel || "建立项目")}</button></footer>
   </form>;
 }
 
-export function WorkstreamForm({ initial, availableTypes = BUILTIN_WORKSTREAM_TYPES, samples = [],
-  selectedSampleIdsByType = {}, onSubmit, onRemove, onClose }) {
+export function WorkstreamForm({ initial, availableCategories = createDefaultWorkstreamCategories(), samples = [],
+  selectedSampleIdsByCategory = {}, onSubmit, onRemove, onClose }) {
   const { language, t } = useUiLanguage();
-  const firstType = initial?.type || availableTypes[0] || "custom";
+  const initialCategory = availableCategories.find((category) => category.id === initial?.categoryId)
+    || (initial ? { id: initial.categoryId || initial.type, builtinType: initial.type,
+      name: initial.type === "custom" ? initial.customName : "" } : null);
+  const categoryOptions = initialCategory && !availableCategories.some((category) => category.id === initialCategory.id)
+    ? [initialCategory, ...availableCategories] : availableCategories;
+  const firstCategory = initialCategory || categoryOptions[0] || { id: "custom", builtinType: "custom", name: "" };
+  const firstType = firstCategory.builtinType || "custom";
   const [values, setValues] = React.useState(() => ({
     type: firstType,
-    customName: initial?.customName || "",
+    categoryId: firstCategory.id,
+    customName: initial?.customName || (firstType === "custom" && firstCategory.id !== "custom" ? firstCategory.name : ""),
     owner: initial?.owner || "",
     dueDate: initial?.dueDate || "",
-    sampleId: initial ? "" : (selectedSampleIdsByType[firstType]
-      || samples.find((sample) => sample.workstreamType === firstType)?.id || ""),
+    sampleId: initial ? "" : (selectedSampleIdsByCategory[firstCategory.id]
+      || samples.find((sample) => sample.categoryId === firstCategory.id)?.id || ""),
   }));
   const update = (field) => (event) => setValues((current) => ({ ...current, [field]: event.target.value }));
-  const changeType = (event) => {
-    const type = event.target.value;
-    setValues((current) => ({ ...current, type, customName: type === "custom" ? current.customName : "",
-      sampleId: selectedSampleIdsByType[type] || samples.find((sample) => sample.workstreamType === type)?.id || "" }));
+  const changeCategory = (event) => {
+    const category = categoryOptions.find((item) => item.id === event.target.value) || firstCategory;
+    const type = category.builtinType || "custom";
+    setValues((current) => ({ ...current, type, categoryId: category.id,
+      customName: type === "custom" ? (category.id === "custom" ? "" : category.name) : "",
+      sampleId: selectedSampleIdsByCategory[category.id]
+        || samples.find((sample) => sample.categoryId === category.id)?.id || "" }));
   };
-  const typeSamples = samples.filter((sample) => sample.workstreamType === values.type);
+  const typeSamples = samples.filter((sample) => sample.categoryId === values.categoryId);
   return <form className="workbench-form" onSubmit={(event) => {
     event.preventDefault();
     if (values.type !== "custom" || values.customName.trim()) onSubmit({ ...values, customName: values.customName.trim() });
   }}>
-    <label><span>{t("模块类别")}</span><select value={values.type} disabled={Boolean(initial)} onChange={changeType}>
-      {availableTypes.map((type) => <option value={type} key={type}>{workstreamTypeLabel(type, language)}</option>)}
-      {!availableTypes.includes("custom") && initial?.type === "custom" && <option value="custom">{workstreamTypeLabel("custom", language)}</option>}
+    <label><span>{t("模块类别")}</span><select value={values.categoryId} disabled={Boolean(initial)} onChange={changeCategory}>
+      {categoryOptions.map((category) => <option value={category.id} key={category.id}>{workstreamCategoryLabel(category, language)}</option>)}
     </select></label>
-    {values.type === "custom" && <label><span>{t("自定义模块名称 *")}</span><input autoFocus required value={values.customName}
+    {values.type === "custom" && values.categoryId === "custom" && <label><span>{t("自定义模块名称 *")}</span><input autoFocus required value={values.customName}
       onChange={update("customName")} placeholder={t("例如：公司秘书服务")} /></label>}
     <div className="form-grid"><label><span>{t("负责人")}</span><input value={values.owner} onChange={update("owner")} /></label>
       <label><span>{t("模块截止日")}</span><input type="date" value={values.dueDate} onChange={update("dueDate")} /></label></div>
@@ -164,7 +198,7 @@ export function WorkstreamCard({ workstream, selected, openItems = 0, onSelect, 
   </button>;
 }
 
-export function SampleLibrary({ samples, selectedSampleId, onSelect, onCreate, onEdit, onDuplicate, onDelete, onUse }) {
+export function SampleLibrary({ samples, categoryLabel, selectedSampleId, onSelect, onCreate, onEdit, onDuplicate, onDelete, onUse }) {
   const { language, t } = useUiLanguage();
   return <section className="sample-library">
     <header className="sample-library-header"><div><strong>{t("范本库")}</strong>
@@ -177,7 +211,7 @@ export function SampleLibrary({ samples, selectedSampleId, onSelect, onCreate, o
         <button type="button" className="sample-library-select" onClick={() => onSelect(sample.id)}>
           <span className="sample-mark" aria-hidden="true">{language === "en" ? "T" : language === "zh-Hant" ? "範" : "范"}</span><span><strong>{sample.name}</strong>
             <small>{sample.description || t("没有说明")}</small>
-            <em>{workstreamTypeLabel(sample.workstreamType, language)} · {t("{nodes} 个节点 · {conditions} 项条件", { nodes: sample.nodes.length, conditions })}</em></span>
+            <em>{categoryLabel || workstreamTypeLabel(sample.workstreamType, language)} · {t("{nodes} 个节点 · {conditions} 项条件", { nodes: sample.nodes.length, conditions })}</em></span>
           {selected && <i>{t("当前使用")}</i>}
         </button>
         <footer><button type="button" onClick={() => onUse(sample.id)}>{t("使用此范本")}</button>
@@ -246,8 +280,167 @@ export function OutstandingStatusEditor({ statuses, usageCounts, onSave, onClose
   </form>;
 }
 
-export function SampleEditor({ sample, onSave, onClose, onReset, onRedact }) {
+export function WorkstreamCategoryEditor({ categories, usageCounts, onSave, onClose }) {
+  const { language, t } = useUiLanguage();
+  const systemCategories = categories.filter((category) => category.builtinType);
+  const [draft, setDraft] = React.useState(() => categories.filter((category) => !category.builtinType)
+    .map((category) => ({ ...category })));
+  const updateCategory = (categoryId, name) => setDraft((current) => current.map((category) =>
+    category.id === categoryId ? { ...category, name } : category));
+  const moveCategory = (index, direction) => setDraft((current) => {
+    const next = [...current];
+    const target = index + direction;
+    if (target >= 0 && target < next.length) [next[index], next[target]] = [next[target], next[index]];
+    return next;
+  });
+  const removeCategory = (category) => {
+    const usage = usageCounts[category.id] || { templates: 0, workstreams: 0 };
+    if (usage.templates || usage.workstreams) {
+      window.alert(t("此种类正在被 {templates} 个范本及 {workstreams} 个业务模块使用。请先移转相关内容。",
+        { templates: usage.templates, workstreams: usage.workstreams }));
+      return;
+    }
+    setDraft((current) => current.filter((item) => item.id !== category.id));
+  };
+  return <form className="category-editor" onSubmit={(event) => {
+    event.preventDefault();
+    const cleaned = draft.map((category) => ({ ...category, name: category.name.trim() }));
+    const names = [...systemCategories.map((category) => workstreamCategoryLabel(category, language)),
+      ...cleaned.map((category) => category.name)].map((name) => name.toLocaleLowerCase());
+    if (cleaned.some((category) => !category.name)) return;
+    if (new Set(names).size !== names.length) {
+      window.alert(t("种类名称不能重复。"));
+      return;
+    }
+    onSave([...systemCategories, ...cleaned]);
+  }}>
+    <p className="category-editor-help">{t("系统种类会保留；你可以新增、改名及排序自定义种类。自定义名称会保持原文。")}</p>
+    <section className="category-editor-section"><header><strong>{t("系统种类")}</strong>
+      <small>{t("系统种类用于保持内置流程和历史资料一致。")}</small></header>
+      <div className="category-editor-list">{systemCategories.map((category) => {
+        const usage = usageCounts[category.id] || { templates: 0, workstreams: 0 };
+        return <div className="category-editor-row" data-system key={category.id}><strong>{workstreamCategoryLabel(category, language)}</strong>
+          <small>{t("{templates} 个范本 · {workstreams} 个业务模块", usage)}</small><i>{t("系统")}</i></div>;
+      })}</div></section>
+    <section className="category-editor-section"><header><strong>{t("自定义种类")}</strong>
+      <small>{t("可用于建立专属范本和业务模块。")}</small></header>
+      <div className="category-editor-list">{draft.map((category, index) => {
+        const usage = usageCounts[category.id] || { templates: 0, workstreams: 0 };
+        return <div className="category-editor-row" key={category.id}><input required value={category.name}
+          aria-label={t("种类名称") } onChange={(event) => updateCategory(category.id, event.target.value)} />
+          <small>{t("{templates} 个范本 · {workstreams} 个业务模块", usage)}</small>
+          <div><button type="button" disabled={index === 0} onClick={() => moveCategory(index, -1)} aria-label={t("上移种类")}>↑</button>
+            <button type="button" disabled={index === draft.length - 1} onClick={() => moveCategory(index, 1)} aria-label={t("下移种类")}>↓</button>
+            <button type="button" onClick={() => removeCategory(category)}>{t("删除")}</button></div></div>;
+      })}</div>
+      <button type="button" className="status-add-button" onClick={() => setDraft((current) => [...current,
+        { id: uid("workstream-category"), name: "" }])}>{t("＋ 添加种类")}</button></section>
+    <footer className="modal-actions"><button type="button" className="button secondary" onClick={onClose}>{t("取消")}</button>
+      <button type="submit" className="button primary">{t("保存种类")}</button></footer>
+  </form>;
+}
+
+export function UserGuide() {
   const { t } = useUiLanguage();
+  const sections = [
+    { id: "start", title: "快速开始", summary: "先建立一个项目，再从业务模块进入日常工作。", topics: [
+      { title: "建立第一个项目", steps: ["选择项目导航内的“新建项目”，或选择顶部“新建”→“新建项目”。", "填写项目名称、法律实体、财务报告准则／框架、报告期开始日和结束日；负责人及目标完成日期也可同时填写。",
+        "勾选需要并行追踪的业务模块，并为每个模块选择范本或空白流程。", "选择“建立项目”，项目会出现在左侧项目导航。"],
+      result: "项目建立后，每个业务模块会独立计算进度。" },
+      { title: "认识三区工作台", steps: ["左侧“项目导航”用于搜索、筛选和切换项目或集团。", "中间“项目工作区”或“集团工作区”用于处理模块、节点及合并工作。",
+        "右侧“待清中心”用于持续追踪缺少文件、等待签署和其他阻塞事项。", "左右区域都可以收起，需要时再展开。"],
+      result: "日常工作集中在中间视觉热区，导航和待清事项仍保持随手可用。" },
+    ] },
+    { id: "projects", title: "项目与业务模块", summary: "项目是年度委聘容器，多个业务模块可以同时推进。", topics: [
+      { title: "寻找和筛选项目", steps: ["在项目导航的搜索框输入项目、集团或负责人名称。", "使用“进行中”“已完成”“全部”及“归档”筛选所需记录。",
+        "选择项目名称可打开项目；选择集团名称会同时打开集团并展开或收起下级。"], result: "你只会在当前筛选范围内看到相关记录。" },
+      { title: "拖动调整集团归属和层级", steps: ["按住项目或集团名称开始拖动。", "拖到目标集团上即可加入或改变所属集团；目标集团会高亮。",
+        "拖到导航顶部的“移到顶层”区域，即可移出当前集团。", "集团不能拖入自身或其下级集团，归档记录也不能拖动。"],
+      result: "公司及子集团层级会立即更新，现有角色和合并就绪条件会保留。" },
+      { title: "编辑项目资料及集团归属", steps: ["打开项目后选择“编辑公司及集团归属”。", "修改公司资料、财务报告准则／框架、负责人、报告期或备注。",
+        "在“集团归属”选择集团，并设置集团角色和审计类别；选择独立公司即可移出集团。", "保存后，项目导航和集团汇总会立即更新。"],
+      result: "公司和集团关系可以从公司资料直接维护。" },
+      { title: "复制项目", steps: ["打开要沿用结构的项目，选择“复制项目”。", "系统会复制业务模块、节点和达成条件，并在名称后加入“副本”。",
+        "副本中的勾选状态会重新开始，也不会复制原项目的待清事项。"], result: "你可以沿用年度或同类委聘结构，同时避免把旧状态带入新项目。" },
+      { title: "添加和设置业务模块", steps: ["在项目工作区选择“添加业务模块”。", "选择模块类别、负责人、截止日和要套用的业务范本。",
+        "选择模块卡片查看其节点；选择卡片内的“设置”修改负责人或截止日。"], result: "模块之间并行推进，一个模块的操作不会自动推进其他模块。" },
+      { title: "移除业务模块", steps: ["选择业务模块卡片内的“设置”。", "选择“移除模块”并确认。",
+        "原本属于该模块的待清事项会保留，并自动改为项目级事项。"], result: "项目至少会保留一个业务模块。" },
+      { title: "判断项目完成", steps: ["每个业务模块会显示已完成节点及自身进度。", "只有模块内所有节点的全部达成条件完成，该模块才算完成。",
+        "只有项目内全部启用模块完成，项目才会进入“已完成”筛选。"], result: "项目导航显示完成模块数，不使用容易误导的混合百分比。" },
+    ] },
+    { id: "stages", title: "节点与达成条件", summary: "横向节点负责表达流程，达成条件负责客观确认完成。", topics: [
+      { title: "查看横向节点", steps: ["先选择一个业务模块或集团的“合并节点”页签。", "所有节点会横向排列；选择任一节点，其详情固定显示在下方。",
+        "节点过多时可横向滚动，不会因为展开详情而把后续节点推到页面下方。"], result: "你可以一次掌握完整流程，并专注处理所选节点。" },
+      { title: "添加、删除和排序节点", steps: ["在节点轨道上方选择“添加节点”，填写名称和说明。", "先选择一个节点，再使用旁边的“删除所选节点”。",
+        "在节点详情右上方使用左右箭头调整顺序，或选择“编辑节点”修改内容。"], result: "结构操作集中在节点区域，不需要到不同位置寻找。" },
+      { title: "管理达成条件", steps: ["选择节点后，在详情底部选择“添加完成条件”。", "条件应写成可客观核实的结果，例如文件已收到或复核已完成。",
+        "使用“修改”或“删除”维护条件；勾选条件即可更新节点及模块进度。"], result: "只有节点内已有条件且全部勾选，节点才会视为完成。" },
+    ] },
+    { id: "outstanding", title: "待清中心", summary: "待清事项独立于流程进度，可随审计过程持续变化。", topics: [
+      { title: "添加待清事项", steps: ["在右侧待清中心选择“添加待清”。", "填写事项、状态和说明，并选择它属于项目级还是指定业务模块。",
+        "保存后，事项会立即出现在右侧清单；集团页面会汇总下级公司事项并保留来源。"], result: "待清事项不会改变节点或业务模块进度。" },
+      { title: "更新和筛选待清事项", steps: ["使用上方两个筛选器按层级／模块及状态缩小范围。", "直接在事项卡片内切换状态，或选择“编辑”修改内容和归属。",
+        "选择“删除”移除不再需要的事项；选择事项来源名称可以跳转到对应项目或集团。"], result: "右侧清单可作为持续更新的阻塞事项工作队列。" },
+      { title: "自定义状态和颜色", steps: ["选择“状态与颜色”。", "新增、改名或排序状态，选择颜色，并指定该状态是否代表已经清理。",
+        "正在被历史记录使用的状态不会被误删；需要先把相关事项改到其他状态。"], result: "状态名称、顺序、颜色和未清计算会同时更新。" },
+    ] },
+    { id: "groups", title: "集团审计", summary: "集团可包含公司和子集团，并把合并就绪与本级合并流程分开管理。", topics: [
+      { title: "建立集团或子集团", steps: ["选择顶部“新建”，再选择“新建集团”。", "填写集团名称、报告期开始日和结束日、负责人及目标完成日期。",
+        "选择本级是否需要独立合并；如只用于分类，可关闭本级合并流程。"], result: "集团会成为可容纳公司或子集团的层级容器。" },
+      { title: "加入和调整成员", steps: ["打开集团并选择“集团资料”。", "选择“添加公司／子集团”，关联现有记录或直接新建。",
+        "选择成员卡片可修改角色、审计类别和合并就绪条件，也可将成员移出集团。"], result: "成员关系也可从公司资料的“集团归属”反向修改。" },
+      { title: "设置公司合并就绪条件", steps: ["在成员设置选择本团队审计、其他审计师负责或无需法定审计／管理账。", "系统会带入相应的默认条件；你可以逐项修改、添加或删除。",
+        "勾选完成条件后，公司合并就绪状态会即时更新。"], result: "合并就绪由明确条件决定，不会只凭进度百分比推断。" },
+      { title: "使用组成部分矩阵", steps: ["在“组成部分”页签查看公司和子集团。", "使用搜索、审计类别及就绪状态筛选。",
+        "从矩阵查看负责人、审计进度、合并就绪、待清数量和截止日，并可打开来源记录。"], result: "集团团队可以在一个表格里定位尚未准备好的组成部分。" },
+      { title: "管理集团合并节点", steps: ["切换到“合并节点”页签。", "像项目模块一样添加、删除、排序节点并维护达成条件。",
+        "如果集团只用于分类，本级不会显示独立合并节点，进度直接来自下级组成部分。"], result: "组成部分准备与本级合并工作保持清楚分离。" },
+    ] },
+    { id: "templates", title: "范本与种类", summary: "范本用于快速建立新流程，修改范本不会改动既有项目。", topics: [
+      { title: "管理范本种类", steps: ["选择顶部“范本库”，再选择“管理种类”。", "新增自定义种类，或修改和排序已有的自定义种类。",
+        "如种类仍有范本或业务模块在使用，系统会阻止删除并显示使用数量。"], result: "自定义种类会成为范本页签，也可直接用于建立同名业务模块。" },
+      { title: "建立和使用多个范本", steps: ["先选择范本种类，再选择“新建范本”。", "填写范本名称、说明、节点和条件；同一种类可保存多个范本。",
+        "选择一个范本作为当前使用，或选择“使用此范本”直接建立项目。"], result: "建立项目时可为每个业务模块单独选择范本或空白流程。" },
+      { title: "编辑、复制和删除范本", steps: ["在范本卡片选择“编辑”修改结构，或选择“复制”建立独立副本。", "选择“删除”移除不需要的范本；系统种类会至少保留一个范本。",
+        "编辑内置范本时可选择“恢复基础范本”；范本改动只影响之后建立的项目。"], result: "既有项目保留自己的节点和完成状态。" },
+      { title: "公司名称去敏和集团范本", steps: ["编辑业务范本时选择“公司去敏”，每行输入一个需要替换的完整公司名称。", "系统只替换完全匹配的名称；保存前仍应人工复核。",
+        "集团范本独立保存合并节点及各审计类别的默认就绪条件。"], result: "公开或复用范本前，可降低残留客户名称的风险。" },
+    ] },
+    { id: "archive", title: "归档与删除", summary: "归档用于保留历史记录，永久删除只在归档区提供。", topics: [
+      { title: "归档和恢复", steps: ["在项目或集团标题区选择“归档”。", "记录会退出活跃导航、统计、集团计算和待清汇总，并进入只读状态。",
+        "在左侧选择“归档”，打开记录并选择“恢复”，原资料和集团关系会重新生效。"], result: "历史资料得到保留，但不会干扰当前工作。" },
+      { title: "永久删除", steps: ["只有归档记录会显示“永久删除”。", "确认不可撤销警告后才会删除。",
+        "删除项目会清除其模块、待清事项和集团引用；删除集团不会连带删除成员项目或子集团。"], result: "永久删除适合确定不再需要的历史记录。" },
+    ] },
+    { id: "data", title: "备份、语言与数据", summary: "数据默认只存在当前浏览器；备份是跨电脑和防止遗失的关键。", topics: [
+      { title: "导出和恢复备份", steps: ["选择顶部“备份”→“导出备份”，保存 JSON 文件。", "需要恢复时选择“恢复备份”并选取文件。",
+        "恢复会替换当前浏览器内的数据；确认前请先导出当前备份。"], result: "备份包含项目、集团、范本、状态和自定义种类。" },
+      { title: "初始化工作台", steps: ["选择顶部“备份”→“初始化工作台”。", "先使用提示区的按钮导出当前备份。",
+        "阅读清除范围并勾选确认，再选择“确认初始化”。", "初始化会恢复内置范本、种类和状态，但保留当前界面语言。"],
+      result: "全部项目、集团和自定义资料会从当前浏览器清除；只有备份文件可以找回。" },
+      { title: "切换界面语言", steps: ["选择顶部“语言”。", "选择简体中文、繁体中文或 English。",
+        "系统区域、按钮和内置范本会切换；你输入的项目、范本和自定义名称会保持原文。"], result: "同一份数据可以用三种系统语言操作。" },
+      { title: "理解本机数据和多人使用", steps: ["在线版不会把项目资料上传到服务器；资料保存在当前浏览器。", "不同电脑或不同浏览器不会自动同步，也不会互相覆盖。",
+        "要换电脑工作，请先导出备份，再在目标电脑恢复；多人同时协作应约定唯一主备份，避免各自修改后难以合并。"], result: "你可以清楚控制资料在哪里保存及如何转移。" },
+    ] },
+  ];
+  const [activeId, setActiveId] = React.useState(sections[0].id);
+  const active = sections.find((section) => section.id === activeId) || sections[0];
+  return <div className="user-guide"><aside><header><strong>{t("功能目录")}</strong>
+    <span>{t("按实际工作顺序查看每项操作。")}</span></header><nav aria-label={t("使用指南目录")}>{sections.map((section, index) =>
+      <button type="button" aria-current={active.id === section.id ? "page" : undefined} key={section.id}
+        onClick={() => setActiveId(section.id)}><span>{index + 1}</span><strong>{t(section.title)}</strong></button>)}</nav></aside>
+    <article><header><span>{t("使用指南")}</span><h3>{t(active.title)}</h3><p>{t(active.summary)}</p></header>
+      <div className="guide-topic-list">{active.topics.map((topic, index) => <section key={topic.title}>
+        <span className="guide-topic-number">{index + 1}</span><div><h4>{t(topic.title)}</h4><ol>{topic.steps.map((step) =>
+          <li key={step}>{t(step)}</li>)}</ol><p><strong>{t("完成后：")}</strong>{t(topic.result)}</p></div></section>)}</div>
+      <footer><strong>{t("建议")}</strong><span>{t("首次使用时，先用没有客户资料的测试项目走完一次流程，再建立正式项目。")}</span></footer>
+    </article></div>;
+}
+
+export function SampleEditor({ sample, categories = createDefaultWorkstreamCategories(), onSave, onClose, onReset, onRedact }) {
+  const { language, t } = useUiLanguage();
   const [draft, setDraft] = React.useState(() => JSON.parse(JSON.stringify(sample)));
   const updateNode = (nodeId, updater) => setDraft((current) => ({ ...current,
     nodes: current.nodes.map((node) => node.id === nodeId ? updater(node) : node) }));
@@ -269,6 +462,11 @@ export function SampleEditor({ sample, onSave, onClose, onReset, onRedact }) {
     <div className="sample-editor-summary">
       <label><span>{t("范本名称 *")}</span><input autoFocus required value={draft.name}
         onChange={(event) => setDraft((current) => ({ ...current, name: event.target.value }))} /></label>
+      <label><span>{t("范本种类 *")}</span><select required value={draft.categoryId || draft.workstreamType}
+        onChange={(event) => { const category = categories.find((item) => item.id === event.target.value);
+          if (category) setDraft((current) => ({ ...current, categoryId: category.id,
+            workstreamType: category.builtinType || "custom" })); }}>
+        {categories.map((category) => <option value={category.id} key={category.id}>{workstreamCategoryLabel(category, language)}</option>)}</select></label>
       <label><span>{t("说明")}</span><input value={draft.description}
         onChange={(event) => setDraft((current) => ({ ...current, description: event.target.value }))}
         placeholder={t("说明这个范本的适用范围")} /></label>
@@ -334,7 +532,7 @@ export function ProjectRow({ project, outstandingStatuses, selected, onSelect })
   const outstandingCount = (project.outstandingItems || []).filter((item) => outstandingIsOpen(item, outstandingStatuses)).length;
   return <button type="button" className="project-row" data-selected={selected || undefined} onClick={onSelect}>
     <div className="project-row-title"><strong>{project.name}</strong>
-      <span>{project.entity || project.period || t("尚未填写项目资料")}</span></div>
+      <span>{project.entity || reportingPeriodLabel(project, language) || t("尚未填写项目资料")}</span></div>
     <div className="project-row-progress"><span>{stats.completedWorkstreams}/{stats.workstreams}</span></div>
     <div className="project-row-next"><small>{t("业务模块")}</small>
       <span>{stats.complete ? t("全部完成") : t("{done}/{total} 个模块完成", { done: stats.completedWorkstreams, total: stats.workstreams })}</span>
@@ -352,13 +550,17 @@ export function NodeBoard({ nodes, readOnly = false, actions }) {
   }, [nodes, selectedId, currentNode?.id]);
   const selected = nodes.find((node) => node.id === selectedId) || nodes[0];
   return <div className="node-board" style={{ "--node-count": Math.max(nodes.length, 1) }}>
-    <div className="node-track" role="tablist" aria-label={t("项目节点")}>{nodes.map((node, index) => {
+    {!readOnly && <div className="node-structure-actions"><button type="button" className="button secondary" onClick={actions.addNode}>{t("添加节点")}</button>
+      <button type="button" className="button danger-quiet" disabled={!selected}
+        onClick={() => selected && actions.deleteNode(selected)}>{t("删除所选节点")}</button></div>}
+    {nodes.length ? <div className="node-track" role="tablist" aria-label={t("项目节点")}>{nodes.map((node, index) => {
       const status = nodeStatus(node); const done = node.conditions.filter((condition) => condition.done).length;
       return <button type="button" role="tab" aria-selected={selected?.id === node.id} className="node-track-card"
         data-status={status} data-current={currentNode?.id === node.id || undefined} key={node.id} onClick={() => setSelectedId(node.id)}>
         <span className="node-track-number">{index + 1}</span><span><strong>{node.title}</strong>
           <small>{done}/{node.conditions.length} {t("项条件")}</small></span><i>{t(status)}</i></button>;
-    })}</div>
+    })}</div> : <div className="inline-empty"><strong>{t("还没有节点")}</strong>
+      <span>{readOnly ? t("此记录没有保存节点。") : t("添加第一个节点后，即可设置完成条件。")}</span></div>}
     {selected && <section className="node-detail-panel"><header><div><span>{t("节点详情")}</span><h4>{selected.title}</h4>
       {selected.description && <p>{selected.description}</p>}</div>{!readOnly && <div className="node-detail-actions">
         <button type="button" disabled={nodes.indexOf(selected) === 0} onClick={() => actions.move(selected.id, -1)} aria-label={t("上移节点")}>←</button>
@@ -370,8 +572,7 @@ export function NodeBoard({ nodes, readOnly = false, actions }) {
         {!readOnly && <div className="condition-actions"><button type="button" onClick={() => actions.editCondition(selected, condition)}>{t("修改")}</button>
           <button type="button" onClick={() => actions.deleteCondition(selected.id, condition.id)}>{t("删除")}</button></div>}</div>)}</div>
         : <div className="condition-empty">{t("这个节点还没有完成条件。")}</div>}
-      {!readOnly && <footer className="node-footer"><button type="button" className="add-condition" onClick={() => actions.addCondition(selected)}>{t("＋ 添加完成条件")}</button>
-        <button type="button" className="delete-link" onClick={() => actions.deleteNode(selected)}>{t("删除节点")}</button></footer>}
+      {!readOnly && <footer className="node-footer"><button type="button" className="add-condition" onClick={() => actions.addCondition(selected)}>{t("＋ 添加完成条件")}</button></footer>}
     </section>}
   </div>;
 }

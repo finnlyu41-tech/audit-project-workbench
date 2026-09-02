@@ -17,13 +17,24 @@ The project follows [Semantic Versioning](https://semver.org/).
 - Read-only archive details, restoration and archive-only permanent deletion.
 - Direct group assignment, role and audit-category controls in company details.
 - In-place company and subgroup membership management in group details.
+- User-defined template categories with reusable category-specific workstreams.
+- Storage V6 migration for category-aware templates and selected-template preferences.
+- A detailed in-app user guide covering the complete project, group, template, archive and data workflow.
+- A protected workbench initialisation flow with backup guidance and explicit acknowledgement.
+- Direct project creation in Project navigation and drag-and-drop project or group reassignment across hierarchy levels.
+- Storage V7 fields for reporting-period start/end dates and a customisable financial reporting standard or framework, while preserving legacy period text.
 
 ### Changed
 
 - Reorganised the workbench toolbar into separate create, template-library, backup and language groups, with short menus reserved for related secondary actions.
 - Replaced project-wide blended percentages with completed-workstream counts.
 - Categorised the multi-template library by workstream type and replaced internal shorthand with professional terminology.
+- Compacted the global toolbar, project/group headers and group status summary to prioritise working content in the desktop viewport.
+- Grouped add-stage and delete-selected-stage controls beside the horizontal stage rail.
+- Replaced the customer-due-diligence abbreviation with the full professional name throughout built-in content.
 - Excluded archived records from active navigation, group calculations and outstanding roll-ups.
+- Replaced separate group expand/collapse buttons with whole-row disclosure and prioritised the legal entity in project details.
+- Moved workstream selection ahead of notes in the new-project form.
 
 ## [0.2.0] - 2026-09-02
 
