@@ -18,7 +18,7 @@ The project follows [Semantic Versioning](https://semver.org/).
 
 - Renamed the project to APW — Audit Project Workbench (审计项目工作台).
 - Upgraded browser storage to version 3 with automatic migration from the former single-Sample structure.
-- Clarified that interface and built-in content are localised while custom and user-entered content remains unchanged.
+- Localised exact built-in workflow text in older or partially customised Samples and projects while preserving other custom content.
 
 ## [0.1.1] - 2026-09-02
 

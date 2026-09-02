@@ -13,7 +13,7 @@
 - 独立待清事项栏，不影响节点进度；状态可新增、改名、排序，并可指定哪些状态代表“已清”。
 - 可保存多个 Sample 流程范本，并可新建、切换、复制、编辑或删除，再用任一范本快速建立项目。
 - Sample 公司名称精确去敏：只替换使用者输入的完整公司名称，不自动猜测。
-- 完整的中英文系统界面；未修改的内置 Sample 会随语言切换，自定义范本、项目名称和使用者资料保持原文。
+- 完整的中英文系统界面；可精确识别的内置流程条目会随语言切换，其余自定义范本、项目名称和使用者资料保持原文。
 - 可折叠项目侧栏，优先利用电脑横向空间。
 - 本机浏览器自动保存，并支持 JSON 备份导入、导出。
 
@@ -56,7 +56,7 @@ Audit Project Workbench (APW) is a desktop-first, local-first tracker for managi
 - A separate outstanding-items bar that never changes stage progress, with custom names, ordering and cleared-state semantics.
 - A multi-Sample library with create, select, duplicate, edit and delete controls; any Sample can start a new project.
 - Exact-match company-name de-identification within the Sample.
-- Complete Chinese and English system UI; the untouched built-in Sample follows the interface language, while custom and user-entered content remains unchanged.
+- Complete Chinese and English system UI; recognised built-in workflow entries follow the interface language, while other custom and user-entered content remains unchanged.
 - Collapsible project sidebar for desktop workspace efficiency.
 - Browser-local autosave plus JSON backup and restore.
 

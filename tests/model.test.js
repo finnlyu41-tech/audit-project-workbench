@@ -8,6 +8,7 @@ import {
   duplicateSample,
   localizeOutstandingStatuses,
   localizeSample,
+  localizeWorkflowNodes,
   makeOutstandingItem,
   makeProject,
   nodeIsComplete,
@@ -136,7 +137,18 @@ test("language switching leaves custom Sample content unchanged", () => {
     nodes: [],
   };
 
-  assert.strictEqual(localizeSample(custom, "en"), custom);
+  assert.deepEqual(localizeSample(custom, "en"), custom);
+});
+
+test("known built-in workflow text localises inside older or partially customised data", () => {
+  const legacyNodes = createDefaultSample().nodes;
+  legacyNodes[0].conditions.pop();
+  const englishNodes = localizeWorkflowNodes(legacyNodes, "en");
+
+  assert.equal(englishNodes[0].title, "Engagement setup");
+  assert.equal(englishNodes[0].conditions.length, 3);
+  assert.doesNotMatch(JSON.stringify(englishNodes), /[\u3400-\u9fff]/u);
+  assert.equal(legacyNodes[0].title, "项目设置");
 });
 
 test("duplicating a Sample creates independent stage and criterion identities", () => {

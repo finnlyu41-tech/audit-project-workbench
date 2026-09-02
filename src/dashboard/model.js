@@ -35,6 +35,32 @@ export const starterNodesEnglish = [
     ["Signing documents prepared", "Signed documents received", "Final file archived"]],
 ];
 
+const workflowTextPairs = starterNodes.flatMap((node, index) => {
+  const englishNode = starterNodesEnglish[index];
+  return [[node[0], englishNode[0]], [node[1], englishNode[1]],
+    ...node[2].map((condition, conditionIndex) => [condition, englishNode[2][conditionIndex]])];
+});
+const sampleMetadataTextPairs = [
+  ["基础审计流程", "Core Audit Workflow"],
+  ["内置流程范本", "Built-in workflow template"],
+  ["固定流程范本", "Built-in workflow template"],
+];
+
+function localizeKnownText(value, language, pairs = workflowTextPairs) {
+  const pair = pairs.find(([chinese, english]) => value === chinese || value === english);
+  return pair ? pair[language === "en" ? 1 : 0] : value;
+}
+
+export function localizeWorkflowNodes(nodes, language = "zh") {
+  return nodes.map((node) => ({ ...node,
+    title: localizeKnownText(node.title, language),
+    description: localizeKnownText(node.description, language),
+    conditions: node.conditions.map((condition) => ({ ...condition,
+      label: localizeKnownText(condition.label, language),
+    })),
+  }));
+}
+
 export function uid(prefix) {
   const random = typeof crypto !== "undefined" && crypto.randomUUID
     ? crypto.randomUUID()
@@ -144,8 +170,14 @@ export function normalizeSample(value) {
 }
 
 export function localizeSample(sample, language = "zh") {
-  if (sample?.builtinKey !== CORE_SAMPLE_KEY) return sample;
-  return { ...createDefaultSample(language), id: sample.id, updatedAt: sample.updatedAt };
+  if (sample?.builtinKey === CORE_SAMPLE_KEY) {
+    return { ...createDefaultSample(language), id: sample.id, updatedAt: sample.updatedAt };
+  }
+  return { ...sample,
+    name: localizeKnownText(sample.name, language, sampleMetadataTextPairs),
+    description: localizeKnownText(sample.description, language, sampleMetadataTextPairs),
+    nodes: localizeWorkflowNodes(sample.nodes, language),
+  };
 }
 
 export function makeBlankSample(language = "zh") {

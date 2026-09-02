@@ -16,7 +16,7 @@ The application stores one versioned JSON object in browser `localStorage`. Back
 
 The historical `audit-progress-workbench:*` browser-storage keys are intentionally retained so the product rename does not discard existing local data.
 
-Project data is intentionally independent from the Sample library. Editing, switching or deleting a Sample affects future projects only. The built-in Sample has Chinese and English content variants; custom Sample and project content is never machine-translated.
+Project data is intentionally independent from the Sample library. Editing, switching or deleting a Sample affects future projects only. The built-in Sample has Chinese and English content variants. Exact matches to known built-in workflow text are localised at display time, including in legacy projects; all other custom Sample and project content is left unchanged.
 
 ## Domain boundaries
 

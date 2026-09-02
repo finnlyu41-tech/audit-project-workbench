@@ -2,8 +2,8 @@ import React from "react";
 import { Modal, NodeCard, NodeForm, OutstandingStatusEditor, ProgressBar, ProjectForm, ProjectRow, SampleEditor,
   SampleLibrary } from "./components.jsx";
 import { STORAGE_KEY, createDefaultSample, duplicateSample, formatDate, isValidStore, loadStore, localizeSample,
-  localizeOutstandingStatuses, makeBlankSample, makeNode, makeOutstandingItem, makeProject, nodeIsComplete,
-  normalizeStore, outstandingIsOpen, projectStats, redactSampleCompanies, uid } from "./model.js";
+  localizeOutstandingStatuses, localizeWorkflowNodes, makeBlankSample, makeNode, makeOutstandingItem, makeProject,
+  nodeIsComplete, normalizeStore, outstandingIsOpen, projectStats, redactSampleCompanies, uid } from "./model.js";
 import { LanguageProvider, useUiLanguage } from "./i18n.jsx";
 import "./dashboard.css";
 
@@ -47,7 +47,9 @@ function DashboardWorkbench() {
     return () => window.clearTimeout(timer);
   }, [message]);
 
-  const selectedProject = store.projects.find((project) => project.id === selectedId) || null;
+  const selectedProjectSource = store.projects.find((project) => project.id === selectedId) || null;
+  const selectedProject = selectedProjectSource ? { ...selectedProjectSource,
+    nodes: localizeWorkflowNodes(selectedProjectSource.nodes, language) } : null;
   const visibleProjects = store.projects.filter((project) => {
     const complete = project.nodes.length > 0 && project.nodes.every(nodeIsComplete);
     if (filter === "archived") return project.archived;
@@ -259,7 +261,8 @@ function DashboardWorkbench() {
           </div>
         </section>
         <div className="project-list">
-          {visibleProjects.map((project) => <ProjectRow key={project.id} project={project} outstandingStatuses={outstandingStatusViews}
+          {visibleProjects.map((project) => <ProjectRow key={project.id}
+            project={{ ...project, nodes: localizeWorkflowNodes(project.nodes, language) }} outstandingStatuses={outstandingStatusViews}
             selected={project.id === selectedId} onSelect={() => setSelectedId(project.id)} />)}
           {!visibleProjects.length && <div className="list-empty"><strong>{t(store.projects.length ? "没有符合筛选的项目" : "还没有审计项目")}</strong>
             <span>{t(store.projects.length ? "可以切换状态或修改搜索条件。" : "先建立一个项目，再添加节点和完成条件。")}</span>
