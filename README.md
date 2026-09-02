@@ -9,7 +9,7 @@
 ## 主要功能
 
 - 固定三区桌面布局：左侧项目导航、中间项目／集团工作区、右侧待清中心；左右区域均可收起。
-- 语言、备份、新建项目、新建集团及范本库统一收纳在工作台下拉菜单中。
+- 顶部操作按用途分为新建、范本库、备份及语言四组；常用入口直接显示，同类次要操作才使用短菜单。
 - 每个项目可启用多个并行业务模块，各自拥有负责人、截止日、横向节点和客观达成条件。
 - 项目显示“已完成模块数／全部模块数”，只有全部启用模块完成后才算完成，不使用容易误导的混合百分比。
 - 多层集团审计：集团可包含公司项目或子集团，每一级可选择独立合并流程或仅作分类。
@@ -60,7 +60,7 @@ Audit Project Workbench (APW) is a desktop-first, local-first tracker for profes
 ### Features
 
 - A fixed three-pane desktop layout: project navigation, project/group workspace and outstanding centre, with collapsible side panes.
-- One workbench menu for language, backups, new projects, new groups and the template library.
+- A purpose-grouped toolbar for creating records, opening the template library, managing backups and changing language; frequent actions stay visible while related secondary actions use short menus.
 - Parallel workstreams with independent owners, deadlines, horizontal stages and objective completion criteria.
 - Project completion shown as completed workstreams out of total workstreams; all enabled workstreams must finish before the project completes.
 - Multi-level group audits with company projects, optional subgroup consolidation workflows and classification-only levels.

@@ -20,7 +20,7 @@ The project follows [Semantic Versioning](https://semver.org/).
 
 ### Changed
 
-- Consolidated language, backup, create and template-library actions into one workbench menu.
+- Reorganised the workbench toolbar into separate create, template-library, backup and language groups, with short menus reserved for related secondary actions.
 - Replaced project-wide blended percentages with completed-workstream counts.
 - Categorised the multi-template library by workstream type and replaced internal shorthand with professional terminology.
 - Excluded archived records from active navigation, group calculations and outstanding roll-ups.

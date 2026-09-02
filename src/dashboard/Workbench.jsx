@@ -37,7 +37,17 @@ function DashboardWorkbench() {
     try { return localStorage.getItem(OUTSTANDING_PREFERENCE_KEY) === "true"; } catch { return false; }
   });
   const importRef = React.useRef(null);
-  const menuRef = React.useRef(null);
+  const toolbarRef = React.useRef(null);
+  const toolbarMenuRefs = React.useRef([]);
+  const closeMenu = React.useCallback(() => toolbarMenuRefs.current.forEach((menu) => {
+    if (menu) menu.open = false;
+  }), []);
+  const handleToolbarMenuToggle = (index, event) => {
+    if (!event.currentTarget.open) return;
+    toolbarMenuRefs.current.forEach((menu, itemIndex) => {
+      if (menu && itemIndex !== index) menu.open = false;
+    });
+  };
 
   React.useEffect(() => localStorage.setItem(STORAGE_KEY, JSON.stringify(store)), [store]);
   React.useEffect(() => {
@@ -76,8 +86,20 @@ function DashboardWorkbench() {
     const timer = window.setTimeout(() => setMessage(""), 2600);
     return () => window.clearTimeout(timer);
   }, [message]);
+  React.useEffect(() => {
+    const dismissMenus = (event) => {
+      if (event.type === "keydown" && event.key !== "Escape") return;
+      if (event.type === "pointerdown" && toolbarRef.current?.contains(event.target)) return;
+      closeMenu();
+    };
+    document.addEventListener("pointerdown", dismissMenus);
+    document.addEventListener("keydown", dismissMenus);
+    return () => {
+      document.removeEventListener("pointerdown", dismissMenus);
+      document.removeEventListener("keydown", dismissMenus);
+    };
+  }, [closeMenu]);
 
-  const closeMenu = () => { if (menuRef.current) menuRef.current.open = false; };
   const notify = (text) => setMessage(text);
   const selectedProjectSource = selection?.kind === "project"
     ? store.projects.find((project) => project.id === selection.id) || null : null;
@@ -263,22 +285,36 @@ function DashboardWorkbench() {
   const availableGroups = store.groups.filter((group) => !group.archived && group.id !== selectedGroupSource?.id
     && canNestGroup(store, selectedGroupSource?.id, group.id));
   const activeOutstandingCount = activeOutstandingItems(store).filter((item) => outstandingIsOpen(item, store.outstandingStatuses)).length;
+  const languageLabel = language === "en" ? "English" : language === "zh-Hant" ? "繁體中文" : "简体中文";
 
   return <article className="audit-workbench">
     {message && <div className="save-toast" role="status">{message}</div>}
     <header className="workbench-toolbar"><div><h1>{t("审计项目工作台")}</h1>
       <p>{t("以项目为容器，并行追踪审计、税务、客户尽职调查及收费工作。")}</p></div>
-      <details className="workspace-menu" ref={menuRef}><summary>{t("工作台菜单")} <span>⌄</span></summary>
-        <div className="workspace-menu-popover"><section><strong>{t("界面语言")}</strong><div className="menu-language-options">
-          <button type="button" aria-pressed={language === "zh-Hans"} onClick={() => { setLanguage("zh-Hans"); closeMenu(); }}>{t("简体中文")}</button>
-          <button type="button" aria-pressed={language === "zh-Hant"} onClick={() => { setLanguage("zh-Hant"); closeMenu(); }}>繁體中文</button>
-          <button type="button" aria-pressed={language === "en"} onClick={() => { setLanguage("en"); closeMenu(); }}>English</button></div></section>
-          <button type="button" onClick={() => { closeMenu(); setModal({ type: "create-project" }); }}>＋ {t("新建项目")}</button>
-          <button type="button" onClick={() => { closeMenu(); setModal({ type: "create-group" }); }}>＋ {t("新建集团")}</button>
-          <button type="button" onClick={() => { closeMenu(); setModal({ type: "template-library" }); }}>{t("范本库")}</button>
-          <hr /><input ref={importRef} type="file" accept="application/json" hidden onChange={(event) => importBackup(event.target.files?.[0])} />
-          <button type="button" onClick={() => importRef.current?.click()}>{t("恢复备份")}</button>
-          <button type="button" onClick={exportBackup}>{t("导出备份")}</button></div></details></header>
+      <nav className="toolbar-actions" aria-label={t("工作台操作")} ref={toolbarRef}>
+        <details className="toolbar-menu" data-primary ref={(element) => { toolbarMenuRefs.current[0] = element; }}
+          onToggle={(event) => handleToolbarMenuToggle(0, event)}><summary>{t("新建")}</summary>
+          <div className="toolbar-menu-popover"><button type="button" onClick={() => { closeMenu(); setModal({ type: "create-project" }); }}>
+            {t("新建项目")}…</button><button type="button" onClick={() => { closeMenu(); setModal({ type: "create-group" }); }}>
+              {t("新建集团")}…</button></div></details>
+        <button type="button" className="toolbar-action-button" onClick={() => { closeMenu(); setModal({ type: "template-library" }); }}>
+          {t("范本库")}…</button>
+        <span className="toolbar-divider" aria-hidden="true" />
+        <details className="toolbar-menu" ref={(element) => { toolbarMenuRefs.current[1] = element; }}
+          onToggle={(event) => handleToolbarMenuToggle(1, event)}><summary>{t("备份")}</summary>
+          <div className="toolbar-menu-popover"><input ref={importRef} type="file" accept="application/json" hidden
+            onChange={(event) => importBackup(event.target.files?.[0])} />
+            <button type="button" onClick={() => { closeMenu(); importRef.current?.click(); }}>{t("恢复备份")}…</button>
+            <button type="button" onClick={exportBackup}>{t("导出备份")}</button></div></details>
+        <details className="toolbar-menu" ref={(element) => { toolbarMenuRefs.current[2] = element; }}
+          onToggle={(event) => handleToolbarMenuToggle(2, event)}><summary className="language-summary"><span>{t("语言")}</span><small>{languageLabel}</small></summary>
+          <div className="toolbar-menu-popover language-menu"><button type="button" aria-pressed={language === "zh-Hans"}
+            onClick={() => { setLanguage("zh-Hans"); closeMenu(); }}><span>{t("简体中文")}</span>{language === "zh-Hans" && <small>{t("当前")}</small>}</button>
+            <button type="button" aria-pressed={language === "zh-Hant"} onClick={() => { setLanguage("zh-Hant"); closeMenu(); }}>
+              <span>繁體中文</span>{language === "zh-Hant" && <small>{t("当前")}</small>}</button>
+            <button type="button" aria-pressed={language === "en"} onClick={() => { setLanguage("en"); closeMenu(); }}>
+              <span>English</span>{language === "en" && <small>{t("当前")}</small>}</button></div></details>
+      </nav></header>
 
     <section className="workbench-layout" data-sidebar-collapsed={sidebarCollapsed || undefined}
       data-outstanding-collapsed={outstandingCollapsed || undefined}>
