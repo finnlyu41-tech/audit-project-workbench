@@ -340,26 +340,21 @@ function DashboardWorkbench() {
     <header className="workbench-toolbar"><div className="workbench-brand"><h1>{t("审计项目工作台")}</h1>
       <p>{t("以项目为容器，并行追踪审计、税务、客户尽职调查及收费工作。")}</p></div>
       <nav className="toolbar-actions" aria-label={t("工作台操作")} ref={toolbarRef}>
-        <details className="toolbar-menu" data-primary ref={(element) => { toolbarMenuRefs.current[0] = element; }}>
-          <summary onClick={() => closeOtherMenus(0)}>{t("新建")}</summary>
-          <div className="toolbar-menu-popover"><button type="button" onClick={() => { closeMenu(); setModal({ type: "create-project" }); }}>
-            {t("新建项目")}…</button><button type="button" onClick={() => { closeMenu(); setModal({ type: "create-group" }); }}>
-              {t("新建集团")}…</button></div></details>
         <button type="button" className="toolbar-action-button" onClick={() => { closeMenu(); setModal({ type: "template-library" }); }}>
           {t("范本库")}…</button>
         <button type="button" className="toolbar-action-button" onClick={() => { closeMenu(); setModal({ type: "user-guide" }); }}>
           {t("使用指南")}…</button>
         <span className="toolbar-divider" aria-hidden="true" />
-        <details className="toolbar-menu" ref={(element) => { toolbarMenuRefs.current[1] = element; }}>
-          <summary onClick={() => closeOtherMenus(1)}>{t("备份")}</summary>
+        <details className="toolbar-menu" ref={(element) => { toolbarMenuRefs.current[0] = element; }}>
+          <summary onClick={() => closeOtherMenus(0)}>{t("备份")}</summary>
           <div className="toolbar-menu-popover"><input ref={importRef} type="file" accept="application/json" hidden
             onChange={(event) => importBackup(event.target.files?.[0])} />
             <button type="button" onClick={() => { closeMenu(); importRef.current?.click(); }}>{t("恢复备份")}…</button>
             <button type="button" onClick={exportBackup}>{t("导出备份")}</button>
             <button type="button" className="toolbar-menu-danger" onClick={() => { closeMenu(); setModal({ type: "initialize-workbench" }); }}>
               {t("初始化工作台")}…</button></div></details>
-        <details className="toolbar-menu" ref={(element) => { toolbarMenuRefs.current[2] = element; }}>
-          <summary className="language-summary" onClick={() => closeOtherMenus(2)}><span>{t("语言")}</span><small>{languageLabel}</small></summary>
+        <details className="toolbar-menu" ref={(element) => { toolbarMenuRefs.current[1] = element; }}>
+          <summary className="language-summary" onClick={() => closeOtherMenus(1)}><span>{t("语言")}</span><small>{languageLabel}</small></summary>
           <div className="toolbar-menu-popover language-menu"><button type="button" aria-pressed={language === "zh-Hans"}
             onClick={() => { setLanguage("zh-Hans"); closeMenu(); }}><span>{t("简体中文")}</span>{language === "zh-Hans" && <small>{t("当前")}</small>}</button>
             <button type="button" aria-pressed={language === "zh-Hant"} onClick={() => { setLanguage("zh-Hant"); closeMenu(); }}>
@@ -376,7 +371,7 @@ function DashboardWorkbench() {
           <div className="project-panel-controls"><div className="project-panel-title"><div><button type="button" className="sidebar-toggle"
             aria-expanded="true" aria-label={t("收起项目导航")} title={t("收起项目导航")} onClick={() => setSidebarCollapsed(true)}>‹</button>
             <strong>{t("项目导航")}</strong></div><button type="button" className="project-panel-new"
-              onClick={() => setModal({ type: "create-project" })}>{t("新建项目")}</button></div>
+              onClick={() => setModal({ type: "create-company" })}>{t("新建公司")}</button></div>
             <label className="search-field"><span aria-hidden="true">⌕</span><input value={search} onChange={(event) => setSearch(event.target.value)}
               placeholder={t("搜索项目、集团或负责人")} aria-label={t("搜索项目、集团或负责人")} /></label>
             <div className="filter-tabs" role="tablist" aria-label={t("项目状态")}>{[["active", "进行中"], ["completed", "已完成"],
@@ -412,10 +407,11 @@ function DashboardWorkbench() {
       </aside>
     </section>
 
-    {modal?.type === "create-project" && <Modal title={t("新建项目")} onClose={() => setModal(null)} wide>
-      <ProjectForm samples={sampleViews} workstreamCategories={workstreamCategoryViews}
-        selectedSampleIdsByCategory={store.selectedSampleIdsByCategory}
-        initialWorkstreamSelections={modal.initialWorkstreamSelections} onSubmit={createProject} onClose={() => setModal(null)} /></Modal>}
+    {modal?.type === "create-company" && <Modal title={t("新建公司")} onClose={() => setModal(null)} wide>
+      <CompanyCreateForm initialKind={modal.initialKind} samples={sampleViews} workstreamCategories={workstreamCategoryViews}
+        selectedSampleIdsByCategory={store.selectedSampleIdsByCategory} selectedGroupSample={selectedGroupSample}
+        initialWorkstreamSelections={modal.initialWorkstreamSelections} onCreateProject={createProject}
+        onCreateGroup={createGroup} onClose={() => setModal(null)} /></Modal>}
     {modal?.type === "edit-project" && selectedProjectSource && <Modal title={t("编辑项目资料")} onClose={() => setModal(null)} wide>
       <ProjectForm initial={selectedProjectSource} allowWorkstreams={false} onClose={() => setModal(null)} submitLabel="保存修改"
         initialMembership={selectedProjectMembership} groupOptions={store.groups.filter((group) => !group.archived
@@ -429,8 +425,6 @@ function DashboardWorkbench() {
             return assignProjectToGroup(next, selectedProjectSource.id, groupAssignment, groupSample);
           });
           setModal(null); notify(t("项目资料及集团归属已更新")); }} /></Modal>}
-    {modal?.type === "create-group" && <Modal title={t(modal.parentGroupId ? "新建子集团" : "新建集团")} onClose={() => setModal(null)}>
-      <GroupForm sampleName={selectedGroupSample?.name || t("未选择范本")} onSubmit={createGroup} onClose={() => setModal(null)} /></Modal>}
     {modal?.type === "edit-group" && selectedGroupSource && <Modal title={t("编辑集团资料")} onClose={() => setModal(null)} wide>
       <GroupForm initial={selectedGroupSource} sampleName={selectedGroupSample?.name || ""} allowTemplate={false}
         memberTargets={{ projects: store.projects, groups: store.groups }} availableProjects={availableProjects}
@@ -478,7 +472,7 @@ function DashboardWorkbench() {
         onSelect={(sampleId) => setStore((current) => ({ ...current, selectedGroupSampleId: sampleId }))}
         onCreate={() => setModal({ type: "group-sample-edit", sample: makeBlankGroupSample(language) })}
         onEdit={(sampleId) => setModal({ type: "group-sample-edit", sampleId })} onDuplicate={(sampleId) => copySample(sampleId, true)}
-        onDelete={(sampleId) => deleteSample(sampleId, true)} onUse={() => setModal({ type: "create-group" })} />
+        onDelete={(sampleId) => deleteSample(sampleId, true)} onUse={() => setModal({ type: "create-company", initialKind: "group" })} />
         : <SampleLibrary samples={sampleViews.filter((sample) => sample.categoryId === templateType)}
           categoryLabel={workstreamCategoryViews.find((category) => category.id === templateType)?.label}
           selectedSampleId={store.selectedSampleIdsByCategory?.[templateType]}
@@ -487,7 +481,8 @@ function DashboardWorkbench() {
           onCreate={() => { const category = store.workstreamCategories.find((item) => item.id === templateType);
             if (category) setModal({ type: "sample-edit", sample: makeBlankSample(language, category.builtinType || "custom", category.id) }); }}
           onEdit={(sampleId) => setModal({ type: "sample-edit", sampleId })} onDuplicate={copySample} onDelete={deleteSample}
-          onUse={(sampleId) => setModal({ type: "create-project", initialWorkstreamSelections: [{ categoryId: templateType, sampleId }] })} />}
+          onUse={(sampleId) => setModal({ type: "create-company", initialKind: "project",
+            initialWorkstreamSelections: [{ categoryId: templateType, sampleId }] })} />}
     </Modal>}
     {modal?.type === "workstream-categories" && <Modal title={t("范本种类")} onClose={() => setModal({ type: "template-library" })} wide>
       <WorkstreamCategoryEditor categories={store.workstreamCategories} usageCounts={workstreamCategoryUsage}
@@ -512,14 +507,34 @@ function DashboardWorkbench() {
         onLink={(values) => { updateGroup(selectedGroupSource.id, (group) => ({ ...group,
           members: [...group.members, makeGroupMember(values, selectedGroupSample || createDefaultGroupSample())] }));
           setModal(null); notify(t("组成部分已加入集团")); }}
-        onCreateProject={() => setModal({ type: "create-project", parentGroupId: selectedGroupSource.id })}
-        onCreateGroup={() => setModal({ type: "create-group", parentGroupId: selectedGroupSource.id })} onClose={() => setModal(null)} /></Modal>}
+        onCreateCompany={() => setModal({ type: "create-company", parentGroupId: selectedGroupSource.id })}
+        onClose={() => setModal(null)} /></Modal>}
     {modal?.type === "member-edit" && <MemberEditModal modal={modal} store={store} selectedGroupSample={selectedGroupSample}
       updateGroup={updateGroup} setModal={setModal} notify={notify} t={t} language={language} />}
     {modal?.type === "delete-target" && <Modal title={t("永久删除")} onClose={() => setModal(null)}>
       <DeleteConfirm name={modal.name} kind={modal.targetKind} onClose={() => setModal(null)}
         onDelete={() => permanentlyDeleteTarget(modal.targetKind, modal.targetId)} /></Modal>}
   </article>;
+}
+
+function CompanyCreateForm({ initialKind = "project", samples, workstreamCategories, selectedSampleIdsByCategory,
+  selectedGroupSample, initialWorkstreamSelections, onCreateProject, onCreateGroup, onClose }) {
+  const { t } = useUiLanguage();
+  const [kind, setKind] = React.useState(initialKind === "group" ? "group" : "project");
+  return <div className="company-create-flow">
+    <section className="company-kind-selector"><div><strong>{t("公司结构")}</strong>
+      <span>{t(kind === "group" ? "控股公司可管理下属公司、合并就绪及合并节点。"
+        : "公司可追踪业务模块，并可随时加入控股公司层级。")}</span></div>
+      <div className="choice-tabs" role="tablist" aria-label={t("公司结构")}>
+        <button type="button" role="tab" aria-selected={kind === "project"} onClick={() => setKind("project")}>{t("公司")}</button>
+        <button type="button" role="tab" aria-selected={kind === "group"} onClick={() => setKind("group")}>{t("控股公司")}</button>
+      </div></section>
+    {kind === "project" ? <ProjectForm key="project" samples={samples} workstreamCategories={workstreamCategories}
+      selectedSampleIdsByCategory={selectedSampleIdsByCategory} initialWorkstreamSelections={initialWorkstreamSelections}
+      submitLabel="建立公司" onSubmit={onCreateProject} onClose={onClose} />
+      : <GroupForm key="group" sampleName={selectedGroupSample?.name || t("未选择范本")}
+        onSubmit={onCreateGroup} onClose={onClose} />}
+  </div>;
 }
 
 function ProjectDetail({ project, rawProject, statuses, parentMembership, activeWorkstreamId, setActiveWorkstreamId,
@@ -533,11 +548,13 @@ function ProjectDetail({ project, rawProject, statuses, parentMembership, active
   const periodLabel = reportingPeriodLabel(project, language);
   const primaryName = project.entity || project.name;
   const secondaryName = project.entity && project.name !== project.entity ? project.name : "";
+  const subtitle = [secondaryName, periodLabel].filter(Boolean).join(" · ")
+    || t(primaryName ? "尚未填写报告期间" : "尚未填写法律实体及报告期间");
   return <div className="workspace-detail-inner">
     {readOnly && <div className="archive-banner"><strong>{t("已归档，只读")}</strong>
       <span>{t("归档记录不能编辑；恢复后才可继续更新。")}</span></div>}
     <header className="detail-header"><div className="detail-title"><div><span className="workspace-label">{t("项目工作区")}</span><h2>{primaryName}</h2></div>
-      <p>{[secondaryName, periodLabel].filter(Boolean).join(" · ") || t("尚未填写法律实体及报告期间")}</p></div>
+      <p>{subtitle}</p></div>
       <div className="detail-actions">{readOnly ? <>
         <button type="button" className="button secondary" onClick={() => restoreTarget("project", rawProject.id)}>{t("恢复")}</button>
         <button type="button" className="button danger-quiet" onClick={() => setModal({ type: "delete-target", targetKind: "project",
@@ -626,7 +643,7 @@ function GroupDetail({ store, group, statuses, updateWorkflowNodes, setModal, se
         if (!target) return null;
         return <button type="button" disabled={readOnly} key={member.id}
           onClick={() => setModal({ type: "member-edit", sourceGroupId: rawGroup.id, memberId: member.id })}>
-          <span>{member.kind === "project" ? "C" : "G"}</span><strong>{target.name}</strong>
+          <span>{member.kind === "project" ? "C" : "H"}</span><strong>{target.name}</strong>
           <small>{member.role || t(member.kind === "project" ? "组成部分" : "子集团")}</small></button>;
       })}</div></section>}
   </div>;

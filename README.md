@@ -1,6 +1,6 @@
 # APW — Audit Project Workbench
 
-一个面向电脑窗口、以本机数据为主的专业服务项目进度工作台。每个项目是年度委聘的总容器，可并行管理审计、报价与收款、税务计算及报税、客户尽职调查和自定义业务模块；会持续变化的待清事项则保持独立。
+一个以英文为默认界面、面向电脑窗口并以本机数据为主的专业服务项目进度工作台。每家公司是年度委聘的总容器，可并行管理审计、报价与收款、税务计算及报税、客户尽职调查和自定义业务模块；会持续变化的待清事项则保持独立。
 
 **[直接打开在线工作台](https://finnlyu41-tech.github.io/audit-project-workbench/)**
 
@@ -8,22 +8,23 @@
 
 ## 主要功能
 
-- 固定三区桌面布局：左侧项目导航、中间项目／集团工作区、右侧待清中心；左右区域均可收起。项目导航提供直接新建入口，并可拖动项目或集团改变归属及层级；点击集团整行即可展开或收起。
-- 顶部使用紧凑工具列，操作按用途分为新建、范本库、备份及语言四组；常用入口直接显示，同类次要操作才使用短菜单。
+- 固定三区桌面布局：左侧项目导航、中间公司／控股公司工作区、右侧待清中心；左右区域均可收起。项目导航提供统一的“新建公司”入口，并可拖动公司或控股公司改变归属及层级；点击控股公司整行即可展开或收起。
+- 顶部使用紧凑工具列，只保留范本库、使用指南、备份及语言等全局工具；建立公司放在项目导航的视觉热区。
 - 内置分章节使用指南，逐项说明入口、操作步骤和完成结果。
 - 每个项目记录法律实体、可自定义财务报告准则／框架，以及可覆盖短期或长期间的报告期开始日和结束日；多个业务模块可并行启用，并各自拥有负责人、截止日、横向节点和客观达成条件。
 - 项目显示“已完成模块数／全部模块数”，只有全部启用模块完成后才算完成，不使用容易误导的混合百分比。
-- 多层集团审计：集团可包含公司项目或子集团，每一级可选择独立合并流程或仅作分类。
-- 集团总览以紧凑状态栏显示组成部分进度、公司合并就绪、本级合并流程及未清事项，让公司清单和合并节点优先进入首屏。
-- 公司可新建或关联现有项目，并按本团队审计、其他审计师或管理账设置不同的合并就绪条件。
-- 公司资料可直接选择或变更所属集团；集团资料可集中添加、移除及修改公司与子集团。
-- 集团待清事项与下级公司事项集中汇总，同时保留来源和跳转入口。
+- 多层控股公司结构：控股公司可包含公司或中间控股公司，每一级可选择独立合并流程或仅作层级分类。
+- 控股公司总览以紧凑状态栏显示组成部分进度、公司合并就绪、本级合并流程及未清事项，让公司清单和合并节点优先进入首屏。
+- 公司可按本团队审计、其他审计师或管理账设置不同的合并就绪条件。
+- 公司资料可直接选择或变更所属控股公司；控股公司资料可集中添加、移除及修改公司与中间控股公司。
+- 控股公司的待清事项与下级公司事项集中汇总，同时保留来源和跳转入口。
 - 节点横向排列；所选节点的达成条件固定显示在下方，不会把相邻节点推离视野。
 - 独立待清中心不影响节点进度；状态可新增、改名、排序、定义“已清”语义并自定义颜色，事项可归属项目级或指定业务模块。
-- 范本库按业务模块分类，每类可保存多个范本；可新增、改名及排序自定义种类，另有集团范本保存合并节点和审计类别默认就绪条件。
+- 范本库按业务模块分类，每类可保存多个范本；可新增、改名及排序自定义种类，另有控股公司范本保存合并节点和审计类别默认就绪条件。
 - 范本公司名称精确去敏：只替换使用者输入的完整公司名称，不自动猜测。
-- 完整的简体中文、繁体中文和英文系统界面；内置内容随语言切换，自定义范本、项目名称和使用者资料保持原文。
-- 归档项目和集团与活跃统计及汇总隔离；归档详情只读，只可恢复或永久删除。
+- 英文为新使用者的默认界面，并提供完整的简体中文和繁体中文切换；内置内容随语言切换，自定义范本、项目名称和使用者资料保持原文。
+- 在常见桌面宽度和浏览器缩放下自动重排三区、操作按钮和表单，避免横向截断。
+- 归档公司和控股公司与活跃统计及汇总隔离；归档详情只读，只可恢复或永久删除。
 - 本机浏览器自动保存，并支持 JSON 备份导入、导出及受保护的工作台初始化。
 
 ## 快速开始
@@ -56,25 +57,26 @@ pnpm check
 
 ## English
 
-Audit Project Workbench (APW) is a desktop-first, local-first tracker for professional-service engagements. Each project is an annual engagement container with parallel workstreams for audit, quotation and collection, tax computation and filing, customer due diligence, or custom services. Fluid outstanding items remain separate from workflow completion.
+Audit Project Workbench (APW) is an English-first, desktop-first and local-first tracker for professional-service engagements. Each company is an annual engagement container with parallel workstreams for audit, quotation and collection, tax computation and filing, customer due diligence, or custom services. Fluid outstanding items remain separate from workflow completion.
 
 ### Features
 
-- A fixed three-pane desktop layout: project navigation, project/group workspace and outstanding centre, with collapsible side panes. Project navigation includes a direct create action and drag-and-drop reassignment or nesting; selecting a group row expands or collapses it.
-- A compact, purpose-grouped toolbar for creating records, opening the template library, managing backups and changing language; frequent actions stay visible while related secondary actions use short menus.
+- A fixed three-pane desktop layout: project navigation, company/holding-company workspace and outstanding centre, with collapsible side panes. Project navigation contains the single New company entry point and supports exact-level drag-and-drop reassignment; selecting a holding-company row expands or collapses it.
+- A compact global toolbar for the template library, user guide, backups and language; record creation stays in the navigation work area.
 - A built-in, sectioned user guide explaining each entry point, procedure and expected result.
 - Project details capture the legal entity, a customisable financial reporting standard or framework, and reporting-period start and end dates suitable for short or extended periods; parallel workstreams retain independent owners, deadlines, horizontal stages and objective completion criteria.
 - Project completion shown as completed workstreams out of total workstreams; all enabled workstreams must finish before the project completes.
-- Multi-level group audits with company projects, optional subgroup consolidation workflows and classification-only levels.
-- A compact group status strip for component progress, company readiness, consolidation progress and open items, keeping the company matrix and consolidation stages in the first screenful.
-- New or existing company projects can be linked to a group with readiness defaults for internal audits, other component auditors or management accounts.
-- Company details can change group assignment directly, while group details manage companies and subgroups in one member roster.
-- Group outstanding items roll up company and subgroup items while preserving their source and navigation.
+- Multi-level holding-company structures with companies, intermediate holding companies, optional consolidation workflows and hierarchy-only levels.
+- A compact holding-company status strip for component progress, company readiness, consolidation progress and open items, keeping the company matrix and consolidation stages in the first screenful.
+- Companies use readiness defaults for internal audits, other component auditors or management accounts.
+- Company details can change holding-company assignment directly, while holding-company details manage companies and intermediate holding companies in one member roster.
+- Holding-company outstanding items roll up subsidiary and intermediate holding-company items while preserving their source and navigation.
 - Horizontal stages with a stable detail panel below, so opening one stage never displaces its neighbours.
 - A separate outstanding centre that never changes stage progress, with custom labels, ordering, cleared-state semantics and colours; items can be project-level or linked to a workstream.
-- Multiple templates per workstream category, user-defined category names and ordering, plus separate group templates for consolidation stages and readiness defaults.
+- Multiple templates per workstream category, user-defined category names and ordering, plus separate holding-company templates for consolidation stages and readiness defaults.
 - Exact-match company-name de-identification within templates.
-- Complete Simplified Chinese, Traditional Chinese and English system UI; built-in content follows the interface language while custom content remains unchanged.
+- English is the default for new users, with complete Simplified Chinese and Traditional Chinese interfaces available; built-in content follows the interface language while custom content remains unchanged.
+- Responsive desktop rules reflow panes, controls and forms cleanly under narrower windows and browser zoom.
 - Archived records are isolated from active calculations and are read-only until restored; permanent deletion is available only from the archive.
 - Browser-local autosave, JSON backup and restore, plus protected workbench initialisation.
 

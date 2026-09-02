@@ -63,16 +63,20 @@ export function ProjectForm({ initial, onSubmit, onClose, submitLabel, allowWork
   return <form className="workbench-form" onSubmit={(event) => {
     event.preventDefault();
     const validSelections = selections.filter((item) => item.type !== "custom" || item.customName.trim());
-    if (values.name.trim() && (!allowWorkstreams || validSelections.length)) {
-      const submittedValues = allowWorkstreams ? { ...values, workstreamSelections: validSelections } : values;
+    const legalEntity = values.entity.trim();
+    const projectName = values.name.trim() || legalEntity;
+    if (legalEntity && projectName && (!allowWorkstreams || validSelections.length)) {
+      const cleanedValues = { ...values, name: projectName, entity: legalEntity };
+      const submittedValues = allowWorkstreams ? { ...cleanedValues, workstreamSelections: validSelections } : cleanedValues;
       onSubmit(groupOptions ? { ...submittedValues, groupAssignment: { ...membership, role: membership.role.trim() } }
         : submittedValues, useStarter);
     }
   }}>
-    <label><span>{t("项目名称 *")}</span><input autoFocus required value={values.name} onChange={update("name")}
-      placeholder={t("例如：[公司名称] 2025年度审计")} /></label>
+    <label><span>{t("法律实体 *")}</span><input autoFocus required value={values.entity} onChange={update("entity")}
+      placeholder={t("公司完整名称")} /></label>
     <div className="form-grid" data-columns="3">
-      <label><span>{t("法律实体")}</span><input value={values.entity} onChange={update("entity")} placeholder={t("公司完整名称")} /></label>
+      <label><span>{t("项目名称（内部称谓）")}</span><input value={values.name} onChange={update("name")}
+        placeholder={t("例如：2025年度审计及税务")} /></label>
       <label><span>{t("财务报告准则／框架")}</span><input list="reporting-framework-options" value={values.reportingFramework}
         onChange={update("reportingFramework")} placeholder={t("选择常用框架或直接输入")} /></label>
       <label><span>{t("负责人")}</span><input value={values.owner} onChange={update("owner")} placeholder={t("例如：项目经理或主审")}/></label>
@@ -109,7 +113,7 @@ export function ProjectForm({ initial, onSubmit, onClose, submitLabel, allowWork
         <label className="workstream-choice" key={category.id}
           data-selected={selections.some((item) => item.categoryId === category.id) || undefined}><input type="checkbox"
             checked={selections.some((item) => item.categoryId === category.id)} onChange={() => toggleCategory(category)} />
-          <span><strong>{workstreamCategoryLabel(category, language)}</strong><small>{t(category.id === "audit" ? "新项目默认启用" : "按需要启用")}</small></span></label>)}</div>
+          <span><strong>{workstreamCategoryLabel(category, language)}</strong><small>{t(category.id === "audit" ? "新公司默认启用" : "按需要启用")}</small></span></label>)}</div>
       {selections.map((selection, index) => {
         const category = workstreamCategories.find((item) => item.id === selection.categoryId);
         const typeSamples = samples.filter((sample) => sample.categoryId === selection.categoryId);
@@ -343,19 +347,19 @@ export function WorkstreamCategoryEditor({ categories, usageCounts, onSave, onCl
 export function UserGuide() {
   const { t } = useUiLanguage();
   const sections = [
-    { id: "start", title: "快速开始", summary: "先建立一个项目，再从业务模块进入日常工作。", topics: [
-      { title: "建立第一个项目", steps: ["选择项目导航内的“新建项目”，或选择顶部“新建”→“新建项目”。", "填写项目名称、法律实体、财务报告准则／框架、报告期开始日和结束日；负责人及目标完成日期也可同时填写。",
-        "勾选需要并行追踪的业务模块，并为每个模块选择范本或空白流程。", "选择“建立项目”，项目会出现在左侧项目导航。"],
+    { id: "start", title: "快速开始", summary: "先建立一家公司，再从业务模块进入日常工作。", topics: [
+      { title: "建立第一家公司", steps: ["在项目导航选择“新建公司”。", "选择“公司”或“控股公司”；同一个入口可建立两种公司结构。",
+        "建立公司时先填写法律实体；项目名称只作为可选的内部称谓，再填写财务报告准则／框架、报告期开始日和结束日，并选择需要并行追踪的业务模块。", "选择“建立公司”，记录会出现在左侧项目导航。"],
       result: "项目建立后，每个业务模块会独立计算进度。" },
       { title: "认识三区工作台", steps: ["左侧“项目导航”用于搜索、筛选和切换项目或集团。", "中间“项目工作区”或“集团工作区”用于处理模块、节点及合并工作。",
         "右侧“待清中心”用于持续追踪缺少文件、等待签署和其他阻塞事项。", "左右区域都可以收起，需要时再展开。"],
       result: "日常工作集中在中间视觉热区，导航和待清事项仍保持随手可用。" },
     ] },
-    { id: "projects", title: "项目与业务模块", summary: "项目是年度委聘容器，多个业务模块可以同时推进。", topics: [
+    { id: "projects", title: "公司与业务模块", summary: "公司记录是年度委聘容器，多个业务模块可以同时推进。", topics: [
       { title: "寻找和筛选项目", steps: ["在项目导航的搜索框输入项目、集团或负责人名称。", "使用“进行中”“已完成”“全部”及“归档”筛选所需记录。",
         "选择项目名称可打开项目；选择集团名称会同时打开集团并展开或收起下级。"], result: "你只会在当前筛选范围内看到相关记录。" },
-      { title: "拖动调整集团归属和层级", steps: ["按住项目或集团名称开始拖动。", "拖到目标集团上即可加入或改变所属集团；目标集团会高亮。",
-        "拖到导航顶部的“移到顶层”区域，即可移出当前集团。", "集团不能拖入自身或其下级集团，归档记录也不能拖动。"],
+      { title: "拖动调整集团归属和层级", steps: ["按住公司或控股公司名称开始拖动。", "所有可接收的控股公司行会显示“可放入”；直接拖到所需层级并松开。",
+        "拖到导航底部的“移到顶层”区域，即可移出当前控股公司。", "控股公司不能拖入自身或其下级控股公司，归档记录也不能拖动。"],
       result: "公司及子集团层级会立即更新，现有角色和合并就绪条件会保留。" },
       { title: "编辑项目资料及集团归属", steps: ["打开项目后选择“编辑公司及集团归属”。", "修改公司资料、财务报告准则／框架、负责人、报告期或备注。",
         "在“集团归属”选择集团，并设置集团角色和审计类别；选择独立公司即可移出集团。", "保存后，项目导航和集团汇总会立即更新。"],
@@ -386,7 +390,7 @@ export function UserGuide() {
         "正在被历史记录使用的状态不会被误删；需要先把相关事项改到其他状态。"], result: "状态名称、顺序、颜色和未清计算会同时更新。" },
     ] },
     { id: "groups", title: "集团审计", summary: "集团可包含公司和子集团，并把合并就绪与本级合并流程分开管理。", topics: [
-      { title: "建立集团或子集团", steps: ["选择顶部“新建”，再选择“新建集团”。", "填写集团名称、报告期开始日和结束日、负责人及目标完成日期。",
+      { title: "建立集团或子集团", steps: ["在项目导航选择“新建公司”，再在公司结构选择“控股公司”。", "填写控股公司名称、报告期开始日和结束日、负责人及目标完成日期。",
         "选择本级是否需要独立合并；如只用于分类，可关闭本级合并流程。"], result: "集团会成为可容纳公司或子集团的层级容器。" },
       { title: "加入和调整成员", steps: ["打开集团并选择“集团资料”。", "选择“添加公司／子集团”，关联现有记录或直接新建。",
         "选择成员卡片可修改角色、审计类别和合并就绪条件，也可将成员移出集团。"], result: "成员关系也可从公司资料的“集团归属”反向修改。" },

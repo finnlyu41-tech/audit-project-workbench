@@ -220,18 +220,31 @@ export function localizeWorkflowNodes(nodes, language = "zh") {
 
 export function localizeGroupWorkflowNodes(nodes, language = "zh") {
   return nodes.map((node) => ({ ...node,
-    title: localizeKnownText(node.title, language, groupWorkflowTextPairs),
-    description: localizeKnownText(node.description, language, groupWorkflowTextPairs),
+    title: holdingCompanyTerminology(localizeKnownText(node.title, language, groupWorkflowTextPairs), language),
+    description: holdingCompanyTerminology(localizeKnownText(node.description, language, groupWorkflowTextPairs), language),
     conditions: node.conditions.map((condition) => ({ ...condition,
-      label: localizeKnownText(condition.label, language, groupWorkflowTextPairs),
+      label: holdingCompanyTerminology(localizeKnownText(condition.label, language, groupWorkflowTextPairs), language),
     })),
   }));
 }
 
 export function localizeReadinessConditions(conditions, language = "zh") {
   return (conditions || []).map((condition) => ({ ...condition,
-    label: localizeKnownText(condition.label, language, groupReadinessTextPairs),
+    label: holdingCompanyTerminology(localizeKnownText(condition.label, language, groupReadinessTextPairs), language),
   }));
+}
+
+function holdingCompanyTerminology(text, language = "zh") {
+  if (language === "en") return text.replace(/\bSubgroups\b/gu, "Intermediate holding companies")
+    .replace(/\bsubgroups\b/gu, "intermediate holding companies")
+    .replace(/\bSubgroup\b/gu, "Intermediate holding company")
+    .replace(/\bsubgroup\b/gu, "intermediate holding company")
+    .replace(/\bGroups\b/gu, "Holding companies")
+    .replace(/\bgroups\b/gu, "holding companies")
+    .replace(/\bGroup\b/gu, "Holding company")
+    .replace(/\bgroup\b/gu, "holding company");
+  const simplified = text.replaceAll("子集团", "中间控股公司").replaceAll("集团", "控股公司");
+  return language === "zh-Hant" ? toTraditional(simplified) : simplified;
 }
 
 export function uid(prefix) {
@@ -500,13 +513,13 @@ export function createDefaultGroupSample(language = "zh") {
   return {
     id: "group-sample-core",
     builtinKey: CORE_GROUP_SAMPLE_KEY,
-    name: english ? "Group Consolidation Workflow" : language === "zh-Hant" ? "集團合併流程" : "集团合并流程",
-    description: english ? "Built-in group workflow template" : language === "zh-Hant" ? "內置集團流程範本" : "内置集团流程范本",
+    name: english ? "Holding Company Consolidation Workflow" : language === "zh-Hant" ? "控股公司合併流程" : "控股公司合并流程",
+    description: english ? "Built-in holding-company workflow template" : language === "zh-Hant" ? "內置控股公司流程範本" : "内置控股公司流程范本",
     updatedAt: new Date().toISOString(),
     nodes: (english ? groupStarterNodesEnglish : groupStarterNodes).map(([title, description, conditions]) => makeNode({
-      title: language === "zh-Hant" ? toTraditional(title) : title,
-      description: language === "zh-Hant" ? toTraditional(description) : description,
-      conditions: language === "zh-Hant" ? conditions.map(toTraditional) : conditions,
+      title: holdingCompanyTerminology(title, language),
+      description: holdingCompanyTerminology(description, language),
+      conditions: conditions.map((condition) => holdingCompanyTerminology(condition, language)),
     })),
     readinessTemplates: copyReadinessTemplates(language === "zh-Hant"
       ? Object.fromEntries(Object.entries(readiness).map(([key, conditions]) => [key, conditions.map((condition) => toTraditional(
@@ -519,7 +532,7 @@ export function normalizeGroupSample(value) {
   return {
     id: value.id || uid("group-sample"),
     builtinKey: value.builtinKey === CORE_GROUP_SAMPLE_KEY ? CORE_GROUP_SAMPLE_KEY : undefined,
-    name: typeof value.name === "string" && value.name.trim() ? value.name.trim() : "未命名集团范本",
+    name: typeof value.name === "string" && value.name.trim() ? value.name.trim() : "未命名控股公司范本",
     description: typeof value.description === "string" ? value.description : "",
     updatedAt: value.updatedAt || new Date().toISOString(),
     nodes: value.nodes.map((node) => ({
@@ -541,8 +554,8 @@ export function localizeGroupSample(sample, language = "zh") {
     return { ...createDefaultGroupSample(language), id: sample.id, updatedAt: sample.updatedAt };
   }
   return { ...sample,
-    name: localizeKnownText(sample.name, language, groupSampleMetadataTextPairs),
-    description: localizeKnownText(sample.description, language, groupSampleMetadataTextPairs),
+    name: holdingCompanyTerminology(localizeKnownText(sample.name, language, groupSampleMetadataTextPairs), language),
+    description: holdingCompanyTerminology(localizeKnownText(sample.description, language, groupSampleMetadataTextPairs), language),
     nodes: localizeGroupWorkflowNodes(sample.nodes, language),
     readinessTemplates: Object.fromEntries(GROUP_AUDIT_TYPES.map((auditType) => [auditType,
       (sample.readinessTemplates?.[auditType] || []).map((condition) => ({ ...condition,
@@ -554,7 +567,7 @@ export function localizeGroupSample(sample, language = "zh") {
 export function makeBlankGroupSample(language = "zh") {
   return {
     id: uid("group-sample"),
-    name: language === "en" ? "New Group Template" : language === "zh-Hant" ? "新集團範本" : "新集团范本",
+    name: language === "en" ? "New Holding Company Template" : language === "zh-Hant" ? "新控股公司範本" : "新控股公司范本",
     description: "",
     updatedAt: new Date().toISOString(),
     nodes: [],
@@ -744,7 +757,7 @@ export function normalizeStore(value) {
   });
   const groups = Array.isArray(value.groups) ? value.groups.map((group) => ({
     id: group?.id || uid("group"),
-    name: typeof group?.name === "string" && group.name.trim() ? group.name.trim() : "未命名集团",
+    name: typeof group?.name === "string" && group.name.trim() ? group.name.trim() : "未命名控股公司",
     period: typeof group?.period === "string" ? group.period : "",
     periodStart: typeof group?.periodStart === "string" ? group.periodStart : "",
     periodEnd: typeof group?.periodEnd === "string" ? group.periodEnd : "",

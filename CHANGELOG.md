@@ -9,32 +9,38 @@ The project follows [Semantic Versioning](https://semver.org/).
 ### Added
 
 - Parallel project workstreams for quotation and collection, audit, tax computation and filing, customer due diligence, and custom services.
-- Storage V5 migration from legacy project nodes into an audit workstream, preserving progress and group relationships.
+- Storage V5 migration from legacy project nodes into an audit workstream, preserving progress and holding-company relationships.
 - A fixed three-pane desktop workspace with collapsible project navigation and outstanding centre.
 - Horizontal stage navigation with a stable detail panel beneath the stage rail.
 - Simplified Chinese, Traditional Chinese and English system interfaces.
 - Per-status colour controls and workstream-linked outstanding items.
 - Read-only archive details, restoration and archive-only permanent deletion.
-- Direct group assignment, role and audit-category controls in company details.
-- In-place company and subgroup membership management in group details.
+- Direct holding-company assignment, role and audit-category controls in company details.
+- In-place company and intermediate holding-company membership management in holding-company details.
 - User-defined template categories with reusable category-specific workstreams.
 - Storage V6 migration for category-aware templates and selected-template preferences.
-- A detailed in-app user guide covering the complete project, group, template, archive and data workflow.
+- A detailed in-app user guide covering the complete company, holding-company, template, archive and data workflow.
 - A protected workbench initialisation flow with backup guidance and explicit acknowledgement.
-- Direct project creation in Project navigation and drag-and-drop project or group reassignment across hierarchy levels.
+- Direct company creation in Project navigation and drag-and-drop company or holding-company reassignment across hierarchy levels.
 - Storage V7 fields for reporting-period start/end dates and a customisable financial reporting standard or framework, while preserving legacy period text.
+- A unified New company flow for creating either a company or a holding company.
+- Explicit drop targets on every eligible holding-company row, including expanded middle levels.
 
 ### Changed
 
-- Reorganised the workbench toolbar into separate create, template-library, backup and language groups, with short menus reserved for related secondary actions.
+- Reorganised the workbench toolbar by purpose, with short menus reserved for related secondary actions.
 - Replaced project-wide blended percentages with completed-workstream counts.
 - Categorised the multi-template library by workstream type and replaced internal shorthand with professional terminology.
-- Compacted the global toolbar, project/group headers and group status summary to prioritise working content in the desktop viewport.
+- Compacted the global toolbar, company/holding-company headers and holding-company status summary to prioritise working content in the desktop viewport.
 - Grouped add-stage and delete-selected-stage controls beside the horizontal stage rail.
 - Replaced the customer-due-diligence abbreviation with the full professional name throughout built-in content.
-- Excluded archived records from active navigation, group calculations and outstanding roll-ups.
-- Replaced separate group expand/collapse buttons with whole-row disclosure and prioritised the legal entity in project details.
+- Excluded archived records from active navigation, holding-company calculations and outstanding roll-ups.
+- Replaced separate holding-company expand/collapse buttons with whole-row disclosure and prioritised the legal entity in company details.
 - Moved workstream selection ahead of notes in the new-project form.
+- Replaced user-facing group and subgroup terminology with holding company and intermediate holding company while retaining backward-compatible stored data.
+- Removed the toolbar creation menu and moved the single creation entry point into Project navigation.
+- Made English the default language for new users and refined English-first labels, form hierarchy and feedback.
+- Increased small interface type and added responsive pane, toolbar, form and card layouts for browser zoom and narrower desktop windows.
 
 ## [0.2.0] - 2026-09-02
 

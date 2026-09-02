@@ -80,7 +80,7 @@ export function GroupForm({ initial, sampleName, allowTemplate = true, memberTar
         const target = memberTarget(member);
         const archived = Boolean(target?.archived);
         return <article className="group-membership-row" key={member.id} data-archived={archived || undefined}>
-          <div className="group-member-identity"><i>{member.kind === "project" ? "C" : "G"}</i><span><strong>{target?.name || t("未找到组成部分")}</strong>
+          <div className="group-member-identity"><i>{member.kind === "project" ? "C" : "H"}</i><span><strong>{target?.name || t("未找到组成部分")}</strong>
             <small>{t(member.kind === "project" ? "公司项目" : "子集团")}{archived ? ` · ${t("已归档")}` : ""}</small></span></div>
           <label><span>{t("集团角色")}</span><input disabled={archived} value={member.role || ""}
             onChange={(event) => updateMember(member.id, { role: event.target.value })} placeholder={t("例如：母公司、子公司或地区子集团")} /></label>
@@ -123,6 +123,7 @@ export function WorkspaceTree({ store, selection, onSelect, onMove, search, filt
   const [expanded, setExpanded] = React.useState(() => new Set());
   const [dragging, setDragging] = React.useState(null);
   const [dropTarget, setDropTarget] = React.useState(null);
+  const draggingRef = React.useRef(null);
   const archiveMode = filter === "archived";
   const eligibleParentGroups = store.groups.filter((group) => group.archived === archiveMode);
   const projectParents = new Set(eligibleParentGroups.flatMap((group) => group.members
@@ -156,11 +157,14 @@ export function WorkspaceTree({ store, selection, onSelect, onMove, search, filt
     event.dataTransfer.effectAllowed = "move";
     event.dataTransfer.setData("application/x-audit-workbench-item", payload);
     event.dataTransfer.setData("text/plain", payload);
+    draggingRef.current = { kind, id };
     setDragging({ kind, id });
   };
-  const finishDrag = () => { setDragging(null); setDropTarget(null); };
-  const canDrop = (parentGroupId) => dragging
-    && canMoveWorkspaceItem(store, dragging.kind, dragging.id, parentGroupId);
+  const finishDrag = () => { draggingRef.current = null; setDragging(null); setDropTarget(null); };
+  const canDrop = (parentGroupId) => {
+    const activeDrag = draggingRef.current || dragging;
+    return activeDrag && canMoveWorkspaceItem(store, activeDrag.kind, activeDrag.id, parentGroupId);
+  };
   const dragOver = (event, parentGroupId) => {
     if (!canDrop(parentGroupId)) return;
     event.preventDefault();
@@ -169,10 +173,11 @@ export function WorkspaceTree({ store, selection, onSelect, onMove, search, filt
     setDropTarget(parentGroupId || "root");
   };
   const drop = (event, parentGroupId) => {
-    if (!canDrop(parentGroupId)) return;
+    const activeDrag = draggingRef.current || dragging;
+    if (!activeDrag || !canMoveWorkspaceItem(store, activeDrag.kind, activeDrag.id, parentGroupId)) return;
     event.preventDefault();
     event.stopPropagation();
-    onMove?.(dragging.kind, dragging.id, parentGroupId);
+    onMove?.(activeDrag.kind, activeDrag.id, parentGroupId);
     if (parentGroupId) setExpanded((current) => new Set(current).add(parentGroupId));
     finishDrag();
   };
@@ -209,19 +214,22 @@ export function WorkspaceTree({ store, selection, onSelect, onMove, search, filt
     }).filter(Boolean);
     const hasChildren = children.length > 0;
     const open = hasChildren && groupOpen(group.id);
-    return <React.Fragment key={group.id}><div className="tree-group-line" style={{ "--tree-depth": depth }}
-      data-drop-target={dropTarget === group.id || undefined}
-      onDragOver={(event) => dragOver(event, group.id)} onDrop={(event) => drop(event, group.id)}>
+    const dropEligible = Boolean(dragging && canDrop(group.id));
+    return <React.Fragment key={group.id}><div className="tree-group-line" style={{ "--tree-depth": depth }}>
       <button type="button" className="tree-row tree-group-row" aria-expanded={hasChildren ? open : undefined}
         data-selected={selection?.kind === "group" && selection.id === group.id || undefined}
         data-dragging={dragging?.kind === "group" && dragging.id === group.id || undefined}
+        data-drop-eligible={dropEligible || undefined} data-drop-target={dropTarget === group.id || undefined}
         draggable={!archiveMode} title={!archiveMode ? t("拖动以更改所属集团或层级") : undefined}
         onDragStart={(event) => beginDrag(event, "group", group.id)} onDragEnd={finishDrag}
+        onDragEnter={(event) => dragOver(event, group.id)} onDragOver={(event) => dragOver(event, group.id)}
+        onDrop={(event) => drop(event, group.id)}
         onClick={() => { onSelect({ kind: "group", id: group.id }); if (hasChildren) toggle(group.id); }}>
-        <span className="tree-kind-mark">G</span><span className="tree-copy"><strong>{group.name}</strong>
+        <span className="tree-kind-mark">H</span><span className="tree-copy"><strong>{group.name}</strong>
           <small>{group.owner || reportingPeriodLabel(group, language) || t("尚未填写集团资料")}</small></span>
-        {openOutstanding > 0 && <em>{openOutstanding}</em>}<span className="tree-progress"><span>{stats.percentage}%</span>
-          {hasChildren && <i className="tree-disclosure" aria-hidden="true">{open ? "▾" : "›"}</i>}</span>
+        {openOutstanding > 0 && <em>{openOutstanding}</em>}<span className="tree-progress">{dropEligible
+          ? <span className="tree-drop-hint">{t(dropTarget === group.id ? "松开放入" : "可放入")}</span>
+          : <><span>{stats.percentage}%</span>{hasChildren && <i className="tree-disclosure" aria-hidden="true">{open ? "▾" : "›"}</i>}</>}</span>
       </button></div>{open && <div className="tree-children">{children}</div>}</React.Fragment>;
   };
 
@@ -229,13 +237,14 @@ export function WorkspaceTree({ store, selection, onSelect, onMove, search, filt
   const standalone = store.projects.filter((project) => !projectParents.has(project.id));
   const content = [...rootGroups.map((group) => renderGroup(group, 0)),
     ...standalone.map((project) => renderProject(project, 0))].filter(Boolean);
-  return <div className="workspace-tree">{dragging && !archiveMode && <div className="tree-root-drop"
-    data-drop-target={dropTarget === "root" || undefined} onDragOver={(event) => dragOver(event, "")}
-    onDrop={(event) => drop(event, "")}>{t("移到顶层（不属于集团）")}</div>}{content.length ? content
+  return <div className="workspace-tree">{content.length ? content
     : <div className="list-empty"><strong>{t(store.projects.length || store.groups.length
       ? "没有符合筛选的项目" : "还没有审计项目")}</strong>
       <span>{t(store.projects.length || store.groups.length
-        ? "可以切换状态或修改搜索条件。" : "先建立一个项目或集团。")}</span></div>}</div>;
+        ? "可以切换状态或修改搜索条件。" : "先建立一个项目或集团。")}</span></div>}
+    {dragging && !archiveMode && canDrop("") && <div className="tree-root-drop"
+      data-drop-target={dropTarget === "root" || undefined} onDragEnter={(event) => dragOver(event, "")}
+      onDragOver={(event) => dragOver(event, "")} onDrop={(event) => drop(event, "")}>{t("移到顶层（不属于集团）")}</div>}</div>;
 }
 
 function flattenGroupRows(store, groupId, depth = 0, visited = new Set(), includeArchived = false) {
@@ -290,7 +299,7 @@ export function GroupMatrix({ store, group, statuses, onOpen, onConfigure, readO
         const completedReadiness = member.readinessConditions?.filter((condition) => condition.done).length || 0;
         return <div className="group-matrix-row" role="row" key={member.id}>
           <button type="button" className="matrix-name" style={{ "--matrix-depth": depth }} onClick={() => onOpen(member.kind, target.id)}>
-            <span className="matrix-kind">{isGroup ? "G" : "C"}</span><span><strong>{target.name}</strong>
+            <span className="matrix-kind">{isGroup ? "H" : "C"}</span><span><strong>{target.name}</strong>
               <small>{target.entity || reportingPeriodLabel(target, language) || t(isGroup ? "子集团" : "公司项目")}</small></span></button>
           <span>{member.role || t(isGroup ? "子集团" : "组成部分")}</span>
           <span>{isGroup ? t(target.consolidationEnabled ? "子集团合并" : "分类集团") : t(auditTypeKeys[member.auditType])}</span>
@@ -307,7 +316,7 @@ export function GroupMatrix({ store, group, statuses, onOpen, onConfigure, readO
   </section>;
 }
 
-export function GroupMemberAddForm({ availableProjects, availableGroups, onLink, onCreateProject, onCreateGroup, onClose }) {
+export function GroupMemberAddForm({ availableProjects, availableGroups, onLink, onCreateCompany, onClose }) {
   const { t } = useUiLanguage();
   const [kind, setKind] = React.useState("project");
   const candidates = kind === "project" ? availableProjects : availableGroups;
@@ -332,8 +341,7 @@ export function GroupMemberAddForm({ availableProjects, availableGroups, onLink,
       onChange={(event) => setAuditType(event.target.value)}>{GROUP_AUDIT_TYPES.map((value) =>
         <option value={value} key={value}>{t(auditTypeKeys[value])}</option>)}</select></label>}
     <div className="member-create-shortcuts"><span>{t("或直接建立新的组成部分")}</span>
-      <button type="button" onClick={onCreateProject}>{t("＋ 新建公司项目")}</button>
-      <button type="button" onClick={onCreateGroup}>{t("＋ 新建子集团")}</button></div>
+      <button type="button" onClick={onCreateCompany}>{t("＋ 新建公司")}</button></div>
     <footer className="modal-actions"><button type="button" className="button secondary" onClick={onClose}>{t("取消")}</button>
       <button type="submit" disabled={!refId} className="button primary">{t("加入集团")}</button></footer>
   </form>;
@@ -383,7 +391,7 @@ export function GroupSampleLibrary({ samples, selectedSampleId, onSelect, onCrea
       const selected = sample.id === selectedSampleId;
       return <article className="sample-library-card" data-selected={selected || undefined} key={sample.id}>
         <button type="button" className="sample-library-select" onClick={() => onSelect(sample.id)}>
-          <span className="sample-mark group-sample-mark">G</span><span><strong>{sample.name}</strong>
+          <span className="sample-mark group-sample-mark">H</span><span><strong>{sample.name}</strong>
             <small>{sample.description || t("没有说明")}</small><em>{t("{nodes} 个合并节点 · {conditions} 项条件 · {readiness} 项就绪条件",
               { nodes: sample.nodes.length, conditions, readiness })}</em></span>{selected && <i>{t("当前使用")}</i>}</button>
         <footer><button type="button" onClick={() => onUse(sample.id)}>{t("使用此范本")}</button>

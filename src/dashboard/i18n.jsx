@@ -13,6 +13,16 @@ const english = {
   "界面语言": "Interface language",
   "恢复备份": "Restore backup",
   "导出备份": "Export backup",
+  "新建公司": "New company",
+  "＋ 新建公司": "+ New company",
+  "建立公司": "Create company",
+  "公司": "Company",
+  "公司结构": "Company structure",
+  "控股公司": "Holding company",
+  "公司可追踪业务模块，并可随时加入控股公司层级。": "A company tracks its workstreams and can join a holding-company hierarchy at any time.",
+  "控股公司可管理下属公司、合并就绪及合并节点。": "A holding company manages subsidiaries, consolidation readiness and consolidation stages.",
+  "松开放入": "Release to place",
+  "可放入": "Drop here",
   "新建项目": "New project",
   "项目摘要": "Project summary",
   "进行中": "In progress",
@@ -70,6 +80,10 @@ const english = {
   "关闭": "Close",
   "项目名称 *": "Project name *",
   "法律实体": "Legal entity",
+  "法律实体 *": "Legal entity *",
+  "项目名称（内部称谓）": "Project name (internal label)",
+  "例如：2025年度审计及税务": "For example: FY2025 audit and tax",
+  "尚未填写报告期间": "Reporting period not entered",
   "财务报告准则／框架": "Financial reporting standard / framework",
   "选择常用框架或直接输入": "Choose a common framework or enter a custom one",
   "香港财务报告准则": "HKFRS Accounting Standards",
@@ -188,7 +202,7 @@ const english = {
   "Sample 已复制": "Sample duplicated",
   "Sample 已删除": "Sample deleted",
   "删除 Sample“{name}”？": "Delete Sample “{name}”?",
-  "项目已建立并自动保存": "Project created and saved automatically",
+  "项目已建立并自动保存": "Company created and saved automatically",
   "已复制流程，所有完成状态已重置": "Workflow duplicated; all completion states were reset",
   "备份已导出": "Backup exported",
   "备份已恢复": "Backup restored",
@@ -303,7 +317,7 @@ const english = {
   "其他审计师负责": "Other component auditor",
   "无需法定审计／管理账": "No statutory audit / management accounts",
   "集团名称 *": "Group name *",
-  "例如：[集团名称] 2025年度集团审计": "For example: [Group Name] FY2025 Group Audit",
+  "例如：[集团名称] 2025年度集团审计": "For example: [Holding Company Name] FY2025 Consolidation",
   "例如：集团项目经理": "For example: group engagement manager",
   "本级需要独立合并流程": "Use a consolidation workflow at this level",
   "关闭后，本级只作分类并直接汇总下级进度。": "When off, this level only classifies members and rolls up their progress directly.",
@@ -338,8 +352,8 @@ const english = {
   "子集团": "Subgroup",
   "公司项目": "Company project",
   "组成部分": "Component",
-  "子集团合并": "Subgroup consolidation",
-  "分类集团": "Classification group",
+  "子集团合并": "Intermediate holding-company consolidation",
+  "分类集团": "Hierarchy-only holding company",
   "已就绪": "Ready",
   "未就绪": "Not ready",
   "设置": "Settings",
@@ -486,6 +500,7 @@ Object.assign(english, {
   "选择业务模块": "Select workstreams",
   "每个模块独立追踪进度、负责人和截止日。": "Track progress, owner and deadline independently for each workstream.",
   "新项目默认启用": "Enabled by default for new projects",
+  "新公司默认启用": "Enabled by default for new companies",
   "按需要启用": "Enable when needed",
   "自定义模块名称": "Custom workstream name",
   "空白流程": "Blank workflow",
@@ -517,11 +532,11 @@ Object.assign(english, {
   "集团范本库": "Group template library",
   "集团范本名称 *": "Group template name *",
   "保存集团范本": "Save group template",
-  "集团归属": "Group assignment",
+  "集团归属": "Holding-company assignment",
   "可在公司资料中直接加入、变更或移出集团。": "Add, change or remove the company from a group directly in company details.",
-  "所属集团": "Parent group",
+  "所属集团": "Parent holding company",
   "独立公司（不属于集团）": "Standalone company (not assigned to a group)",
-  "集团角色": "Group role",
+  "集团角色": "Ownership role",
   "例如：母公司、子公司或联营公司": "For example: Parent, subsidiary or associate",
   "保存后，项目导航和集团汇总会立即更新。": "Project navigation and group roll-ups update immediately after saving.",
   "集团成员": "Group members",
@@ -568,6 +583,12 @@ Object.assign(english, {
   "确认初始化": "Confirm initialisation",
   "使用指南": "User guide",
   "快速开始": "Quick start",
+  "先建立一家公司，再从业务模块进入日常工作。": "Create a company first, then enter daily work through its workstreams.",
+  "建立第一家公司": "Create your first company",
+  "在项目导航选择“新建公司”。": "Choose New company in Project navigation.",
+  "选择“公司”或“控股公司”；同一个入口可建立两种公司结构。": "Choose Company or Holding company; both structures use the same creation entry point.",
+  "建立公司时先填写法律实体；项目名称只作为可选的内部称谓，再填写财务报告准则／框架、报告期开始日和结束日，并选择需要并行追踪的业务模块。": "Enter the legal entity first. The project name is only an optional internal label; then add the financial reporting standard or framework, reporting-period start and end dates, and the workstreams to track in parallel.",
+  "选择“建立公司”，记录会出现在左侧项目导航。": "Choose Create company; the record will appear in Project navigation on the left.",
   "先建立一个项目，再从业务模块进入日常工作。": "Create a project first, then enter daily work through its workstreams.",
   "建立第一个项目": "Create your first project",
   "选择顶部“新建”，再选择“新建项目”。": "Choose New at the top, then choose New project.",
@@ -585,6 +606,8 @@ Object.assign(english, {
   "左右区域都可以收起，需要时再展开。": "Both side panes can be collapsed and reopened when needed.",
   "日常工作集中在中间视觉热区，导航和待清事项仍保持随手可用。": "Daily work stays in the central focus area while navigation and outstanding items remain close at hand.",
   "项目与业务模块": "Projects and workstreams",
+  "公司与业务模块": "Companies and workstreams",
+  "公司记录是年度委聘容器，多个业务模块可以同时推进。": "A company record is the annual engagement container, and its workstreams can progress in parallel.",
   "项目是年度委聘容器，多个业务模块可以同时推进。": "A project is the annual engagement container, with multiple workstreams moving in parallel.",
   "寻找和筛选项目": "Find and filter projects",
   "在项目导航的搜索框输入项目、集团或负责人名称。": "Enter a project, group or owner name in the Project navigation search box.",
@@ -593,6 +616,10 @@ Object.assign(english, {
   "选择项目名称可打开项目；选择集团名称会同时打开集团并展开或收起下级。": "Choose a project name to open it; choosing a group name opens the group and expands or collapses its children.",
   "你只会在当前筛选范围内看到相关记录。": "Only records within the current filters are shown.",
   "拖动调整集团归属和层级": "Change group assignment and hierarchy by dragging",
+  "按住公司或控股公司名称开始拖动。": "Press and hold a company or holding-company name to begin dragging.",
+  "所有可接收的控股公司行会显示“可放入”；直接拖到所需层级并松开。": "Every eligible holding-company row shows Drop here; release on the exact level you want.",
+  "拖到导航底部的“移到顶层”区域，即可移出当前控股公司。": "Drop it on Move to top level at the bottom of navigation to remove it from its current holding company.",
+  "控股公司不能拖入自身或其下级控股公司，归档记录也不能拖动。": "A holding company cannot be moved into itself or one of its descendants, and archived records cannot be dragged.",
   "按住项目或集团名称开始拖动。": "Press and hold a project or group name to begin dragging.",
   "拖到目标集团上即可加入或改变所属集团；目标集团会高亮。": "Drop it on a target group to join or change its parent; the target group is highlighted.",
   "拖到导航顶部的“移到顶层”区域，即可移出当前集团。": "Drop it on Move to top level at the top of navigation to remove it from its current group.",
@@ -660,6 +687,8 @@ Object.assign(english, {
   "状态名称、顺序、颜色和未清计算会同时更新。": "Status names, order, colours and outstanding counts update together.",
   "集团可包含公司和子集团，并把合并就绪与本级合并流程分开管理。": "A group can contain companies and subgroups, with readiness kept separate from consolidation work at the current level.",
   "建立集团或子集团": "Create a group or subgroup",
+  "在项目导航选择“新建公司”，再在公司结构选择“控股公司”。": "Choose New company in Project navigation, then select Holding company under Company structure.",
+  "填写控股公司名称、报告期开始日和结束日、负责人及目标完成日期。": "Enter the holding-company name, reporting-period start and end dates, owner and target completion date.",
   "选择顶部“新建”，再选择“新建集团”。": "Choose New at the top, then choose New group.",
   "填写集团名称、期间、负责人及目标完成日期。": "Enter the group name, period, owner and target completion date.",
   "填写集团名称、报告期开始日和结束日、负责人及目标完成日期。": "Enter the group name, reporting-period start and end dates, owner and target completion date.",
@@ -756,13 +785,38 @@ function interpolate(text, values) {
     result.replaceAll(`{${key}}`, () => String(value)), text);
 }
 
+function applyHoldingCompanyTerminology(text, language) {
+  const placeholders = [];
+  let result = text.replace(/\{[^{}]+\}/gu, (placeholder) => {
+    placeholders.push(placeholder);
+    return `\uE000${placeholders.length - 1}\uE001`;
+  });
+  if (language === "en") {
+    result = result.replace(/\bCompany projects\b/gu, "Companies")
+      .replace(/\bcompany projects\b/gu, "companies")
+      .replace(/\bCompany project\b/gu, "Company")
+      .replace(/\bcompany project\b/gu, "company")
+      .replace(/\bSubgroups\b/gu, "Intermediate holding companies")
+      .replace(/\bsubgroups\b/gu, "intermediate holding companies")
+      .replace(/\bSubgroup\b/gu, "Intermediate holding company")
+      .replace(/\bsubgroup\b/gu, "intermediate holding company")
+      .replace(/\bGroups\b/gu, "Holding companies")
+      .replace(/\bgroups\b/gu, "holding companies")
+      .replace(/\bGroup\b/gu, "Holding company")
+      .replace(/\bgroup\b/gu, "holding company");
+  } else {
+    result = result.replaceAll("公司项目", "公司").replaceAll("子集团", "中间控股公司").replaceAll("集团", "控股公司");
+  }
+  return result.replace(/\uE000(\d+)\uE001/gu, (_, index) => placeholders[Number(index)] || "");
+}
+
 export function LanguageProvider({ children }) {
   const [language, setLanguage] = React.useState(() => {
     try {
       const saved = localStorage.getItem(LANGUAGE_PREFERENCE_KEY);
       if (saved === "en" || saved === "zh-Hant" || saved === "zh-Hans") return saved;
-      return saved === "zh" ? "zh-Hans" : "zh-Hans";
-    } catch { return "zh-Hans"; }
+      return saved === "zh" ? "zh-Hans" : "en";
+    } catch { return "en"; }
   });
 
   React.useEffect(() => {
@@ -771,7 +825,9 @@ export function LanguageProvider({ children }) {
   }, [language]);
 
   const t = React.useCallback((key, values) => {
-    const text = language === "en" ? (english[key] || key) : language === "zh-Hant" ? toTraditional(key) : key;
+    const source = language === "en" ? (english[key] || key) : key;
+    const terminology = applyHoldingCompanyTerminology(source, language);
+    const text = language === "zh-Hant" ? toTraditional(terminology) : terminology;
     return interpolate(text, values);
   }, [language]);
   const value = React.useMemo(() => ({ language, setLanguage, t }), [language, t]);

@@ -15,6 +15,7 @@ import {
   createDefaultOutstandingStatuses,
   duplicateSample,
   emptyStore,
+  findParentMembership,
   groupProgress,
   localizeGroupSample,
   localizeOutstandingStatuses,
@@ -290,9 +291,9 @@ test("group outstanding roll-up preserves each source", () => {
   ]);
 });
 
-test("the built-in Group Sample localises all workflow and readiness text", () => {
+test("the built-in holding-company template localises all workflow and readiness text", () => {
   const english = localizeGroupSample(createDefaultGroupSample(), "en");
-  assert.equal(english.name, "Group Consolidation Workflow");
+  assert.equal(english.name, "Holding Company Consolidation Workflow");
   assert.equal(english.nodes.length, 7);
   assert.doesNotMatch(JSON.stringify(english), /[\u3400-\u9fff]/u);
 });
@@ -514,6 +515,23 @@ test("navigation moves a project between groups while preserving its member sett
 
   const detached = moveWorkspaceItem(moved, "project", project.id, "", groupSample);
   assert.equal(detached.groups.some((group) => group.members.some((item) => item.refId === project.id)), false);
+});
+
+test("a standalone company can move directly to an expanded middle holding-company level", () => {
+  const groupSample = createDefaultGroupSample();
+  const project = makeProject(projectValues, true);
+  const root = makeGroup({ name: "Root Holding", consolidationEnabled: false }, false, groupSample);
+  const middle = makeGroup({ name: "Middle Holding", consolidationEnabled: false }, false, groupSample);
+  const leaf = makeGroup({ name: "Leaf Holding", consolidationEnabled: false }, false, groupSample);
+  root.members.push(makeGroupMember({ kind: "group", refId: middle.id }, groupSample));
+  middle.members.push(makeGroupMember({ kind: "group", refId: leaf.id }, groupSample));
+  const store = { projects: [project], groups: [root, middle, leaf] };
+
+  const moved = moveWorkspaceItem(store, "project", project.id, middle.id, groupSample);
+  const middleAfterMove = moved.groups.find((group) => group.id === middle.id);
+  assert.equal(findParentMembership(moved, "project", project.id).group.id, middle.id);
+  assert.equal(middleAfterMove.members.some((member) => member.kind === "group" && member.refId === leaf.id), true);
+  assert.equal(middleAfterMove.members.some((member) => member.kind === "project" && member.refId === project.id), true);
 });
 
 test("navigation rejects archived records and group hierarchy cycles", () => {
