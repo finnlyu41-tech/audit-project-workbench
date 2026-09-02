@@ -1,5 +1,5 @@
 import React from "react";
-import { ArrowLeft, ArrowRight, Pencil, Plus, Trash2, X } from "lucide-react";
+import { ArrowLeft, ArrowRight, Copy, Pencil, Play, Plus, Trash2, X } from "lucide-react";
 import { GROUP_AUDIT_TYPES, GROUP_AUDIT_TYPE_KEYS, createDefaultWorkstreamCategories, dueTone, formatDate,
   nodeStatus, outstandingIsOpen, projectStats, reportingPeriodLabel, uid, workstreamCategoryLabel, workstreamStats,
   workstreamTypeLabel } from "./model.js";
@@ -207,9 +207,9 @@ export function WorkstreamCard({ workstream, selected, openItems = 0, onSelect, 
 export function SampleLibrary({ samples, categoryLabel, selectedSampleId, onSelect, onCreate, onEdit, onDuplicate, onDelete, onUse }) {
   const { language, t } = useUiLanguage();
   return <section className="sample-library">
-    <header className="sample-library-header"><div><strong>{t("范本库")}</strong>
-      <span>{t("可保存多个范本，并选择任一范本建立项目。")}</span></div>
-      <button type="button" className="button primary" onClick={onCreate}>{t("新建范本")}</button></header>
+    <header className="sample-library-header"><div><strong>{t("业务模块范本")}</strong>
+      <span>{t("每个范本包含一组可编辑、排序和删除的节点。")}</span></div>
+      <button type="button" className="button primary" onClick={onCreate}><Plus aria-hidden="true" />{t("新建范本")}</button></header>
     {samples.length ? <div className="sample-library-list">{samples.map((sample) => {
       const conditions = sample.nodes.reduce((sum, node) => sum + node.conditions.length, 0);
       const selected = sample.id === selectedSampleId;
@@ -220,10 +220,14 @@ export function SampleLibrary({ samples, categoryLabel, selectedSampleId, onSele
             <em>{categoryLabel || workstreamTypeLabel(sample.workstreamType, language)} · {t("{nodes} 个节点 · {conditions} 项条件", { nodes: sample.nodes.length, conditions })}</em></span>
           {selected && <i>{t("当前使用")}</i>}
         </button>
-        <footer><button type="button" onClick={() => onUse(sample.id)}>{t("使用此范本")}</button>
-          <button type="button" onClick={() => onEdit(sample.id)}>{t("编辑")}</button>
-          <button type="button" onClick={() => onDuplicate(sample.id)}>{t("复制")}</button>
-          <button type="button" onClick={() => onDelete(sample.id)}>{t("删除")}</button></footer>
+        <footer><button type="button" className="icon-only" aria-label={t("使用此范本")} title={t("使用此范本")} data-tooltip={t("使用此范本")}
+          data-tooltip-side="right" onClick={() => onUse(sample.id)}><Play aria-hidden="true" /></button>
+          <button type="button" className="icon-only" aria-label={t("编辑范本")} title={t("编辑范本")} data-tooltip={t("编辑范本")}
+            onClick={() => onEdit(sample.id)}><Pencil aria-hidden="true" /></button>
+          <button type="button" className="icon-only" aria-label={t("复制范本")} title={t("复制范本")} data-tooltip={t("复制范本")}
+            onClick={() => onDuplicate(sample.id)}><Copy aria-hidden="true" /></button>
+          <button type="button" className="icon-only" aria-label={t("删除范本")} title={t("删除范本")} data-tooltip={t("删除范本")}
+            data-tooltip-side="left" onClick={() => onDelete(sample.id)}><Trash2 aria-hidden="true" /></button></footer>
       </article>;
     })}</div> : <div className="sample-library-empty"><strong>{t("还没有范本")}</strong>
       <span>{t("建立第一个范本后，就能用它快速创建项目。")}</span>
@@ -411,8 +415,8 @@ export function UserGuide() {
         "如种类仍有范本或业务模块在使用，系统会阻止删除并显示使用数量。"], result: "自定义种类会成为范本页签，也可直接用于建立同名业务模块。" },
       { title: "建立和使用多个范本", steps: ["先选择范本种类，再选择“新建范本”。", "填写范本名称、说明、节点和条件；同一种类可保存多个范本。",
         "选择一个范本作为当前使用，或选择“使用此范本”直接建立项目。"], result: "建立项目时可为每个业务模块单独选择范本或空白流程。" },
-      { title: "编辑、复制和删除范本", steps: ["在范本卡片选择“编辑”修改结构，或选择“复制”建立独立副本。", "选择“删除”移除不需要的范本；系统种类会至少保留一个范本。",
-        "编辑内置范本时可选择“恢复基础范本”；范本改动只影响之后建立的项目。"], result: "既有项目保留自己的节点和完成状态。" },
+      { title: "编辑、复制和删除范本", steps: ["在范本卡片选择编辑图标修改模块名称、节点及达成条件，或选择复制图标建立独立副本。", "在编辑页可直接修改、排序或删除任一节点；选择删除图标可移除整个范本。",
+        "系统范本也可以删除；删除最后一个范本后，新业务模块会从空白流程开始。范本改动只影响之后建立的项目。"], result: "既有项目保留自己的节点和完成状态。" },
       { title: "公司名称去敏和集团范本", steps: ["编辑业务范本时选择“公司去敏”，每行输入一个需要替换的完整公司名称。", "系统只替换完全匹配的名称；保存前仍应人工复核。",
         "集团范本独立保存合并节点及各审计类别的默认就绪条件。"], result: "公开或复用范本前，可降低残留客户名称的风险。" },
     ] },
@@ -484,10 +488,13 @@ export function SampleEditor({ sample, categories = createDefaultWorkstreamCateg
     <div className="sample-editor-list">{draft.nodes.map((node, index) => <section className="sample-edit-node" key={node.id}>
       <header><span>{index + 1}</span><input required value={node.title} aria-label={t("节点 {index} 名称", { index: index + 1 })}
         onChange={(event) => updateNode(node.id, (current) => ({ ...current, title: event.target.value }))} />
-        <div><button type="button" disabled={index === 0} onClick={() => moveNode(index, -1)} aria-label={t("上移节点")}>↑</button>
-          <button type="button" disabled={index === draft.nodes.length - 1} onClick={() => moveNode(index, 1)} aria-label={t("下移节点")}>↓</button>
-          <button type="button" onClick={() => window.confirm(t("删除节点“{name}”？", { name: node.title || t("未命名") })) &&
-            setDraft((current) => ({ ...current, nodes: current.nodes.filter((item) => item.id !== node.id) }))}>{t("删除")}</button></div></header>
+        <div><button type="button" className="icon-only" disabled={index === 0} onClick={() => moveNode(index, -1)} title={t("上移节点")}
+          aria-label={t("上移节点")} data-tooltip={t("上移节点")}><ArrowLeft aria-hidden="true" /></button>
+          <button type="button" className="icon-only" disabled={index === draft.nodes.length - 1} onClick={() => moveNode(index, 1)} title={t("下移节点")}
+            aria-label={t("下移节点")} data-tooltip={t("下移节点")}><ArrowRight aria-hidden="true" /></button>
+          <button type="button" className="icon-only" aria-label={t("删除节点")} title={t("删除节点")} data-tooltip={t("删除节点")} data-tooltip-side="left"
+            onClick={() => window.confirm(t("删除节点“{name}”？", { name: node.title || t("未命名") })) &&
+              setDraft((current) => ({ ...current, nodes: current.nodes.filter((item) => item.id !== node.id) }))}><Trash2 aria-hidden="true" /></button></div></header>
       <input className="sample-node-description" value={node.description} aria-label={t("{name}说明", { name: node.title || t("节点 {index}", { index: index + 1 }) })}
         onChange={(event) => updateNode(node.id, (current) => ({ ...current, description: event.target.value }))}
         placeholder={t("节点说明")} />
@@ -496,13 +503,15 @@ export function SampleEditor({ sample, categories = createDefaultWorkstreamCateg
           name: node.title || t("节点 {index}", { index: index + 1 }), index: conditionIndex + 1 })}
           onChange={(event) => updateNode(node.id, (current) => ({ ...current,
             conditions: current.conditions.map((item) => item.id === condition.id ? { ...item, label: event.target.value } : item) }))} />
-        <button type="button" onClick={() => updateNode(node.id, (current) => ({ ...current,
-          conditions: current.conditions.filter((item) => item.id !== condition.id) }))} aria-label={t("删除条件")}>×</button></div>)}</div>
+        <button type="button" className="icon-only" title={t("删除条件")} onClick={() => updateNode(node.id, (current) => ({ ...current,
+          conditions: current.conditions.filter((item) => item.id !== condition.id) }))} aria-label={t("删除条件")}
+          data-tooltip={t("删除条件")} data-tooltip-side="left"><Trash2 aria-hidden="true" /></button></div>)}</div>
       <footer><button type="button" onClick={() => updateNode(node.id, (current) => ({ ...current,
         conditions: [...current.conditions, { id: uid("sample-condition"), label: "", done: false }] }))}>{t("＋ 添加条件")}</button></footer>
     </section>)}</div>
     <button type="button" className="sample-add-node" onClick={() => setDraft((current) => ({ ...current,
-      nodes: [...current.nodes, { id: uid("sample-node"), title: "", description: "", conditions: [] }] }))}>{t("＋ 添加节点")}</button>
+      nodes: [...current.nodes, { id: uid("sample-node"), title: "", description: "", conditions: [] }] }))}>
+      <Plus aria-hidden="true" />{t("添加节点")}</button>
     <footer className="sample-editor-actions">{onReset
       ? <button type="button" className="button secondary" onClick={onReset}>{t("恢复基础范本")}</button> : <span />}
       {onRedact ? <button type="button" className="button secondary" onClick={() => onRedact(draft)}>{t("公司去敏")}</button> : <span />}

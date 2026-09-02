@@ -1,5 +1,5 @@
 import React from "react";
-import { Building, Building2, Minus, Plus } from "lucide-react";
+import { Building, Building2, Copy, Minus, Pencil, Play, Plus, Trash2 } from "lucide-react";
 import { ProgressBar } from "./components.jsx";
 import { GROUP_AUDIT_TYPES, GROUP_AUDIT_TYPE_KEYS, canMoveWorkspaceItem, collectGroupOutstandingEntries, formatDate,
   groupProgress, makeGroupMember, memberIsReady, memberProgressPercentage, outstandingIsOpen, projectStats,
@@ -390,7 +390,7 @@ export function GroupSampleLibrary({ samples, selectedSampleId, onSelect, onCrea
   const { t } = useUiLanguage();
   return <section className="sample-library"><header className="sample-library-header"><div><strong>{t("集团范本库")}</strong>
     <span>{t("保存合并节点，以及不同审计类别的默认就绪条件。")}</span></div>
-    <button type="button" className="button primary" onClick={onCreate}>{t("新建集团范本")}</button></header>
+    <button type="button" className="button primary" onClick={onCreate}><Plus aria-hidden="true" />{t("新建集团范本")}</button></header>
     <div className="sample-library-list">{samples.map((sample) => {
       const conditions = sample.nodes.reduce((sum, node) => sum + node.conditions.length, 0);
       const readiness = Object.values(sample.readinessTemplates).reduce((sum, list) => sum + list.length, 0);
@@ -400,10 +400,14 @@ export function GroupSampleLibrary({ samples, selectedSampleId, onSelect, onCrea
           <span className="sample-mark group-sample-mark">H</span><span><strong>{sample.name}</strong>
             <small>{sample.description || t("没有说明")}</small><em>{t("{nodes} 个合并节点 · {conditions} 项条件 · {readiness} 项就绪条件",
               { nodes: sample.nodes.length, conditions, readiness })}</em></span>{selected && <i>{t("当前使用")}</i>}</button>
-        <footer><button type="button" onClick={() => onUse(sample.id)}>{t("使用此范本")}</button>
-          <button type="button" onClick={() => onEdit(sample.id)}>{t("编辑")}</button>
-          <button type="button" onClick={() => onDuplicate(sample.id)}>{t("复制")}</button>
-          <button type="button" onClick={() => onDelete(sample.id)}>{t("删除")}</button></footer>
+        <footer><button type="button" className="icon-only" aria-label={t("使用此范本")} title={t("使用此范本")} data-tooltip={t("使用此范本")}
+          data-tooltip-side="right" onClick={() => onUse(sample.id)}><Play aria-hidden="true" /></button>
+          <button type="button" className="icon-only" aria-label={t("编辑范本")} title={t("编辑范本")} data-tooltip={t("编辑范本")}
+            onClick={() => onEdit(sample.id)}><Pencil aria-hidden="true" /></button>
+          <button type="button" className="icon-only" aria-label={t("复制范本")} title={t("复制范本")} data-tooltip={t("复制范本")}
+            onClick={() => onDuplicate(sample.id)}><Copy aria-hidden="true" /></button>
+          <button type="button" className="icon-only" aria-label={t("删除范本")} title={t("删除范本")} data-tooltip={t("删除范本")}
+            data-tooltip-side="left" onClick={() => onDelete(sample.id)}><Trash2 aria-hidden="true" /></button></footer>
       </article>;
     })}</div></section>;
 }

@@ -340,6 +340,19 @@ test("initialising creates a clean version 7 workspace with built-in categories 
   assert.equal(initialised.selectedSampleIdsByCategory.audit, "sample-core-audit");
 });
 
+test("deleting the final workstream template persists and new workstreams start blank", () => {
+  const saved = emptyStore();
+  saved.samples = saved.samples.filter((sample) => sample.categoryId !== "audit");
+  saved.selectedSampleIdsByCategory.audit = null;
+
+  const reloaded = normalizeStore(saved);
+  const project = makeProject(projectValues, true, reloaded.samples, reloaded.workstreamCategories);
+
+  assert.equal(reloaded.samples.some((sample) => sample.categoryId === "audit"), false);
+  assert.equal(reloaded.selectedSampleIdsByCategory.audit, null);
+  assert.deepEqual(project.workstreams[0].nodes, []);
+});
+
 test("a custom template category can create an independent named workstream", () => {
   const customCategory = { id: "company_secretarial", name: "公司秘书服务" };
   const customSample = { id: "sample-company-secretarial", workstreamType: "custom",

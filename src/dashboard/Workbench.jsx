@@ -294,10 +294,7 @@ function DashboardWorkbench() {
       notify(t("集团范本已删除")); return;
     }
     const source = store.samples.find((sample) => sample.id === sampleId); if (!source) return;
-    const category = store.workstreamCategories.find((item) => item.id === source.categoryId);
-    const sameType = store.samples.filter((sample) => sample.categoryId === source.categoryId);
-    if (category?.builtinType && sameType.length <= 1) { window.alert(t("每个系统种类至少保留一个范本。")); return; }
-    if (!window.confirm(t("删除范本“{name}”？", { name: source.name }))) return;
+    if (!window.confirm(t("删除范本“{name}”？现有项目不会受影响；以后新建业务模块将不能再使用此范本。", { name: source.name }))) return;
     setStore((current) => { const next = current.samples.filter((sample) => sample.id !== sampleId);
       const replacement = next.find((sample) => sample.categoryId === source.categoryId)?.id || null;
       return { ...current, samples: next, selectedSampleIdsByCategory: { ...current.selectedSampleIdsByCategory,

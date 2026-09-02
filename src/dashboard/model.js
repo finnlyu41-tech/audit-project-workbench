@@ -671,6 +671,7 @@ export function normalizeStore(value) {
   const workstreamCategories = normalizeWorkstreamCategories(value.workstreamCategories);
   const categoryById = new Map(workstreamCategories.map((category) => [category.id, category]));
   const rawSamples = Array.isArray(value.samples) ? value.samples : [value.sample];
+  const restoreMissingBuiltinSamples = value.version !== STORE_VERSION || !Array.isArray(value.samples);
   const seenSampleIds = new Set();
   const samples = rawSamples.filter(Boolean).map((sample) => {
     const normalized = normalizeSample(sample);
@@ -682,7 +683,7 @@ export function normalizeStore(value) {
     seenSampleIds.add(normalized.id);
     return normalized;
   });
-  BUILTIN_WORKSTREAM_TYPES.forEach((type) => {
+  if (restoreMissingBuiltinSamples) BUILTIN_WORKSTREAM_TYPES.forEach((type) => {
     if (!samples.some((sample) => sample.workstreamType === type)) {
       const fallback = createDefaultSample("zh", type);
       if (seenSampleIds.has(fallback.id)) fallback.id = uid("sample");
@@ -789,7 +790,8 @@ export function normalizeStore(value) {
 
 export function makeProject(values, useStarter = true, sampleSource = null, categorySource = null) {
   const now = new Date().toISOString();
-  const legacyNodes = Array.isArray(sampleSource) && (!sampleSource.length || "title" in sampleSource[0]) ? sampleSource : null;
+  const legacyNodes = Array.isArray(sampleSource) && sampleSource.length && "title" in sampleSource[0] ? sampleSource : null;
+  const suppliedSampleLibrary = Array.isArray(sampleSource) && !legacyNodes;
   const availableSamples = Array.isArray(sampleSource) && !legacyNodes ? sampleSource : createDefaultSamples();
   const availableCategories = normalizeWorkstreamCategories(categorySource);
   const categoryById = new Map(availableCategories.map((category) => [category.id, category]));
@@ -812,7 +814,7 @@ export function makeProject(values, useStarter = true, sampleSource = null, cate
     const sample = legacyNodes && type === "audit" ? legacyNodes
       : availableSamples.find((item) => item.id === selection.sampleId && item.categoryId === categoryId)
         || availableSamples.find((item) => item.categoryId === categoryId)
-        || (type !== "custom" ? createDefaultSample("zh", type) : null);
+        || (!suppliedSampleLibrary && type !== "custom" ? createDefaultSample("zh", type) : null);
     return makeWorkstream({ type, categoryId, customName: selection.customName, owner: selection.owner || values.owner,
       dueDate: selection.dueDate || values.dueDate }, useStarter ? sample : []);
   });
