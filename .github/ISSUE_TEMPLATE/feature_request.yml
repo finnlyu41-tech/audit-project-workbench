@@ -1,0 +1,23 @@
+name: Feature request
+description: Propose an improvement to the workbench.
+title: "[Feature]: "
+labels: [enhancement]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem to solve
+      description: Explain the audit workflow problem, not just the desired interface.
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed behaviour
+    validations:
+      required: true
+  - type: textarea
+    id: privacy
+    attributes:
+      label: Data and privacy implications
+      description: Does this require storage, synchronisation, permissions or client data?

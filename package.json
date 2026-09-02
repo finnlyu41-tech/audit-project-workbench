@@ -1,0 +1,33 @@
+{
+  "name": "audit-progress-workbench",
+  "version": "0.1.0",
+  "description": "A desktop-first, local-first progress tracker for audit engagements.",
+  "type": "module",
+  "license": "MIT",
+  "packageManager": "pnpm@11.19.0",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "test": "node --test",
+    "check": "node --test && vite build"
+  },
+  "dependencies": {
+    "react": "^19.2.3",
+    "react-dom": "^19.2.3"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-react": "^5.0.4",
+    "vite": "^8.0.8"
+  },
+  "engines": {
+    "node": ">=20.19"
+  },
+  "keywords": [
+    "audit",
+    "engagement-management",
+    "progress-tracker",
+    "local-first",
+    "react"
+  ]
+}
