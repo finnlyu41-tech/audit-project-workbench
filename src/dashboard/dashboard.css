@@ -1183,6 +1183,8 @@
   .workbench-layout[data-compact-layout]:not([data-outstanding-collapsed]) > .outstanding-center-shell {
     position: absolute;
     z-index: 12;
+    grid-column: 1 / -1;
+    grid-row: 1;
     inset: 0 0 0 auto;
     width: min(360px, calc(100% - 64px));
     box-shadow: -18px 0 38px rgb(24 40 29 / 17%);
