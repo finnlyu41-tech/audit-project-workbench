@@ -1,6 +1,6 @@
 # APW — Audit Project Workbench
 
-一个面向电脑窗口、以本机数据为主的审计项目进度工作台。它把“项目节点及达成条件”和会持续变化的“待清事项”分开管理，适合同时追踪多个审计项目。
+一个面向电脑窗口、以本机数据为主的专业服务项目进度工作台。每个项目是年度委聘的总容器，可并行管理审计、报价与收款、税务计算及报税、客户尽职调查和自定义业务模块；会持续变化的待清事项则保持独立。
 
 **[直接打开在线工作台](https://finnlyu41-tech.github.io/audit-project-workbench/)**
 
@@ -8,18 +8,20 @@
 
 ## 主要功能
 
-- 多项目进度总览，按进行中、已完成和归档筛选。
+- 固定三区桌面布局：左侧项目导航、中间项目／集团工作区、右侧待清中心；左右区域均可收起。
+- 语言、备份、新建项目、新建集团及范本库统一收纳在工作台下拉菜单中。
+- 每个项目可启用多个并行业务模块，各自拥有负责人、截止日、横向节点和客观达成条件。
+- 项目显示“已完成模块数／全部模块数”，只有全部启用模块完成后才算完成，不使用容易误导的混合百分比。
 - 多层集团审计：集团可包含公司项目或子集团，每一级可选择独立合并流程或仅作分类。
 - 集团总览同时显示公司平均进度、合并流程进度、70%／30%整体进度及公司合并就绪门槛。
 - 公司可新建或关联现有项目，并按本团队审计、其他审计师或管理账设置不同的合并就绪条件。
 - 集团待清事项与下级公司事项集中汇总，同时保留来源和跳转入口。
-- 每个项目可自定义节点、说明、顺序及达成条件；进度由条件自动计算。
-- 独立待清事项栏，不影响节点进度；状态可新增、改名、排序，并可指定哪些状态代表“已清”。
-- 可保存多个 Sample 流程范本，并可新建、切换、复制、编辑或删除，再用任一范本快速建立项目。
-- 独立集团 Sample 范本库，可保存合并节点及各审计类别的默认就绪条件。
-- Sample 公司名称精确去敏：只替换使用者输入的完整公司名称，不自动猜测。
-- 完整的中英文系统界面；可精确识别的内置流程条目会随语言切换，其余自定义范本、项目名称和使用者资料保持原文。
-- 可折叠项目侧栏，优先利用电脑横向空间。
+- 节点横向排列；所选节点的达成条件固定显示在下方，不会把相邻节点推离视野。
+- 独立待清中心不影响节点进度；状态可新增、改名、排序、定义“已清”语义并自定义颜色，事项可归属项目级或指定业务模块。
+- 范本库按业务模块分类，每类可保存多个范本；另有集团范本保存合并节点和审计类别默认就绪条件。
+- 范本公司名称精确去敏：只替换使用者输入的完整公司名称，不自动猜测。
+- 完整的简体中文、繁体中文和英文系统界面；内置内容随语言切换，自定义范本、项目名称和使用者资料保持原文。
+- 归档项目和集团与活跃统计及汇总隔离；归档详情只读，只可恢复或永久删除。
 - 本机浏览器自动保存，并支持 JSON 备份导入、导出。
 
 ## 快速开始
@@ -52,22 +54,24 @@ pnpm check
 
 ## English
 
-Audit Project Workbench (APW) is a desktop-first, local-first tracker for managing several audit engagements. It deliberately separates workflow stages and their completion criteria from fluid outstanding items such as missing documents or signatures.
+Audit Project Workbench (APW) is a desktop-first, local-first tracker for professional-service engagements. Each project is an annual engagement container with parallel workstreams for audit, quotation and collection, tax computation and filing, customer due diligence, or custom services. Fluid outstanding items remain separate from workflow completion.
 
 ### Features
 
-- Multi-engagement overview with active, completed and archived filters.
+- A fixed three-pane desktop layout: project navigation, project/group workspace and outstanding centre, with collapsible side panes.
+- One workbench menu for language, backups, new projects, new groups and the template library.
+- Parallel workstreams with independent owners, deadlines, horizontal stages and objective completion criteria.
+- Project completion shown as completed workstreams out of total workstreams; all enabled workstreams must finish before the project completes.
 - Multi-level group audits with company projects, optional subgroup consolidation workflows and classification-only levels.
 - A group dashboard showing company-average progress, consolidation progress, a 70% / 30% overall score and explicit readiness gates.
 - New or existing company projects can be linked to a group with readiness defaults for internal audits, other component auditors or management accounts.
 - Group outstanding items roll up company and subgroup items while preserving their source and navigation.
-- Custom stages, descriptions, ordering and completion criteria with automatic progress.
-- A separate outstanding-items bar that never changes stage progress, with custom names, ordering and cleared-state semantics.
-- A multi-Sample library with create, select, duplicate, edit and delete controls; any Sample can start a new project.
-- A separate Group Sample library for consolidation stages and audit-category readiness defaults.
-- Exact-match company-name de-identification within the Sample.
-- Complete Chinese and English system UI; recognised built-in workflow entries follow the interface language, while other custom and user-entered content remains unchanged.
-- Collapsible project sidebar for desktop workspace efficiency.
+- Horizontal stages with a stable detail panel below, so opening one stage never displaces its neighbours.
+- A separate outstanding centre that never changes stage progress, with custom labels, ordering, cleared-state semantics and colours; items can be project-level or linked to a workstream.
+- Multiple templates per workstream category plus separate group templates for consolidation stages and readiness defaults.
+- Exact-match company-name de-identification within templates.
+- Complete Simplified Chinese, Traditional Chinese and English system UI; built-in content follows the interface language while custom content remains unchanged.
+- Archived records are isolated from active calculations and are read-only until restored; permanent deletion is available only from the archive.
 - Browser-local autosave plus JSON backup and restore.
 
 ### Local development

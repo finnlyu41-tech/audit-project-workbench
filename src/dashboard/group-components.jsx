@@ -1,7 +1,7 @@
 import React from "react";
 import { ProgressBar } from "./components.jsx";
 import { GROUP_AUDIT_TYPES, collectGroupOutstandingEntries, formatDate, groupProgress, memberIsReady,
-  nodeIsComplete, outstandingIsOpen, projectStats, uid } from "./model.js";
+  memberProgressPercentage, outstandingIsOpen, projectStats, uid } from "./model.js";
 import { useUiLanguage } from "./i18n.jsx";
 
 export const auditTypeKeys = {
@@ -43,7 +43,7 @@ export function GroupForm({ initial, sampleName, allowTemplate = true, onSubmit,
       placeholder={t("可记录集团范围、报告要求或其他背景")} /></label>
     {allowTemplate && values.consolidationEnabled && <label className="check-option">
       <input type="checkbox" checked={useStarter} onChange={(event) => setUseStarter(event.target.checked)} />
-      <span><strong>{t("套用集团 Sample：{name}", { name: sampleName })}</strong>
+      <span><strong>{t("套用集团范本：{name}", { name: sampleName })}</strong>
         <small>{t("建立后仍可自由修改合并节点和完成条件。")}</small></span></label>}
     <footer className="modal-actions"><button type="button" className="button secondary" onClick={onClose}>{t("取消")}</button>
       <button type="submit" className="button primary">{t(initial ? "保存修改" : "建立集团")}</button></footer>
@@ -52,7 +52,7 @@ export function GroupForm({ initial, sampleName, allowTemplate = true, onSubmit,
 
 function itemMatchesFilter(item, kind, filter, store) {
   const complete = kind === "group" ? groupProgress(store, item.id).ready
-    : item.nodes.length > 0 && item.nodes.every(nodeIsComplete);
+    : projectStats(item).complete;
   if (filter === "archived") return item.archived;
   if (item.archived) return false;
   if (filter === "completed") return complete;
@@ -63,16 +63,21 @@ function itemMatchesFilter(item, kind, filter, store) {
 export function WorkspaceTree({ store, selection, onSelect, search, filter, statuses }) {
   const { t } = useUiLanguage();
   const [expanded, setExpanded] = React.useState(() => new Set());
-  const projectParents = new Set(store.groups.flatMap((group) => group.members
-    .filter((member) => member.kind === "project").map((member) => member.refId)));
-  const groupParents = new Set(store.groups.flatMap((group) => group.members
-    .filter((member) => member.kind === "group").map((member) => member.refId)));
+  const archiveMode = filter === "archived";
+  const eligibleParentGroups = store.groups.filter((group) => group.archived === archiveMode);
+  const projectParents = new Set(eligibleParentGroups.flatMap((group) => group.members
+    .filter((member) => member.kind === "project" && store.projects.some((project) => project.id === member.refId
+      && project.archived === archiveMode)).map((member) => member.refId)));
+  const groupParents = new Set(eligibleParentGroups.flatMap((group) => group.members
+    .filter((member) => member.kind === "group" && store.groups.some((child) => child.id === member.refId
+      && child.archived === archiveMode)).map((member) => member.refId)));
   const query = search.trim().toLowerCase();
   const matchesText = (item) => !query || [item.name, item.entity, item.period, item.owner]
     .some((value) => value?.toLowerCase().includes(query));
   const visibleProject = (project) => itemMatchesFilter(project, "project", filter, store) && matchesText(project);
   const groupHasVisibleContent = (group, visited = new Set()) => {
     if (visited.has(group.id)) return false;
+    if (group.archived !== archiveMode) return false;
     const next = new Set(visited).add(group.id);
     if (itemMatchesFilter(group, "group", filter, store) && matchesText(group)) return true;
     return group.members.some((member) => member.kind === "project"
@@ -95,7 +100,7 @@ export function WorkspaceTree({ store, selection, onSelect, search, filter, stat
       onClick={() => onSelect({ kind: "project", id: project.id })}>
       <span className="tree-kind-mark">C</span><span className="tree-copy"><strong>{project.name}</strong>
         <small>{project.owner || project.entity || project.period || t("尚未填写项目资料")}</small></span>
-      {outstanding > 0 && <em>{outstanding}</em>}<span className="tree-progress">{stats.percentage}%</span>
+      {outstanding > 0 && <em>{outstanding}</em>}<span className="tree-progress">{stats.completedWorkstreams}/{stats.workstreams}</span>
     </button>;
   };
 
@@ -136,7 +141,7 @@ export function WorkspaceTree({ store, selection, onSelect, search, filter, stat
         ? "可以切换状态或修改搜索条件。" : "先建立一个项目或集团。")}</span></div>}</div>;
 }
 
-function flattenGroupRows(store, groupId, depth = 0, visited = new Set()) {
+function flattenGroupRows(store, groupId, depth = 0, visited = new Set(), includeArchived = false) {
   if (visited.has(groupId)) return [];
   const group = store.groups.find((item) => item.id === groupId);
   if (!group) return [];
@@ -144,18 +149,18 @@ function flattenGroupRows(store, groupId, depth = 0, visited = new Set()) {
   return group.members.flatMap((member) => {
     const target = member.kind === "project" ? store.projects.find((item) => item.id === member.refId)
       : store.groups.find((item) => item.id === member.refId);
-    if (!target) return [];
+    if (!target || (!includeArchived && target.archived)) return [];
     const row = { member, target, sourceGroupId: group.id, depth };
-    return member.kind === "group" ? [row, ...flattenGroupRows(store, member.refId, depth + 1, next)] : [row];
+    return member.kind === "group" ? [row, ...flattenGroupRows(store, member.refId, depth + 1, next, includeArchived)] : [row];
   });
 }
 
-export function GroupMatrix({ store, group, statuses, onOpen, onConfigure }) {
+export function GroupMatrix({ store, group, statuses, onOpen, onConfigure, readOnly = false }) {
   const { language, t } = useUiLanguage();
   const [owner, setOwner] = React.useState("");
   const [auditType, setAuditType] = React.useState("all");
   const [readiness, setReadiness] = React.useState("all");
-  const rows = flattenGroupRows(store, group.id).filter((row) => {
+  const rows = flattenGroupRows(store, group.id, 0, new Set(), readOnly).filter((row) => {
     const resolvedOwner = row.target.owner || "";
     const ready = memberIsReady(store, row.member);
     if (owner && !resolvedOwner.toLowerCase().includes(owner.toLowerCase())) return false;
@@ -180,7 +185,7 @@ export function GroupMatrix({ store, group, statuses, onOpen, onConfigure }) {
         <span>{t("合并就绪")}</span><span>{t("待清")}</span><span>{t("截止日")}</span><span /></div>
       {rows.map(({ member, target, sourceGroupId, depth }) => {
         const isGroup = member.kind === "group";
-        const stats = isGroup ? groupProgress(store, target.id) : projectStats(target);
+        const percentage = isGroup ? groupProgress(store, target.id).percentage : memberProgressPercentage(store, member);
         const ready = memberIsReady(store, member);
         const openOutstanding = isGroup ? collectGroupOutstandingEntries(store, target.id)
           .filter((entry) => outstandingIsOpen(entry.item, statuses)).length
@@ -192,12 +197,12 @@ export function GroupMatrix({ store, group, statuses, onOpen, onConfigure }) {
               <small>{target.entity || target.period || t(isGroup ? "子集团" : "公司项目")}</small></span></button>
           <span>{member.role || t(isGroup ? "子集团" : "组成部分")}</span>
           <span>{isGroup ? t(target.consolidationEnabled ? "子集团合并" : "分类集团") : t(auditTypeKeys[member.auditType])}</span>
-          <span>{target.owner || "—"}</span><span className="matrix-progress"><strong>{stats.percentage}%</strong>
-            <ProgressBar value={stats.percentage} compact /></span>
+          <span>{target.owner || "—"}</span><span className="matrix-progress"><strong>{percentage}%</strong>
+            <ProgressBar value={percentage} compact /></span>
           <span><i className="readiness-pill" data-ready={ready || undefined}>{t(ready ? "已就绪" : "未就绪")}</i>
             {!isGroup && <small>{completedReadiness}/{member.readinessConditions.length}</small>}</span>
           <span>{openOutstanding || "—"}</span><time>{formatDate(target.dueDate, language)}</time>
-          <button type="button" className="matrix-settings" onClick={() => onConfigure(sourceGroupId, member)}>{t("设置")}</button>
+          {readOnly ? <span /> : <button type="button" className="matrix-settings" onClick={() => onConfigure(sourceGroupId, member)}>{t("设置")}</button>}
         </div>;
       })}
       {!rows.length && <div className="matrix-empty">{t(group.members.length ? "没有符合筛选的组成部分" : "还没有加入公司或子集团")}</div>}
@@ -272,9 +277,9 @@ export function GroupMemberForm({ member, groupSample, onSubmit, onRemove, onClo
 
 export function GroupSampleLibrary({ samples, selectedSampleId, onSelect, onCreate, onEdit, onDuplicate, onDelete, onUse }) {
   const { t } = useUiLanguage();
-  return <section className="sample-library"><header className="sample-library-header"><div><strong>{t("集团 Sample 范本库")}</strong>
+  return <section className="sample-library"><header className="sample-library-header"><div><strong>{t("集团范本库")}</strong>
     <span>{t("保存合并节点，以及不同审计类别的默认就绪条件。")}</span></div>
-    <button type="button" className="button primary" onClick={onCreate}>{t("＋ 新建集团 Sample")}</button></header>
+    <button type="button" className="button primary" onClick={onCreate}>{t("新建集团范本")}</button></header>
     <div className="sample-library-list">{samples.map((sample) => {
       const conditions = sample.nodes.reduce((sum, node) => sum + node.conditions.length, 0);
       const readiness = Object.values(sample.readinessTemplates).reduce((sum, list) => sum + list.length, 0);
@@ -284,7 +289,7 @@ export function GroupSampleLibrary({ samples, selectedSampleId, onSelect, onCrea
           <span className="sample-mark group-sample-mark">G</span><span><strong>{sample.name}</strong>
             <small>{sample.description || t("没有说明")}</small><em>{t("{nodes} 个合并节点 · {conditions} 项条件 · {readiness} 项就绪条件",
               { nodes: sample.nodes.length, conditions, readiness })}</em></span>{selected && <i>{t("当前使用")}</i>}</button>
-        <footer><button type="button" onClick={() => onUse(sample.id)}>{t("使用此 Sample")}</button>
+        <footer><button type="button" onClick={() => onUse(sample.id)}>{t("使用此范本")}</button>
           <button type="button" onClick={() => onEdit(sample.id)}>{t("编辑")}</button>
           <button type="button" onClick={() => onDuplicate(sample.id)}>{t("复制")}</button>
           <button type="button" onClick={() => onDelete(sample.id)}>{t("删除")}</button></footer>
@@ -308,7 +313,7 @@ export function GroupSampleEditor({ sample, onSave, onClose, onReset }) {
         conditions.filter((condition) => condition.label.trim()).map((condition) => ({ ...condition,
           label: condition.label.trim(), done: false }))])) });
   }}>
-    <div className="sample-editor-summary"><label><span>{t("集团 Sample 名称 *")}</span><input required value={draft.name}
+    <div className="sample-editor-summary"><label><span>{t("集团范本名称 *")}</span><input required value={draft.name}
       onChange={(event) => setDraft((current) => ({ ...current, name: event.target.value }))} /></label>
       <label><span>{t("说明")}</span><input value={draft.description}
         onChange={(event) => setDraft((current) => ({ ...current, description: event.target.value }))} /></label>
@@ -349,6 +354,6 @@ export function GroupSampleEditor({ sample, onSave, onClose, onReset }) {
           {t("＋ 添加就绪条件")}</button></section>)}</div></section>
     <footer className="sample-editor-actions">{onReset ? <button type="button" className="button secondary" onClick={onReset}>{t("恢复基础范本")}</button> : <span />}
       <span /><span /><button type="button" className="button secondary" onClick={onClose}>{t("取消")}</button>
-      <button type="submit" className="button primary">{t("保存集团 Sample")}</button></footer>
+      <button type="submit" className="button primary">{t("保存集团范本")}</button></footer>
   </form>;
 }

@@ -1,5 +1,6 @@
 import React from "react";
-import { dueTone, formatDate, nodeIsComplete, nodeStatus, outstandingIsOpen, projectStats, uid } from "./model.js";
+import { BUILTIN_WORKSTREAM_TYPES, WORKSTREAM_TYPE_KEYS, dueTone, formatDate, nodeStatus, outstandingIsOpen,
+  projectStats, uid, workstreamStats, workstreamTypeLabel } from "./model.js";
 import { useUiLanguage } from "./i18n.jsx";
 
 export function Modal({ title, onClose, children, wide = false }) {
@@ -18,10 +19,9 @@ export function Modal({ title, onClose, children, wide = false }) {
     </section>
   </div>;
 }
-export function ProjectForm({ initial, onSubmit, onClose, submitLabel, allowTemplate = true,
-  sampleName }) {
-  const { t } = useUiLanguage();
-  const resolvedSampleName = sampleName || t("基础审计流程");
+export function ProjectForm({ initial, onSubmit, onClose, submitLabel, allowWorkstreams = true,
+  samples = [], selectedSampleIdsByType = {}, initialWorkstreamTypes }) {
+  const { language, t } = useUiLanguage();
   const [values, setValues] = React.useState(() => ({
     name: initial?.name || "",
     entity: initial?.entity || "",
@@ -31,10 +31,22 @@ export function ProjectForm({ initial, onSubmit, onClose, submitLabel, allowTemp
     notes: initial?.notes || "",
   }));
   const [useStarter, setUseStarter] = React.useState(true);
+  const [selections, setSelections] = React.useState(() => (initialWorkstreamTypes?.length
+    ? initialWorkstreamTypes : ["audit"]).map((type) => ({ type, customName: "",
+      sampleId: selectedSampleIdsByType[type] || samples.find((sample) => sample.workstreamType === type)?.id || "" })));
   const update = (field) => (event) => setValues((current) => ({ ...current, [field]: event.target.value }));
+  const toggleBuiltin = (type) => setSelections((current) => current.some((item) => item.type === type)
+    ? (current.length === 1 ? current : current.filter((item) => item.type !== type))
+    : [...current, { type, customName: "", sampleId: selectedSampleIdsByType[type]
+      || samples.find((sample) => sample.workstreamType === type)?.id || "" }]);
+  const updateSelection = (index, patch) => setSelections((current) => current.map((item, itemIndex) =>
+    itemIndex === index ? { ...item, ...patch } : item));
   return <form className="workbench-form" onSubmit={(event) => {
     event.preventDefault();
-    if (values.name.trim()) onSubmit(values, useStarter);
+    const validSelections = selections.filter((item) => item.type !== "custom" || item.customName.trim());
+    if (values.name.trim() && (!allowWorkstreams || validSelections.length)) {
+      onSubmit(allowWorkstreams ? { ...values, workstreamSelections: validSelections } : values, useStarter);
+    }
   }}>
     <label><span>{t("项目名称 *")}</span><input autoFocus required value={values.name} onChange={update("name")}
       placeholder={t("例如：[公司名称] 2025年度审计")} /></label>
@@ -49,39 +61,111 @@ export function ProjectForm({ initial, onSubmit, onClose, submitLabel, allowTemp
     </div>
     <label><span>{t("备注")}</span><textarea rows="3" value={values.notes} onChange={update("notes")}
       placeholder={t("可记录负责人、客户要求或其他背景")} /></label>
-    {allowTemplate && <label className="check-option">
-      <input type="checkbox" checked={useStarter} onChange={(event) => setUseStarter(event.target.checked)} />
-      <span><strong>{t("套用 Sample：{name}", { name: resolvedSampleName })}</strong><small>{t("建立后仍可自由增加、修改、排序或删除。")}</small></span>
-    </label>}
+    {allowWorkstreams && <section className="project-workstream-picker"><header><strong>{t("选择业务模块")}</strong>
+      <span>{t("每个模块独立追踪进度、负责人和截止日。")}</span></header>
+      <div className="workstream-choice-grid">{BUILTIN_WORKSTREAM_TYPES.map((type) => <label className="workstream-choice" key={type}
+        data-selected={selections.some((item) => item.type === type) || undefined}><input type="checkbox"
+          checked={selections.some((item) => item.type === type)} onChange={() => toggleBuiltin(type)} />
+        <span><strong>{t(WORKSTREAM_TYPE_KEYS[type])}</strong><small>{t(type === "audit" ? "新项目默认启用" : "按需要启用")}</small></span></label>)}</div>
+      {selections.map((selection, index) => {
+        const typeSamples = samples.filter((sample) => sample.workstreamType === selection.type);
+        return <div className="workstream-selection-row" key={`${selection.type}-${index}`}><strong>{workstreamTypeLabel(selection.type, language, selection.customName)}</strong>
+          {selection.type === "custom" && <input required value={selection.customName}
+            onChange={(event) => updateSelection(index, { customName: event.target.value })} placeholder={t("自定义模块名称")} />}
+          <select value={selection.sampleId} onChange={(event) => updateSelection(index, { sampleId: event.target.value })}>
+            <option value="">{t("空白流程")}</option>{typeSamples.map((sample) => <option value={sample.id} key={sample.id}>{sample.name}</option>)}</select>
+          {selection.type === "custom" && <button type="button" onClick={() => setSelections((current) => current.filter((_, itemIndex) => itemIndex !== index))}>{t("移除")}</button>}</div>;
+      })}
+      <button type="button" className="add-custom-workstream" onClick={() => setSelections((current) => [...current,
+        { type: "custom", customName: "", sampleId: selectedSampleIdsByType.custom || "" }])}>{t("＋ 添加自定义模块")}</button>
+      <label className="check-option"><input type="checkbox" checked={useStarter}
+        onChange={(event) => setUseStarter(event.target.checked)} /><span><strong>{t("套用所选业务范本")}</strong>
+          <small>{t("建立后仍可自由增加、修改、排序或删除。")}</small></span></label></section>}
     <footer className="modal-actions"><button type="button" className="button secondary" onClick={onClose}>{t("取消")}</button>
       <button type="submit" className="button primary">{t(submitLabel || "建立项目")}</button></footer>
   </form>;
 }
 
+export function WorkstreamForm({ initial, availableTypes = BUILTIN_WORKSTREAM_TYPES, samples = [],
+  selectedSampleIdsByType = {}, onSubmit, onRemove, onClose }) {
+  const { language, t } = useUiLanguage();
+  const firstType = initial?.type || availableTypes[0] || "custom";
+  const [values, setValues] = React.useState(() => ({
+    type: firstType,
+    customName: initial?.customName || "",
+    owner: initial?.owner || "",
+    dueDate: initial?.dueDate || "",
+    sampleId: initial ? "" : (selectedSampleIdsByType[firstType]
+      || samples.find((sample) => sample.workstreamType === firstType)?.id || ""),
+  }));
+  const update = (field) => (event) => setValues((current) => ({ ...current, [field]: event.target.value }));
+  const changeType = (event) => {
+    const type = event.target.value;
+    setValues((current) => ({ ...current, type, customName: type === "custom" ? current.customName : "",
+      sampleId: selectedSampleIdsByType[type] || samples.find((sample) => sample.workstreamType === type)?.id || "" }));
+  };
+  const typeSamples = samples.filter((sample) => sample.workstreamType === values.type);
+  return <form className="workbench-form" onSubmit={(event) => {
+    event.preventDefault();
+    if (values.type !== "custom" || values.customName.trim()) onSubmit({ ...values, customName: values.customName.trim() });
+  }}>
+    <label><span>{t("模块类别")}</span><select value={values.type} disabled={Boolean(initial)} onChange={changeType}>
+      {availableTypes.map((type) => <option value={type} key={type}>{workstreamTypeLabel(type, language)}</option>)}
+      {!availableTypes.includes("custom") && initial?.type === "custom" && <option value="custom">{workstreamTypeLabel("custom", language)}</option>}
+    </select></label>
+    {values.type === "custom" && <label><span>{t("自定义模块名称 *")}</span><input autoFocus required value={values.customName}
+      onChange={update("customName")} placeholder={t("例如：公司秘书服务")} /></label>}
+    <div className="form-grid"><label><span>{t("负责人")}</span><input value={values.owner} onChange={update("owner")} /></label>
+      <label><span>{t("模块截止日")}</span><input type="date" value={values.dueDate} onChange={update("dueDate")} /></label></div>
+    {!initial && <label><span>{t("业务范本")}</span><select value={values.sampleId} onChange={update("sampleId")}>
+      <option value="">{t("空白流程")}</option>{typeSamples.map((sample) => <option value={sample.id} key={sample.id}>{sample.name}</option>)}</select></label>}
+    <footer className="modal-actions">{onRemove && <button type="button" className="button danger-quiet" onClick={onRemove}>{t("移除模块")}</button>}
+      <span className="modal-action-spacer" /><button type="button" className="button secondary" onClick={onClose}>{t("取消")}</button>
+      <button type="submit" className="button primary">{t(initial ? "保存模块" : "添加模块")}</button></footer>
+  </form>;
+}
+
+export function WorkstreamCard({ workstream, selected, openItems = 0, onSelect, onEdit, readOnly = false }) {
+  const { language, t } = useUiLanguage();
+  const stats = workstreamStats(workstream);
+  return <button type="button" className="workstream-card" data-selected={selected || undefined}
+    data-complete={stats.complete || undefined} onClick={onSelect}>
+    <span className="workstream-card-top"><i>{workstreamTypeLabel(workstream.type, language, workstream.customName).slice(0, 1)}</i>
+      <span><strong>{workstreamTypeLabel(workstream.type, language, workstream.customName)}</strong>
+        <small>{workstream.owner || t("未设置负责人")}</small></span>
+      {!readOnly && <span role="button" tabIndex="0" className="workstream-edit" onClick={(event) => { event.stopPropagation(); onEdit(); }}
+        onKeyDown={(event) => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); event.stopPropagation(); onEdit(); } }}>{t("设置")}</span>}</span>
+    <span className="workstream-card-progress"><strong>{stats.percentage}%</strong><ProgressBar value={stats.percentage} compact /></span>
+    <span className="workstream-card-meta"><small>{t("{done}/{total} 个节点", { done: stats.completedNodes, total: stats.nodes })}</small>
+      <small>{openItems ? t("{count} 项未清", { count: openItems }) : t("无未清事项")}</small>
+      <time data-tone={dueTone(workstream)}>{formatDate(workstream.dueDate, language)}</time></span>
+  </button>;
+}
+
 export function SampleLibrary({ samples, selectedSampleId, onSelect, onCreate, onEdit, onDuplicate, onDelete, onUse }) {
-  const { t } = useUiLanguage();
+  const { language, t } = useUiLanguage();
   return <section className="sample-library">
-    <header className="sample-library-header"><div><strong>{t("Sample 范本库")}</strong>
+    <header className="sample-library-header"><div><strong>{t("范本库")}</strong>
       <span>{t("可保存多个范本，并选择任一范本建立项目。")}</span></div>
-      <button type="button" className="button primary" onClick={onCreate}>{t("＋ 新建 Sample")}</button></header>
+      <button type="button" className="button primary" onClick={onCreate}>{t("新建范本")}</button></header>
     {samples.length ? <div className="sample-library-list">{samples.map((sample) => {
       const conditions = sample.nodes.reduce((sum, node) => sum + node.conditions.length, 0);
       const selected = sample.id === selectedSampleId;
       return <article className="sample-library-card" data-selected={selected || undefined} key={sample.id}>
         <button type="button" className="sample-library-select" onClick={() => onSelect(sample.id)}>
-          <span className="sample-mark" aria-hidden="true">S</span><span><strong>{sample.name}</strong>
+          <span className="sample-mark" aria-hidden="true">{language === "en" ? "T" : language === "zh-Hant" ? "範" : "范"}</span><span><strong>{sample.name}</strong>
             <small>{sample.description || t("没有说明")}</small>
-            <em>{t("{nodes} 个节点 · {conditions} 项条件", { nodes: sample.nodes.length, conditions })}</em></span>
+            <em>{workstreamTypeLabel(sample.workstreamType, language)} · {t("{nodes} 个节点 · {conditions} 项条件", { nodes: sample.nodes.length, conditions })}</em></span>
           {selected && <i>{t("当前使用")}</i>}
         </button>
-        <footer><button type="button" onClick={() => onUse(sample.id)}>{t("使用此 Sample")}</button>
+        <footer><button type="button" onClick={() => onUse(sample.id)}>{t("使用此范本")}</button>
           <button type="button" onClick={() => onEdit(sample.id)}>{t("编辑")}</button>
           <button type="button" onClick={() => onDuplicate(sample.id)}>{t("复制")}</button>
           <button type="button" onClick={() => onDelete(sample.id)}>{t("删除")}</button></footer>
       </article>;
-    })}</div> : <div className="sample-library-empty"><strong>{t("还没有 Sample")}</strong>
+    })}</div> : <div className="sample-library-empty"><strong>{t("还没有范本")}</strong>
       <span>{t("建立第一个范本后，就能用它快速创建项目。")}</span>
-      <button type="button" className="button primary" onClick={onCreate}>{t("新建 Sample")}</button></div>}
+      <button type="button" className="button primary" onClick={onCreate}>{t("新建范本")}</button></div>}
   </section>;
 }
 
@@ -119,7 +203,8 @@ export function OutstandingStatusEditor({ statuses, usageCounts, onSave, onClose
   }}>
     <p className="status-editor-help">{t("新增、改名、排序状态，并指定哪些状态代表事项已经清理。")}</p>
     <div className="status-editor-list">{draft.map((status, index) => <section className="status-editor-row" key={status.id}>
-      <span className="status-editor-dot" data-tone={status.tone} />
+      <label className="status-color-field"><span>{t("状态颜色")}</span><input type="color" value={status.color || "#778078"}
+        onChange={(event) => updateStatus(status.id, (current) => ({ ...current, color: event.target.value }))} /></label>
       <label><span>{t("状态名称 *")}</span><input required value={status.label}
         onChange={(event) => updateStatus(status.id, (current) => ({ ...current,
           builtinKey: undefined, label: event.target.value }))} /></label>
@@ -132,7 +217,7 @@ export function OutstandingStatusEditor({ statuses, usageCounts, onSave, onClose
         <button type="button" disabled={draft.length === 1} onClick={() => removeStatus(status)}>{t("删除")}</button></div>
     </section>)}</div>
     <button type="button" className="status-add-button" onClick={() => setDraft((current) => [...current, {
-      id: uid("outstanding-status"), label: "", closed: false, tone: "neutral",
+      id: uid("outstanding-status"), label: "", closed: false, tone: "neutral", color: "#778078",
     }])}>{t("＋ 添加状态")}</button>
     <footer className="modal-actions"><button type="button" className="button secondary" onClick={onClose}>{t("取消")}</button>
       <button type="submit" className="button primary">{t("保存状态")}</button></footer>
@@ -160,11 +245,11 @@ export function SampleEditor({ sample, onSave, onClose, onReset, onRedact }) {
           .filter((condition) => condition.label) })) });
   }}>
     <div className="sample-editor-summary">
-      <label><span>{t("Sample 名称 *")}</span><input autoFocus required value={draft.name}
+      <label><span>{t("范本名称 *")}</span><input autoFocus required value={draft.name}
         onChange={(event) => setDraft((current) => ({ ...current, name: event.target.value }))} /></label>
       <label><span>{t("说明")}</span><input value={draft.description}
         onChange={(event) => setDraft((current) => ({ ...current, description: event.target.value }))}
-        placeholder={t("说明这个 Sample 的适用范围")} /></label>
+        placeholder={t("说明这个范本的适用范围")} /></label>
       <small>{t("{nodes} 个节点 · {conditions} 项条件", { nodes: draft.nodes.length, conditions: totalConditions })}</small>
     </div>
     <div className="sample-editor-list">{draft.nodes.map((node, index) => <section className="sample-edit-node" key={node.id}>
@@ -191,9 +276,9 @@ export function SampleEditor({ sample, onSave, onClose, onReset, onRedact }) {
       nodes: [...current.nodes, { id: uid("sample-node"), title: "", description: "", conditions: [] }] }))}>{t("＋ 添加节点")}</button>
     <footer className="sample-editor-actions">{onReset
       ? <button type="button" className="button secondary" onClick={onReset}>{t("恢复基础范本")}</button> : <span />}
-      {onRedact ? <button type="button" className="button secondary" onClick={onRedact}>{t("公司去敏")}</button> : <span />}
+      {onRedact ? <button type="button" className="button secondary" onClick={() => onRedact(draft)}>{t("公司去敏")}</button> : <span />}
       <span /><button type="button" className="button secondary" onClick={onClose}>{t("取消")}</button>
-      <button type="submit" className="button primary">{t("保存 Sample")}</button></footer>
+      <button type="submit" className="button primary">{t("保存范本")}</button></footer>
   </form>;
 }
 
@@ -224,20 +309,52 @@ export function ProgressBar({ value, compact = false }) {
 export function ProjectRow({ project, outstandingStatuses, selected, onSelect }) {
   const { language, t } = useUiLanguage();
   const stats = projectStats(project);
-  const currentNode = project.nodes.find((node) => !nodeIsComplete(node));
   const outstandingCount = (project.outstandingItems || []).filter((item) => outstandingIsOpen(item, outstandingStatuses)).length;
   return <button type="button" className="project-row" data-selected={selected || undefined} onClick={onSelect}>
     <div className="project-row-title"><strong>{project.name}</strong>
       <span>{project.entity || project.period || t("尚未填写项目资料")}</span></div>
-    <div className="project-row-progress"><span>{stats.percentage}%</span><ProgressBar value={stats.percentage} compact /></div>
-    <div className="project-row-next"><small>{t("当前节点")}</small>
-      <span>{stats.percentage === 100 ? t("全部完成") : currentNode?.title || t("待新增节点")}</span>
+    <div className="project-row-progress"><span>{stats.completedWorkstreams}/{stats.workstreams}</span></div>
+    <div className="project-row-next"><small>{t("业务模块")}</small>
+      <span>{stats.complete ? t("全部完成") : t("{done}/{total} 个模块完成", { done: stats.completedWorkstreams, total: stats.workstreams })}</span>
       {outstandingCount > 0 && <em>{t("{count} 待清", { count: outstandingCount })}</em>}</div>
     <time data-tone={dueTone(project)}>{formatDate(project.dueDate, language)}</time>
   </button>;
 }
 
-export function NodeCard({ node, index, total, isCurrent, actions }) {
+export function NodeBoard({ nodes, readOnly = false, actions }) {
+  const { t } = useUiLanguage();
+  const currentNode = nodes.find((node) => !workstreamStats({ nodes: [node] }).complete);
+  const [selectedId, setSelectedId] = React.useState(() => currentNode?.id || nodes[0]?.id || null);
+  React.useEffect(() => {
+    if (!nodes.some((node) => node.id === selectedId)) setSelectedId(currentNode?.id || nodes[0]?.id || null);
+  }, [nodes, selectedId, currentNode?.id]);
+  const selected = nodes.find((node) => node.id === selectedId) || nodes[0];
+  return <div className="node-board" style={{ "--node-count": Math.max(nodes.length, 1) }}>
+    <div className="node-track" role="tablist" aria-label={t("项目节点")}>{nodes.map((node, index) => {
+      const status = nodeStatus(node); const done = node.conditions.filter((condition) => condition.done).length;
+      return <button type="button" role="tab" aria-selected={selected?.id === node.id} className="node-track-card"
+        data-status={status} data-current={currentNode?.id === node.id || undefined} key={node.id} onClick={() => setSelectedId(node.id)}>
+        <span className="node-track-number">{index + 1}</span><span><strong>{node.title}</strong>
+          <small>{done}/{node.conditions.length} {t("项条件")}</small></span><i>{t(status)}</i></button>;
+    })}</div>
+    {selected && <section className="node-detail-panel"><header><div><span>{t("节点详情")}</span><h4>{selected.title}</h4>
+      {selected.description && <p>{selected.description}</p>}</div>{!readOnly && <div className="node-detail-actions">
+        <button type="button" disabled={nodes.indexOf(selected) === 0} onClick={() => actions.move(selected.id, -1)} aria-label={t("上移节点")}>←</button>
+        <button type="button" disabled={nodes.indexOf(selected) === nodes.length - 1} onClick={() => actions.move(selected.id, 1)} aria-label={t("下移节点")}>→</button>
+        <button type="button" onClick={() => actions.editNode(selected)}>{t("编辑节点")}</button></div>}</header>
+      {selected.conditions.length ? <div className="condition-list">{selected.conditions.map((condition) => <div className="condition-row"
+        data-done={condition.done || undefined} key={condition.id}><label><input type="checkbox" disabled={readOnly}
+          checked={condition.done} onChange={() => actions.toggle(selected.id, condition.id)} /><span>{condition.label}</span></label>
+        {!readOnly && <div className="condition-actions"><button type="button" onClick={() => actions.editCondition(selected, condition)}>{t("修改")}</button>
+          <button type="button" onClick={() => actions.deleteCondition(selected.id, condition.id)}>{t("删除")}</button></div>}</div>)}</div>
+        : <div className="condition-empty">{t("这个节点还没有完成条件。")}</div>}
+      {!readOnly && <footer className="node-footer"><button type="button" className="add-condition" onClick={() => actions.addCondition(selected)}>{t("＋ 添加完成条件")}</button>
+        <button type="button" className="delete-link" onClick={() => actions.deleteNode(selected)}>{t("删除节点")}</button></footer>}
+    </section>}
+  </div>;
+}
+
+export function NodeCard({ node, index, total, isCurrent, actions, readOnly = false }) {
   const { t } = useUiLanguage();
   const status = nodeStatus(node);
   const completedConditions = node.conditions.filter((item) => item.done).length;
@@ -256,20 +373,20 @@ export function NodeCard({ node, index, total, isCurrent, actions }) {
         <span className="node-condition-count" title={t("已达成条件 / 全部条件")}>{completedConditions} / {node.conditions.length}</span>
         {isCurrent && <span className="current-pill">{t("当前")}</span>}
         <span className="status-pill" data-status={status}>{t(status)}</span>
-        <button type="button" className="text-button" disabled={index === 0} onClick={() => actions.move(-1)} aria-label={t("上移节点")}>↑</button>
-        <button type="button" className="text-button" disabled={index === total - 1} onClick={() => actions.move(1)} aria-label={t("下移节点")}>↓</button>
-        <button type="button" className="text-button" onClick={actions.editNode}>{t("编辑")}</button></div>
+        {!readOnly && <><button type="button" className="text-button" disabled={index === 0} onClick={() => actions.move(-1)} aria-label={t("上移节点")}>↑</button>
+          <button type="button" className="text-button" disabled={index === total - 1} onClick={() => actions.move(1)} aria-label={t("下移节点")}>↓</button>
+          <button type="button" className="text-button" onClick={actions.editNode}>{t("编辑")}</button></>}</div>
     </header>
     {expanded && <div className="node-body">
       {node.conditions.length ? <div className="condition-list">{node.conditions.map((condition) =>
         <div className="condition-row" data-done={condition.done || undefined} key={condition.id}>
-          <label><input type="checkbox" checked={condition.done} onChange={() => actions.toggle(condition.id)} />
+          <label><input type="checkbox" disabled={readOnly} checked={condition.done} onChange={() => actions.toggle(condition.id)} />
             <span>{condition.label}</span></label>
-          <div className="condition-actions"><button type="button" onClick={() => actions.editCondition(condition)}>{t("修改")}</button>
-            <button type="button" onClick={() => actions.deleteCondition(condition.id)}>{t("删除")}</button></div>
+          {!readOnly && <div className="condition-actions"><button type="button" onClick={() => actions.editCondition(condition)}>{t("修改")}</button>
+            <button type="button" onClick={() => actions.deleteCondition(condition.id)}>{t("删除")}</button></div>}
         </div>)}</div> : <div className="condition-empty">{t("这个节点还没有完成条件。")}</div>}
-      <footer className="node-footer"><button type="button" className="add-condition" onClick={actions.addCondition}>{t("＋ 添加完成条件")}</button>
-        <button type="button" className="delete-link" onClick={actions.deleteNode}>{t("删除节点")}</button></footer>
+      {!readOnly && <footer className="node-footer"><button type="button" className="add-condition" onClick={actions.addCondition}>{t("＋ 添加完成条件")}</button>
+        <button type="button" className="delete-link" onClick={actions.deleteNode}>{t("删除节点")}</button></footer>}
     </div>}
   </section>;
 }

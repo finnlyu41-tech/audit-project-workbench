@@ -19,7 +19,7 @@
 
 * { box-sizing: border-box; }
 html { min-width: 320px; background: #eef1ec; }
-body { min-width: 320px; min-height: 100vh; margin: 0; background: linear-gradient(180deg, #f7f8f5 0, #eef1ec 100%); }
+body { min-width: 320px; min-height: 100vh; margin: 0; background: #f3f5f1; }
 button, input, textarea, select { font: inherit; }
 
 .app-shell { width: min(1680px, calc(100% - 32px)); min-width: 0; margin: 0 auto; }

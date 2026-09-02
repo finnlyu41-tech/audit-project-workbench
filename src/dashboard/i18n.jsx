@@ -1,4 +1,5 @@
 import React from "react";
+import { toTraditional } from "./traditional.js";
 
 export const LANGUAGE_PREFERENCE_KEY = "audit-progress-workbench:language";
 
@@ -7,6 +8,8 @@ const english = {
   "用自定义节点和完成条件，追踪每个项目下一步要做什么。": "Track what comes next for every engagement with custom stages and completion criteria.",
   "中文": "中文",
   "英文": "English",
+  "范": "T",
+  "範": "T",
   "界面语言": "Interface language",
   "恢复备份": "Restore backup",
   "导出备份": "Export backup",
@@ -351,6 +354,148 @@ const english = {
   "保存集团 Sample": "Save Group Sample",
 };
 
+Object.assign(english, {
+  "报价与收款": "Quotation and collection",
+  "审计": "Audit",
+  "税务计算及报税": "Tax computation and filing",
+  "客户尽职调查（CDD）": "Customer due diligence (CDD)",
+  "自定义模块": "Custom workstreams",
+  "项目已永久删除": "Project permanently deleted",
+  "集团已永久删除": "Group permanently deleted",
+  "业务模块已添加": "Workstream added",
+  "业务模块已更新": "Workstream updated",
+  "项目至少要保留一个业务模块。": "Each project must keep at least one workstream.",
+  "移除这个业务模块？其节点和条件将被永久删除，相关待清事项会改为项目级。": "Remove this workstream? Its stages and criteria will be permanently deleted, and linked outstanding items will become project-level items.",
+  "业务模块已移除": "Workstream removed",
+  "范本已更新；现有项目不受影响": "Template updated; existing projects were not changed",
+  "集团范本已更新；现有集团不受影响": "Group template updated; existing groups were not changed",
+  "恢复基础范本？当前范本的自定义内容将被替换。": "Restore the base template? Current custom content will be replaced.",
+  "范本已恢复为基础范本": "Template restored to the base version",
+  "集团范本已复制": "Group template duplicated",
+  "范本已复制": "Template duplicated",
+  "至少保留一个集团范本。": "Keep at least one group template.",
+  "删除集团范本“{name}”？": "Delete group template “{name}”?",
+  "集团范本已删除": "Group template deleted",
+  "每种业务至少保留一个范本。": "Keep at least one template for each workstream type.",
+  "删除范本“{name}”？": "Delete template “{name}”?",
+  "范本已删除": "Template deleted",
+  "以项目为容器，并行追踪审计、税务、客户尽职调查及收费工作。": "Use each project as a container for parallel audit, tax, customer due diligence and billing work.",
+  "工作台菜单": "Workbench menu",
+  "简体中文": "Simplified Chinese",
+  "范本库": "Template library",
+  "项目导航": "Project navigation",
+  "展开项目导航": "Expand project navigation",
+  "收起项目导航": "Collapse project navigation",
+  "项目工作区": "Project workspace",
+  "选择后可查看业务模块、集团合并及待清事项。": "Select a project or group to review workstreams, consolidation and outstanding items.",
+  "待清中心": "Outstanding centre",
+  "展开待清中心": "Expand outstanding centre",
+  "项目级及业务模块阻塞事项": "Project-level and workstream blockers",
+  "收起待清中心": "Collapse outstanding centre",
+  "选择项目或集团后查看待清事项。": "Select a project or group to review outstanding items.",
+  "未选择范本": "No template selected",
+  "添加业务模块": "Add workstream",
+  "业务模块设置": "Workstream settings",
+  "集团范本": "Group templates",
+  "范本公司名称去敏": "De-identify company names in template",
+  "永久删除": "Permanently delete",
+  "已归档，只读": "Archived · read only",
+  "归档记录不能编辑；恢复后才可继续更新。": "Archived records cannot be edited. Restore this record to continue updating it.",
+  "恢复": "Restore",
+  "编辑资料": "Edit details",
+  "复制项目": "Duplicate project",
+  "未设置": "Not set",
+  "业务模块": "Workstreams",
+  "已完成 {done}/{total}": "{done}/{total} completed",
+  "各模块并行推进，并分别追踪负责人、截止日和完成条件。": "Run workstreams in parallel, each with its own owner, deadline and completion criteria.",
+  "模块节点": "Workstream stages",
+  "横向查看全部节点；所选节点的完成条件固定显示在下方。": "Review all stages horizontally; criteria for the selected stage stay in the panel below.",
+  "组成部分进度": "Component progress",
+  "家公司": " companies",
+  "本级合并流程": "Consolidation at this level",
+  "不适用": "Not applicable",
+  "项": " items",
+  "合并节点": "Consolidation stages",
+  "集团资料": "Group details",
+  "集团合并节点": "Group consolidation stages",
+  "横向查看本级合并节点，并在下方管理完成条件。": "Review consolidation stages horizontally and manage criteria in the panel below.",
+  "此集团只用于分类，不设本级合并流程。": "This group is for classification only and has no consolidation workflow at this level.",
+  "本级无需独立合并；进度直接来自下级组成部分。": "No separate consolidation is required at this level; progress rolls up from its components.",
+  "合并方式": "Consolidation mode",
+  "管理集团层级、角色和合并就绪条件。": "Manage the group hierarchy, roles and consolidation-readiness criteria.",
+  "加入组成部分": "Add component",
+  "还没有节点": "No stages yet",
+  "此记录没有保存节点。": "No stages were saved for this record.",
+  "添加第一个节点后，即可设置完成条件。": "Add the first stage, then define its completion criteria.",
+  "集团级": "Group level",
+  "项目级": "Project level",
+  "待清事项已删除": "Outstanding item deleted",
+  "按业务模块筛选": "Filter by workstream",
+  "全部层级与模块": "All levels and workstreams",
+  "按待清状态筛选": "Filter by outstanding status",
+  "全部未清": "All open",
+  "全部状态": "All statuses",
+  "状态与颜色": "Statuses and colours",
+  "添加待清": "Add outstanding item",
+  "没有符合筛选的待清事项": "No outstanding items match the filters",
+  "待清事项会独立于业务节点持续更新。": "Outstanding items stay independent from workstream stages and can be updated continuously.",
+  "完成条件 *": "Completion criterion *",
+  "说明可客观确认的达成条件": "Describe an objectively verifiable completion condition",
+  "所属层级或业务模块": "Level or workstream",
+  "待清状态": "Outstanding status",
+  "记录缺少内容、负责方或下一步跟进": "Record what is missing, the responsible party or the next follow-up",
+  "每行输入一个完整公司名称；系统只替换完全匹配的名称，完成后仍需人工复核。": "Enter one full company name per line. Only exact matches are replaced, and the result still requires human review.",
+  "需要去敏的完整公司名称 *": "Full company names to de-identify *",
+  "每行一个名称": "One name per line",
+  "此操作不可撤销": "This action cannot be undone",
+  "项目“{name}”及其业务模块和待清事项将被永久删除，集团引用也会一并移除。": "Project “{name}”, its workstreams and outstanding items will be permanently deleted, and all group references will be removed.",
+  "集团“{name}”将被永久删除，但不会删除其中的成员项目或子集团。": "Group “{name}” will be permanently deleted, but its member projects and subgroups will remain.",
+  "确认永久删除": "Permanently delete",
+  "编辑范本": "Edit template",
+  "新建范本": "New template",
+  "恢复基础集团范本？当前自定义内容将被替换。": "Restore the base group template? Current custom content will be replaced.",
+  "集团范本已恢复为基础范本": "Group template restored to the base version",
+  "编辑集团范本": "Edit group template",
+  "新建集团范本": "New group template",
+  "组成部分设置：{name}": "Component settings: {name}",
+  "未知组成部分": "Unknown component",
+  "将“{name}”移出此集团？": "Remove “{name}” from this group?",
+  "此组成部分": "this component",
+  "选择业务模块": "Select workstreams",
+  "每个模块独立追踪进度、负责人和截止日。": "Track progress, owner and deadline independently for each workstream.",
+  "新项目默认启用": "Enabled by default for new projects",
+  "按需要启用": "Enable when needed",
+  "自定义模块名称": "Custom workstream name",
+  "空白流程": "Blank workflow",
+  "移除": "Remove",
+  "＋ 添加自定义模块": "+ Add custom workstream",
+  "套用所选业务范本": "Apply selected workstream templates",
+  "模块类别": "Workstream type",
+  "自定义模块名称 *": "Custom workstream name *",
+  "例如：公司秘书服务": "For example: Company secretarial services",
+  "模块截止日": "Workstream deadline",
+  "业务范本": "Workstream template",
+  "移除模块": "Remove workstream",
+  "保存模块": "Save workstream",
+  "添加模块": "Add workstream",
+  "未设置负责人": "Owner not set",
+  "{done}/{total} 个节点": "{done}/{total} stages",
+  "无未清事项": "No outstanding items",
+  "使用此范本": "Use this template",
+  "还没有范本": "No templates yet",
+  "状态颜色": "Status colour",
+  "范本名称 *": "Template name *",
+  "说明这个范本的适用范围": "Describe when this template should be used",
+  "保存范本": "Save template",
+  "{done}/{total} 个模块完成": "{done}/{total} workstreams completed",
+  "项条件": "criteria",
+  "节点详情": "Stage details",
+  "套用集团范本：{name}": "Apply group template: {name}",
+  "集团范本库": "Group template library",
+  "集团范本名称 *": "Group template name *",
+  "保存集团范本": "Save group template",
+});
+
 const LanguageContext = React.createContext(null);
 
 function interpolate(text, values) {
@@ -360,15 +505,22 @@ function interpolate(text, values) {
 
 export function LanguageProvider({ children }) {
   const [language, setLanguage] = React.useState(() => {
-    try { return localStorage.getItem(LANGUAGE_PREFERENCE_KEY) === "en" ? "en" : "zh"; } catch { return "zh"; }
+    try {
+      const saved = localStorage.getItem(LANGUAGE_PREFERENCE_KEY);
+      if (saved === "en" || saved === "zh-Hant" || saved === "zh-Hans") return saved;
+      return saved === "zh" ? "zh-Hans" : "zh-Hans";
+    } catch { return "zh-Hans"; }
   });
 
   React.useEffect(() => {
     try { localStorage.setItem(LANGUAGE_PREFERENCE_KEY, language); } catch { /* preference is optional */ }
-    document.documentElement.lang = language === "en" ? "en" : "zh-Hans";
+    document.documentElement.lang = language;
   }, [language]);
 
-  const t = React.useCallback((key, values) => interpolate(language === "en" ? (english[key] || key) : key, values), [language]);
+  const t = React.useCallback((key, values) => {
+    const text = language === "en" ? (english[key] || key) : language === "zh-Hant" ? toTraditional(key) : key;
+    return interpolate(text, values);
+  }, [language]);
   const value = React.useMemo(() => ({ language, setLanguage, t }), [language, t]);
   return <LanguageContext.Provider value={value}>{children}</LanguageContext.Provider>;
 }

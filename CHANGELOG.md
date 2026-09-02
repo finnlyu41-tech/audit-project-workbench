@@ -6,6 +6,23 @@ The project follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+
+- Parallel project workstreams for quotation and collection, audit, tax computation and filing, customer due diligence, and custom services.
+- Storage V5 migration from legacy project nodes into an audit workstream, preserving progress and group relationships.
+- A fixed three-pane desktop workspace with collapsible project navigation and outstanding centre.
+- Horizontal stage navigation with a stable detail panel beneath the stage rail.
+- Simplified Chinese, Traditional Chinese and English system interfaces.
+- Per-status colour controls and workstream-linked outstanding items.
+- Read-only archive details, restoration and archive-only permanent deletion.
+
+### Changed
+
+- Consolidated language, backup, create and template-library actions into one workbench menu.
+- Replaced project-wide blended percentages with completed-workstream counts.
+- Categorised the multi-template library by workstream type and replaced internal shorthand with professional terminology.
+- Excluded archived records from active navigation, group calculations and outstanding roll-ups.
+
 ## [0.2.0] - 2026-09-02
 
 ### Added

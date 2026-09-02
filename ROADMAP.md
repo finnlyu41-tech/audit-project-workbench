@@ -6,8 +6,8 @@ The roadmap is directional. Privacy and a simple local-first experience remain d
 
 - Improve keyboard navigation and accessibility coverage.
 - Add automated UI tests for the critical create, progress, outstanding and backup flows.
-- Add optional Sample import/export with schema validation.
-- Add Sample tags, sorting and optional version notes.
+- Add optional template import/export with schema validation.
+- Add template tags, sorting and optional version notes.
 - Publish a client-neutral demonstration dataset and screenshots.
 
 ## Later, after design review
