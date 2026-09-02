@@ -2,13 +2,21 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {
   CORE_SAMPLE_KEY,
+  CORE_GROUP_SAMPLE_KEY,
   STORE_VERSION,
+  canNestGroup,
+  collectGroupOutstandingEntries,
+  createDefaultGroupSample,
   createDefaultSample,
   createDefaultOutstandingStatuses,
   duplicateSample,
+  groupProgress,
+  localizeGroupSample,
   localizeOutstandingStatuses,
   localizeSample,
   localizeWorkflowNodes,
+  makeGroup,
+  makeGroupMember,
   makeOutstandingItem,
   makeProject,
   nodeIsComplete,
@@ -104,6 +112,8 @@ test("version 1 data migrates outstanding items separately and removes the retir
   assert.ok(migrated.samples[0].nodes.length > 0);
   assert.equal(migrated.selectedSampleId, migrated.samples[0].id);
   assert.equal(migrated.outstandingStatuses.length, 5);
+  assert.equal(migrated.groups.length, 0);
+  assert.equal(migrated.groupSamples[0].builtinKey, CORE_GROUP_SAMPLE_KEY);
 });
 
 test("version 2 single-Sample data migrates into the Sample library", () => {
@@ -118,6 +128,22 @@ test("version 2 single-Sample data migrates into the Sample library", () => {
   assert.equal(migrated.samples[0].builtinKey, CORE_SAMPLE_KEY);
   assert.equal(migrated.selectedSampleId, migrated.samples[0].id);
   assert.equal("sample" in migrated, false);
+});
+
+test("version 3 project data migrates to the group-capable schema without changing progress", () => {
+  const project = makeProject(projectValues, true, createDefaultSample().nodes);
+  project.nodes[0].conditions[0].done = true;
+  delete project.owner;
+  const before = projectStats(project);
+
+  const migrated = normalizeStore({ version: 3, projects: [project], samples: [createDefaultSample()],
+    selectedSampleId: "sample-core-audit", outstandingStatuses: createDefaultOutstandingStatuses() });
+
+  assert.equal(migrated.version, STORE_VERSION);
+  assert.deepEqual(projectStats(migrated.projects[0]), before);
+  assert.equal(migrated.projects[0].owner, "");
+  assert.deepEqual(migrated.groups, []);
+  assert.equal(migrated.groupSamples.length, 1);
 });
 
 test("the built-in Sample has a complete English content variant", () => {
@@ -185,4 +211,65 @@ test("custom outstanding status semantics control whether an item is open", () =
   assert.equal(outstandingIsOpen(item, statuses), true);
   item.status = "cleared";
   assert.equal(outstandingIsOpen(item, statuses), false);
+});
+
+test("group progress keeps component and consolidation progress separate with a 70/30 overall score", () => {
+  const groupSample = createDefaultGroupSample();
+  const project = makeProject(projectValues, true, createDefaultSample().nodes);
+  project.nodes.flatMap((node) => node.conditions).forEach((condition) => { condition.done = true; });
+  const group = makeGroup({ name: "Example Group", period: "FY2025", dueDate: "", owner: "", notes: "",
+    consolidationEnabled: true }, true, groupSample);
+  const member = makeGroupMember({ kind: "project", refId: project.id, auditType: "internal_team" }, groupSample);
+  member.readinessConditions.forEach((condition) => { condition.done = true; });
+  group.members.push(member);
+  group.nodes[0].conditions.forEach((condition) => { condition.done = true; });
+
+  const store = { projects: [project], groups: [group] };
+  const stats = groupProgress(store, group.id);
+
+  assert.equal(stats.componentPercentage, 100);
+  assert.ok(stats.consolidationPercentage > 0 && stats.consolidationPercentage < 100);
+  assert.equal(stats.percentage, Math.round(100 * 0.7 + stats.consolidationPercentage * 0.3));
+  assert.equal(stats.readyCompanies, 1);
+  assert.equal(stats.ready, false);
+});
+
+test("classification-only subgroups roll up recursively and cannot form cycles", () => {
+  const groupSample = createDefaultGroupSample();
+  const project = makeProject(projectValues, true, createDefaultSample().nodes);
+  const child = makeGroup({ name: "Child Group", period: "FY2025", dueDate: "", owner: "", notes: "",
+    consolidationEnabled: false }, false, groupSample);
+  const childMember = makeGroupMember({ kind: "project", refId: project.id, auditType: "management_accounts" }, groupSample);
+  childMember.readinessConditions.forEach((condition) => { condition.done = true; });
+  child.members.push(childMember);
+  const parent = makeGroup({ name: "Parent Group", period: "FY2025", dueDate: "", owner: "", notes: "",
+    consolidationEnabled: false }, false, groupSample);
+  parent.members.push(makeGroupMember({ kind: "group", refId: child.id }, groupSample));
+  const store = { projects: [project], groups: [parent, child] };
+
+  assert.equal(groupProgress(store, child.id).ready, true);
+  assert.equal(groupProgress(store, parent.id).ready, true);
+  assert.equal(canNestGroup(store, child.id, parent.id), false);
+});
+
+test("group outstanding roll-up preserves each source", () => {
+  const statuses = createDefaultOutstandingStatuses();
+  const project = makeProject(projectValues, false);
+  project.outstandingItems.push(makeOutstandingItem({ title: "Company item" }, statuses));
+  const group = makeGroup({ name: "Example Group", period: "FY2025", dueDate: "", owner: "", notes: "",
+    consolidationEnabled: false }, false);
+  group.outstandingItems.push(makeOutstandingItem({ title: "Group item" }, statuses));
+  group.members.push(makeGroupMember({ kind: "project", refId: project.id, auditType: "internal_team" }));
+
+  const entries = collectGroupOutstandingEntries({ projects: [project], groups: [group] }, group.id);
+  assert.deepEqual(entries.map((entry) => [entry.item.title, entry.sourceName]), [
+    ["Group item", "Example Group"], ["Company item", project.name],
+  ]);
+});
+
+test("the built-in Group Sample localises all workflow and readiness text", () => {
+  const english = localizeGroupSample(createDefaultGroupSample(), "en");
+  assert.equal(english.name, "Group Consolidation Workflow");
+  assert.equal(english.nodes.length, 7);
+  assert.doesNotMatch(JSON.stringify(english), /[\u3400-\u9fff]/u);
 });

@@ -9,9 +9,14 @@
 ## 主要功能
 
 - 多项目进度总览，按进行中、已完成和归档筛选。
+- 多层集团审计：集团可包含公司项目或子集团，每一级可选择独立合并流程或仅作分类。
+- 集团总览同时显示公司平均进度、合并流程进度、70%／30%整体进度及公司合并就绪门槛。
+- 公司可新建或关联现有项目，并按本团队审计、其他审计师或管理账设置不同的合并就绪条件。
+- 集团待清事项与下级公司事项集中汇总，同时保留来源和跳转入口。
 - 每个项目可自定义节点、说明、顺序及达成条件；进度由条件自动计算。
 - 独立待清事项栏，不影响节点进度；状态可新增、改名、排序，并可指定哪些状态代表“已清”。
 - 可保存多个 Sample 流程范本，并可新建、切换、复制、编辑或删除，再用任一范本快速建立项目。
+- 独立集团 Sample 范本库，可保存合并节点及各审计类别的默认就绪条件。
 - Sample 公司名称精确去敏：只替换使用者输入的完整公司名称，不自动猜测。
 - 完整的中英文系统界面；可精确识别的内置流程条目会随语言切换，其余自定义范本、项目名称和使用者资料保持原文。
 - 可折叠项目侧栏，优先利用电脑横向空间。
@@ -52,9 +57,14 @@ Audit Project Workbench (APW) is a desktop-first, local-first tracker for managi
 ### Features
 
 - Multi-engagement overview with active, completed and archived filters.
+- Multi-level group audits with company projects, optional subgroup consolidation workflows and classification-only levels.
+- A group dashboard showing company-average progress, consolidation progress, a 70% / 30% overall score and explicit readiness gates.
+- New or existing company projects can be linked to a group with readiness defaults for internal audits, other component auditors or management accounts.
+- Group outstanding items roll up company and subgroup items while preserving their source and navigation.
 - Custom stages, descriptions, ordering and completion criteria with automatic progress.
 - A separate outstanding-items bar that never changes stage progress, with custom names, ordering and cleared-state semantics.
 - A multi-Sample library with create, select, duplicate, edit and delete controls; any Sample can start a new project.
+- A separate Group Sample library for consolidation stages and audit-category readiness defaults.
 - Exact-match company-name de-identification within the Sample.
 - Complete Chinese and English system UI; recognised built-in workflow entries follow the interface language, while other custom and user-entered content remains unchanged.
 - Collapsible project sidebar for desktop workspace efficiency.

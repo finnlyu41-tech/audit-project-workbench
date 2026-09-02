@@ -1,6 +1,48 @@
 export const STORAGE_KEY = "audit-progress-workbench:v1";
-export const STORE_VERSION = 3;
+export const STORE_VERSION = 4;
 export const CORE_SAMPLE_KEY = "core-audit";
+export const CORE_GROUP_SAMPLE_KEY = "core-group";
+
+export const GROUP_AUDIT_TYPES = ["internal_team", "component_auditor", "management_accounts"];
+
+export const groupStarterNodes = [
+  ["集团范围与架构", "确认集团边界、组成部分及合并责任。", ["集团架构已确认", "合并范围已确认", "组成部分重要性已确定"]],
+  ["组成部分审计指示", "发出并追踪各组成部分的审计或报送要求。", ["组成部分指示已发出", "负责人及截止日已确认"]],
+  ["公司TB及报告包", "确认纳入合并的公司资料已经齐备。", ["所有必需公司已具备合并条件", "报告包及最终TB已收齐"]],
+  ["集团往来核对", "清理集团内往来、交易及未对账差异。", ["集团往来余额已匹配", "重大差异已解释或处理"]],
+  ["抵销及合并调整", "追踪抵销分录和其他合并层调整。", ["抵销事项已识别", "合并调整已复核", "调整状态已更新"]],
+  ["合并财务报表", "完成合并数字、披露及列报复核。", ["合并报表初稿已准备", "合并数字已核对", "披露及列报已复核"]],
+  ["集团签署与归档", "完成集团层复核、签署和最终归档。", ["集团复核点已清理", "集团签署文件已完成", "最终集团文件已归档"]],
+];
+
+export const groupStarterNodesEnglish = [
+  ["Group scope and structure", "Confirm the group boundary, components and consolidation responsibilities.",
+    ["Group structure confirmed", "Consolidation scope confirmed", "Component significance determined"]],
+  ["Component instructions", "Issue and track audit or reporting requirements for each component.",
+    ["Component instructions issued", "Owners and deadlines confirmed"]],
+  ["Company TBs and reporting packs", "Confirm that company information required for consolidation is ready.",
+    ["All required companies are consolidation-ready", "Reporting packs and final TBs received"]],
+  ["Intercompany reconciliation", "Clear intercompany balances, transactions and unreconciled differences.",
+    ["Intercompany balances matched", "Material differences explained or resolved"]],
+  ["Eliminations and consolidation adjustments", "Track eliminations and other group-level adjustments.",
+    ["Elimination items identified", "Consolidation adjustments reviewed", "Adjustment statuses updated"]],
+  ["Consolidated financial statements", "Complete the review of consolidated figures, disclosures and presentation.",
+    ["Draft consolidated financial statements prepared", "Consolidated figures agreed", "Disclosures and presentation reviewed"]],
+  ["Group signing and archive", "Complete group review, signing and final archiving.",
+    ["Group review points cleared", "Group signing documents completed", "Final group file archived"]],
+];
+
+export const groupReadinessTemplates = {
+  internal_team: ["最终TB已确认", "审计调整已处理", "公司报告包已完成", "重大未决事项已向集团汇报"],
+  component_auditor: ["组成部分审计师已确认指示", "组成部分报告包已收到", "审计师结论及交付文件已收到", "重大事项已沟通"],
+  management_accounts: ["管理账或最终TB已收到", "科目映射及余额核对已完成", "所需管理层支持文件已收到"],
+};
+
+export const groupReadinessTemplatesEnglish = {
+  internal_team: ["Final TB confirmed", "Audit adjustments processed", "Company reporting pack completed", "Significant open matters reported to the group"],
+  component_auditor: ["Component auditor acknowledged instructions", "Component reporting pack received", "Auditor conclusions and deliverables received", "Significant matters communicated"],
+  management_accounts: ["Management accounts or final TB received", "Account mapping and balance reconciliation completed", "Required management support received"],
+};
 
 export const defaultOutstandingStatusDefinitions = [
   { id: "missing_document", label: "缺少文件", labelEn: "Missing document", closed: false, tone: "danger" },
@@ -40,10 +82,21 @@ const workflowTextPairs = starterNodes.flatMap((node, index) => {
   return [[node[0], englishNode[0]], [node[1], englishNode[1]],
     ...node[2].map((condition, conditionIndex) => [condition, englishNode[2][conditionIndex]])];
 });
+const groupWorkflowTextPairs = groupStarterNodes.flatMap((node, index) => {
+  const englishNode = groupStarterNodesEnglish[index];
+  return [[node[0], englishNode[0]], [node[1], englishNode[1]],
+    ...node[2].map((condition, conditionIndex) => [condition, englishNode[2][conditionIndex]])];
+});
+const groupReadinessTextPairs = GROUP_AUDIT_TYPES.flatMap((auditType) =>
+  groupReadinessTemplates[auditType].map((label, index) => [label, groupReadinessTemplatesEnglish[auditType][index]]));
 const sampleMetadataTextPairs = [
   ["基础审计流程", "Core Audit Workflow"],
   ["内置流程范本", "Built-in workflow template"],
   ["固定流程范本", "Built-in workflow template"],
+];
+const groupSampleMetadataTextPairs = [
+  ["集团合并流程", "Group Consolidation Workflow"],
+  ["内置集团流程范本", "Built-in group workflow template"],
 ];
 
 function localizeKnownText(value, language, pairs = workflowTextPairs) {
@@ -57,6 +110,16 @@ export function localizeWorkflowNodes(nodes, language = "zh") {
     description: localizeKnownText(node.description, language),
     conditions: node.conditions.map((condition) => ({ ...condition,
       label: localizeKnownText(condition.label, language),
+    })),
+  }));
+}
+
+export function localizeGroupWorkflowNodes(nodes, language = "zh") {
+  return nodes.map((node) => ({ ...node,
+    title: localizeKnownText(node.title, language, groupWorkflowTextPairs),
+    description: localizeKnownText(node.description, language, groupWorkflowTextPairs),
+    conditions: node.conditions.map((condition) => ({ ...condition,
+      label: localizeKnownText(condition.label, language, groupWorkflowTextPairs),
     })),
   }));
 }
@@ -205,6 +268,137 @@ export function duplicateSample(sample, suffix = " Copy") {
   };
 }
 
+function copyReadinessTemplates(templates = {}) {
+  return Object.fromEntries(GROUP_AUDIT_TYPES.map((auditType) => [auditType,
+    (templates[auditType] || []).map((condition) => ({
+      id: condition?.id || uid("readiness-condition"),
+      label: typeof condition === "string" ? condition : condition.label,
+      done: false,
+    }))]));
+}
+
+export function createDefaultGroupSample(language = "zh") {
+  const english = language === "en";
+  const readiness = english ? groupReadinessTemplatesEnglish : groupReadinessTemplates;
+  return {
+    id: "group-sample-core",
+    builtinKey: CORE_GROUP_SAMPLE_KEY,
+    name: english ? "Group Consolidation Workflow" : "集团合并流程",
+    description: english ? "Built-in group workflow template" : "内置集团流程范本",
+    updatedAt: new Date().toISOString(),
+    nodes: (english ? groupStarterNodesEnglish : groupStarterNodes)
+      .map(([title, description, conditions]) => makeNode({ title, description, conditions })),
+    readinessTemplates: copyReadinessTemplates(readiness),
+  };
+}
+
+export function normalizeGroupSample(value) {
+  if (!value || !Array.isArray(value.nodes)) return createDefaultGroupSample();
+  return {
+    id: value.id || uid("group-sample"),
+    builtinKey: value.builtinKey === CORE_GROUP_SAMPLE_KEY ? CORE_GROUP_SAMPLE_KEY : undefined,
+    name: typeof value.name === "string" && value.name.trim() ? value.name.trim() : "未命名集团 Sample",
+    description: typeof value.description === "string" ? value.description : "",
+    updatedAt: value.updatedAt || new Date().toISOString(),
+    nodes: value.nodes.map((node) => ({
+      id: node.id || uid("group-sample-node"),
+      title: typeof node.title === "string" && node.title.trim() ? node.title.trim() : "未命名节点",
+      description: typeof node.description === "string" ? node.description : "",
+      conditions: Array.isArray(node.conditions) ? node.conditions.map((condition) => ({
+        id: condition?.id || uid("group-sample-condition"),
+        label: typeof condition === "string" ? condition : (typeof condition?.label === "string" ? condition.label : ""),
+        done: false,
+      })).filter((condition) => condition.label.trim()) : [],
+    })),
+    readinessTemplates: copyReadinessTemplates(value.readinessTemplates || groupReadinessTemplates),
+  };
+}
+
+export function localizeGroupSample(sample, language = "zh") {
+  if (sample?.builtinKey === CORE_GROUP_SAMPLE_KEY) {
+    return { ...createDefaultGroupSample(language), id: sample.id, updatedAt: sample.updatedAt };
+  }
+  return { ...sample,
+    name: localizeKnownText(sample.name, language, groupSampleMetadataTextPairs),
+    description: localizeKnownText(sample.description, language, groupSampleMetadataTextPairs),
+    nodes: localizeGroupWorkflowNodes(sample.nodes, language),
+    readinessTemplates: Object.fromEntries(GROUP_AUDIT_TYPES.map((auditType) => [auditType,
+      (sample.readinessTemplates?.[auditType] || []).map((condition) => ({ ...condition,
+        label: localizeKnownText(condition.label, language, groupReadinessTextPairs),
+      }))])),
+  };
+}
+
+export function makeBlankGroupSample(language = "zh") {
+  return {
+    id: uid("group-sample"),
+    name: language === "en" ? "New Group Sample" : "新集团 Sample",
+    description: "",
+    updatedAt: new Date().toISOString(),
+    nodes: [],
+    readinessTemplates: copyReadinessTemplates(language === "en"
+      ? groupReadinessTemplatesEnglish : groupReadinessTemplates),
+  };
+}
+
+export function duplicateGroupSample(sample, suffix = " Copy") {
+  return {
+    ...sample,
+    id: uid("group-sample"),
+    builtinKey: undefined,
+    name: `${sample.name}${suffix}`,
+    updatedAt: new Date().toISOString(),
+    nodes: sample.nodes.map((node) => makeNode({
+      title: node.title,
+      description: node.description,
+      conditions: node.conditions.map((condition) => condition.label),
+    })),
+    readinessTemplates: copyReadinessTemplates(sample.readinessTemplates),
+  };
+}
+
+export function makeGroupMember(values, groupSample = createDefaultGroupSample()) {
+  const kind = values.kind === "group" ? "group" : "project";
+  const auditType = GROUP_AUDIT_TYPES.includes(values.auditType) ? values.auditType : "internal_team";
+  return {
+    id: values.id || uid("group-member"),
+    kind,
+    refId: values.refId,
+    role: typeof values.role === "string" ? values.role.trim() : "",
+    auditType: kind === "project" ? auditType : "subgroup",
+    readinessConditions: kind === "project"
+      ? (values.readinessConditions || groupSample.readinessTemplates?.[auditType] || []).map((condition) => ({
+        id: condition?.id || uid("readiness-condition"),
+        label: typeof condition === "string" ? condition : condition.label,
+        done: Boolean(condition?.done),
+      })) : [],
+  };
+}
+
+export function makeGroup(values, useStarter = true, groupSample = createDefaultGroupSample()) {
+  const now = new Date().toISOString();
+  const consolidationEnabled = values.consolidationEnabled !== false;
+  return {
+    id: uid("group"),
+    name: values.name.trim(),
+    period: values.period.trim(),
+    dueDate: values.dueDate || "",
+    owner: values.owner?.trim() || "",
+    notes: values.notes?.trim() || "",
+    consolidationEnabled,
+    archived: false,
+    createdAt: now,
+    updatedAt: now,
+    members: [],
+    outstandingItems: [],
+    nodes: consolidationEnabled && useStarter ? (groupSample?.nodes || []).map((node) => makeNode({
+      title: node.title,
+      description: node.description,
+      conditions: node.conditions.map((condition) => condition.label),
+    })) : [],
+  };
+}
+
 export function makeOutstandingItem(values = {}, statuses = createDefaultOutstandingStatuses()) {
   const now = new Date().toISOString();
   const allowedStatuses = statuses.map((status) => status.id);
@@ -217,6 +411,21 @@ export function makeOutstandingItem(values = {}, statuses = createDefaultOutstan
     createdAt: values.createdAt || now,
     updatedAt: values.updatedAt || now,
   };
+}
+
+function normalizeNodeList(nodes, removeLegacyOutstanding = false) {
+  return Array.isArray(nodes) ? nodes.map((node) => ({
+    id: node?.id || uid("node"),
+    title: typeof node?.title === "string" ? node.title : "",
+    description: removeLegacyOutstanding && node?.description === "完成主要工作底稿并处理待清事项。"
+      ? "完成主要工作底稿并处理审计调整。" : (typeof node?.description === "string" ? node.description : ""),
+    conditions: Array.isArray(node?.conditions) ? node.conditions.filter((condition) =>
+      !removeLegacyOutstanding || condition?.label !== "待清事项已复核").map((condition) => ({
+      id: condition?.id || uid("condition"),
+      label: typeof condition?.label === "string" ? condition.label : "",
+      done: Boolean(condition?.done),
+    })) : [],
+  })) : [];
 }
 
 export function normalizeStore(value) {
@@ -232,20 +441,50 @@ export function normalizeStore(value) {
   if (!samples.length) samples.push(createDefaultSample());
   const selectedSampleId = samples.some((sample) => sample.id === value.selectedSampleId)
     ? value.selectedSampleId : samples[0].id;
+  const rawGroupSamples = Array.isArray(value.groupSamples) ? value.groupSamples : [];
+  const seenGroupSampleIds = new Set();
+  const groupSamples = rawGroupSamples.filter(Boolean).map((sample) => {
+    const normalized = normalizeGroupSample(sample);
+    if (seenGroupSampleIds.has(normalized.id)) normalized.id = uid("group-sample");
+    seenGroupSampleIds.add(normalized.id);
+    return normalized;
+  });
+  if (!groupSamples.length) groupSamples.push(createDefaultGroupSample());
+  const selectedGroupSampleId = groupSamples.some((sample) => sample.id === value.selectedGroupSampleId)
+    ? value.selectedGroupSampleId : groupSamples[0].id;
+  const defaultGroupSample = groupSamples.find((sample) => sample.id === selectedGroupSampleId) || groupSamples[0];
+  const projects = value.projects.map((project) => ({
+    ...project,
+    owner: typeof project.owner === "string" ? project.owner : "",
+    nodes: normalizeNodeList(project.nodes, true),
+    outstandingItems: Array.isArray(project.outstandingItems)
+      ? project.outstandingItems.map((item) => makeOutstandingItem(item, outstandingStatuses)) : [],
+  }));
+  const groups = Array.isArray(value.groups) ? value.groups.map((group) => ({
+    id: group?.id || uid("group"),
+    name: typeof group?.name === "string" && group.name.trim() ? group.name.trim() : "未命名集团",
+    period: typeof group?.period === "string" ? group.period : "",
+    dueDate: typeof group?.dueDate === "string" ? group.dueDate : "",
+    owner: typeof group?.owner === "string" ? group.owner : "",
+    notes: typeof group?.notes === "string" ? group.notes : "",
+    consolidationEnabled: group?.consolidationEnabled !== false,
+    archived: Boolean(group?.archived),
+    createdAt: group?.createdAt || new Date().toISOString(),
+    updatedAt: group?.updatedAt || new Date().toISOString(),
+    members: Array.isArray(group?.members) ? group.members.filter((member) => member?.refId)
+      .map((member) => makeGroupMember(member, defaultGroupSample)) : [],
+    outstandingItems: Array.isArray(group?.outstandingItems)
+      ? group.outstandingItems.map((item) => makeOutstandingItem(item, outstandingStatuses)) : [],
+    nodes: normalizeNodeList(group?.nodes),
+  })) : [];
   return {
     version: STORE_VERSION,
-    projects: value.projects.map((project) => ({
-      ...project,
-      nodes: Array.isArray(project.nodes) ? project.nodes.map((node) => ({ ...node,
-        description: node.description === "完成主要工作底稿并处理待清事项。"
-          ? "完成主要工作底稿并处理审计调整。" : node.description,
-        conditions: Array.isArray(node.conditions)
-          ? node.conditions.filter((condition) => condition?.label !== "待清事项已复核") : [] })) : [],
-      outstandingItems: Array.isArray(project.outstandingItems)
-        ? project.outstandingItems.map((item) => makeOutstandingItem(item, outstandingStatuses)) : [],
-    })),
+    projects,
+    groups,
     samples,
     selectedSampleId,
+    groupSamples,
+    selectedGroupSampleId,
     outstandingStatuses,
   };
 }
@@ -258,6 +497,7 @@ export function makeProject(values, useStarter = true, sampleNodes = null) {
     entity: values.entity.trim(),
     period: values.period.trim(),
     dueDate: values.dueDate || "",
+    owner: values.owner?.trim() || "",
     notes: values.notes.trim(),
     archived: false,
     createdAt: now,
@@ -273,12 +513,14 @@ export function makeProject(values, useStarter = true, sampleNodes = null) {
 
 export function emptyStore() {
   const sample = createDefaultSample();
-  return { version: STORE_VERSION, projects: [], samples: [sample], selectedSampleId: sample.id,
+  const groupSample = createDefaultGroupSample();
+  return { version: STORE_VERSION, projects: [], groups: [], samples: [sample], selectedSampleId: sample.id,
+    groupSamples: [groupSample], selectedGroupSampleId: groupSample.id,
     outstandingStatuses: createDefaultOutstandingStatuses() };
 }
 
 export function isValidStore(value) {
-  return value && [1, 2, STORE_VERSION].includes(value.version) && Array.isArray(value.projects);
+  return value && [1, 2, 3, STORE_VERSION].includes(value.version) && Array.isArray(value.projects);
 }
 
 export function outstandingStatusLabel(value, statuses = createDefaultOutstandingStatuses(), language = "zh") {
@@ -311,6 +553,10 @@ export function redactSampleCompanies(sample, names, replacement = "[公司名�
       description: replaceText(node.description),
       conditions: node.conditions.map((condition) => ({ ...condition, label: replaceText(condition.label) })),
     })),
+    ...(sample.readinessTemplates ? { readinessTemplates: Object.fromEntries(
+      Object.entries(sample.readinessTemplates).map(([auditType, conditions]) => [auditType,
+        conditions.map((condition) => ({ ...condition, label: replaceText(condition.label) }))]),
+    ) } : {}),
   };
   return { replacements, sample: redactedSample };
 }
@@ -352,6 +598,110 @@ export function projectStats(project) {
     completedNodes,
     percentage: conditions.length ? Math.round((completedConditions / conditions.length) * 100) : 0,
   };
+}
+
+export function findParentMembership(store, kind, refId) {
+  for (const group of store.groups || []) {
+    const member = group.members.find((entry) => entry.kind === kind && entry.refId === refId);
+    if (member) return { group, member };
+  }
+  return null;
+}
+
+export function groupContainsGroup(store, rootGroupId, targetGroupId, visited = new Set()) {
+  if (rootGroupId === targetGroupId) return true;
+  if (visited.has(rootGroupId)) return false;
+  visited.add(rootGroupId);
+  const group = (store.groups || []).find((item) => item.id === rootGroupId);
+  return Boolean(group?.members.filter((member) => member.kind === "group")
+    .some((member) => groupContainsGroup(store, member.refId, targetGroupId, visited)));
+}
+
+export function canNestGroup(store, parentGroupId, childGroupId) {
+  return parentGroupId !== childGroupId
+    && !findParentMembership(store, "group", childGroupId)
+    && !groupContainsGroup(store, childGroupId, parentGroupId);
+}
+
+export function memberIsReady(store, member, visited = new Set()) {
+  if (member.kind === "project") {
+    return member.readinessConditions.length > 0
+      && member.readinessConditions.every((condition) => condition.done);
+  }
+  return groupProgress(store, member.refId, visited).ready;
+}
+
+function leafReadiness(store, groupId, visited = new Set()) {
+  if (visited.has(groupId)) return { ready: 0, total: 0 };
+  const nextVisited = new Set(visited).add(groupId);
+  const group = (store.groups || []).find((item) => item.id === groupId);
+  if (!group) return { ready: 0, total: 0 };
+  return group.members.reduce((summary, member) => {
+    if (member.kind === "project") {
+      const exists = store.projects.some((project) => project.id === member.refId);
+      return exists ? { ready: summary.ready + (memberIsReady(store, member) ? 1 : 0), total: summary.total + 1 } : summary;
+    }
+    const child = leafReadiness(store, member.refId, nextVisited);
+    return { ready: summary.ready + child.ready, total: summary.total + child.total };
+  }, { ready: 0, total: 0 });
+}
+
+export function groupProgress(store, groupId, visited = new Set()) {
+  if (visited.has(groupId)) return { componentPercentage: 0, consolidationPercentage: 0,
+    percentage: 0, ready: false, readyMembers: 0, totalMembers: 0, readyCompanies: 0, totalCompanies: 0 };
+  const group = (store.groups || []).find((item) => item.id === groupId);
+  if (!group) return { componentPercentage: 0, consolidationPercentage: 0,
+    percentage: 0, ready: false, readyMembers: 0, totalMembers: 0, readyCompanies: 0, totalCompanies: 0 };
+  const nextVisited = new Set(visited).add(groupId);
+  const members = group.members.filter((member) => member.kind === "project"
+    ? store.projects.some((project) => project.id === member.refId)
+    : store.groups.some((item) => item.id === member.refId));
+  const componentPercentages = members.map((member) => {
+    if (member.kind === "project") {
+      return projectStats(store.projects.find((project) => project.id === member.refId)).percentage;
+    }
+    return groupProgress(store, member.refId, nextVisited).percentage;
+  });
+  const componentPercentage = componentPercentages.length
+    ? Math.round(componentPercentages.reduce((sum, value) => sum + value, 0) / componentPercentages.length) : 0;
+  const consolidationPercentage = projectStats(group).percentage;
+  const percentage = group.consolidationEnabled
+    ? Math.round(componentPercentage * 0.7 + consolidationPercentage * 0.3)
+    : componentPercentage;
+  const readyMembers = members.filter((member) => memberIsReady(store, member, nextVisited)).length;
+  const consolidationReady = !group.consolidationEnabled
+    || (group.nodes.length > 0 && group.nodes.every(nodeIsComplete));
+  const leaves = leafReadiness(store, groupId);
+  return {
+    componentPercentage,
+    consolidationPercentage,
+    percentage,
+    ready: members.length > 0 && readyMembers === members.length && consolidationReady,
+    readyMembers,
+    totalMembers: members.length,
+    readyCompanies: leaves.ready,
+    totalCompanies: leaves.total,
+  };
+}
+
+export function collectGroupOutstandingEntries(store, groupId, visited = new Set(), depth = 0) {
+  if (visited.has(groupId)) return [];
+  const group = (store.groups || []).find((item) => item.id === groupId);
+  if (!group) return [];
+  const nextVisited = new Set(visited).add(groupId);
+  const own = (group.outstandingItems || []).map((item) => ({
+    item, sourceType: "group", sourceId: group.id, sourceName: group.name, depth,
+  }));
+  const children = group.members.flatMap((member) => {
+    if (member.kind === "project") {
+      const project = store.projects.find((item) => item.id === member.refId);
+      return (project?.outstandingItems || []).map((item) => ({
+        item, sourceType: "project", sourceId: project.id, sourceName: project.name, depth: depth + 1,
+      }));
+    }
+    return collectGroupOutstandingEntries(store, member.refId, nextVisited, depth + 1);
+  });
+  return [...own, ...children];
 }
 
 export function formatDate(value, language = "zh") {

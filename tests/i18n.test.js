@@ -8,7 +8,7 @@ const dashboardDirectory = fileURLToPath(new URL("../src/dashboard/", import.met
 test("every Chinese system-text literal has an English entry", () => {
   const i18n = readFileSync(`${dashboardDirectory}/i18n.jsx`, "utf8");
   const dictionaryKeys = new Set([...i18n.matchAll(/^\s+"([^"]+)":/gm)].map((match) => match[1]));
-  const source = ["DashboardContent.jsx", "components.jsx"]
+  const source = ["Workbench.jsx", "components.jsx", "group-components.jsx"]
     .map((file) => readFileSync(`${dashboardDirectory}/${file}`, "utf8"))
     .join("\n");
   const referencedKeys = [...source.matchAll(/"([^"\n]*[\u3400-\u9fff][^"\n]*)"/gu)].map((match) => match[1]);

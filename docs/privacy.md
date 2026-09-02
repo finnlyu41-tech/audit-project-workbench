@@ -2,7 +2,7 @@
 
 ## What the app stores
 
-The app stores engagement names, legal entities, periods, notes, stage status, completion criteria, outstanding items, custom outstanding-status labels and the editable Sample library in the browser's `localStorage`.
+The app stores engagement and group names, legal entities, periods, owners, hierarchy, notes, stage status, consolidation-readiness criteria, outstanding items, custom outstanding-status labels and both editable Sample libraries in the browser's `localStorage`.
 
 ## What the app sends
 

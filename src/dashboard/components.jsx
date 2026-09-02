@@ -27,6 +27,7 @@ export function ProjectForm({ initial, onSubmit, onClose, submitLabel, allowTemp
     entity: initial?.entity || "",
     period: initial?.period || "",
     dueDate: initial?.dueDate || "",
+    owner: initial?.owner || "",
     notes: initial?.notes || "",
   }));
   const [useStarter, setUseStarter] = React.useState(true);
@@ -42,7 +43,10 @@ export function ProjectForm({ initial, onSubmit, onClose, submitLabel, allowTemp
       <label><span>{t("报告期间")}</span><input value={values.period} onChange={update("period")}
         placeholder={t("例如：截至2025年3月31日")} /></label>
     </div>
-    <label><span>{t("目标完成日期")}</span><input type="date" value={values.dueDate} onChange={update("dueDate")} /></label>
+    <div className="form-grid">
+      <label><span>{t("目标完成日期")}</span><input type="date" value={values.dueDate} onChange={update("dueDate")} /></label>
+      <label><span>{t("负责人")}</span><input value={values.owner} onChange={update("owner")} placeholder={t("例如：项目经理或主审")}/></label>
+    </div>
     <label><span>{t("备注")}</span><textarea rows="3" value={values.notes} onChange={update("notes")}
       placeholder={t("可记录负责人、客户要求或其他背景")} /></label>
     {allowTemplate && <label className="check-option">
