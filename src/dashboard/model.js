@@ -1,13 +1,15 @@
 export const STORAGE_KEY = "audit-progress-workbench:v1";
-export const STORE_VERSION = 2;
+export const STORE_VERSION = 3;
+export const CORE_SAMPLE_KEY = "core-audit";
 
-export const outstandingStatusOptions = [
-  ["missing_document", "缺少文件"],
-  ["awaiting_signature", "等客户签字"],
-  ["awaiting_client", "等客户回复"],
-  ["internal_follow_up", "内部跟进"],
-  ["resolved", "已解决"],
+export const defaultOutstandingStatusDefinitions = [
+  { id: "missing_document", label: "缺少文件", labelEn: "Missing document", closed: false, tone: "danger" },
+  { id: "awaiting_signature", label: "等客户签字", labelEn: "Awaiting client signature", closed: false, tone: "warning" },
+  { id: "awaiting_client", label: "等客户回复", labelEn: "Awaiting client response", closed: false, tone: "warning" },
+  { id: "internal_follow_up", label: "内部跟进", labelEn: "Internal follow-up", closed: false, tone: "info" },
+  { id: "resolved", label: "已解决", labelEn: "Resolved", closed: true, tone: "success" },
 ];
+export const outstandingStatusOptions = defaultOutstandingStatusDefinitions.map(({ id, label }) => [id, label]);
 
 export const starterNodes = [
   ["项目设置", "先锁定项目范围和权威资料。", ["法律实体已确认", "报告期间已确认", "报告框架已确认", "TB／A4权威来源已确认"]],
@@ -18,11 +20,66 @@ export const starterNodes = [
   ["签署与归档", "完成签署文件和最终文件整理。", ["签署文件已准备", "已签文件已收回", "最终文件已归档"]],
 ];
 
+export const starterNodesEnglish = [
+  ["Engagement setup", "Confirm the engagement scope and authoritative sources.",
+    ["Legal entity confirmed", "Reporting period confirmed", "Reporting framework confirmed", "Authoritative TB / A4 source confirmed"]],
+  ["PBC documents", "Track client requests, receipts and unresolved document gaps.",
+    ["PBC request list issued", "Key documents received", "Outstanding request list reviewed"]],
+  ["TB / A4", "Confirm that the audit number base is ready.",
+    ["Trial balance received", "A4 prepared or updated", "TB-to-A4 balance check completed"]],
+  ["Audit execution", "Complete the main workpapers and process audit adjustments.",
+    ["Main workpapers completed", "Audit adjustments processed"]],
+  ["Financial statements", "Complete the financial statement figures and disclosure review.",
+    ["Draft financial statements prepared", "Financial statement figures agreed", "Financial statement review points cleared"]],
+  ["Signing and archive", "Complete signing documents and final file assembly.",
+    ["Signing documents prepared", "Signed documents received", "Final file archived"]],
+];
+
 export function uid(prefix) {
   const random = typeof crypto !== "undefined" && crypto.randomUUID
     ? crypto.randomUUID()
     : `${Date.now()}-${Math.random().toString(16).slice(2)}`;
   return `${prefix}-${random}`;
+}
+
+export function createDefaultOutstandingStatuses() {
+  return defaultOutstandingStatusDefinitions.map(({ id, label, closed, tone }) => ({
+    id,
+    builtinKey: id,
+    label,
+    closed,
+    tone,
+  }));
+}
+
+export function normalizeOutstandingStatuses(value) {
+  if (!Array.isArray(value) || !value.length) return createDefaultOutstandingStatuses();
+  const builtinKeys = new Set(defaultOutstandingStatusDefinitions.map((status) => status.id));
+  const allowedTones = new Set(["neutral", "danger", "warning", "info", "success"]);
+  const seenIds = new Set();
+  const statuses = value.map((status) => {
+    let id = typeof status?.id === "string" && status.id ? status.id : uid("outstanding-status");
+    if (seenIds.has(id)) id = uid("outstanding-status");
+    seenIds.add(id);
+    const builtinKey = builtinKeys.has(status?.builtinKey) ? status.builtinKey : undefined;
+    const builtin = defaultOutstandingStatusDefinitions.find((item) => item.id === builtinKey);
+    return {
+      id,
+      builtinKey,
+      label: typeof status?.label === "string" && status.label.trim()
+        ? status.label.trim() : (builtin?.label || "未命名状态"),
+      closed: Boolean(status?.closed),
+      tone: allowedTones.has(status?.tone) ? status.tone : (builtin?.tone || "neutral"),
+    };
+  });
+  return statuses.length ? statuses : createDefaultOutstandingStatuses();
+}
+
+export function localizeOutstandingStatuses(statuses, language = "zh") {
+  return statuses.map((status) => {
+    const builtin = defaultOutstandingStatusDefinitions.find((item) => item.id === status.builtinKey);
+    return builtin ? { ...status, label: language === "en" ? builtin.labelEn : builtin.label } : status;
+  });
 }
 
 export function makeNode(source = {}) {
@@ -38,20 +95,35 @@ export function makeNode(source = {}) {
   };
 }
 
-export function createDefaultSample() {
+export function createDefaultSample(language = "zh") {
+  const english = language === "en";
   return {
-    id: "sample-main",
-    name: "基础审计流程",
-    description: "固定流程范本",
+    id: "sample-core-audit",
+    builtinKey: CORE_SAMPLE_KEY,
+    name: english ? "Core Audit Workflow" : "基础审计流程",
+    description: english ? "Built-in workflow template" : "内置流程范本",
     updatedAt: new Date().toISOString(),
-    nodes: starterNodes.map(([title, description, conditions]) => makeNode({ title, description, conditions })),
+    nodes: (english ? starterNodesEnglish : starterNodes)
+      .map(([title, description, conditions]) => makeNode({ title, description, conditions })),
   };
+}
+
+function sampleContentMatches(sample, name, description, nodes) {
+  if (sample.name !== name || ![description, "固定流程范本"].includes(sample.description)) return false;
+  return JSON.stringify(sample.nodes.map((node) => [node.title, node.description,
+    node.conditions.map((condition) => condition.label)])) === JSON.stringify(nodes);
+}
+
+function isCoreSampleContent(sample) {
+  return sampleContentMatches(sample, "基础审计流程", "内置流程范本", starterNodes)
+    || sampleContentMatches(sample, "Core Audit Workflow", "Built-in workflow template", starterNodesEnglish);
 }
 
 export function normalizeSample(value) {
   if (!value || !Array.isArray(value.nodes)) return createDefaultSample();
-  return {
+  const normalized = {
     id: value.id || "sample-main",
+    builtinKey: value.builtinKey === CORE_SAMPLE_KEY ? CORE_SAMPLE_KEY : undefined,
     name: typeof value.name === "string" && value.name.trim() ? value.name.trim() : "未命名 Sample",
     description: typeof value.description === "string" ? value.description : "",
     updatedAt: value.updatedAt || new Date().toISOString(),
@@ -67,15 +139,48 @@ export function normalizeSample(value) {
       })).filter((condition) => condition.label.trim() && condition.label.trim() !== "待清事项已复核") : [],
     })),
   };
+  if (!normalized.builtinKey && isCoreSampleContent(normalized)) normalized.builtinKey = CORE_SAMPLE_KEY;
+  return normalized;
 }
 
-export function makeOutstandingItem(values = {}) {
+export function localizeSample(sample, language = "zh") {
+  if (sample?.builtinKey !== CORE_SAMPLE_KEY) return sample;
+  return { ...createDefaultSample(language), id: sample.id, updatedAt: sample.updatedAt };
+}
+
+export function makeBlankSample(language = "zh") {
+  return {
+    id: uid("sample"),
+    name: language === "en" ? "New Sample" : "新 Sample",
+    description: "",
+    updatedAt: new Date().toISOString(),
+    nodes: [],
+  };
+}
+
+export function duplicateSample(sample, suffix = " Copy") {
+  return {
+    ...sample,
+    id: uid("sample"),
+    builtinKey: undefined,
+    name: `${sample.name}${suffix}`,
+    updatedAt: new Date().toISOString(),
+    nodes: sample.nodes.map((node) => makeNode({
+      title: node.title,
+      description: node.description,
+      conditions: node.conditions.map((condition) => condition.label),
+    })),
+  };
+}
+
+export function makeOutstandingItem(values = {}, statuses = createDefaultOutstandingStatuses()) {
   const now = new Date().toISOString();
-  const allowedStatuses = outstandingStatusOptions.map(([value]) => value);
+  const allowedStatuses = statuses.map((status) => status.id);
+  const defaultStatus = statuses.find((status) => !status.closed)?.id || statuses[0]?.id || "missing_document";
   return {
     id: values.id || uid("outstanding"),
     title: typeof values.title === "string" ? values.title.trim() : "",
-    status: allowedStatuses.includes(values.status) ? values.status : "missing_document",
+    status: allowedStatuses.includes(values.status) ? values.status : defaultStatus,
     note: typeof values.note === "string" ? values.note.trim() : "",
     createdAt: values.createdAt || now,
     updatedAt: values.updatedAt || now,
@@ -83,6 +188,18 @@ export function makeOutstandingItem(values = {}) {
 }
 
 export function normalizeStore(value) {
+  const outstandingStatuses = normalizeOutstandingStatuses(value.outstandingStatuses);
+  const rawSamples = Array.isArray(value.samples) ? value.samples : [value.sample];
+  const seenSampleIds = new Set();
+  const samples = rawSamples.filter(Boolean).map((sample) => {
+    const normalized = normalizeSample(sample);
+    if (seenSampleIds.has(normalized.id)) normalized.id = uid("sample");
+    seenSampleIds.add(normalized.id);
+    return normalized;
+  });
+  if (!samples.length) samples.push(createDefaultSample());
+  const selectedSampleId = samples.some((sample) => sample.id === value.selectedSampleId)
+    ? value.selectedSampleId : samples[0].id;
   return {
     version: STORE_VERSION,
     projects: value.projects.map((project) => ({
@@ -93,9 +210,11 @@ export function normalizeStore(value) {
         conditions: Array.isArray(node.conditions)
           ? node.conditions.filter((condition) => condition?.label !== "待清事项已复核") : [] })) : [],
       outstandingItems: Array.isArray(project.outstandingItems)
-        ? project.outstandingItems.map(makeOutstandingItem) : [],
+        ? project.outstandingItems.map((item) => makeOutstandingItem(item, outstandingStatuses)) : [],
     })),
-    sample: normalizeSample(value.sample),
+    samples,
+    selectedSampleId,
+    outstandingStatuses,
   };
 }
 
@@ -121,15 +240,18 @@ export function makeProject(values, useStarter = true, sampleNodes = null) {
 }
 
 export function emptyStore() {
-  return { version: STORE_VERSION, projects: [], sample: createDefaultSample() };
+  const sample = createDefaultSample();
+  return { version: STORE_VERSION, projects: [], samples: [sample], selectedSampleId: sample.id,
+    outstandingStatuses: createDefaultOutstandingStatuses() };
 }
 
 export function isValidStore(value) {
-  return value && [1, STORE_VERSION].includes(value.version) && Array.isArray(value.projects);
+  return value && [1, 2, STORE_VERSION].includes(value.version) && Array.isArray(value.projects);
 }
 
-export function outstandingStatusLabel(value) {
-  return outstandingStatusOptions.find(([status]) => status === value)?.[1] || "未分类";
+export function outstandingStatusLabel(value, statuses = createDefaultOutstandingStatuses(), language = "zh") {
+  return localizeOutstandingStatuses(statuses, language).find((status) => status.id === value)?.label
+    || (language === "en" ? "Uncategorised" : "未分类");
 }
 
 function escapeRegExp(value) {
@@ -147,6 +269,7 @@ export function redactSampleCompanies(sample, names, replacement = "[公司名�
 
   const redactedSample = {
     ...sample,
+    builtinKey: undefined,
     name: replaceText(sample.name),
     description: replaceText(sample.description),
     updatedAt: new Date().toISOString(),
@@ -160,8 +283,8 @@ export function redactSampleCompanies(sample, names, replacement = "[公司名�
   return { replacements, sample: redactedSample };
 }
 
-export function outstandingIsOpen(item) {
-  return item.status !== "resolved";
+export function outstandingIsOpen(item, statuses = createDefaultOutstandingStatuses()) {
+  return !statuses.find((status) => status.id === item.status)?.closed;
 }
 
 export function loadStore() {

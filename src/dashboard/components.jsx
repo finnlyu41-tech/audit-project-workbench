@@ -19,8 +19,9 @@ export function Modal({ title, onClose, children, wide = false }) {
   </div>;
 }
 export function ProjectForm({ initial, onSubmit, onClose, submitLabel, allowTemplate = true,
-  sampleName = "基础审计流程" }) {
+  sampleName }) {
   const { t } = useUiLanguage();
+  const resolvedSampleName = sampleName || t("基础审计流程");
   const [values, setValues] = React.useState(() => ({
     name: initial?.name || "",
     entity: initial?.entity || "",
@@ -46,10 +47,91 @@ export function ProjectForm({ initial, onSubmit, onClose, submitLabel, allowTemp
       placeholder={t("可记录负责人、客户要求或其他背景")} /></label>
     {allowTemplate && <label className="check-option">
       <input type="checkbox" checked={useStarter} onChange={(event) => setUseStarter(event.target.checked)} />
-      <span><strong>{t("套用 Sample：{name}", { name: sampleName })}</strong><small>{t("建立后仍可自由增加、修改、排序或删除。")}</small></span>
+      <span><strong>{t("套用 Sample：{name}", { name: resolvedSampleName })}</strong><small>{t("建立后仍可自由增加、修改、排序或删除。")}</small></span>
     </label>}
     <footer className="modal-actions"><button type="button" className="button secondary" onClick={onClose}>{t("取消")}</button>
       <button type="submit" className="button primary">{t(submitLabel || "建立项目")}</button></footer>
+  </form>;
+}
+
+export function SampleLibrary({ samples, selectedSampleId, onSelect, onCreate, onEdit, onDuplicate, onDelete, onUse }) {
+  const { t } = useUiLanguage();
+  return <section className="sample-library">
+    <header className="sample-library-header"><div><strong>{t("Sample 范本库")}</strong>
+      <span>{t("可保存多个范本，并选择任一范本建立项目。")}</span></div>
+      <button type="button" className="button primary" onClick={onCreate}>{t("＋ 新建 Sample")}</button></header>
+    {samples.length ? <div className="sample-library-list">{samples.map((sample) => {
+      const conditions = sample.nodes.reduce((sum, node) => sum + node.conditions.length, 0);
+      const selected = sample.id === selectedSampleId;
+      return <article className="sample-library-card" data-selected={selected || undefined} key={sample.id}>
+        <button type="button" className="sample-library-select" onClick={() => onSelect(sample.id)}>
+          <span className="sample-mark" aria-hidden="true">S</span><span><strong>{sample.name}</strong>
+            <small>{sample.description || t("没有说明")}</small>
+            <em>{t("{nodes} 个节点 · {conditions} 项条件", { nodes: sample.nodes.length, conditions })}</em></span>
+          {selected && <i>{t("当前使用")}</i>}
+        </button>
+        <footer><button type="button" onClick={() => onUse(sample.id)}>{t("使用此 Sample")}</button>
+          <button type="button" onClick={() => onEdit(sample.id)}>{t("编辑")}</button>
+          <button type="button" onClick={() => onDuplicate(sample.id)}>{t("复制")}</button>
+          <button type="button" onClick={() => onDelete(sample.id)}>{t("删除")}</button></footer>
+      </article>;
+    })}</div> : <div className="sample-library-empty"><strong>{t("还没有 Sample")}</strong>
+      <span>{t("建立第一个范本后，就能用它快速创建项目。")}</span>
+      <button type="button" className="button primary" onClick={onCreate}>{t("新建 Sample")}</button></div>}
+  </section>;
+}
+
+export function OutstandingStatusEditor({ statuses, usageCounts, onSave, onClose }) {
+  const { t } = useUiLanguage();
+  const [draft, setDraft] = React.useState(() => JSON.parse(JSON.stringify(statuses)));
+  const updateStatus = (statusId, updater) => setDraft((current) => current.map((status) =>
+    status.id === statusId ? updater(status) : status));
+  const moveStatus = (index, direction) => setDraft((current) => {
+    const next = [...current];
+    const target = index + direction;
+    if (target >= 0 && target < next.length) [next[index], next[target]] = [next[target], next[index]];
+    return next;
+  });
+  const removeStatus = (status) => {
+    const usage = usageCounts[status.id] || 0;
+    if (usage) {
+      window.alert(t("此状态正在被 {count} 项待清事项使用。请先把这些事项改到其他状态。", { count: usage }));
+      return;
+    }
+    setDraft((current) => current.filter((item) => item.id !== status.id));
+  };
+  return <form className="status-editor" onSubmit={(event) => {
+    event.preventDefault();
+    const cleaned = draft.map((status) => ({ ...status, label: status.label.trim() }));
+    if (!cleaned.length) {
+      window.alert(t("至少保留一个状态。"));
+      return;
+    }
+    if (!cleaned.some((status) => status.closed)) {
+      window.alert(t("至少要有一个状态标记为已清。"));
+      return;
+    }
+    onSave(cleaned);
+  }}>
+    <p className="status-editor-help">{t("新增、改名、排序状态，并指定哪些状态代表事项已经清理。")}</p>
+    <div className="status-editor-list">{draft.map((status, index) => <section className="status-editor-row" key={status.id}>
+      <span className="status-editor-dot" data-tone={status.tone} />
+      <label><span>{t("状态名称 *")}</span><input required value={status.label}
+        onChange={(event) => updateStatus(status.id, (current) => ({ ...current,
+          builtinKey: undefined, label: event.target.value }))} /></label>
+      <label className="status-closed-option"><input type="checkbox" checked={status.closed}
+        onChange={(event) => updateStatus(status.id, (current) => ({ ...current, closed: event.target.checked }))} />
+        <span>{t("视为已清")}</span></label>
+      <small>{t("{count} 项使用中", { count: usageCounts[status.id] || 0 })}</small>
+      <div><button type="button" disabled={index === 0} onClick={() => moveStatus(index, -1)} aria-label={t("上移状态")}>↑</button>
+        <button type="button" disabled={index === draft.length - 1} onClick={() => moveStatus(index, 1)} aria-label={t("下移状态")}>↓</button>
+        <button type="button" disabled={draft.length === 1} onClick={() => removeStatus(status)}>{t("删除")}</button></div>
+    </section>)}</div>
+    <button type="button" className="status-add-button" onClick={() => setDraft((current) => [...current, {
+      id: uid("outstanding-status"), label: "", closed: false, tone: "neutral",
+    }])}>{t("＋ 添加状态")}</button>
+    <footer className="modal-actions"><button type="button" className="button secondary" onClick={onClose}>{t("取消")}</button>
+      <button type="submit" className="button primary">{t("保存状态")}</button></footer>
   </form>;
 }
 
@@ -68,7 +150,7 @@ export function SampleEditor({ sample, onSave, onClose, onReset, onRedact }) {
   return <form className="sample-editor" onSubmit={(event) => {
     event.preventDefault();
     if (!draft.name.trim() || draft.nodes.some((node) => !node.title.trim())) return;
-    onSave({ ...draft, name: draft.name.trim(), description: draft.description.trim(),
+    onSave({ ...draft, builtinKey: undefined, name: draft.name.trim(), description: draft.description.trim(),
       nodes: draft.nodes.map((node) => ({ ...node, title: node.title.trim(), description: node.description.trim(),
         conditions: node.conditions.map((condition) => ({ ...condition, label: condition.label.trim(), done: false }))
           .filter((condition) => condition.label) })) });
@@ -103,8 +185,9 @@ export function SampleEditor({ sample, onSave, onClose, onReset, onRedact }) {
     </section>)}</div>
     <button type="button" className="sample-add-node" onClick={() => setDraft((current) => ({ ...current,
       nodes: [...current.nodes, { id: uid("sample-node"), title: "", description: "", conditions: [] }] }))}>{t("＋ 添加节点")}</button>
-    <footer className="sample-editor-actions"><button type="button" className="button secondary" onClick={onReset}>{t("恢复基础范本")}</button>
-      <button type="button" className="button secondary" onClick={onRedact}>{t("公司去敏")}</button>
+    <footer className="sample-editor-actions">{onReset
+      ? <button type="button" className="button secondary" onClick={onReset}>{t("恢复基础范本")}</button> : <span />}
+      {onRedact ? <button type="button" className="button secondary" onClick={onRedact}>{t("公司去敏")}</button> : <span />}
       <span /><button type="button" className="button secondary" onClick={onClose}>{t("取消")}</button>
       <button type="submit" className="button primary">{t("保存 Sample")}</button></footer>
   </form>;
@@ -134,11 +217,11 @@ export function ProgressBar({ value, compact = false }) {
   </div>;
 }
 
-export function ProjectRow({ project, selected, onSelect }) {
+export function ProjectRow({ project, outstandingStatuses, selected, onSelect }) {
   const { language, t } = useUiLanguage();
   const stats = projectStats(project);
   const currentNode = project.nodes.find((node) => !nodeIsComplete(node));
-  const outstandingCount = (project.outstandingItems || []).filter(outstandingIsOpen).length;
+  const outstandingCount = (project.outstandingItems || []).filter((item) => outstandingIsOpen(item, outstandingStatuses)).length;
   return <button type="button" className="project-row" data-selected={selected || undefined} onClick={onSelect}>
     <div className="project-row-title"><strong>{project.name}</strong>
       <span>{project.entity || project.period || t("尚未填写项目资料")}</span></div>

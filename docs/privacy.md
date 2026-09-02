@@ -2,7 +2,7 @@
 
 ## What the app stores
 
-The app stores engagement names, legal entities, periods, notes, stage status, completion criteria, outstanding items and the editable Sample in the browser's `localStorage`.
+The app stores engagement names, legal entities, periods, notes, stage status, completion criteria, outstanding items, custom outstanding-status labels and the editable Sample library in the browser's `localStorage`.
 
 ## What the app sends
 
@@ -18,4 +18,4 @@ Use fictional or bracketed identifiers such as `[Company Name]`. Before submitti
 
 ## Sample de-identification
 
-The built-in tool replaces only exact company names supplied by the user. It does not claim to detect every form of personal or client information. A human review is still required before publishing or sharing a Sample.
+The built-in tool replaces only exact company names supplied by the user. It does not claim to detect every form of personal or client information. A human review is still required before publishing or sharing a Sample. Language switching does not translate or alter custom Sample or project content.

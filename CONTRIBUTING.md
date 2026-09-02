@@ -1,6 +1,6 @@
 # Contributing / 参与贡献
 
-Thank you for helping improve Audit Progress Workbench.
+Thank you for helping improve Audit Project Workbench (APW).
 
 ## Before starting
 

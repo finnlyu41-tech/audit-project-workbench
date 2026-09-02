@@ -5,14 +5,16 @@ import { fileURLToPath } from "node:url";
 
 const dashboardDirectory = fileURLToPath(new URL("../src/dashboard/", import.meta.url));
 
-test("every directly referenced UI translation has an English entry", () => {
+test("every Chinese system-text literal has an English entry", () => {
   const i18n = readFileSync(`${dashboardDirectory}/i18n.jsx`, "utf8");
   const dictionaryKeys = new Set([...i18n.matchAll(/^\s+"([^"]+)":/gm)].map((match) => match[1]));
   const source = ["DashboardContent.jsx", "components.jsx"]
     .map((file) => readFileSync(`${dashboardDirectory}/${file}`, "utf8"))
     .join("\n");
-  const referencedKeys = [...source.matchAll(/\bt\("([^"]+)"/g)].map((match) => match[1]);
-  const missing = [...new Set(referencedKeys.filter((key) => !dictionaryKeys.has(key)))];
+  const referencedKeys = [...source.matchAll(/"([^"\n]*[\u3400-\u9fff][^"\n]*)"/gu)].map((match) => match[1]);
+  const languageSpecificContent = new Set(["[公司名称]"]);
+  const missing = [...new Set(referencedKeys.filter((key) =>
+    !languageSpecificContent.has(key) && !dictionaryKeys.has(key)))];
 
   assert.deepEqual(missing, [], `Missing English translations: ${missing.join(", ")}`);
 });

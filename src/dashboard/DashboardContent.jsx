@@ -1,8 +1,9 @@
 import React from "react";
-import { Modal, NodeCard, NodeForm, ProgressBar, ProjectForm, ProjectRow, SampleEditor } from "./components.jsx";
-import { STORAGE_KEY, createDefaultSample, formatDate, isValidStore, loadStore, makeNode, makeOutstandingItem,
-  makeProject, nodeIsComplete, normalizeStore, outstandingIsOpen,
-  outstandingStatusOptions, projectStats, redactSampleCompanies, uid } from "./model.js";
+import { Modal, NodeCard, NodeForm, OutstandingStatusEditor, ProgressBar, ProjectForm, ProjectRow, SampleEditor,
+  SampleLibrary } from "./components.jsx";
+import { STORAGE_KEY, createDefaultSample, duplicateSample, formatDate, isValidStore, loadStore, localizeSample,
+  localizeOutstandingStatuses, makeBlankSample, makeNode, makeOutstandingItem, makeProject, nodeIsComplete,
+  normalizeStore, outstandingIsOpen, projectStats, redactSampleCompanies, uid } from "./model.js";
 import { LanguageProvider, useUiLanguage } from "./i18n.jsx";
 import "./dashboard.css";
 
@@ -36,6 +37,11 @@ function DashboardWorkbench() {
     }
   }, [store.projects, selectedId]);
   React.useEffect(() => {
+    if (store.samples.length && !store.samples.some((sample) => sample.id === store.selectedSampleId)) {
+      setStore((current) => ({ ...current, selectedSampleId: current.samples[0]?.id || null }));
+    }
+  }, [store.samples, store.selectedSampleId]);
+  React.useEffect(() => {
     if (!message) return undefined;
     const timer = window.setTimeout(() => setMessage(""), 2600);
     return () => window.clearTimeout(timer);
@@ -61,7 +67,15 @@ function DashboardWorkbench() {
   const completed = active.filter((project) => project.nodes.length > 0 && project.nodes.every(nodeIsComplete));
   const totalConditions = active.reduce((sum, project) => sum + projectStats(project).conditions, 0);
   const doneConditions = active.reduce((sum, project) => sum + projectStats(project).completedConditions, 0);
-  const sampleConditionCount = store.sample.nodes.reduce((sum, node) => sum + node.conditions.length, 0);
+  const sampleViews = store.samples.map((sample) => localizeSample(sample, language));
+  const outstandingStatusViews = localizeOutstandingStatuses(store.outstandingStatuses, language);
+  const outstandingStatusUsage = store.projects.flatMap((project) => project.outstandingItems || [])
+    .reduce((counts, item) => ({ ...counts, [item.status]: (counts[item.status] || 0) + 1 }), {});
+  const selectedSample = sampleViews.find((sample) => sample.id === store.selectedSampleId) || sampleViews[0] || null;
+  const sampleConditionCount = selectedSample?.nodes.reduce((sum, node) => sum + node.conditions.length, 0) || 0;
+  const editingSampleSource = modal?.type === "sample-edit"
+    ? (modal.sample || store.samples.find((sample) => sample.id === modal.sampleId)) : null;
+  const editingSample = editingSampleSource ? localizeSample(editingSampleSource, language) : null;
 
   const updateProject = React.useCallback((projectId, updater) => setStore((current) => ({
     ...current,
@@ -71,30 +85,64 @@ function DashboardWorkbench() {
   })), []);
   const notify = (text) => setMessage(text);
   const saveSample = (sample) => {
-    setStore((current) => ({ ...current, sample: { ...sample, updatedAt: new Date().toISOString() } }));
-    setModal(null);
+    const saved = { ...sample, updatedAt: new Date().toISOString() };
+    setStore((current) => ({ ...current,
+      samples: current.samples.some((item) => item.id === saved.id)
+        ? current.samples.map((item) => item.id === saved.id ? saved : item)
+        : [saved, ...current.samples],
+      selectedSampleId: saved.id,
+    }));
+    setModal({ type: "sample-library" });
     notify(t("Sample 已更新；现有项目不受影响"));
   };
-  const resetSample = () => {
+  const resetSample = (sampleId) => {
     if (!window.confirm(t("恢复基础 Sample？当前 Sample 的自定义内容将被替换。"))) return;
-    setStore((current) => ({ ...current, sample: createDefaultSample() }));
-    setModal(null);
+    const restored = { ...createDefaultSample(language), id: sampleId };
+    setStore((current) => ({ ...current,
+      samples: current.samples.map((sample) => sample.id === sampleId ? restored : sample),
+      selectedSampleId: sampleId,
+    }));
+    setModal({ type: "sample-library" });
     notify(t("Sample 已恢复为基础范本"));
   };
 
-  const redactSample = (names, replacement) => {
-    const result = redactSampleCompanies(store.sample, names, replacement);
+  const redactSample = (sampleId, names, replacement) => {
+    const source = store.samples.find((sample) => sample.id === sampleId);
+    if (!source) return;
+    const result = redactSampleCompanies(localizeSample(source, language), names, replacement);
     if (!result.replacements) {
       notify(t("没有找到完全匹配的公司名称"));
       return;
     }
-    setStore((current) => ({ ...current, sample: result.sample }));
-    setModal({ type: "sample-manage" });
+    setStore((current) => ({ ...current,
+      samples: current.samples.map((sample) => sample.id === sampleId ? result.sample : sample),
+      selectedSampleId: sampleId,
+    }));
+    setModal({ type: "sample-library" });
     notify(t("{count} 处公司名称已去敏", { count: result.replacements }));
   };
 
+  const copySample = (sampleId) => {
+    const source = sampleViews.find((sample) => sample.id === sampleId);
+    if (!source) return;
+    const copy = duplicateSample(source, t("（副本）"));
+    setStore((current) => ({ ...current, samples: [copy, ...current.samples], selectedSampleId: copy.id }));
+    notify(t("Sample 已复制"));
+  };
+
+  const deleteSample = (sampleId) => {
+    const sample = sampleViews.find((item) => item.id === sampleId);
+    if (!sample || !window.confirm(t("删除 Sample“{name}”？", { name: sample.name }))) return;
+    setStore((current) => {
+      const samples = current.samples.filter((item) => item.id !== sampleId);
+      return { ...current, samples,
+        selectedSampleId: current.selectedSampleId === sampleId ? (samples[0]?.id || null) : current.selectedSampleId };
+    });
+    notify(t("Sample 已删除"));
+  };
+
   const createProject = (values, useStarter) => {
-    const project = makeProject(values, useStarter, store.sample.nodes);
+    const project = makeProject(values, Boolean(useStarter && selectedSample), selectedSample?.nodes || []);
     setStore((current) => ({ ...current, projects: [project, ...current.projects] }));
     setSelectedId(project.id);
     setFilter("all");
@@ -107,7 +155,7 @@ function DashboardWorkbench() {
     const copy = {
       ...project,
       id: uid("project"),
-      name: `${project.name}（${t("副本")}）`,
+      name: `${project.name}${t("（副本）")}`,
       archived: false,
       createdAt: now,
       updatedAt: now,
@@ -130,7 +178,7 @@ function DashboardWorkbench() {
     const url = URL.createObjectURL(blob);
     const anchor = document.createElement("a");
     anchor.href = url;
-    anchor.download = `audit-progress-workbench-backup-${new Date().toISOString().slice(0, 10)}.json`;
+    anchor.download = `audit-project-workbench-backup-${new Date().toISOString().slice(0, 10)}.json`;
     anchor.click();
     URL.revokeObjectURL(url);
     notify(t("备份已导出"));
@@ -141,7 +189,9 @@ function DashboardWorkbench() {
     try {
       const parsed = JSON.parse(await file.text());
       if (!isValidStore(parsed)) throw new Error("invalid");
-      if (!window.confirm(t("将导入 {count} 个项目及 Sample，并替换当前数据，是否继续？", { count: parsed.projects.length }))) return;
+      if (!window.confirm(t("将导入 {count} 个项目和整个 Sample 范本库，并替换当前数据，是否继续？", {
+        count: parsed.projects.length,
+      }))) return;
       setStore(normalizeStore(parsed));
       setSelectedId(parsed.projects[0]?.id || null);
       notify(t("备份已恢复"));
@@ -155,7 +205,7 @@ function DashboardWorkbench() {
   return <article className="audit-workbench">
     {message && <div className="save-toast" role="status">{message}</div>}
     <header className="workbench-toolbar">
-      <div><h1>{t("审计进度工作台")}</h1><p>{t("用自定义节点和完成条件，追踪每个项目下一步要做什么。")}</p></div>
+      <div><h1>{t("审计项目工作台")}</h1><p>{t("用自定义节点和完成条件，追踪每个项目下一步要做什么。")}</p></div>
       <div className="toolbar-actions">
         <div className="language-toggle" role="group" aria-label={t("界面语言")}>
           <button type="button" aria-pressed={language === "zh"} onClick={() => setLanguage("zh")}>{t("中文")}</button>
@@ -193,20 +243,23 @@ function DashboardWorkbench() {
               .map(([value, label]) => <button type="button" role="tab" key={value} aria-selected={filter === value}
                 onClick={() => setFilter(value)}>{t(label)}</button>)}</div>
         </div>
-        <section className="sample-shelf" aria-label={t("固定 Sample")}>
-          <div className="sample-shelf-label"><strong>Sample</strong><span>{t("固定流程范本")}</span></div>
-          <div className="sample-shelf-card">
+        <section className="sample-shelf" aria-label={t("Sample 范本库")}>
+          <div className="sample-shelf-label"><strong>{t("Sample 范本库")}</strong>
+            <span>{t("{count} 个范本", { count: store.samples.length })}</span></div>
+          {selectedSample ? <div className="sample-shelf-card">
             <span className="sample-mark" aria-hidden="true">S</span>
-            <div><strong>{store.sample.name}</strong><span>{t("{nodes} 个节点 · {conditions} 项条件", {
-              nodes: store.sample.nodes.length, conditions: sampleConditionCount })}</span></div>
-          </div>
+            <div><strong>{selectedSample.name}</strong><span>{t("{nodes} 个节点 · {conditions} 项条件", {
+              nodes: selectedSample.nodes.length, conditions: sampleConditionCount })}</span></div>
+          </div> : <div className="sample-shelf-card sample-shelf-empty"><span className="sample-mark" aria-hidden="true">S</span>
+            <div><strong>{t("未选择 Sample")}</strong><span>{t("请先建立或选择一个范本")}</span></div></div>}
           <div className="sample-shelf-actions">
-            <button type="button" onClick={() => setModal({ type: "sample-manage" })}>{t("管理 Sample")}</button>
-            <button type="button" onClick={() => setModal({ type: "create", source: "sample" })}>{t("使用 Sample")}</button>
+            <button type="button" onClick={() => setModal({ type: "sample-library" })}>{t("管理范本库")}</button>
+            <button type="button" disabled={!selectedSample}
+              onClick={() => setModal({ type: "create", source: "sample" })}>{t("使用此 Sample")}</button>
           </div>
         </section>
         <div className="project-list">
-          {visibleProjects.map((project) => <ProjectRow key={project.id} project={project}
+          {visibleProjects.map((project) => <ProjectRow key={project.id} project={project} outstandingStatuses={outstandingStatusViews}
             selected={project.id === selectedId} onSelect={() => setSelectedId(project.id)} />)}
           {!visibleProjects.length && <div className="list-empty"><strong>{t(store.projects.length ? "没有符合筛选的项目" : "还没有审计项目")}</strong>
             <span>{t(store.projects.length ? "可以切换状态或修改搜索条件。" : "先建立一个项目，再添加节点和完成条件。")}</span>
@@ -216,23 +269,40 @@ function DashboardWorkbench() {
         </>}
       </aside>
       <section className="project-detail" aria-label={t("项目详情")}>
-        {selectedProject ? <ProjectDetail project={selectedProject} updateProject={updateProject}
-          setModal={setModal} notify={notify} duplicateProject={duplicateProject} /> : <div className="detail-empty">
+        {selectedProject ? <ProjectDetail project={selectedProject} outstandingStatuses={outstandingStatusViews}
+          updateProject={updateProject} setModal={setModal} notify={notify} duplicateProject={duplicateProject} /> : <div className="detail-empty">
           <span className="empty-mark">◎</span><h2>{t("选择一个项目")}</h2><p>{t("项目的节点、完成条件和进度会显示在这里。")}</p></div>}
       </section>
     </section>
 
     {modal?.type === "create" && <Modal title={t(modal.source === "sample" ? "使用 Sample 建立项目" : "新建审计项目")}
       onClose={() => setModal(null)}>
-      <ProjectForm allowTemplate={modal.source !== "sample"} sampleName={store.sample.name}
+      <ProjectForm allowTemplate={modal.source !== "sample" && Boolean(selectedSample)} sampleName={selectedSample?.name || t("未选择 Sample")}
         onSubmit={createProject} onClose={() => setModal(null)} />
     </Modal>}
-    {modal?.type === "sample-manage" && <Modal wide title={`${t("管理 Sample")} · ${store.sample.name}`} onClose={() => setModal(null)}>
-      <SampleEditor key={store.sample.updatedAt} sample={store.sample} onSave={saveSample}
-        onClose={() => setModal(null)} onReset={resetSample} onRedact={() => setModal({ type: "sample-redact" })} />
+    {modal?.type === "sample-library" && <Modal wide title={t("Sample 范本库")} onClose={() => setModal(null)}>
+      <SampleLibrary samples={sampleViews} selectedSampleId={store.selectedSampleId}
+        onSelect={(sampleId) => setStore((current) => ({ ...current, selectedSampleId: sampleId }))}
+        onCreate={() => setModal({ type: "sample-edit", sample: makeBlankSample(language) })}
+        onEdit={(sampleId) => setModal({ type: "sample-edit", sampleId })}
+        onDuplicate={copySample} onDelete={deleteSample}
+        onUse={(sampleId) => {
+          setStore((current) => ({ ...current, selectedSampleId: sampleId }));
+          setModal({ type: "create", source: "sample" });
+        }} />
     </Modal>}
-    {modal?.type === "sample-redact" && <Modal title={t("Sample 公司去敏")} onClose={() => setModal({ type: "sample-manage" })}>
-      <SampleRedactionForm language={language} onSubmit={redactSample} onClose={() => setModal({ type: "sample-manage" })} />
+    {modal?.type === "sample-edit" && editingSample && <Modal wide
+      title={`${t(modal.sample ? "新建 Sample" : "编辑 Sample")} · ${editingSample.name}`}
+      onClose={() => setModal({ type: "sample-library" })}>
+      <SampleEditor key={`${editingSample.id}-${editingSample.updatedAt}-${language}`} sample={editingSample} onSave={saveSample}
+        onClose={() => setModal({ type: "sample-library" })}
+        onReset={editingSample.builtinKey ? () => resetSample(editingSample.id) : null}
+        onRedact={modal.sample ? null : () => setModal({ type: "sample-redact", sampleId: editingSample.id })} />
+    </Modal>}
+    {modal?.type === "sample-redact" && <Modal title={t("Sample 公司去敏")}
+      onClose={() => setModal({ type: "sample-edit", sampleId: modal.sampleId })}>
+      <SampleRedactionForm language={language} onSubmit={(names, replacement) => redactSample(modal.sampleId, names, replacement)}
+        onClose={() => setModal({ type: "sample-edit", sampleId: modal.sampleId })} />
     </Modal>}
     {modal?.type === "edit-project" && selectedProject && <Modal title={t("编辑项目资料")} onClose={() => setModal(null)}>
       <ProjectForm initial={selectedProject} allowTemplate={false} submitLabel="保存修改"
@@ -258,15 +328,22 @@ function DashboardWorkbench() {
           setModal(null); notify(t(modal.condition ? "条件已修改" : "条件已添加"));
         }} /></Modal>}
     {modal?.type === "outstanding" && selectedProject && <Modal title={t(modal.item ? "编辑待清事项" : "添加待清事项")}
-      onClose={() => setModal(null)}><OutstandingForm initial={modal.item} onClose={() => setModal(null)}
+      onClose={() => setModal(null)}><OutstandingForm initial={modal.item} statuses={outstandingStatusViews} onClose={() => setModal(null)}
         onSubmit={(values) => {
           updateProject(selectedProject.id, (project) => ({ ...project,
             outstandingItems: modal.item
               ? project.outstandingItems.map((item) => item.id === modal.item.id
                 ? { ...item, ...values, updatedAt: new Date().toISOString() } : item)
-              : [...project.outstandingItems, makeOutstandingItem(values)] }));
+              : [...project.outstandingItems, makeOutstandingItem(values, store.outstandingStatuses)] }));
           setModal(null); notify(t(modal.item ? "待清事项已更新" : "待清事项已添加"));
         }} /></Modal>}
+    {modal?.type === "outstanding-statuses" && <Modal wide title={t("自定义待清状态")} onClose={() => setModal(null)}>
+      <OutstandingStatusEditor key={language} statuses={outstandingStatusViews} usageCounts={outstandingStatusUsage}
+        onClose={() => setModal(null)} onSave={(statuses) => {
+          setStore((current) => ({ ...current, outstandingStatuses: statuses }));
+          setModal(null); notify(t("待清状态已更新"));
+        }} />
+    </Modal>}
   </article>;
 }
 
@@ -300,11 +377,11 @@ function ConditionForm({ initial = "", onSubmit, onClose }) {
       <button type="submit" className="button primary">{t("保存条件")}</button></footer></form>;
 }
 
-function OutstandingForm({ initial, onSubmit, onClose }) {
+function OutstandingForm({ initial, statuses, onSubmit, onClose }) {
   const { t } = useUiLanguage();
   const [values, setValues] = React.useState(() => ({
     title: initial?.title || "",
-    status: initial?.status || "missing_document",
+    status: initial?.status || statuses.find((status) => !status.closed)?.id || statuses[0]?.id || "",
     note: initial?.note || "",
   }));
   return <form className="workbench-form" onSubmit={(event) => {
@@ -315,8 +392,8 @@ function OutstandingForm({ initial, onSubmit, onClose }) {
       onChange={(event) => setValues((current) => ({ ...current, title: event.target.value }))}
       placeholder={t("例如：尚欠银行月结单")} /></label>
     <label><span>{t("当前状态")}</span><select value={values.status}
-      onChange={(event) => setValues((current) => ({ ...current, status: event.target.value }))}>{outstandingStatusOptions
-        .map(([value, label]) => <option key={value} value={value}>{t(label)}</option>)}</select></label>
+      onChange={(event) => setValues((current) => ({ ...current, status: event.target.value }))}>{statuses
+        .map((status) => <option key={status.id} value={status.id}>{status.label}</option>)}</select></label>
     <label><span>{t("说明")}</span><textarea rows="3" value={values.note}
       onChange={(event) => setValues((current) => ({ ...current, note: event.target.value }))}
       placeholder={t("可记录所欠期间、已跟进日期或签署文件名称")} /></label>
@@ -325,33 +402,39 @@ function OutstandingForm({ initial, onSubmit, onClose }) {
   </form>;
 }
 
-function OutstandingPanel({ project, updateProject, setModal, notify }) {
+function OutstandingPanel({ project, statuses, updateProject, setModal, notify }) {
   const { t } = useUiLanguage();
   const items = project.outstandingItems || [];
-  const openItems = items.filter(outstandingIsOpen);
+  const openItems = items.filter((item) => outstandingIsOpen(item, statuses));
   const sortedItems = [...items].sort((left, right) => {
-    if (outstandingIsOpen(left) !== outstandingIsOpen(right)) return outstandingIsOpen(left) ? -1 : 1;
+    if (outstandingIsOpen(left, statuses) !== outstandingIsOpen(right, statuses)) {
+      return outstandingIsOpen(left, statuses) ? -1 : 1;
+    }
     return (right.updatedAt || "").localeCompare(left.updatedAt || "");
   });
   const changeStatus = (itemId, status) => {
     updateProject(project.id, (current) => ({ ...current, outstandingItems: current.outstandingItems.map((item) =>
       item.id === itemId ? { ...item, status, updatedAt: new Date().toISOString() } : item) }));
-    notify(t(status === "resolved" ? "待清事项已标记为解决" : "待清事项状态已更新"));
+    notify(t(statuses.find((item) => item.id === status)?.closed
+      ? "待清事项已标记为解决" : "待清事项状态已更新"));
   };
   return <section className="outstanding-panel" aria-label={t("待清事项状态栏")}>
     <header className="outstanding-header"><div><div className="outstanding-title"><h3>{t("待清事项")}</h3>
       <span data-empty={!openItems.length || undefined}>{t("{count} 项未清", { count: openItems.length })}</span></div>
       <p>{t("独立追踪缺少文件、客户签署及其他阻塞事项，不计入节点进度。")}</p></div>
-      <button type="button" className="button secondary" onClick={() => setModal({ type: "outstanding" })}>{t("＋ 添加待清事项")}</button></header>
-    <div className="outstanding-status-strip">{outstandingStatusOptions.map(([status, label]) => {
-      const count = items.filter((item) => item.status === status).length;
-      return <span key={status} data-status={status}><i />{t(label)}<strong>{count}</strong></span>;
+      <div className="outstanding-header-actions"><button type="button" className="button secondary"
+        onClick={() => setModal({ type: "outstanding-statuses" })}>{t("管理状态")}</button>
+        <button type="button" className="button secondary" onClick={() => setModal({ type: "outstanding" })}>{t("＋ 添加待清事项")}</button></div></header>
+    <div className="outstanding-status-strip">{statuses.map((status) => {
+      const count = items.filter((item) => item.status === status.id).length;
+      return <span key={status.id} data-tone={status.tone} data-closed={status.closed || undefined}>
+        <i />{status.label}<strong>{count}</strong></span>;
     })}</div>
     {sortedItems.length ? <div className="outstanding-list">{sortedItems.map((item) => <div className="outstanding-row"
-      data-status={item.status} key={item.id}><div className="outstanding-item-copy"><strong>{item.title}</strong>
+      data-closed={!outstandingIsOpen(item, statuses) || undefined} key={item.id}><div className="outstanding-item-copy"><strong>{item.title}</strong>
         {item.note && <small>{item.note}</small>}</div>
       <select value={item.status} aria-label={t("{name}状态", { name: item.title })} onChange={(event) => changeStatus(item.id, event.target.value)}>
-        {outstandingStatusOptions.map(([value, label]) => <option key={value} value={value}>{t(label)}</option>)}</select>
+        {statuses.map((status) => <option key={status.id} value={status.id}>{status.label}</option>)}</select>
       <div className="outstanding-actions"><button type="button" onClick={() => setModal({ type: "outstanding", item })}>{t("编辑")}</button>
         <button type="button" onClick={() => window.confirm(t("删除待清事项“{name}”？", { name: item.title })) &&
           updateProject(project.id, (current) => ({ ...current,
@@ -360,7 +443,7 @@ function OutstandingPanel({ project, updateProject, setModal, notify }) {
   </section>;
 }
 
-function ProjectDetail({ project, updateProject, setModal, notify, duplicateProject }) {
+function ProjectDetail({ project, outstandingStatuses, updateProject, setModal, notify, duplicateProject }) {
   const { language, t } = useUiLanguage();
   const stats = projectStats(project);
   const currentNode = project.nodes.find((node) => !nodeIsComplete(node));
@@ -375,7 +458,7 @@ function ProjectDetail({ project, updateProject, setModal, notify, duplicateProj
         <button type="button" className="button secondary" onClick={() => {
           updateProject(project.id, (current) => ({ ...current, archived: !current.archived }));
           notify(t(project.archived ? "项目已恢复" : "项目已归档"));
-        }}>{t(project.archived ? "恢复项目" : "归档")}</button></div></header>
+        }}>{t(project.archived ? "恢复项目" : "归档项目")}</button></div></header>
 
     <div className="project-overview"><div className="overview-progress"><div><span>{t("整体进度")}</span><strong>{stats.percentage}%</strong></div>
       <ProgressBar value={stats.percentage} /><small>{t("{done} / {total} 个节点完成 · {criteriaDone} / {criteriaTotal} 项条件达成", {
@@ -384,7 +467,8 @@ function ProjectDetail({ project, updateProject, setModal, notify, duplicateProj
         <strong>{stats.percentage === 100 && stats.nodes ? t("所有节点已经完成")
           : nextCondition?.label || t(currentNode ? "请为当前节点添加完成条件" : "请先添加项目节点")}</strong>
         <small>{currentNode ? t("当前节点：{name}", { name: currentNode.title }) : formatDate(project.dueDate, language)}</small></div></div>
-    <OutstandingPanel project={project} updateProject={updateProject} setModal={setModal} notify={notify} />
+    <OutstandingPanel project={project} statuses={outstandingStatuses} updateProject={updateProject}
+      setModal={setModal} notify={notify} />
     {project.notes && <div className="project-note"><strong>{t("项目备注")}</strong><p>{project.notes}</p></div>}
     <div className="nodes-heading"><div><h3>{t("项目节点")}</h3><p>{t("勾选全部条件后，节点会自动完成。")}</p></div>
       <button type="button" className="button primary" onClick={() => setModal({ type: "node" })}>{t("＋ 添加节点")}</button></div>

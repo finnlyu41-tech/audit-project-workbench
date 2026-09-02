@@ -1,8 +1,8 @@
-# Audit Progress Workbench
+# APW — Audit Project Workbench
 
 一个面向电脑窗口、以本机数据为主的审计项目进度工作台。它把“项目节点及达成条件”和会持续变化的“待清事项”分开管理，适合同时追踪多个审计项目。
 
-**[直接打开在线工作台](https://finnlyu41-tech.github.io/audit-progress-workbench/)**
+**[直接打开在线工作台](https://finnlyu41-tech.github.io/audit-project-workbench/)**
 
 > This repository is bilingual. The English introduction follows the Chinese section.
 
@@ -10,10 +10,10 @@
 
 - 多项目进度总览，按进行中、已完成和归档筛选。
 - 每个项目可自定义节点、说明、顺序及达成条件；进度由条件自动计算。
-- 独立待清事项栏，用于缺少文件、等待客户签字、等待回复及内部跟进，不影响节点进度。
-- 固定且可自定义的 Sample 流程范本，可用于快速建立新项目。
+- 独立待清事项栏，不影响节点进度；状态可新增、改名、排序，并可指定哪些状态代表“已清”。
+- 可保存多个 Sample 流程范本，并可新建、切换、复制、编辑或删除，再用任一范本快速建立项目。
 - Sample 公司名称精确去敏：只替换使用者输入的完整公司名称，不自动猜测。
-- 中英文界面切换；项目名称、节点和使用者资料保持原文。
+- 完整的中英文系统界面；未修改的内置 Sample 会随语言切换，自定义范本、项目名称和使用者资料保持原文。
 - 可折叠项目侧栏，优先利用电脑横向空间。
 - 本机浏览器自动保存，并支持 JSON 备份导入、导出。
 
@@ -39,7 +39,7 @@ pnpm check
 
 ## 项目方向
 
-当前版本刻意保持简单，重点是可靠地追踪进度。后续方向包括可选择的团队同步、权限角色、审计轨迹和可扩展的 Sample 库；任何联网功能都应保持可选，并清楚区分客户数据与公开模板。详见 [路线图](ROADMAP.md)。
+当前版本刻意保持简单，重点是可靠地追踪进度。后续方向包括可选择的团队同步、权限角色、审计轨迹和范本导入导出；任何联网功能都应保持可选，并清楚区分客户数据与公开模板。详见 [路线图](ROADMAP.md)。
 
 ## 参与贡献
 
@@ -47,16 +47,16 @@ pnpm check
 
 ## English
 
-Audit Progress Workbench is a desktop-first, local-first tracker for managing several audit engagements. It deliberately separates workflow stages and their completion criteria from fluid outstanding items such as missing documents or signatures.
+Audit Project Workbench (APW) is a desktop-first, local-first tracker for managing several audit engagements. It deliberately separates workflow stages and their completion criteria from fluid outstanding items such as missing documents or signatures.
 
 ### Features
 
 - Multi-engagement overview with active, completed and archived filters.
 - Custom stages, descriptions, ordering and completion criteria with automatic progress.
-- A separate outstanding-items bar that never changes stage progress.
-- A fixed, editable Sample workflow for creating new projects.
+- A separate outstanding-items bar that never changes stage progress, with custom names, ordering and cleared-state semantics.
+- A multi-Sample library with create, select, duplicate, edit and delete controls; any Sample can start a new project.
 - Exact-match company-name de-identification within the Sample.
-- Chinese and English system UI; user-entered engagement content remains unchanged.
+- Complete Chinese and English system UI; the untouched built-in Sample follows the interface language, while custom and user-entered content remains unchanged.
 - Collapsible project sidebar for desktop workspace efficiency.
 - Browser-local autosave plus JSON backup and restore.
 

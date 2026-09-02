@@ -1,17 +1,17 @@
 {
-  "name": "audit-progress-workbench",
-  "version": "0.1.1",
+  "name": "audit-project-workbench",
+  "version": "0.2.0",
   "description": "A desktop-first, local-first progress tracker for audit engagements.",
   "type": "module",
   "license": "MIT",
   "packageManager": "pnpm@11.19.0",
-  "homepage": "https://finnlyu41-tech.github.io/audit-progress-workbench/",
+  "homepage": "https://finnlyu41-tech.github.io/audit-project-workbench/",
   "repository": {
     "type": "git",
-    "url": "https://github.com/finnlyu41-tech/audit-progress-workbench.git"
+    "url": "https://github.com/finnlyu41-tech/audit-project-workbench.git"
   },
   "bugs": {
-    "url": "https://github.com/finnlyu41-tech/audit-progress-workbench/issues"
+    "url": "https://github.com/finnlyu41-tech/audit-project-workbench/issues"
   },
   "scripts": {
     "dev": "vite",

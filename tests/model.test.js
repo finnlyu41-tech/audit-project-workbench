@@ -1,12 +1,18 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
+  CORE_SAMPLE_KEY,
   STORE_VERSION,
   createDefaultSample,
+  createDefaultOutstandingStatuses,
+  duplicateSample,
+  localizeOutstandingStatuses,
+  localizeSample,
   makeOutstandingItem,
   makeProject,
   nodeIsComplete,
   normalizeStore,
+  outstandingIsOpen,
   projectStats,
   redactSampleCompanies,
 } from "../src/dashboard/model.js";
@@ -94,5 +100,77 @@ test("version 1 data migrates outstanding items separately and removes the retir
   assert.deepEqual(migrated.projects[0].outstandingItems, []);
   assert.equal(migrated.projects[0].nodes[0].description, "完成主要工作底稿并处理审计调整。");
   assert.deepEqual(migrated.projects[0].nodes[0].conditions.map((condition) => condition.id), ["keep"]);
-  assert.ok(migrated.sample.nodes.length > 0);
+  assert.ok(migrated.samples[0].nodes.length > 0);
+  assert.equal(migrated.selectedSampleId, migrated.samples[0].id);
+  assert.equal(migrated.outstandingStatuses.length, 5);
+});
+
+test("version 2 single-Sample data migrates into the Sample library", () => {
+  const legacySample = createDefaultSample();
+  delete legacySample.builtinKey;
+  legacySample.description = "固定流程范本";
+
+  const migrated = normalizeStore({ version: 2, projects: [], sample: legacySample });
+
+  assert.equal(migrated.version, STORE_VERSION);
+  assert.equal(migrated.samples.length, 1);
+  assert.equal(migrated.samples[0].builtinKey, CORE_SAMPLE_KEY);
+  assert.equal(migrated.selectedSampleId, migrated.samples[0].id);
+  assert.equal("sample" in migrated, false);
+});
+
+test("the built-in Sample has a complete English content variant", () => {
+  const englishSample = localizeSample(createDefaultSample(), "en");
+
+  assert.equal(englishSample.name, "Core Audit Workflow");
+  assert.equal(englishSample.nodes.length, 6);
+  assert.doesNotMatch(JSON.stringify(englishSample), /[\u3400-\u9fff]/u);
+});
+
+test("language switching leaves custom Sample content unchanged", () => {
+  const custom = {
+    id: "sample-custom",
+    name: "客户自定义流程",
+    description: "保留使用者原文",
+    updatedAt: "2026-09-02T00:00:00.000Z",
+    nodes: [],
+  };
+
+  assert.strictEqual(localizeSample(custom, "en"), custom);
+});
+
+test("duplicating a Sample creates independent stage and criterion identities", () => {
+  const source = createDefaultSample("en");
+  source.nodes[0].conditions[0].done = true;
+  const copy = duplicateSample(source, " (Copy)");
+
+  assert.notEqual(copy.id, source.id);
+  assert.notEqual(copy.nodes[0].id, source.nodes[0].id);
+  assert.notEqual(copy.nodes[0].conditions[0].id, source.nodes[0].conditions[0].id);
+  assert.equal(copy.nodes[0].conditions[0].done, false);
+  assert.equal(copy.builtinKey, undefined);
+});
+
+test("built-in outstanding statuses localise while custom statuses keep their original label", () => {
+  const statuses = [...createDefaultOutstandingStatuses(), {
+    id: "client_reminder",
+    label: "客户再跟进",
+    closed: false,
+    tone: "neutral",
+  }];
+  const englishStatuses = localizeOutstandingStatuses(statuses, "en");
+
+  assert.equal(englishStatuses[0].label, "Missing document");
+  assert.equal(englishStatuses.at(-1).label, "客户再跟进");
+  assert.doesNotMatch(JSON.stringify(englishStatuses.slice(0, -1)), /[\u3400-\u9fff]/u);
+});
+
+test("custom outstanding status semantics control whether an item is open", () => {
+  const statuses = [{ id: "waiting", label: "Waiting", closed: false, tone: "neutral" },
+    { id: "cleared", label: "Cleared", closed: true, tone: "success" }];
+  const item = makeOutstandingItem({ title: "Signed letter", status: "waiting" }, statuses);
+
+  assert.equal(outstandingIsOpen(item, statuses), true);
+  item.status = "cleared";
+  assert.equal(outstandingIsOpen(item, statuses), false);
 });
