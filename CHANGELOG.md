@@ -6,7 +6,15 @@ The project follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-09-04
+
 ### Added
+
+- Storage V10 template identities, source identities, tags, version notes and timestamps with automatic V1–V9 migration.
+- Validated `.apw-template.json` packages with selective export, import preview, category mapping, copy-by-default conflicts and explicit replacement.
+- Portfolio, company and holding-company management reports with composable filters, sortable detail, risk summaries and print-to-PDF styling.
+- A built-in bookkeeping workstream and starter template covering setup, source documents, recording, reconciliation and period close.
+- Explicitly empty company containers that can add their first workstream later.
 
 - Parallel project workstreams for quotation and collection, audit, tax computation and filing, customer due diligence, and custom services.
 - Storage V5 migration from legacy project nodes into an audit workstream, preserving progress and holding-company relationships.
@@ -37,6 +45,10 @@ The project follows [Semantic Versioning](https://semver.org/).
 
 ### Changed
 
+- Redesigned company creation around the legal entity, inline company structure, preset-or-custom reporting framework, paired reporting and project date ranges, and one-row workstream/template choices.
+- Made every initial workstream optional, added a clear empty-workstream state, and kept the legal entity as the primary navigation label.
+- Added a scrollable schedule with a working Today action and visible current-day line, and replaced native structure-conversion confirmation with an in-app dialog.
+- Corrected workstream settings icons to stay in the card's top-right action position.
 - Reorganised the workbench toolbar by purpose, with short menus reserved for related secondary actions.
 - Replaced project-wide blended percentages with completed-workstream counts.
 - Categorised the multi-template library by workstream type and replaced internal shorthand with professional terminology.

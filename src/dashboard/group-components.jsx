@@ -3,14 +3,14 @@ import { ArrowRightLeft, Building, Building2, Copy, Minus, Pencil, Play, Plus, T
 import { ProgressBar } from "./components.jsx";
 import { handleTabListKeyDown, tabIndexFor } from "./a11y.js";
 import { GROUP_AUDIT_TYPES, GROUP_AUDIT_TYPE_KEYS, canMoveWorkspaceItem, collectGroupOutstandingEntries, formatDate,
-  groupProgress, makeGroupMember, memberIsReady, memberProgressPercentage, outstandingIsOpen, projectStats,
+  groupProgress, makeGroupMember, memberIsReady, memberProgressPercentage, normalizeTemplateTags, outstandingIsOpen, projectStats,
   reportingPeriodLabel, uid } from "./model.js";
 import { useUiLanguage } from "./i18n.jsx";
 
 export const auditTypeKeys = GROUP_AUDIT_TYPE_KEYS;
 
 export function GroupForm({ initial, sampleName, allowTemplate = true, memberTargets = { projects: [], groups: [] },
-  availableProjects = [], availableGroups = [], groupSample, onSubmit, onClose, onConvert }) {
+  availableProjects = [], availableGroups = [], groupSample, onSubmit, onClose, onConvert, structureSelector = null }) {
   const { t } = useUiLanguage();
   const [values, setValues] = React.useState(() => ({
     name: initial?.name || "",
@@ -62,17 +62,19 @@ export function GroupForm({ initial, sampleName, allowTemplate = true, memberTar
       <strong>{t("控股公司")}</strong><small>{t("转换后，下属成员会移到顶层；合并节点会保留以供以后恢复。")}</small></div>
       <button type="button" className="button secondary" onClick={onConvert}><ArrowRightLeft aria-hidden="true" />
         {t("转换为公司")}</button></section>}
-    <label><span>{t("集团名称 *")}</span><input autoFocus required value={values.name} onChange={update("name")}
-      placeholder={t("例如：[集团名称] 2025年度集团审计")} /></label>
-    <div className="form-grid" data-columns="4">
-      <label><span>{t("报告期开始日")}</span><input type="date" value={values.periodStart} max={values.periodEnd || undefined}
+    <div className="project-identity-row" data-single={!structureSelector || undefined}><label><span>{t("集团名称 *")}</span>
+      <input autoFocus required value={values.name} onChange={update("name")}
+        placeholder={t("例如：[集团名称] 2025年度集团审计")} /></label>{structureSelector}</div>
+    <div className="project-date-groups"><fieldset><legend>{t("报告期间")}</legend><div>
+      <label><span>{t("开始日")}</span><input type="date" value={values.periodStart} max={values.periodEnd || undefined}
         required={Boolean(values.periodEnd)} onChange={update("periodStart")} /></label>
-      <label><span>{t("报告期结束日")}</span><input type="date" value={values.periodEnd} min={values.periodStart || undefined}
-        required={Boolean(values.periodStart)} onChange={update("periodEnd")} /></label>
-      <label><span>{t("项目开始日")}</span><input type="date" value={values.startDate} max={values.dueDate || undefined}
-        onChange={update("startDate")} /></label>
-      <label><span>{t("项目截止日")}</span><input type="date" value={values.dueDate} min={values.startDate || undefined}
-        onChange={update("dueDate")} /></label>
+      <label><span>{t("结束日")}</span><input type="date" value={values.periodEnd} min={values.periodStart || undefined}
+        required={Boolean(values.periodStart)} onChange={update("periodEnd")} /></label></div></fieldset>
+      <fieldset><legend>{t("项目排期")}</legend><div><label><span>{t("开始日")}</span>
+        <input aria-label={t("项目开始日")} type="date" value={values.startDate} max={values.dueDate || undefined}
+          onChange={update("startDate")} /></label>
+        <label><span>{t("截止日")}</span><input aria-label={t("项目截止日")} type="date" value={values.dueDate}
+          min={values.startDate || undefined} onChange={update("dueDate")} /></label></div></fieldset>
     </div>
     {values.period && !values.periodStart && !values.periodEnd && <small className="form-help">
       {t("原有报告期间：{period}。请在适当时补充开始日和结束日。", { period: values.period })}</small>}
@@ -205,8 +207,9 @@ export function WorkspaceTree({ store, selection, onSelect, onMove, search, filt
       draggable={!archiveMode} title={!archiveMode ? t("拖动以更改所属集团或层级") : undefined}
       onDragStart={(event) => beginDrag(event, "project", project.id)} onDragEnd={finishDrag}
       onClick={() => onSelect({ kind: "project", id: project.id })}>
-      <span className="tree-kind-mark"><Building aria-hidden="true" /></span><span className="tree-copy"><strong>{project.name}</strong>
-        <small>{project.owner || project.entity || reportingPeriodLabel(project, language) || t("尚未填写项目资料")}</small></span>
+      <span className="tree-kind-mark"><Building aria-hidden="true" /></span><span className="tree-copy"><strong>{project.entity || project.name}</strong>
+        <small>{[project.name !== project.entity ? project.name : "", project.owner].filter(Boolean).join(" · ")
+          || reportingPeriodLabel(project, language) || t("尚未填写项目资料")}</small></span>
       {outstanding > 0 && <em>{outstanding}</em>}<span className="tree-progress">{stats.completedWorkstreams}/{stats.workstreams}</span>
     </button>;
   };
@@ -414,7 +417,10 @@ export function GroupSampleLibrary({ samples, selectedSampleId, onSelect, onCrea
         <button type="button" className="sample-library-select" onClick={() => onSelect(sample.id)}>
           <span className="sample-mark group-sample-mark">H</span><span><strong>{sample.name}</strong>
             <small>{sample.description || t("没有说明")}</small><em>{t("{nodes} 个合并节点 · {conditions} 项条件 · {readiness} 项就绪条件",
-              { nodes: sample.nodes.length, conditions, readiness })}</em></span>{selected && <i>{t("当前使用")}</i>}</button>
+              { nodes: sample.nodes.length, conditions, readiness })}</em>
+            {(sample.tags?.length > 0 || sample.versionNote) && <span className="sample-library-metadata">
+              {sample.tags?.map((tag) => <i key={tag}>{tag}</i>)}{sample.versionNote && <small>{sample.versionNote}</small>}</span>}</span>
+          {selected && <i>{t("当前使用")}</i>}</button>
         <footer><button type="button" className="icon-only" aria-label={t("使用此范本")} title={t("使用此范本")} data-tooltip={t("使用此范本")}
           data-tooltip-side="right" onClick={() => onUse(sample.id)}><Play aria-hidden="true" /></button>
           <button type="button" className="icon-only" aria-label={t("编辑范本")} title={t("编辑范本")} data-tooltip={t("编辑范本")}
@@ -430,12 +436,14 @@ export function GroupSampleLibrary({ samples, selectedSampleId, onSelect, onCrea
 export function GroupSampleEditor({ sample, onSave, onClose, onReset }) {
   const { t } = useUiLanguage();
   const [draft, setDraft] = React.useState(() => JSON.parse(JSON.stringify(sample)));
+  const [tags, setTags] = React.useState(() => (sample.tags || []).join(", "));
   const updateNode = (nodeId, updater) => setDraft((current) => ({ ...current,
     nodes: current.nodes.map((node) => node.id === nodeId ? updater(node) : node) }));
   return <form className="group-sample-editor" onSubmit={(event) => {
     event.preventDefault();
     if (!draft.name.trim() || draft.nodes.some((node) => !node.title.trim())) return;
     onSave({ ...draft, builtinKey: undefined, name: draft.name.trim(), description: draft.description.trim(),
+      tags: normalizeTemplateTags(tags), versionNote: draft.versionNote?.trim() || "",
       nodes: draft.nodes.map((node) => ({ ...node, title: node.title.trim(), description: node.description.trim(),
         conditions: node.conditions.filter((condition) => condition.label.trim()).map((condition) => ({ ...condition,
           label: condition.label.trim(), done: false })) })),
@@ -447,6 +455,11 @@ export function GroupSampleEditor({ sample, onSave, onClose, onReset }) {
       onChange={(event) => setDraft((current) => ({ ...current, name: event.target.value }))} /></label>
       <label><span>{t("说明")}</span><input value={draft.description}
         onChange={(event) => setDraft((current) => ({ ...current, description: event.target.value }))} /></label>
+      <label><span>{t("标签")}</span><input value={tags} onChange={(event) => setTags(event.target.value)}
+        placeholder={t("例如：集团审计，香港")} /></label>
+      <label><span>{t("版本备注")}</span><input maxLength="240" value={draft.versionNote || ""}
+        onChange={(event) => setDraft((current) => ({ ...current, versionNote: event.target.value }))}
+        placeholder={t("说明本次范本修改")} /></label>
       <small>{t("{count} 个合并节点", { count: draft.nodes.length })}</small></div>
     <section className="group-sample-section"><header><strong>{t("合并工作流")}</strong>
       <span>{t("用于每一级选择“需要合并”的集团。")}</span></header>

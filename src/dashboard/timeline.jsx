@@ -75,8 +75,8 @@ function makeTimeline(rows) {
   today.setHours(0, 0, 0, 0);
   const suppliedDates = rows.flatMap((row) => [parseDate(row.startDate), parseDate(row.dueDate),
     ...(row.taxDeadlines || []).map((deadline) => parseDate(deadline.dueDate))]).filter(Boolean);
-  const earliest = suppliedDates.length ? new Date(Math.min(...suppliedDates.map((date) => date.getTime()))) : addDays(today, -28);
-  const latest = suppliedDates.length ? new Date(Math.max(...suppliedDates.map((date) => date.getTime()))) : addDays(today, 84);
+  const earliest = suppliedDates.length ? new Date(Math.min(today.getTime(), ...suppliedDates.map((date) => date.getTime()))) : addDays(today, -28);
+  const latest = suppliedDates.length ? new Date(Math.max(today.getTime(), ...suppliedDates.map((date) => date.getTime()))) : addDays(today, 84);
   let rangeStart = startOfWeek(addDays(earliest, -7));
   let rangeEnd = endOfWeek(addDays(latest, 7));
   const minimumEnd = endOfWeek(addDays(rangeStart, 83));
@@ -114,7 +114,18 @@ export function ProjectSchedule({ store, filter, onOpen, onOpenTaxDeadline }) {
   const scrollToToday = () => {
     const viewport = scrollRef.current;
     if (!viewport) return;
-    viewport.scrollTo({ left: Math.max(0, todayLeft - viewport.clientWidth / 2), behavior: "smooth" });
+    const fixedColumnWidth = viewport.querySelector(".schedule-corner")?.getBoundingClientRect().width || 0;
+    const visibleTimelineWidth = Math.max(0, viewport.clientWidth - fixedColumnWidth);
+    const requestedLeft = fixedColumnWidth + todayLeft - visibleTimelineWidth / 2;
+    viewport.scrollTo({ left: Math.min(Math.max(0, requestedLeft), viewport.scrollWidth - viewport.clientWidth), behavior: "smooth" });
+  };
+  const horizontalWheel = (event) => {
+    const viewport = event.currentTarget;
+    if (viewport.scrollWidth <= viewport.clientWidth || Math.abs(event.deltaX) >= Math.abs(event.deltaY)) return;
+    const maximum = viewport.scrollWidth - viewport.clientWidth;
+    if ((event.deltaY < 0 && viewport.scrollLeft <= 0) || (event.deltaY > 0 && viewport.scrollLeft >= maximum)) return;
+    event.preventDefault();
+    viewport.scrollLeft = Math.min(maximum, Math.max(0, viewport.scrollLeft + event.deltaY));
   };
 
   return <section className="schedule-view">
@@ -129,7 +140,8 @@ export function ProjectSchedule({ store, filter, onOpen, onOpenTaxDeadline }) {
       <span><i data-tone="complete" />{t("已完成")}</span><span><i data-tone="overdue" />{t("已逾期")}</span>
       <span><ReceiptText aria-hidden="true" />{t("税务期限")}</span>
       <span><CircleAlert aria-hidden="true" />{t("日期不完整")}</span></div>
-    {rows.length ? <div className="schedule-scroll" ref={scrollRef}>
+    {rows.length ? <div className="schedule-scroll" ref={scrollRef} tabIndex="0" onWheel={horizontalWheel}
+      aria-label={t("可横向滚动的项目排期")}>
       <div className="schedule-grid" style={{ "--timeline-width": `${width}px`, "--week-width": `${timeline.weekWidth}px` }}>
         <div className="schedule-corner"><strong>{t("公司／控股公司")}</strong><span>{t("负责人 · 开始日 → 截止日")}</span></div>
         <div className="schedule-calendar-header" style={{ width }}>
@@ -137,6 +149,8 @@ export function ProjectSchedule({ store, filter, onOpen, onOpenTaxDeadline }) {
             style={{ width: month.weeks * timeline.weekWidth }}>{monthFormatter.format(month.date)}</span>)}</div>
           <div className="schedule-weeks">{timeline.weeks.map((week, index) => <span key={week.toISOString()}
             data-compact={timeline.weekWidth < 34 || undefined}>{(timeline.weekWidth < 34 && index % 2) ? "" : weekFormatter.format(week)}</span>)}</div>
+          {todayLeft >= 0 && todayLeft <= width && <span className="schedule-today-header" style={{ left: todayLeft }}
+            aria-hidden="true"><b>{t("今天")}</b></span>}
         </div>
         {rows.map((row) => {
           const start = parseDate(row.startDate);
@@ -159,8 +173,7 @@ export function ProjectSchedule({ store, filter, onOpen, onOpenTaxDeadline }) {
                   <b aria-hidden="true">→</b>{row.dueDate ? formatDate(row.dueDate, language) : t("未设置截止日")}</small></span>
             </button>
             <div className="schedule-lane" style={{ width }} data-tone={tone}>
-              {todayLeft >= 0 && todayLeft <= width && <span className="schedule-today-line" style={{ left: todayLeft }}
-                data-tooltip={t("今天")} />}
+              {todayLeft >= 0 && todayLeft <= width && <span className="schedule-today-line" style={{ left: todayLeft }} aria-hidden="true" />}
               {start && due && !invalid && <button type="button" className="schedule-bar" style={{ left: barLeft, width: barWidth }}
                 data-tone={tone} onClick={() => onOpen(row.kind, row.id)}
                 aria-label={t("{name}：{start} 至 {deadline}", { name: row.name, start: formatDate(row.startDate, language), deadline: formatDate(row.dueDate, language) })}

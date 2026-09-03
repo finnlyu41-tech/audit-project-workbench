@@ -36,7 +36,7 @@ test("persistence settings default to browser autosave and keep leave protection
   });
 });
 
-test("device metadata is normalized independently from the version 9 workbench", () => {
+test("device metadata is normalized independently from the version 10 workbench", () => {
   assert.deepEqual(normalizePersistenceMeta({ linkedFileName: 123, lastSyncedDigest: "abc", lastSyncedAt: null }), {
     version: 1,
     linkedFileName: "",
@@ -44,7 +44,7 @@ test("device metadata is normalized independently from the version 9 workbench",
     lastSyncedAt: "",
     lastBrowserSavedAt: "",
   });
-  assert.equal(emptyStore().version, 9);
+  assert.equal(emptyStore().version, 10);
 });
 
 test("startup reconciliation distinguishes one-sided changes from a true conflict", () => {
@@ -72,10 +72,10 @@ test("workbench serialization is stable and file output stays valid JSON", async
   assert.deepEqual(JSON.parse(formatStorePayload(payload)), store);
   assert.equal(await digestText(payload), await digestText(payload));
   assert.notEqual(await digestText(payload), await digestText(`${payload} `));
-  assert.deepEqual(workspaceSummary(store), { version: 9, projects: 0, groups: 0, updatedAt: "" });
+  assert.deepEqual(workspaceSummary(store), { version: 10, projects: 0, groups: 0, updatedAt: "" });
 });
 
-test("linked-file reads validate and normalize the same V9 structure used by backups", async () => {
+test("linked-file reads validate and normalize the same V10 structure used by backups", async () => {
   const source = emptyStore();
   source.projects.push({ id: "legacy", name: "Legacy", nodes: [], version: 1 });
   const handle = {
@@ -87,10 +87,10 @@ test("linked-file reads validate and normalize the same V9 structure used by bac
     },
   };
   const snapshot = await readStoreFromFileHandle(handle, { isValidStore, normalizeStore });
-  assert.equal(snapshot.store.version, 9);
+  assert.equal(snapshot.store.version, 10);
   assert.equal(snapshot.store.projects[0].id, "legacy");
   assert.equal(snapshot.fileName, "engagement.apw.json");
-  assert.equal(JSON.parse(snapshot.payload).version, 9);
+  assert.equal(JSON.parse(snapshot.payload).version, 10);
 });
 
 test("file writes close successfully and preserve the complete payload", async () => {

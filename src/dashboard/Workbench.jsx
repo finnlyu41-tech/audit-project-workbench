@@ -1,5 +1,5 @@
 import React from "react";
-import { Archive, ArchiveRestore, BellRing, BookOpen, Building, Building2, CalendarRange, Copy, DatabaseBackup, Languages, LibraryBig, ListPlus, Palette,
+import { Archive, ArchiveRestore, BarChart3, BellRing, BookOpen, Building, Building2, CalendarRange, Copy, DatabaseBackup, Languages, LibraryBig, ListPlus, Palette,
   PanelRightClose, PanelRightOpen, PanelsTopLeft, Pencil, Plus, ReceiptText, Search, Settings, Settings2, Trash2 } from "lucide-react";
 import { Modal, NodeBoard, NodeForm, OutstandingStatusEditor, ProgressBar, ProjectForm, SampleEditor,
   SampleLibrary, UserGuide, WorkstreamCard, WorkstreamCategoryEditor, WorkstreamForm } from "./components.jsx";
@@ -21,6 +21,10 @@ import { OpenWorkspaceFileConfirm, PersistenceConflictDialog, PersistenceSetting
   persistenceStatusLabel } from "./persistence-ui.jsx";
 import { useWorkbenchPersistence } from "./use-workbench-persistence.js";
 import { handleTabListKeyDown, tabIndexFor } from "./a11y.js";
+import { ManagementReport } from "./management-report.jsx";
+import { TemplateExportPanel, TemplateImportPreview, TemplateLibraryTools } from "./template-transfer.jsx";
+import { applyTemplatePackage, createTemplatePackage, TEMPLATE_PACKAGE_MAX_BYTES,
+  templatePackagePreview } from "./template-packages.js";
 import "./dashboard.css";
 
 const SIDEBAR_PREFERENCE_KEY = "audit-progress-workbench:sidebar-collapsed";
@@ -39,6 +43,8 @@ function DashboardWorkbench() {
   const [search, setSearch] = React.useState("");
   const [filter, setFilter] = React.useState("active");
   const [templateType, setTemplateType] = React.useState("audit");
+  const [templateTag, setTemplateTag] = React.useState("all");
+  const [templateSort, setTemplateSort] = React.useState("updated");
   const [workspaceView, setWorkspaceView] = React.useState("detail");
   const [modal, setModal] = React.useState(null);
   const [message, setMessage] = React.useState("");
@@ -54,6 +60,7 @@ function DashboardWorkbench() {
   });
   const [compactOutstandingOpen, setCompactOutstandingOpen] = React.useState(false);
   const importRef = React.useRef(null);
+  const templateImportRef = React.useRef(null);
   const toolbarRef = React.useRef(null);
   const toolbarMenuRefs = React.useRef([]);
   const deadlineNoticeShownRef = React.useRef(false);
@@ -177,6 +184,15 @@ function DashboardWorkbench() {
   const workstreamCategoryViews = store.workstreamCategories.map((category) => ({ ...category,
     label: workstreamCategoryLabel(category, language) }));
   const groupSampleViews = store.groupSamples.map((sample) => localizeGroupSample(sample, language));
+  const allTemplateTags = [...new Set([...sampleViews, ...groupSampleViews].flatMap((sample) => sample.tags || []))]
+    .sort((left, right) => left.localeCompare(right));
+  const sortTemplateViews = React.useCallback((samples) => [...samples].filter((sample) => templateTag === "all"
+    || sample.tags?.includes(templateTag)).sort((left, right) => templateSort === "name"
+    ? left.name.localeCompare(right.name) : templateSort === "created"
+      ? (right.createdAt || "").localeCompare(left.createdAt || "") : (right.updatedAt || "").localeCompare(left.updatedAt || "")),
+  [templateSort, templateTag]);
+  const visibleSampleViews = sortTemplateViews(sampleViews);
+  const visibleGroupSampleViews = sortTemplateViews(groupSampleViews);
   const selectedGroupSample = groupSampleViews.find((sample) => sample.id === store.selectedGroupSampleId)
     || groupSampleViews[0] || null;
   const outstandingStatusViews = localizeOutstandingStatuses(store.outstandingStatuses, language);
@@ -261,16 +277,14 @@ function DashboardWorkbench() {
     setSelection({ kind: "group", id: group.id }); setWorkspaceView("detail"); setFilter("active"); setModal(null); notify(t("集团已建立并自动保存"));
   };
   const convertSelectedProjectToGroup = () => {
-    if (!selectedProjectSource || !window.confirm(t("将“{name}”转换为控股公司？业务模块会保留，以便以后转换回公司；模块级待清事项会改为公司级事项。",
-      { name: selectedProjectSource.entity || selectedProjectSource.name }))) return;
+    if (!selectedProjectSource) return;
     setStore((current) => convertProjectToGroup(current, selectedProjectSource.id,
       selectedGroupSample || createDefaultGroupSample(language)));
     setSelection({ kind: "group", id: selectedProjectSource.id }); setWorkspaceView("detail");
     setActiveWorkstreamId(null); setModal(null); notify(t("已转换为控股公司"));
   };
   const convertSelectedGroupToProject = () => {
-    if (!selectedGroupSource || !window.confirm(t("将“{name}”转换为公司？其 {count} 个下属公司或控股公司会移到顶层；合并节点会保留，以便以后转换回控股公司。",
-      { name: selectedGroupSource.name, count: selectedGroupSource.members.length }))) return;
+    if (!selectedGroupSource) return;
     setStore((current) => convertGroupToProject(current, selectedGroupSource.id,
       selectedGroupSample || createDefaultGroupSample(language)));
     setSelection({ kind: "project", id: selectedGroupSource.id }); setWorkspaceView("detail");
@@ -324,7 +338,7 @@ function DashboardWorkbench() {
   };
   const removeWorkstream = (projectId, workstreamId) => {
     const project = store.projects.find((item) => item.id === projectId);
-    if (!project || project.workstreams.length <= 1) { window.alert(t("项目至少要保留一个业务模块。")); return; }
+    if (!project) return;
     if (!window.confirm(t("移除这个业务模块？其节点和条件将被永久删除，相关待清事项会改为项目级。"))) return;
     updateProject(projectId, (current) => ({ ...current,
       workstreams: current.workstreams.filter((workstream) => workstream.id !== workstreamId),
@@ -337,7 +351,7 @@ function DashboardWorkbench() {
   };
 
   const saveSample = (sample) => {
-    const saved = { ...sample, updatedAt: new Date().toISOString() };
+    const saved = { ...sample, builtinKey: undefined, updatedAt: new Date().toISOString() };
     setStore((current) => {
       const previous = current.samples.find((item) => item.id === saved.id);
       const samples = previous ? current.samples.map((item) => item.id === saved.id ? saved : item) : [...current.samples, saved];
@@ -350,7 +364,7 @@ function DashboardWorkbench() {
     setTemplateType(saved.categoryId); setModal({ type: "template-library" }); notify(t("范本已更新；现有项目不受影响"));
   };
   const saveGroupSample = (sample) => {
-    const saved = { ...sample, updatedAt: new Date().toISOString() };
+    const saved = { ...sample, builtinKey: undefined, updatedAt: new Date().toISOString() };
     setStore((current) => ({ ...current, groupSamples: current.groupSamples.some((item) => item.id === saved.id)
       ? current.groupSamples.map((item) => item.id === saved.id ? saved : item) : [...current.groupSamples, saved],
       selectedGroupSampleId: saved.id }));
@@ -416,6 +430,37 @@ function DashboardWorkbench() {
     anchor.href = url; anchor.download = `audit-project-workbench-${new Date().toISOString().slice(0, 10)}.json`; anchor.click();
     URL.revokeObjectURL(url); closeMenu(); notify(t("备份已导出"));
   };
+  const templatePackageErrorText = (error) => t({
+    file_too_large: "范本包超过 5 MB 上限。",
+    invalid_json: "范本包不是有效的 JSON 文件。",
+    unsupported_package: "这不是受支持的 APW 范本包。",
+    contains_workspace_data: "范本包不能包含公司、项目或税务资料。",
+    empty_selection: "请至少选择一个范本。",
+  }[error?.code] || "范本包结构无效或超过安全限制。");
+  const readTemplatePackage = async (file) => {
+    if (!file) return;
+    try {
+      if (file.size > TEMPLATE_PACKAGE_MAX_BYTES) {
+        const error = new Error("file too large"); error.code = "file_too_large"; throw error;
+      }
+      const preview = templatePackagePreview(store, await file.text());
+      setModal({ type: "template-import-preview", preview });
+    } catch (error) {
+      window.alert(templatePackageErrorText(error));
+    } finally {
+      if (templateImportRef.current) templateImportRef.current.value = "";
+    }
+  };
+  const exportTemplatePackage = (selection) => {
+    try {
+      const packageStore = { ...store, samples: sampleViews, groupSamples: groupSampleViews };
+      const payload = createTemplatePackage(packageStore, selection);
+      const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
+      const url = URL.createObjectURL(blob); const anchor = document.createElement("a");
+      anchor.href = url; anchor.download = `apw-template-package-${new Date().toISOString().slice(0, 10)}.apw-template.json`; anchor.click();
+      URL.revokeObjectURL(url); setModal({ type: "template-library" }); notify(t("范本包已导出"));
+    } catch (error) { window.alert(templatePackageErrorText(error)); }
+  };
   const importBackup = async (file) => {
     if (!file) return;
     try {
@@ -471,6 +516,10 @@ function DashboardWorkbench() {
             aria-label={t("项目排期")} data-tooltip={t("项目排期")} data-tooltip-side="right"
             onClick={() => { closeMenu(); setWorkspaceView("schedule"); }}>
             <CalendarRange aria-hidden="true" /></button>
+          <button type="button" className="app-rail-button" data-active={workspaceView === "report" || undefined}
+            aria-label={t("管理层报告")} data-tooltip={t("管理层报告")} data-tooltip-side="right"
+            onClick={() => { closeMenu(); setWorkspaceView("report"); }}>
+            <BarChart3 aria-hidden="true" /></button>
           <button type="button" className="app-rail-button deadline-alert-trigger" aria-haspopup="dialog"
             data-active={modal?.type === "deadline-alerts" || undefined} data-alert={deadlineAlertItems.length > 0 || undefined}
             aria-label={deadlineAlertItems.length ? t("期限提醒 · {count}", { count: deadlineAlertItems.length }) : t("期限提醒")}
@@ -545,9 +594,12 @@ function DashboardWorkbench() {
           <WorkspaceTree store={store} selection={selection} onSelect={(next) => openWorkspaceRecord(next.kind, next.id)} search={search} filter={filter}
             statuses={store.outstandingStatuses} onMove={moveNavigationItem} /></>}
       </aside>
-      <main className="project-detail" aria-label={t(workspaceView === "schedule" ? "项目排期" : selectedGroup ? "集团工作区" : "项目工作区")}>
+      <main className="project-detail" aria-label={t(workspaceView === "schedule" ? "项目排期"
+        : workspaceView === "report" ? "管理层报告" : selectedGroup ? "集团工作区" : "项目工作区")}>
         {workspaceView === "schedule" ? <ProjectSchedule store={store} filter={filter} onOpen={openWorkspaceRecord}
           onOpenTaxDeadline={openTaxDeadlineCentre} />
+          : workspaceView === "report" ? <ManagementReport store={store} selection={selection} now={deadlineClock}
+            onOpen={openWorkspaceRecord} />
           : selectedProject ? <ProjectDetail project={selectedProject} rawProject={selectedProjectSource} statuses={outstandingStatusViews}
           parentMembership={selectedProjectMembership}
           activeWorkstreamId={activeWorkstreamId} setActiveWorkstreamId={setActiveWorkstreamId} updateWorkflowNodes={updateWorkflowNodes}
@@ -595,7 +647,7 @@ function DashboardWorkbench() {
       wide={!modal.quickField}>
       <ProjectForm initial={selectedProjectSource} allowWorkstreams={false} onClose={() => setModal(null)} submitLabel="保存修改"
         quickField={modal.quickField}
-        onConvert={convertSelectedProjectToGroup}
+        onConvert={() => setModal({ type: "convert-target", targetKind: "project" })}
         initialMembership={selectedProjectMembership} groupOptions={store.groups.filter((group) => !group.archived
           || group.id === selectedProjectMembership?.group.id)} onSubmit={(values) => {
           const { groupAssignment, ...projectValues } = values;
@@ -609,7 +661,7 @@ function DashboardWorkbench() {
           setModal(null); notify(t("项目资料及集团归属已更新")); }} /></Modal>}
     {modal?.type === "edit-group" && selectedGroupSource && <Modal title={t("编辑集团资料")} onClose={() => setModal(null)} wide>
       <GroupForm initial={selectedGroupSource} sampleName={selectedGroupSample?.name || ""} allowTemplate={false}
-        onConvert={convertSelectedGroupToProject}
+        onConvert={() => setModal({ type: "convert-target", targetKind: "group" })}
         memberTargets={{ projects: store.projects, groups: store.groups }} availableProjects={availableProjects}
         availableGroups={availableGroups} groupSample={selectedGroupSample || createDefaultGroupSample()}
         onSubmit={(values) => { updateGroup(selectedGroupSource.id, (group) => ({ ...group, ...values,
@@ -646,18 +698,26 @@ function DashboardWorkbench() {
             ? target.outstandingItems.map((item) => item.id === modal.item.id ? { ...item, ...values, updatedAt: new Date().toISOString() } : item)
             : [...target.outstandingItems, makeOutstandingItem(values, store.outstandingStatuses)] }));
           setModal(null); notify(t(modal.item ? "待清事项已更新" : "待清事项已添加")); }} /></Modal>}
-    {modal?.type === "template-library" && <Modal title={t("范本库")} onClose={() => setModal(null)} wide>
+    {modal?.type === "template-library" && <Modal title={t("范本库")} onClose={() => setModal(null)} large>
+      <input ref={templateImportRef} type="file" accept="application/json,.apw-template.json" hidden
+        onChange={(event) => readTemplatePackage(event.target.files?.[0])} />
+      <TemplateLibraryTools tags={allTemplateTags} tag={templateTag} sort={templateSort}
+        onTagChange={setTemplateTag} onSortChange={setTemplateSort}
+        onImport={() => templateImportRef.current?.click()}
+        onExport={() => setModal({ type: "template-export", initialSelection: templateType === "group"
+          ? [`holding_company:${store.selectedGroupSampleId}`]
+          : store.selectedSampleIdsByCategory?.[templateType] ? [`workstream:${store.selectedSampleIdsByCategory[templateType]}`] : [] })} />
       <div className="template-category-bar"><div className="template-type-tabs" role="tablist" aria-label={t("范本种类")}
         onKeyDown={handleTabListKeyDown}>
         {[...workstreamCategoryViews, { id: "group", label: t("集团范本") }].map((category) => <button type="button" role="tab" key={category.id}
           aria-selected={templateType === category.id} tabIndex={tabIndexFor(templateType === category.id)}
           onClick={() => setTemplateType(category.id)}>{category.label}</button>)}</div></div>
-      {templateType === "group" ? <GroupSampleLibrary samples={groupSampleViews} selectedSampleId={store.selectedGroupSampleId}
+      {templateType === "group" ? <GroupSampleLibrary samples={visibleGroupSampleViews} selectedSampleId={store.selectedGroupSampleId}
         onSelect={(sampleId) => setStore((current) => ({ ...current, selectedGroupSampleId: sampleId }))}
         onCreate={() => setModal({ type: "group-sample-edit", sample: makeBlankGroupSample(language) })}
         onEdit={(sampleId) => setModal({ type: "group-sample-edit", sampleId })} onDuplicate={(sampleId) => copySample(sampleId, true)}
         onDelete={(sampleId) => deleteSample(sampleId, true)} onUse={() => setModal({ type: "create-company", initialKind: "group" })} />
-        : <SampleLibrary samples={sampleViews.filter((sample) => sample.categoryId === templateType)}
+        : <SampleLibrary samples={visibleSampleViews.filter((sample) => sample.categoryId === templateType)}
           categoryLabel={workstreamCategoryViews.find((category) => category.id === templateType)?.label}
           selectedSampleId={store.selectedSampleIdsByCategory?.[templateType]}
           onSelect={(sampleId) => setStore((current) => ({ ...current, selectedSampleIdsByCategory: {
@@ -669,6 +729,18 @@ function DashboardWorkbench() {
           onUse={(sampleId) => setModal({ type: "create-company", initialKind: "project",
             initialWorkstreamSelections: [{ categoryId: templateType, sampleId }] })} />}
     </Modal>}
+    {modal?.type === "template-export" && <Modal title={t("导出范本包")} onClose={() => setModal({ type: "template-library" })} wide>
+      <TemplateExportPanel samples={sampleViews} groupSamples={groupSampleViews} categories={workstreamCategoryViews}
+        initialSelection={modal.initialSelection} onExport={exportTemplatePackage}
+        onClose={() => setModal({ type: "template-library" })} /></Modal>}
+    {modal?.type === "template-import-preview" && <Modal title={t("导入范本包")} onClose={() => setModal({ type: "template-library" })} large>
+      <TemplateImportPreview preview={modal.preview} categories={workstreamCategoryViews} samples={sampleViews}
+        groupSamples={groupSampleViews} onClose={() => setModal({ type: "template-library" })}
+        onApply={(decisions) => { try {
+          const imported = Object.values(decisions).filter((decision) => decision.action !== "skip").length;
+          setStore((current) => applyTemplatePackage(current, modal.preview.package, decisions));
+          setModal({ type: "template-library" }); notify(t("已导入 {count} 个范本", { count: imported }));
+        } catch (error) { window.alert(templatePackageErrorText(error)); } }} /></Modal>}
     {modal?.type === "workstream-categories" && <Modal title={t("范本种类")} onClose={() => setModal({ type: "template-library" })} wide>
       <WorkstreamCategoryEditor categories={store.workstreamCategories} usageCounts={workstreamCategoryUsage}
         onSave={saveWorkstreamCategories} onClose={() => setModal({ type: "template-library" })} /></Modal>}
@@ -718,6 +790,13 @@ function DashboardWorkbench() {
     {modal?.type === "delete-target" && <Modal title={t("永久删除")} onClose={() => setModal(null)}>
       <DeleteConfirm name={modal.name} kind={modal.targetKind} onClose={() => setModal(null)}
         onDelete={() => permanentlyDeleteTarget(modal.targetKind, modal.targetId)} /></Modal>}
+    {modal?.type === "convert-target" && ((modal.targetKind === "project" && selectedProjectSource)
+      || (modal.targetKind === "group" && selectedGroupSource)) && <Modal title={t(modal.targetKind === "project"
+        ? "转换为控股公司" : "转换为公司")} onClose={() => setModal(null)}>
+      <ConversionConfirm kind={modal.targetKind} name={modal.targetKind === "project"
+        ? selectedProjectSource.entity || selectedProjectSource.name : selectedGroupSource.name}
+        memberCount={selectedGroupSource?.members.length || 0} onClose={() => setModal(null)}
+        onConvert={modal.targetKind === "project" ? convertSelectedProjectToGroup : convertSelectedGroupToProject} /></Modal>}
   </article>;
 }
 
@@ -725,21 +804,19 @@ function CompanyCreateForm({ initialKind = "project", samples, workstreamCategor
   selectedGroupSample, initialWorkstreamSelections, onCreateProject, onCreateGroup, onClose }) {
   const { t } = useUiLanguage();
   const [kind, setKind] = React.useState(initialKind === "group" ? "group" : "project");
+  const structureSelector = <section className="company-kind-selector" data-inline="true"><strong>{t("公司结构")}</strong>
+    <div className="choice-tabs" role="tablist" aria-label={t("公司结构")} onKeyDown={handleTabListKeyDown}>
+      <button type="button" role="tab" aria-selected={kind === "project"} tabIndex={tabIndexFor(kind === "project")}
+        onClick={() => setKind("project")}>{t("公司")}</button>
+      <button type="button" role="tab" aria-selected={kind === "group"} tabIndex={tabIndexFor(kind === "group")}
+        onClick={() => setKind("group")}>{t("控股公司")}</button>
+    </div></section>;
   return <div className="company-create-flow">
-    <section className="company-kind-selector"><div><strong>{t("公司结构")}</strong>
-      <span>{t(kind === "group" ? "控股公司可管理下属公司、合并就绪及合并节点。"
-        : "公司可追踪业务模块，并可随时加入控股公司层级。")}</span></div>
-      <div className="choice-tabs" role="tablist" aria-label={t("公司结构")} onKeyDown={handleTabListKeyDown}>
-        <button type="button" role="tab" aria-selected={kind === "project"} tabIndex={tabIndexFor(kind === "project")}
-          onClick={() => setKind("project")}>{t("公司")}</button>
-        <button type="button" role="tab" aria-selected={kind === "group"} tabIndex={tabIndexFor(kind === "group")}
-          onClick={() => setKind("group")}>{t("控股公司")}</button>
-      </div></section>
     {kind === "project" ? <ProjectForm key="project" samples={samples} workstreamCategories={workstreamCategories}
       selectedSampleIdsByCategory={selectedSampleIdsByCategory} initialWorkstreamSelections={initialWorkstreamSelections}
-      submitLabel="建立公司" onSubmit={onCreateProject} onClose={onClose} />
+      structureSelector={structureSelector} submitLabel="建立公司" onSubmit={onCreateProject} onClose={onClose} />
       : <GroupForm key="group" sampleName={selectedGroupSample?.name || t("未选择范本")}
-        onSubmit={onCreateGroup} onClose={onClose} />}
+        structureSelector={structureSelector} onSubmit={onCreateGroup} onClose={onClose} />}
   </div>;
 }
 
@@ -796,7 +873,7 @@ function ProjectDetail({ project, rawProject, statuses, parentMembership, active
       </DetailFactAction>
       <DetailFactAction label={t("财务报告准则／框架")} actionLabel={`${t("编辑项目资料")}：${t("财务报告准则／框架")}`}
         onClick={!readOnly ? () => setModal({ type: "edit-project", quickField: "framework" }) : null}>
-        {project.reportingFramework || t("未设置")}</DetailFactAction>
+        {project.reportingFramework ? t(project.reportingFramework) : t("未设置")}</DetailFactAction>
       <DetailFactAction label={t("所属集团")} actionLabel={`${t("编辑项目资料")}：${t("所属集团")}`}
         onClick={!readOnly ? () => setModal({ type: "edit-project", quickField: "group" }) : null}>
         {parentMembership?.group.name || t("独立公司")}</DetailFactAction>
@@ -815,12 +892,16 @@ function ProjectDetail({ project, rawProject, statuses, parentMembership, active
       {!readOnly && <button type="button" className="button secondary icon-only" aria-label={t("添加业务模块")}
         data-tooltip={t("添加业务模块")} onClick={() => setModal({ type: "workstream-add",
           targetKind: "project", targetId: rawProject.id })}><ListPlus aria-hidden="true" /></button>}</header>
-      <div className="workstream-card-grid">{project.workstreams.map((workstream) => <WorkstreamCard key={workstream.id}
+      {project.workstreams.length ? <div className="workstream-card-grid">{project.workstreams.map((workstream) => <WorkstreamCard key={workstream.id}
         workstream={workstream} selected={workstream.id === activeWorkstream?.id}
         openItems={rawProject.outstandingItems.filter((item) => item.workstreamId === workstream.id
           && outstandingIsOpen(item, statuses)).length} readOnly={readOnly}
         onSelect={() => setActiveWorkstreamId(workstream.id)} onEdit={() => setModal({ type: "workstream-edit",
           targetKind: "project", targetId: rawProject.id, workstreamId: workstream.id })} />)}</div>
+        : <button type="button" className="workstream-empty" disabled={readOnly}
+          onClick={() => setModal({ type: "workstream-add", targetKind: "project", targetId: rawProject.id })}>
+          <ListPlus aria-hidden="true" /><span><strong>{t("尚未启用业务模块")}</strong>
+            <small>{t(readOnly ? "此公司没有业务模块。" : "选择此处添加第一个业务模块。")}</small></span></button>}
     </section>
 
     {activeWorkstream && activeRawWorkstream && <section className="workflow-panel">
@@ -1046,6 +1127,19 @@ function DeleteConfirm({ name, kind, onDelete, onClose }) {
       : "集团“{name}”将被永久删除，但不会删除其中的成员项目或子集团。", { name })}</p>
     <footer className="modal-actions"><button type="button" className="button secondary" onClick={onClose}>{t("取消")}</button>
       <button type="button" className="button danger" onClick={onDelete}>{t("确认永久删除")}</button></footer></div>;
+}
+
+function ConversionConfirm({ name, kind, memberCount, onConvert, onClose }) {
+  const { t } = useUiLanguage();
+  const toHolding = kind === "project";
+  return <div className="conversion-confirm"><strong>{t(toHolding ? "确认转换为控股公司" : "确认转换为公司")}</strong>
+    <p>{t(toHolding
+      ? "将“{name}”转换为控股公司？业务模块会保留，以便以后转换回公司；模块级待清事项会改为公司级事项。"
+      : "将“{name}”转换为公司？其 {count} 个下属公司或控股公司会移到顶层；合并节点会保留，以便以后转换回控股公司。",
+    { name, count: memberCount })}</p>
+    <footer className="modal-actions"><button type="button" className="button secondary" onClick={onClose}>{t("取消")}</button>
+      <button type="button" className="button primary" onClick={onConvert}>{t(toHolding ? "转换为控股公司" : "转换为公司")}</button></footer>
+  </div>;
 }
 
 function InitializeWorkbenchConfirm({ onExport, onInitialize, onClose, linkedFileName = "" }) {

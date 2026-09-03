@@ -5,16 +5,14 @@ The roadmap is directional. Privacy and a simple local-first experience remain d
 ## Near term
 
 - Improve keyboard navigation and accessibility coverage.
-- Add automated UI tests for the critical create, progress, outstanding and backup flows.
-- Add optional template import/export with schema validation.
-- Add template tags, sorting and optional version notes.
 - Publish a client-neutral demonstration dataset and screenshots.
+- Add optional saved report presets without duplicating calculated report results.
 
 ## Later, after design review
 
 - Optional team synchronisation with explicit workspace boundaries.
 - Role-based access and change history.
-- Project-level reporting and printable summaries.
+- Additional export formats after the printable management report has been reviewed in practice.
 
 ## Explicitly out of scope for the core tracker
 

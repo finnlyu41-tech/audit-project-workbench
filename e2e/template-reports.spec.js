@@ -1,0 +1,80 @@
+import fs from "node:fs/promises";
+import { expect, test } from "@playwright/test";
+import { openWorkbench, readStoredWorkspace, workspaceFixture } from "./helpers.js";
+
+test("exports a portable template package and imports an explicit replacement without changing an existing project", async ({ page }) => {
+  await openWorkbench(page, workspaceFixture());
+  const before = await readStoredWorkspace(page);
+  const originalTemplate = before.samples.find((template) => template.categoryId === "audit");
+  const projectStageBefore = before.projects[0].workstreams[0].nodes[0].title;
+
+  await page.getByRole("button", { name: "Template library" }).click();
+  const library = page.getByRole("dialog", { name: "Template library" });
+  await library.getByRole("button", { name: "Export package" }).click();
+  const exportDialog = page.getByRole("dialog", { name: "Export package" });
+  await expect(exportDialog.getByText("Template packages contain workflow content only")).toBeVisible();
+  const downloadPromise = page.waitForEvent("download");
+  await exportDialog.getByRole("button", { name: "Export selected templates" }).click();
+  const download = await downloadPromise;
+  const pkg = JSON.parse(await fs.readFile(await download.path(), "utf8"));
+  expect(pkg.kind).toBe("audit-project-workbench-template-package");
+  expect(pkg.templates).toHaveLength(1);
+  expect(JSON.stringify(pkg)).not.toContain("projects");
+  expect(JSON.stringify(pkg)).not.toContain("Example Services Limited");
+
+  pkg.templates[0].name = "Browser-tested audit workflow";
+  pkg.templates[0].nodes[0].title = "Browser-tested engagement setup";
+  const chooserPromise = page.waitForEvent("filechooser");
+  await page.getByRole("dialog", { name: "Template library" }).getByRole("button", { name: "Import package" }).click();
+  const chooser = await chooserPromise;
+  await chooser.setFiles({ name: "roundtrip.apw-template.json", mimeType: "application/json",
+    buffer: Buffer.from(JSON.stringify(pkg)) });
+
+  const importDialog = page.getByRole("dialog", { name: "Import package" });
+  await expect(importDialog.getByText("Template package validated")).toBeVisible();
+  const row = importDialog.locator(".template-import-row").filter({ hasText: "Browser-tested audit workflow" });
+  await row.getByLabel("Import action").selectOption("replace");
+  await expect(row.getByLabel("Template to replace")).toHaveValue(originalTemplate.id);
+  await importDialog.getByRole("button", { name: "Import templates" }).click();
+
+  const after = await readStoredWorkspace(page);
+  expect(after.samples).toHaveLength(before.samples.length);
+  expect(after.samples.find((template) => template.id === originalTemplate.id).name).toBe("Browser-tested audit workflow");
+  expect(after.projects[0].workstreams[0].nodes[0].title).toBe(projectStageBefore);
+});
+
+test("management reports filter the portfolio, show a current record and invoke the print flow", async ({ page }) => {
+  const store = workspaceFixture();
+  const secondProject = structuredClone(store.projects[0]);
+  secondProject.id = "report-alpha-company";
+  secondProject.name = "Alpha Engagement";
+  secondProject.entity = "Alpha Services Limited";
+  secondProject.owner = "Casey Wong";
+  secondProject.dueDate = "2026-12-15";
+  store.projects.push(secondProject);
+  store.projects[0].outstandingItems.push({ id: "report-item", title: "Signed approval pending", status: "awaiting_signature",
+    note: "DO NOT PRINT THIS NOTE", workstreamId: null, createdAt: "2026-09-01T00:00:00.000Z", updatedAt: "2026-09-01T00:00:00.000Z" });
+  await page.addInitScript(() => { window.print = () => { document.documentElement.dataset.printInvoked = "true"; }; });
+  await openWorkbench(page, store);
+
+  await page.getByRole("button", { name: "Management reports" }).click();
+  await expect(page.getByRole("heading", { name: "Portfolio report" })).toBeVisible();
+  await expect(page.getByRole("region", { name: "Report summary" })).toContainText("Active companies");
+  await page.getByLabel("Record status").selectOption("all");
+  await expect(page.locator(".management-report-table tbody tr")).toHaveCount(2);
+  const companySort = page.locator(".management-report-table thead").getByRole("button", { name: "Company / holding company" });
+  await companySort.click();
+  await expect(page.locator(".management-report-table tbody tr").first()).toContainText("Alpha Services Limited");
+  await companySort.click();
+  await expect(page.locator(".management-report-table tbody tr").first()).toContainText("Example Services Limited");
+  await page.emulateMedia({ media: "print" });
+  await expect(page.locator(".print-report-scope")).toContainText("All non-archived");
+  await page.emulateMedia({ media: "screen" });
+
+  await page.getByRole("tab", { name: "Current record" }).click();
+  await expect(page.getByRole("heading", { name: "Example Services Limited" })).toBeVisible();
+  await expect(page.locator(".management-report").getByText("Signed approval pending")).toBeVisible();
+  await expect(page.locator(".management-report").getByText("DO NOT PRINT THIS NOTE")).toHaveCount(0);
+  await page.getByRole("button", { name: "Print report" }).click();
+  await expect.poll(() => page.evaluate(() => document.documentElement.dataset.printInvoked)).toBe("true");
+});

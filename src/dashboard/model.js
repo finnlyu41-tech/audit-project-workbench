@@ -1,14 +1,15 @@
 import { toTraditional } from "./traditional.js";
 
 export const STORAGE_KEY = "audit-progress-workbench:v1";
-export const STORE_VERSION = 9;
+export const STORE_VERSION = 10;
 export const CORE_SAMPLE_KEY = "core-audit";
 export const CORE_GROUP_SAMPLE_KEY = "core-group";
 
-export const WORKSTREAM_TYPES = ["quote_collection", "audit", "tax_computation_filing", "cdd", "custom"];
+export const WORKSTREAM_TYPES = ["quote_collection", "bookkeeping", "audit", "tax_computation_filing", "cdd", "custom"];
 export const BUILTIN_WORKSTREAM_TYPES = WORKSTREAM_TYPES.filter((type) => type !== "custom");
 export const WORKSTREAM_TYPE_KEYS = {
   quote_collection: "报价与收款",
+  bookkeeping: "账务处理",
   audit: "审计",
   tax_computation_filing: "税务计算及报税",
   cdd: "客户尽职调查",
@@ -16,6 +17,7 @@ export const WORKSTREAM_TYPE_KEYS = {
 };
 export const WORKSTREAM_SAMPLE_KEYS = {
   quote_collection: "core-quote-collection",
+  bookkeeping: "core-bookkeeping",
   audit: CORE_SAMPLE_KEY,
   tax_computation_filing: "core-tax-computation-filing",
   cdd: "core-cdd",
@@ -128,6 +130,27 @@ export const quoteCollectionStarterNodesEnglish = [
   ["Collection", "Track payment until received or an approved close-out.", ["Collection status updated", "Payment received or non-collection close-out approved"]],
 ];
 
+export const bookkeepingStarterNodes = [
+  ["账套与期初设置", "确认服务范围、会计期间、科目表及期初余额。", ["会计期间及服务范围已确认", "科目表已设置", "期初余额已核对"]],
+  ["原始凭证收集", "收集并整理记账所需的发票、收据、银行及薪酬资料。", ["本期原始凭证已收齐", "银行及支付资料已收齐", "缺失资料已列入待清事项"]],
+  ["交易记录与分类", "按适用准则和公司政策记录并分类本期交易。", ["收入及支出已入账", "资产、负债及权益交易已入账", "会计科目及税务编码已复核"]],
+  ["对账与复核", "完成银行及主要控制账户对账，并处理异常项目。", ["银行账户已对账", "应收、应付及其他控制账户已核对", "异常项目已处理或列入待清事项"]],
+  ["期间结账与交付", "完成结账分录、试算表及约定的管理报告。", ["结账分录已记录", "试算表已复核", "约定报表或账务资料已交付"]],
+];
+
+export const bookkeepingStarterNodesEnglish = [
+  ["Ledger and opening setup", "Confirm the service scope, accounting period, chart of accounts and opening balances.",
+    ["Accounting period and service scope confirmed", "Chart of accounts configured", "Opening balances reconciled"]],
+  ["Source document collection", "Collect and organise invoices, receipts, bank records and payroll information needed for bookkeeping.",
+    ["Current-period source documents received", "Bank and payment records received", "Missing information logged as outstanding items"]],
+  ["Transaction recording and coding", "Record and classify current-period transactions under the applicable framework and company policies.",
+    ["Income and expenditure recorded", "Asset, liability and equity transactions recorded", "Account and tax coding reviewed"]],
+  ["Reconciliation and review", "Reconcile bank and key control accounts and resolve exceptions.",
+    ["Bank accounts reconciled", "Receivables, payables and other control accounts reconciled", "Exceptions resolved or logged as outstanding items"]],
+  ["Period close and delivery", "Complete closing entries, the trial balance and agreed management reports.",
+    ["Closing entries recorded", "Trial balance reviewed", "Agreed reports or accounting records delivered"]],
+];
+
 export const taxStarterNodes = [
   ["税务资料准备", "收集并确认税务计算及报税所需资料。", ["税务资料已收齐", "账目与税务期间已确认"]],
   ["税务计算", "完成税务调整、计算及内部复核。", ["税务计算初稿已完成", "主要税务调整已复核"]],
@@ -159,6 +182,8 @@ export const cddStarterNodesEnglish = [
 const workflowDefinitions = {
   quote_collection: { zh: quoteCollectionStarterNodes, en: quoteCollectionStarterNodesEnglish,
     names: ["报价与收款流程", "Quotation and Collection Workflow"], descriptions: ["内置报价与收款范本", "Built-in quotation and collection template"] },
+  bookkeeping: { zh: bookkeepingStarterNodes, en: bookkeepingStarterNodesEnglish,
+    names: ["基础账务处理流程", "Core Bookkeeping Workflow"], descriptions: ["内置账务处理范本", "Built-in bookkeeping template"] },
   audit: { zh: starterNodes, en: starterNodesEnglish,
     names: ["基础审计流程", "Core Audit Workflow"], descriptions: ["内置审计流程范本", "Built-in audit workflow template"] },
   tax_computation_filing: { zh: taxStarterNodes, en: taxStarterNodesEnglish,
@@ -268,6 +293,30 @@ export function uid(prefix) {
   return `${prefix}-${random}`;
 }
 
+export function normalizeTemplateTags(value) {
+  const source = Array.isArray(value) ? value : typeof value === "string" ? value.split(",") : [];
+  const seen = new Set();
+  return source.map((tag) => String(tag).trim()).filter((tag) => {
+    const key = tag.toLocaleLowerCase();
+    if (!tag || tag.length > 40 || seen.has(key) || seen.size >= 12) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
+function templateMetadata(value, fallbackKey, now = new Date().toISOString()) {
+  return {
+    templateKey: typeof value?.templateKey === "string" && value.templateKey.trim()
+      ? value.templateKey.trim() : fallbackKey,
+    sourceTemplateKey: typeof value?.sourceTemplateKey === "string" && value.sourceTemplateKey.trim()
+      ? value.sourceTemplateKey.trim() : "",
+    tags: normalizeTemplateTags(value?.tags),
+    versionNote: typeof value?.versionNote === "string" ? value.versionNote.trim().slice(0, 240) : "",
+    createdAt: value?.createdAt || value?.updatedAt || now,
+    updatedAt: value?.updatedAt || now,
+  };
+}
+
 export function createDefaultOutstandingStatuses() {
   return defaultOutstandingStatusDefinitions.map(({ id, label, closed, tone, color }) => ({
     id,
@@ -330,6 +379,7 @@ export function workstreamTypeLabel(type, language = "zh", customName = "") {
     : language === "zh-Hant" ? "自訂模組" : "自定义模块");
   const labels = {
     quote_collection: ["报价与收款", "Quotation & collection"],
+    bookkeeping: ["账务处理", "Bookkeeping"],
     audit: ["审计", "Audit"],
     tax_computation_filing: ["税务计算及报税", "Tax computation & filing"],
     cdd: ["客户尽职调查", "Customer due diligence"],
@@ -365,14 +415,15 @@ export function createDefaultSample(language = "zh", workstreamType = "audit") {
   const type = BUILTIN_WORKSTREAM_TYPES.includes(workstreamType) ? workstreamType : "audit";
   const english = language === "en";
   const definition = workflowDefinitions[type];
+  const now = new Date().toISOString();
   return {
     id: `sample-${WORKSTREAM_SAMPLE_KEYS[type]}`,
     builtinKey: WORKSTREAM_SAMPLE_KEYS[type],
+    ...templateMetadata({}, `apw:workstream:${WORKSTREAM_SAMPLE_KEYS[type]}`, now),
     workstreamType: type,
     categoryId: type,
     name: language === "zh-Hant" ? toTraditional(definition.names[0]) : definition.names[english ? 1 : 0],
     description: language === "zh-Hant" ? toTraditional(definition.descriptions[0]) : definition.descriptions[english ? 1 : 0],
-    updatedAt: new Date().toISOString(),
     nodes: (english ? definition.en : definition.zh).map(([title, description, conditions]) => makeNode({
       title: language === "zh-Hant" ? toTraditional(title) : title,
       description: language === "zh-Hant" ? toTraditional(description) : description,
@@ -405,14 +456,16 @@ export function normalizeSample(value) {
   if (!value || !Array.isArray(value.nodes)) return createDefaultSample();
   const knownBuiltinType = Object.entries(WORKSTREAM_SAMPLE_KEYS).find(([, key]) => value.builtinKey === key)?.[0];
   const type = WORKSTREAM_TYPES.includes(value.workstreamType) ? value.workstreamType : (knownBuiltinType || "audit");
+  const id = value.id || "sample-main";
   const normalized = {
-    id: value.id || "sample-main",
+    id,
+    ...templateMetadata(value, knownBuiltinType
+      ? `apw:workstream:${value.builtinKey}` : `apw:workstream-template:${id}`),
     builtinKey: knownBuiltinType ? value.builtinKey : undefined,
     workstreamType: type,
     categoryId: typeof value.categoryId === "string" && value.categoryId.trim() ? value.categoryId.trim() : type,
     name: typeof value.name === "string" && value.name.trim() ? professionalizeLegacyText(value.name.trim()) : "未命名范本",
     description: typeof value.description === "string" ? value.description : "",
-    updatedAt: value.updatedAt || new Date().toISOString(),
     nodes: value.nodes.map((node) => ({
       id: node.id || uid("sample-node"),
       title: typeof node.title === "string" && node.title.trim() ? professionalizeLegacyText(node.title.trim()) : "未命名节点",
@@ -436,7 +489,9 @@ export function normalizeSample(value) {
 export function localizeSample(sample, language = "zh") {
   const builtinType = Object.entries(WORKSTREAM_SAMPLE_KEYS).find(([, key]) => sample?.builtinKey === key)?.[0];
   if (builtinType) {
-    return { ...createDefaultSample(language, builtinType), id: sample.id, updatedAt: sample.updatedAt };
+    const localized = createDefaultSample(language, builtinType);
+    return { ...localized, id: sample.id, templateKey: sample.templateKey, sourceTemplateKey: sample.sourceTemplateKey,
+      tags: sample.tags, versionNote: sample.versionNote, createdAt: sample.createdAt, updatedAt: sample.updatedAt };
   }
   return { ...sample,
     name: localizeKnownText(sample.name, language, sampleMetadataTextPairs),
@@ -446,24 +501,29 @@ export function localizeSample(sample, language = "zh") {
 }
 
 export function makeBlankSample(language = "zh", workstreamType = "audit", categoryId = workstreamType) {
+  const id = uid("sample");
+  const now = new Date().toISOString();
   return {
-    id: uid("sample"),
+    id,
+    ...templateMetadata({}, `apw:workstream-template:${id}`, now),
     workstreamType: WORKSTREAM_TYPES.includes(workstreamType) ? workstreamType : "audit",
     categoryId: typeof categoryId === "string" && categoryId.trim() ? categoryId.trim() : workstreamType,
     name: language === "en" ? "New Template" : language === "zh-Hant" ? "新範本" : "新范本",
     description: "",
-    updatedAt: new Date().toISOString(),
     nodes: [],
   };
 }
 
 export function duplicateSample(sample, suffix = " Copy") {
+  const id = uid("sample");
+  const now = new Date().toISOString();
   return {
     ...sample,
-    id: uid("sample"),
+    id,
     builtinKey: undefined,
+    ...templateMetadata({ sourceTemplateKey: sample.templateKey, tags: sample.tags, versionNote: sample.versionNote },
+      `apw:workstream-template:${id}`, now),
     name: `${sample.name}${suffix}`,
-    updatedAt: new Date().toISOString(),
     nodes: sample.nodes.map((node) => makeNode({
       title: node.title,
       description: node.description,
@@ -527,12 +587,13 @@ function copyReadinessTemplates(templates = {}) {
 export function createDefaultGroupSample(language = "zh") {
   const english = language === "en";
   const readiness = english ? groupReadinessTemplatesEnglish : groupReadinessTemplates;
+  const now = new Date().toISOString();
   return {
     id: "group-sample-core",
     builtinKey: CORE_GROUP_SAMPLE_KEY,
+    ...templateMetadata({}, `apw:holding-template:${CORE_GROUP_SAMPLE_KEY}`, now),
     name: english ? "Holding Company Consolidation Workflow" : language === "zh-Hant" ? "控股公司合併流程" : "控股公司合并流程",
     description: english ? "Built-in holding-company workflow template" : language === "zh-Hant" ? "內置控股公司流程範本" : "内置控股公司流程范本",
-    updatedAt: new Date().toISOString(),
     nodes: (english ? groupStarterNodesEnglish : groupStarterNodes).map(([title, description, conditions]) => makeNode({
       title: holdingCompanyTerminology(title, language),
       description: holdingCompanyTerminology(description, language),
@@ -546,12 +607,14 @@ export function createDefaultGroupSample(language = "zh") {
 
 export function normalizeGroupSample(value) {
   if (!value || !Array.isArray(value.nodes)) return createDefaultGroupSample();
+  const id = value.id || uid("group-sample");
   return {
-    id: value.id || uid("group-sample"),
+    id,
+    ...templateMetadata(value, value.builtinKey === CORE_GROUP_SAMPLE_KEY
+      ? `apw:holding-template:${CORE_GROUP_SAMPLE_KEY}` : `apw:holding-template:${id}`),
     builtinKey: value.builtinKey === CORE_GROUP_SAMPLE_KEY ? CORE_GROUP_SAMPLE_KEY : undefined,
     name: typeof value.name === "string" && value.name.trim() ? value.name.trim() : "未命名控股公司范本",
     description: typeof value.description === "string" ? value.description : "",
-    updatedAt: value.updatedAt || new Date().toISOString(),
     nodes: value.nodes.map((node) => ({
       id: node.id || uid("group-sample-node"),
       title: typeof node.title === "string" && node.title.trim() ? node.title.trim() : "未命名节点",
@@ -568,7 +631,9 @@ export function normalizeGroupSample(value) {
 
 export function localizeGroupSample(sample, language = "zh") {
   if (sample?.builtinKey === CORE_GROUP_SAMPLE_KEY) {
-    return { ...createDefaultGroupSample(language), id: sample.id, updatedAt: sample.updatedAt };
+    const localized = createDefaultGroupSample(language);
+    return { ...localized, id: sample.id, templateKey: sample.templateKey, sourceTemplateKey: sample.sourceTemplateKey,
+      tags: sample.tags, versionNote: sample.versionNote, createdAt: sample.createdAt, updatedAt: sample.updatedAt };
   }
   return { ...sample,
     name: holdingCompanyTerminology(localizeKnownText(sample.name, language, groupSampleMetadataTextPairs), language),
@@ -582,11 +647,13 @@ export function localizeGroupSample(sample, language = "zh") {
 }
 
 export function makeBlankGroupSample(language = "zh") {
+  const id = uid("group-sample");
+  const now = new Date().toISOString();
   return {
-    id: uid("group-sample"),
+    id,
+    ...templateMetadata({}, `apw:holding-template:${id}`, now),
     name: language === "en" ? "New Holding Company Template" : language === "zh-Hant" ? "新控股公司範本" : "新控股公司范本",
     description: "",
-    updatedAt: new Date().toISOString(),
     nodes: [],
     readinessTemplates: copyReadinessTemplates(language === "en"
       ? groupReadinessTemplatesEnglish : groupReadinessTemplates),
@@ -594,12 +661,15 @@ export function makeBlankGroupSample(language = "zh") {
 }
 
 export function duplicateGroupSample(sample, suffix = " Copy") {
+  const id = uid("group-sample");
+  const now = new Date().toISOString();
   return {
     ...sample,
-    id: uid("group-sample"),
+    id,
     builtinKey: undefined,
+    ...templateMetadata({ sourceTemplateKey: sample.templateKey, tags: sample.tags, versionNote: sample.versionNote },
+      `apw:holding-template:${id}`, now),
     name: `${sample.name}${suffix}`,
-    updatedAt: new Date().toISOString(),
     nodes: sample.nodes.map((node) => makeNode({
       title: node.title,
       description: node.description,
@@ -808,7 +878,14 @@ function normalizeNodeList(nodes, removeLegacyOutstanding = false) {
 
 export function normalizeStore(value) {
   const outstandingStatuses = normalizeOutstandingStatuses(value.outstandingStatuses);
+  const sourceVersion = Number(value.version) || 1;
   const workstreamCategories = normalizeWorkstreamCategories(value.workstreamCategories);
+  if (sourceVersion < 10 && !workstreamCategories.some((category) => category.id === "bookkeeping")) {
+    const customIndex = workstreamCategories.findIndex((category) => category.id === "custom");
+    const bookkeepingCategory = { id: "bookkeeping", builtinType: "bookkeeping", name: "" };
+    if (customIndex < 0) workstreamCategories.push(bookkeepingCategory);
+    else workstreamCategories.splice(customIndex, 0, bookkeepingCategory);
+  }
   const categoryById = new Map(workstreamCategories.map((category) => [category.id, category]));
   const rawSamples = Array.isArray(value.samples) ? value.samples : [value.sample];
   const restoreMissingBuiltinSamples = !Array.isArray(value.samples) || Number(value.version) < 5;
@@ -823,6 +900,12 @@ export function normalizeStore(value) {
     seenSampleIds.add(normalized.id);
     return normalized;
   });
+  if (sourceVersion < 10 && !samples.some((sample) => sample.workstreamType === "bookkeeping")) {
+    const bookkeepingSample = createDefaultSample("zh", "bookkeeping");
+    if (seenSampleIds.has(bookkeepingSample.id)) bookkeepingSample.id = uid("sample");
+    seenSampleIds.add(bookkeepingSample.id);
+    samples.push(bookkeepingSample);
+  }
   if (restoreMissingBuiltinSamples) BUILTIN_WORKSTREAM_TYPES.forEach((type) => {
     if (!samples.some((sample) => sample.workstreamType === type)) {
       const fallback = createDefaultSample("zh", type);
@@ -870,7 +953,8 @@ export function normalizeStore(value) {
   const projects = value.projects.map((project) => {
     const owner = typeof project.owner === "string" ? project.owner : "";
     const dueDate = typeof project.dueDate === "string" ? project.dueDate : "";
-    const rawWorkstreams = Array.isArray(project.workstreams) && project.workstreams.length
+    const keepsExplicitEmptyWorkstreams = sourceVersion >= 10 && Array.isArray(project.workstreams);
+    const rawWorkstreams = Array.isArray(project.workstreams) && (project.workstreams.length || keepsExplicitEmptyWorkstreams)
       ? project.workstreams : [{ id: `${project.id || uid("project")}-audit`, type: "audit", owner, dueDate,
         createdAt: project.createdAt, updatedAt: project.updatedAt, nodes: normalizeNodeList(project.nodes, true) }];
     const seenBuiltinTypes = new Set();
@@ -886,7 +970,9 @@ export function normalizeStore(value) {
         seenBuiltinTypes.add(workstream.type);
         return true;
       });
-    if (!workstreams.length) workstreams.push(makeWorkstream({ type: "audit", owner, dueDate }, []));
+    if (!workstreams.length && !keepsExplicitEmptyWorkstreams) {
+      workstreams.push(makeWorkstream({ type: "audit", owner, dueDate }, []));
+    }
     const workstreamIds = new Set(workstreams.map((workstream) => workstream.id));
     const outstandingItems = Array.isArray(project.outstandingItems)
       ? project.outstandingItems.map((item) => {
@@ -960,8 +1046,8 @@ export function makeProject(values, useStarter = true, sampleSource = null, cate
   const availableSamples = Array.isArray(sampleSource) && !legacyNodes ? sampleSource : createDefaultSamples();
   const availableCategories = normalizeWorkstreamCategories(categorySource);
   const categoryById = new Map(availableCategories.map((category) => [category.id, category]));
-  const selections = Array.isArray(values.workstreamSelections) && values.workstreamSelections.length
-    ? values.workstreamSelections : [{ type: "audit" }];
+  const hasExplicitSelections = Array.isArray(values.workstreamSelections);
+  const selections = hasExplicitSelections ? values.workstreamSelections : [{ type: "audit" }];
   const seenBuiltinTypes = new Set();
   const cleanedSelections = selections.filter((selection) => {
     const type = WORKSTREAM_TYPES.includes(selection.type) ? selection.type : "audit";
@@ -970,16 +1056,17 @@ export function makeProject(values, useStarter = true, sampleSource = null, cate
     seenBuiltinTypes.add(type);
     return true;
   });
-  if (!cleanedSelections.length) cleanedSelections.push({ type: "audit" });
   const workstreams = cleanedSelections.map((selection) => {
     const type = WORKSTREAM_TYPES.includes(selection.type) ? selection.type : "audit";
     const requestedCategory = categoryById.get(selection.categoryId || type);
     const categoryId = requestedCategory && (requestedCategory.builtinType || "custom") === type
       ? requestedCategory.id : type;
+    const selectionHasSample = Object.prototype.hasOwnProperty.call(selection, "sampleId");
     const sample = legacyNodes && type === "audit" ? legacyNodes
-      : availableSamples.find((item) => item.id === selection.sampleId && item.categoryId === categoryId)
-        || availableSamples.find((item) => item.categoryId === categoryId)
-        || (!suppliedSampleLibrary && type !== "custom" ? createDefaultSample("zh", type) : null);
+      : (selectionHasSample && !selection.sampleId ? null
+        : availableSamples.find((item) => item.id === selection.sampleId && item.categoryId === categoryId)
+          || availableSamples.find((item) => item.categoryId === categoryId)
+          || (!suppliedSampleLibrary && type !== "custom" ? createDefaultSample("zh", type) : null));
     return makeWorkstream({ type, categoryId, customName: selection.customName, owner: selection.owner || values.owner,
       dueDate: selection.dueDate || values.dueDate }, useStarter ? sample : []);
   });
@@ -1108,7 +1195,8 @@ export function emptyStore() {
 }
 
 export function isValidStore(value) {
-  return value && [1, 2, 3, 4, 5, 6, 7, 8, STORE_VERSION].includes(value.version) && Array.isArray(value.projects);
+  const version = Number(value?.version);
+  return Number.isInteger(version) && version >= 1 && version <= STORE_VERSION && Array.isArray(value.projects);
 }
 
 export function outstandingStatusLabel(value, statuses = createDefaultOutstandingStatuses(), language = "zh") {

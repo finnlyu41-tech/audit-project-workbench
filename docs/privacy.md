@@ -23,3 +23,5 @@ Use fictional or bracketed identifiers such as `[Company Name]`. Before submitti
 ## Template de-identification
 
 The built-in tool replaces only exact company names supplied by the user. It does not claim to detect every form of personal or client information. A human review is still required before publishing or sharing a template. Language switching does not translate or alter custom template or project content.
+
+Portable `.apw-template.json` packages are structurally limited to template categories, stages, completion criteria and holding-company readiness conditions. They exclude workspace companies, owners, outstanding items and tax deadlines, but free-text template content may still contain identifiers entered by a user. Review and de-identify every package before sharing it.

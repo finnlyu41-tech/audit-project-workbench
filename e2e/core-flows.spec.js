@@ -23,7 +23,7 @@ test("creates a company, saves it in the browser and restores focus when a dialo
 
   await newCompany.click();
   await dialog.getByLabel("Legal entity *").fill("Fictional Assurance Limited");
-  await dialog.getByLabel("Project name (internal label)").fill("Fictional Assurance 2026");
+  await dialog.getByRole("checkbox", { name: /Audit/ }).uncheck();
   await dialog.getByLabel("Project start", { exact: true }).fill("2026-09-03");
   await dialog.getByLabel("Deadline", { exact: true }).fill("2026-10-31");
   await dialog.getByRole("button", { name: "Create company" }).click();
@@ -32,10 +32,12 @@ test("creates a company, saves it in the browser and restores focus when a dialo
   await page.reload();
   await expect(page.getByRole("heading", { name: "Fictional Assurance Limited" })).toBeVisible();
   const stored = await readStoredWorkspace(page);
-  expect(stored.version).toBe(9);
+  expect(stored.version).toBe(10);
   expect(stored.projects).toHaveLength(1);
-  expect(stored.projects[0]).toMatchObject({ entity: "Fictional Assurance Limited", name: "Fictional Assurance 2026",
-    startDate: "2026-09-03", dueDate: "2026-10-31" });
+  expect(stored.projects[0]).toMatchObject({ entity: "Fictional Assurance Limited", name: "Fictional Assurance Limited",
+    startDate: "2026-09-03", dueDate: "2026-10-31", workstreams: [] });
+  await expect(page.locator(".tree-project-row .tree-copy strong")).toHaveText("Fictional Assurance Limited");
+  await expect(page.getByText("No workstreams enabled")).toBeVisible();
 });
 
 test("stores the leave-protection preference from the settings dialog", async ({ page }) => {
@@ -89,6 +91,37 @@ test("progress, outstanding items and tax deadlines remain independent", async (
   expect(stored.projects[0].taxDeadlines[0].dueDate).toBe("2026-12-15");
 });
 
+test("tax deadline types can be entered directly as custom categories", async ({ page }) => {
+  await openWorkbench(page, workspaceFixture());
+  await page.locator(".tax-deadline-fact").getByRole("button", { name: "Add tax deadline" }).click();
+  const manager = page.getByRole("dialog", { name: "Tax deadlines" });
+  await manager.getByRole("button", { name: "Add deadline" }).click();
+  await manager.getByRole("button", { name: "Use custom type" }).click();
+  await manager.getByLabel("Custom deadline name *").fill("Country-by-country return");
+  await manager.getByLabel("Current due date *").fill("2027-03-31");
+  await manager.getByRole("button", { name: "Add deadline" }).click();
+  await expect(manager.locator(".tax-deadline-row-copy strong")).toHaveText("Country-by-country return");
+});
+
+test("company structure conversion uses an in-app confirmation and supports a round trip", async ({ page }) => {
+  await openWorkbench(page, workspaceFixture());
+  await page.getByRole("button", { name: "Edit company and holding company assignment" }).click();
+  await page.getByRole("button", { name: "Convert to holding company" }).click();
+  const toHolding = page.getByRole("dialog", { name: "Convert to holding company" });
+  await expect(toHolding.getByText("Workstreams will be retained", { exact: false })).toBeVisible();
+  await toHolding.getByRole("button", { name: "Convert to holding company" }).click();
+  expect((await readStoredWorkspace(page)).groups).toHaveLength(1);
+
+  await page.getByRole("button", { name: "Edit holding company and members" }).click();
+  await page.getByRole("button", { name: "Convert to company" }).click();
+  const toCompany = page.getByRole("dialog", { name: "Convert to company" });
+  await toCompany.getByRole("button", { name: "Convert to company" }).click();
+  const restored = await readStoredWorkspace(page);
+  expect(restored.projects).toHaveLength(1);
+  expect(restored.groups).toHaveLength(0);
+  expect(restored.projects[0].workstreams).toHaveLength(2);
+});
+
 test("archives, restores and permanently deletes only from the archive view", async ({ page }) => {
   await openWorkbench(page, workspaceFixture());
   await page.getByRole("button", { name: "Archive project" }).click();
@@ -106,7 +139,7 @@ test("archives, restores and permanently deletes only from the archive view", as
   expect((await readStoredWorkspace(page)).projects).toHaveLength(0);
 });
 
-test("exports, initialises and restores a V9 backup without losing records", async ({ page }) => {
+test("exports, initialises and restores a V10 backup without losing records", async ({ page }) => {
   await openWorkbench(page, workspaceFixture());
   await page.locator("summary[aria-label^='Backup']").click();
   const downloadPromise = page.waitForEvent("download");
@@ -114,7 +147,7 @@ test("exports, initialises and restores a V9 backup without losing records", asy
   const download = await downloadPromise;
   const backupPath = await download.path();
   const exported = JSON.parse(await fs.readFile(backupPath, "utf8"));
-  expect(exported.version).toBe(9);
+  expect(exported.version).toBe(10);
   expect(exported.projects[0].entity).toBe("Example Services Limited");
 
   await page.locator("summary[aria-label^='Backup']").click();
@@ -132,7 +165,7 @@ test("exports, initialises and restores a V9 backup without losing records", asy
   await chooser.setFiles(backupPath);
   await expect(page.getByRole("heading", { name: "Example Services Limited" })).toBeVisible();
   const restored = await readStoredWorkspace(page);
-  expect(restored.version).toBe(9);
+  expect(restored.version).toBe(10);
   expect(restored.projects).toHaveLength(1);
   expect(restored.projects[0].workstreams).toHaveLength(2);
 });

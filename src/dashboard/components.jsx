@@ -1,10 +1,11 @@
 import React from "react";
 import { ArrowDown, ArrowLeft, ArrowRight, ArrowRightLeft, ArrowUp, Copy, Pencil, Play, Plus, Settings2, Trash2, X } from "lucide-react";
 import { GROUP_AUDIT_TYPES, GROUP_AUDIT_TYPE_KEYS, createDefaultWorkstreamCategories, dueTone, formatDate,
-  nodeStatus, outstandingIsOpen, projectStats, reportingPeriodLabel, uid, workstreamCategoryLabel, workstreamStats,
+  nodeStatus, normalizeTemplateTags, outstandingIsOpen, projectStats, reportingPeriodLabel, uid, workstreamCategoryLabel, workstreamStats,
   workstreamTypeLabel } from "./model.js";
 import { useUiLanguage } from "./i18n.jsx";
 import { handleTabListKeyDown, tabIndexFor } from "./a11y.js";
+import { toTraditional } from "./traditional.js";
 
 const DIALOG_FOCUSABLE = [
   "button:not([disabled])",
@@ -14,6 +15,18 @@ const DIALOG_FOCUSABLE = [
   "textarea:not([disabled])",
   "[tabindex]:not([tabindex='-1'])",
 ].join(",");
+
+const REPORTING_FRAMEWORK_PRESETS = [
+  { key: "香港财务报告准则", aliases: ["HKFRS Accounting Standards"] },
+  { key: "中小企财务报告框架及准则", aliases: ["SME-FRF and SME-FRS"] },
+  { key: "国际财务报告会计准则", aliases: ["IFRS Accounting Standards"] },
+  { key: "香港私人公司财务报告准则", aliases: ["HKFRS for Private Entities"] },
+];
+
+function reportingFrameworkPreset(value) {
+  return REPORTING_FRAMEWORK_PRESETS.find((preset) => preset.key === value || toTraditional(preset.key) === value
+    || preset.aliases.includes(value));
+}
 
 export function Modal({ title, onClose, children, wide = false, large = false }) {
   const { t } = useUiLanguage();
@@ -66,7 +79,8 @@ export function Modal({ title, onClose, children, wide = false, large = false })
 }
 export function ProjectForm({ initial, onSubmit, onClose, submitLabel, allowWorkstreams = true,
   samples = [], workstreamCategories = createDefaultWorkstreamCategories(), selectedSampleIdsByCategory = {},
-  initialWorkstreamSelections, groupOptions = null, initialMembership, onConvert, quickField = null }) {
+  initialWorkstreamSelections, groupOptions = null, initialMembership, onConvert, quickField = null,
+  structureSelector = null }) {
   const { language, t } = useUiLanguage();
   const [values, setValues] = React.useState(() => ({
     name: initial?.name || "",
@@ -85,7 +99,8 @@ export function ProjectForm({ initial, onSubmit, onClose, submitLabel, allowWork
     role: initialMembership?.member?.role || "",
     auditType: initialMembership?.member?.auditType || "internal_team",
   }));
-  const [useStarter, setUseStarter] = React.useState(true);
+  const [frameworkChoice, setFrameworkChoice] = React.useState(() => reportingFrameworkPreset(initial?.reportingFramework)?.key
+    || (initial?.reportingFramework ? "custom" : ""));
   const fullForm = !quickField;
   const showProfileFields = fullForm || quickField === "owner" || quickField === "framework";
   const showScheduleFields = fullForm || quickField === "schedule";
@@ -95,57 +110,69 @@ export function ProjectForm({ initial, onSubmit, onClose, submitLabel, allowWork
     const category = workstreamCategories.find((item) => item.id === requestedCategoryId)
       || workstreamCategories.find((item) => item.id === "audit") || workstreamCategories[0];
     const type = category?.builtinType || "custom";
+    const hasExplicitSample = typeof source === "object" && source !== null
+      && Object.prototype.hasOwnProperty.call(source, "sampleId");
     return { categoryId: category?.id || "audit", type,
       customName: category?.name || (type === "custom" ? source?.customName || "" : ""),
-      sampleId: source?.sampleId || selectedSampleIdsByCategory[category?.id]
+      sampleId: hasExplicitSample ? source.sampleId || "" : selectedSampleIdsByCategory[category?.id]
         || samples.find((sample) => sample.categoryId === category?.id)?.id || "" };
   };
-  const [selections, setSelections] = React.useState(() => (initialWorkstreamSelections?.length
+  const [selections, setSelections] = React.useState(() => (Array.isArray(initialWorkstreamSelections)
     ? initialWorkstreamSelections : [{ categoryId: "audit" }]).map(makeSelection));
   const update = (field) => (event) => setValues((current) => ({ ...current, [field]: event.target.value }));
   const toggleCategory = (category) => setSelections((current) => current.some((item) => item.categoryId === category.id)
-    ? (current.length === 1 ? current : current.filter((item) => item.categoryId !== category.id))
+    ? current.filter((item) => item.categoryId !== category.id)
     : [...current, makeSelection({ categoryId: category.id })]);
   const updateSelection = (index, patch) => setSelections((current) => current.map((item, itemIndex) =>
     itemIndex === index ? { ...item, ...patch } : item));
+  const changeFramework = (event) => {
+    const next = event.target.value;
+    setFrameworkChoice(next);
+    setValues((current) => ({ ...current, reportingFramework: next === "custom"
+      ? (frameworkChoice === "custom" ? current.reportingFramework : "") : next }));
+  };
   return <form className="workbench-form" data-quick-field={quickField || undefined} onSubmit={(event) => {
     event.preventDefault();
     const validSelections = selections.filter((item) => item.type !== "custom" || item.customName.trim());
     const legalEntity = values.entity.trim();
     const projectName = values.name.trim() || legalEntity;
-    if (legalEntity && projectName && (!allowWorkstreams || validSelections.length)) {
+    if (legalEntity && projectName) {
       const cleanedValues = { ...values, name: projectName, entity: legalEntity };
       const submittedValues = allowWorkstreams ? { ...cleanedValues, workstreamSelections: validSelections } : cleanedValues;
       onSubmit(groupOptions ? { ...submittedValues, groupAssignment: { ...membership, role: membership.role.trim() } }
-        : submittedValues, useStarter);
+        : submittedValues, true);
     }
   }}>
     {fullForm && initial && onConvert && <section className="structure-conversion"><div><span>{t("公司结构")}</span>
       <strong>{t("公司")}</strong><small>{t("可转换为控股公司；现有业务模块会保留以供以后恢复。")}</small></div>
       <button type="button" className="button secondary" onClick={onConvert}><ArrowRightLeft aria-hidden="true" />
         {t("转换为控股公司")}</button></section>}
-    {fullForm && <label><span>{t("法律实体 *")}</span><input autoFocus required value={values.entity} onChange={update("entity")}
-      placeholder={t("公司完整名称")} /></label>}
-    {showProfileFields && <div className="form-grid" data-columns={fullForm ? "3" : "1"}>
-      {fullForm && <label><span>{t("项目名称（内部称谓）")}</span><input value={values.name} onChange={update("name")}
-        placeholder={t("例如：2025年度审计及税务")} /></label>}
-      {(fullForm || quickField === "framework") && <label><span>{t("财务报告准则／框架")}</span><input
-        autoFocus={quickField === "framework"} list="reporting-framework-options" value={values.reportingFramework}
-        onChange={update("reportingFramework")} placeholder={t("选择常用框架或直接输入")} /></label>}
+    {fullForm && <div className="project-identity-row" data-single={!structureSelector || undefined}>
+      <label><span>{t("法律实体 *")}</span><input autoFocus required value={values.entity} onChange={update("entity")}
+        placeholder={t("公司完整名称")} /></label>{structureSelector}</div>}
+    {showProfileFields && <div className="form-grid" data-columns={fullForm ? "2" : "1"}>
+      {(fullForm || quickField === "framework") && <label><span>{t("财务报告准则／框架")}</span><select
+        autoFocus={quickField === "framework"} aria-label={t("财务报告准则／框架")} value={frameworkChoice}
+        onChange={changeFramework}><option value="">{t("未设置")}</option>
+        {REPORTING_FRAMEWORK_PRESETS.map((preset) => <option value={preset.key} key={preset.key}>{t(preset.key)}</option>)}
+        <option value="custom">{t("自定义框架…")}</option></select></label>}
+      {(fullForm || quickField === "framework") && frameworkChoice === "custom" && <label>
+        <span>{t("自定义框架 *")}</span><input required value={values.reportingFramework}
+          onChange={update("reportingFramework")} placeholder={t("输入准则或框架名称")} /></label>}
       {(fullForm || quickField === "owner") && <label><span>{t("负责人")}</span><input autoFocus={quickField === "owner"}
         value={values.owner} onChange={update("owner")} placeholder={t("例如：项目经理或主审")}/></label>}
     </div>}
-    {(fullForm || quickField === "framework") && <datalist id="reporting-framework-options">{["香港财务报告准则", "中小企财务报告框架及准则", "国际财务报告会计准则",
-      "香港私人公司财务报告准则"].map((framework) => <option value={t(framework)} key={framework} />)}</datalist>}
-    {showScheduleFields && <div className="form-grid" data-columns={fullForm ? "4" : "2"}>
-      {fullForm && <label><span>{t("报告期开始日")}</span><input type="date" value={values.periodStart} max={values.periodEnd || undefined}
-        required={Boolean(values.periodEnd)} onChange={update("periodStart")} /></label>}
-      {fullForm && <label><span>{t("报告期结束日")}</span><input type="date" value={values.periodEnd} min={values.periodStart || undefined}
-        required={Boolean(values.periodStart)} onChange={update("periodEnd")} /></label>}
-      <label><span>{t("项目开始日")}</span><input autoFocus={quickField === "schedule"} type="date" value={values.startDate} max={values.dueDate || undefined}
-        onChange={update("startDate")} /></label>
-      <label><span>{t("项目截止日")}</span><input type="date" value={values.dueDate} min={values.startDate || undefined}
-        onChange={update("dueDate")} /></label>
+    {showScheduleFields && <div className="project-date-groups" data-single={!fullForm || undefined}>
+      {fullForm && <fieldset><legend>{t("报告期间")}</legend><div><label><span>{t("开始日")}</span>
+        <input type="date" value={values.periodStart} max={values.periodEnd || undefined}
+          required={Boolean(values.periodEnd)} onChange={update("periodStart")} /></label>
+        <label><span>{t("结束日")}</span><input type="date" value={values.periodEnd} min={values.periodStart || undefined}
+          required={Boolean(values.periodStart)} onChange={update("periodEnd")} /></label></div></fieldset>}
+      <fieldset><legend>{t("项目排期")}</legend><div><label><span>{t("开始日")}</span>
+        <input autoFocus={quickField === "schedule"} aria-label={t("项目开始日")} type="date" value={values.startDate}
+          max={values.dueDate || undefined} onChange={update("startDate")} /></label>
+        <label><span>{t("截止日")}</span><input aria-label={t("项目截止日")} type="date" value={values.dueDate}
+          min={values.startDate || undefined} onChange={update("dueDate")} /></label></div></fieldset>
     </div>}
     {fullForm && values.period && !values.periodStart && !values.periodEnd && <small className="form-help">
       {t("原有报告期间：{period}。请在适当时补充开始日和结束日。", { period: values.period })}</small>}
@@ -164,29 +191,36 @@ export function ProjectForm({ initial, onSubmit, onClose, submitLabel, allowWork
           {GROUP_AUDIT_TYPES.map((value) => <option value={value} key={value}>{t(GROUP_AUDIT_TYPE_KEYS[value])}</option>)}</select></label></div>}
       <small>{t("保存后，项目导航和集团汇总会立即更新。")}</small>
     </section>}
-    {fullForm && allowWorkstreams && <section className="project-workstream-picker"><header><strong>{t("选择业务模块")}</strong>
-      <span>{t("每个模块独立追踪进度、负责人和截止日。")}</span></header>
-      <div className="workstream-choice-grid">{workstreamCategories.filter((category) => category.id !== "custom").map((category) =>
-        <label className="workstream-choice" key={category.id}
-          data-selected={selections.some((item) => item.categoryId === category.id) || undefined}><input type="checkbox"
-            checked={selections.some((item) => item.categoryId === category.id)} onChange={() => toggleCategory(category)} />
-          <span><strong>{workstreamCategoryLabel(category, language)}</strong><small>{t(category.id === "audit" ? "新公司默认启用" : "按需要启用")}</small></span></label>)}</div>
+    {fullForm && allowWorkstreams && <section className="project-workstream-picker"><header><div>
+      <strong>{t("选择业务模块")}</strong><span>{t("模块与起始范本在同一行设置；也可以暂不启用，建立公司后再添加。")}</span></div>
+      <em>{selections.length ? t("已选择 {count} 个", { count: selections.length }) : t("暂不启用")}</em></header>
+      <div className="workstream-option-list">{workstreamCategories.filter((category) => category.id !== "custom").map((category) => {
+        const selectionIndex = selections.findIndex((item) => item.categoryId === category.id);
+        const selection = selections[selectionIndex];
+        const typeSamples = samples.filter((sample) => sample.categoryId === category.id);
+        return <article className="workstream-option-row" data-selected={Boolean(selection) || undefined} key={category.id}>
+          <label className="workstream-option-toggle"><input type="checkbox" checked={Boolean(selection)}
+            onChange={() => toggleCategory(category)} /><span><strong>{workstreamCategoryLabel(category, language)}</strong>
+              <small>{t(category.id === "audit" ? "默认启用，可取消" : "按需要启用")}</small></span></label>
+          {selection ? <label className="workstream-option-template"><span>{t("起始范本")}</span><select
+            aria-label={`${workstreamCategoryLabel(category, language)} · ${t("起始范本")}`} value={selection.sampleId}
+            onChange={(event) => updateSelection(selectionIndex, { sampleId: event.target.value })}>
+            <option value="">{t("空白流程")}</option>{typeSamples.map((sample) => <option value={sample.id} key={sample.id}>{sample.name}</option>)}</select></label>
+            : <small className="workstream-option-hint">{t("启用后选择起始范本")}</small>}</article>;
+      })}</div>
       {selections.map((selection, index) => {
-        const category = workstreamCategories.find((item) => item.id === selection.categoryId);
-        const typeSamples = samples.filter((sample) => sample.categoryId === selection.categoryId);
-        return <div className="workstream-selection-row" key={`${selection.categoryId}-${index}`}><strong>{category
-          ? workstreamCategoryLabel(category, language) : workstreamTypeLabel(selection.type, language, selection.customName)}</strong>
-          {selection.type === "custom" && selection.categoryId === "custom" && <input required value={selection.customName}
-            onChange={(event) => updateSelection(index, { customName: event.target.value })} placeholder={t("自定义模块名称")} />}
-          <select value={selection.sampleId} onChange={(event) => updateSelection(index, { sampleId: event.target.value })}>
-            <option value="">{t("空白流程")}</option>{typeSamples.map((sample) => <option value={sample.id} key={sample.id}>{sample.name}</option>)}</select>
-          {selection.categoryId === "custom" && <button type="button" onClick={() => setSelections((current) => current.filter((_, itemIndex) => itemIndex !== index))}>{t("移除")}</button>}</div>;
+        if (selection.categoryId !== "custom") return null;
+        const typeSamples = samples.filter((sample) => sample.categoryId === "custom");
+        return <article className="custom-workstream-row" key={`custom-${index}`}><label><span>{t("自定义模块名称 *")}</span>
+          <input required value={selection.customName} onChange={(event) => updateSelection(index, { customName: event.target.value })}
+            placeholder={t("例如：公司秘书服务")} /></label><label><span>{t("起始范本")}</span><select value={selection.sampleId}
+              onChange={(event) => updateSelection(index, { sampleId: event.target.value })}><option value="">{t("空白流程")}</option>
+              {typeSamples.map((sample) => <option value={sample.id} key={sample.id}>{sample.name}</option>)}</select></label>
+          <button type="button" className="icon-only" aria-label={t("移除自定义模块")} data-tooltip={t("移除自定义模块")}
+            onClick={() => setSelections((current) => current.filter((_, itemIndex) => itemIndex !== index))}><X aria-hidden="true" /></button></article>;
       })}
       <button type="button" className="add-custom-workstream" onClick={() => setSelections((current) => [...current,
-        makeSelection({ categoryId: "custom" })])}>{t("＋ 添加自定义模块")}</button>
-      <label className="check-option"><input type="checkbox" checked={useStarter}
-        onChange={(event) => setUseStarter(event.target.checked)} /><span><strong>{t("套用所选业务范本")}</strong>
-          <small>{t("建立后仍可自由增加、修改、排序或删除。")}</small></span></label></section>}
+        makeSelection({ categoryId: "custom" })])}><Plus aria-hidden="true" />{t("添加自定义模块")}</button></section>}
     {fullForm && <label><span>{t("备注")}</span><textarea rows="3" value={values.notes} onChange={update("notes")}
       placeholder={t("可记录负责人、客户要求或其他背景")} /></label>}
     <footer className="modal-actions"><button type="button" className="button secondary" onClick={onClose}>{t("取消")}</button>
@@ -276,7 +310,9 @@ export function SampleLibrary({ samples, categoryLabel, selectedSampleId, onSele
         <button type="button" className="sample-library-select" onClick={() => onSelect(sample.id)}>
           <span className="sample-mark" aria-hidden="true">{language === "en" ? "T" : language === "zh-Hant" ? "範" : "范"}</span><span><strong>{sample.name}</strong>
             <small>{sample.description || t("没有说明")}</small>
-            <em>{categoryLabel || workstreamTypeLabel(sample.workstreamType, language)} · {t("{nodes} 个节点 · {conditions} 项条件", { nodes: sample.nodes.length, conditions })}</em></span>
+            <em>{categoryLabel || workstreamTypeLabel(sample.workstreamType, language)} · {t("{nodes} 个节点 · {conditions} 项条件", { nodes: sample.nodes.length, conditions })}</em>
+            {(sample.tags?.length > 0 || sample.versionNote) && <span className="sample-library-metadata">
+              {sample.tags?.map((tag) => <i key={tag}>{tag}</i>)}{sample.versionNote && <small>{sample.versionNote}</small>}</span>}</span>
           {selected && <i>{t("当前使用")}</i>}
         </button>
         <footer><button type="button" className="icon-only" aria-label={t("使用此范本")} title={t("使用此范本")} data-tooltip={t("使用此范本")}
@@ -425,8 +461,9 @@ export function UserGuide() {
   const sections = [
     { id: "start", title: "快速开始", summary: "先建立一家公司，再从业务模块进入日常工作。", topics: [
       { title: "建立第一家公司", steps: ["在项目导航选择“新建公司”。", "选择“公司”或“控股公司”；同一个入口可建立两种公司结构。",
-        "建立公司时先填写法律实体；项目名称只作为可选的内部称谓，再填写财务报告准则／框架、报告期开始日和结束日，并选择需要并行追踪的业务模块。", "选择“建立公司”，记录会出现在左侧项目导航。"],
-      result: "项目建立后，每个业务模块会独立计算进度。" },
+        "填写法律实体；公司结构与法律实体在同一区域设置，项目导航会优先显示法律实体。", "从下拉菜单选择财务报告准则／框架，也可以输入自定义名称。",
+        "报告期间与项目排期分成两组起止日期，业务模块可以全部留空并在建立公司后添加。", "选择“建立公司”，记录会出现在左侧项目导航。"],
+      result: "公司可以先作为空容器建立，启用的每个业务模块会独立计算进度。" },
       { title: "认识三区工作台", steps: ["最左侧窄工具栏集中放置项目排期、逾期提醒、范本库、使用指南、设置、备份和语言入口。", "左侧“项目导航”用于搜索、筛选和切换项目或控股公司。", "中间“项目工作区”或“控股公司工作区”用于处理模块、节点及合并工作。",
         "右侧“待清中心”用于持续追踪缺少文件、等待签署和其他阻塞事项。", "左右区域都可以收起，需要时再展开。"],
       result: "日常工作集中在中间视觉热区，导航和待清事项仍保持随手可用。" },
@@ -439,7 +476,7 @@ export function UserGuide() {
         "选择名称可打开资料；使用控股公司前的加减号展开或收起下级，层级线会显示归属。"], result: "你只会在当前筛选范围内看到相关记录。" },
       { title: "安排项目开始日和截止日", steps: ["编辑公司或控股公司资料，分别填写项目开始日和项目截止日；它们与财务报告期间是不同字段。",
         "选择最左侧窄工具栏的“项目排期”，按负责人查看所有横向工期条。", "使用左侧状态筛选同步缩小排期范围；选择任一排期行或工期条可返回该项目。",
-        "红色工期条代表已逾期，日期不完整的项目会显示提醒。"], result: "工作台会像年度计划表一样集中呈现项目起止时间，同时保留每个项目的详细流程。" },
+        "在排期图上滚动鼠标滚轮可横向查看日期；选择“今天”会定位到红色虚线。", "红色工期条代表已逾期，日期不完整的项目会显示提醒。"], result: "工作台会像年度计划表一样集中呈现项目起止时间，同时保留每个项目的详细流程。" },
       { title: "查看逾期提醒", steps: ["左侧窄工具栏的铃铛会显示当前逾期数量；没有逾期时不显示数字。",
         "选择铃铛可查看逾期项目、控股公司和业务模块，并按逾期天数排序。", "选择任一提醒可直接打开来源记录；业务模块提醒会同时定位到对应模块。",
         "完成、修改截止日或归档记录后，提醒会自动清除。"], result: "逾期工作会集中显示，不需要逐一打开项目检查截止日期。" },
@@ -450,19 +487,19 @@ export function UserGuide() {
         "在“集团归属”选择集团，并设置集团角色和审计类别；选择独立公司即可移出集团。", "保存后，项目导航和集团汇总会立即更新。"],
       result: "公司和集团关系可以从公司资料直接维护。" },
       { title: "转换公司结构", steps: ["在公司或控股公司的资料编辑页找到“公司结构”。", "选择“转换为控股公司”或“转换为公司”，并阅读确认提示。",
-        "公司转为控股公司时，原业务模块会保留供以后恢复；控股公司转为公司时，原下属记录会回到顶层。"], result: "集团架构发生变化时无需删除并重建记录，往返转换仍会保留可恢复的原结构资料。" },
+        "在工作台确认对话框中再次选择转换；公司转为控股公司时，原业务模块会保留供以后恢复，控股公司转为公司时，原下属记录会回到顶层。"], result: "集团架构发生变化时无需删除并重建记录，往返转换仍会保留可恢复的原结构资料。" },
       { title: "复制项目", steps: ["打开要沿用结构的项目，选择“复制项目”。", "系统会复制业务模块、节点和达成条件，并在名称后加入“副本”。",
         "副本中的勾选状态会重新开始，也不会复制原项目的待清事项。"], result: "你可以沿用年度或同类委聘结构，同时避免把旧状态带入新项目。" },
-      { title: "添加和设置业务模块", steps: ["在项目工作区选择“添加业务模块”。", "选择模块类别、负责人、截止日和要套用的业务范本。",
-        "选择模块卡片查看其节点；选择卡片内的“设置”修改负责人或截止日。"], result: "模块之间并行推进，一个模块的操作不会自动推进其他模块。" },
+      { title: "添加和设置业务模块", steps: ["建立公司时，可在同一行启用模块并选择起始范本，也可以不启用任何模块。", "需要账务服务时可启用内置“账务处理”模块；审计、税务及其他模块仍各自独立。",
+        "公司建立后，可在项目工作区选择“添加业务模块”，设置类别、负责人、截止日和范本。", "选择模块卡片查看其节点；选择卡片右上角的“设置”修改负责人或截止日。"], result: "模块之间并行推进，一个模块的操作不会自动推进其他模块。" },
       { title: "移除业务模块", steps: ["选择业务模块卡片内的“设置”。", "选择“移除模块”并确认。",
-        "原本属于该模块的待清事项会保留，并自动改为项目级事项。"], result: "项目至少会保留一个业务模块。" },
+        "原本属于该模块的待清事项会保留，并自动改为项目级事项。"], result: "最后一个模块也可以移除；公司会保留为空容器，之后仍可重新添加模块。" },
       { title: "判断项目完成", steps: ["每个业务模块会显示已完成节点及自身进度。", "只有模块内所有节点的全部达成条件完成，该模块才算完成。",
         "只有项目内全部启用模块完成，项目才会进入“已完成”筛选。"], result: "项目导航显示完成模块数，不使用容易误导的混合百分比。" },
     ] },
     { id: "tax", title: "税务期限", summary: "把法定税务期限与内部项目和业务模块截止日分开管理。", topics: [
       { title: "建立税务期限", steps: ["打开公司，在资料摘要选择“税务期限”。", "选择“新增期限”，填写期限种类、课税年度、当前期限、负责人和提前提醒天数。",
-        "需要时关联税务业务模块，并记录税务局参考编号、来源或备注。"], result: "同一家公司可以同时追踪报税、缴税及其他自定义税务期限。" },
+        "预设种类不适用时选择“使用自定义种类”，直接输入期限名称。", "需要时关联税务业务模块，并记录税务局参考编号、来源或备注。"], result: "同一家公司可以同时追踪报税、缴税及其他自定义税务期限。" },
       { title: "查看期限提醒和排期", steps: ["税务期限默认提前三十天进入左侧铃铛的期限提醒；每项期限都可以调整提前天数。",
         "红色代表已逾期，橙色代表今天到期，琥珀色代表即将到期。", "项目排期会在公司工期条上以税务标记显示；同一天的多个期限会合并显示数量。"],
       result: "即使项目模块已经完成，未完成的税务期限仍会继续提醒。" },
@@ -491,6 +528,20 @@ export function UserGuide() {
       { title: "自定义状态和颜色", steps: ["选择“状态与颜色”。", "新增、改名或排序状态，选择颜色，并指定该状态是否代表已经清理。",
         "正在被历史记录使用的状态不会被误删；需要先把相关事项改到其他状态。"], result: "状态名称、顺序、颜色和未清计算会同时更新。" },
     ] },
+    { id: "reports", title: "管理层报告", summary: "从当前工作台资料实时生成内部进度及风险报告。", topics: [
+      { title: "查看项目组合报告", steps: ["选择左侧窄工具栏的“管理层报告”。", "使用状态、负责人、控股层级、项目日期、业务模块及期限紧急程度筛选范围。",
+        "摘要会显示活跃公司、模块完成数、逾期项目、需关注税务期限及未清事项；明细和风险清单可打开来源记录。"],
+      result: "管理层可以在一个紧凑页面查看当前工作组合及需要优先处理的事项。" },
+      { title: "查看单一记录报告", steps: ["先在项目导航选择一家公司或控股公司，再打开管理层报告。", "切换到“当前记录”查看公司模块进度，或控股公司的层级成员、合并就绪及本级合并节点。",
+        "报告会列出当前未清事项和未完成税务期限，但不会输出事项说明、税务备注或税务局参考编号。"],
+      result: "内部报告保留管理所需重点，同时限制不必要的敏感资料。" },
+      { title: "打印或保存为 PDF", steps: ["先确定报告范围和筛选条件，再选择“打印报告”。", "在 Chrome 或 Edge 的打印预览中检查页数和分页。",
+        "选择打印机或“另存为 PDF”；导航、工具栏、筛选器和操作按钮会自动隐藏。"],
+      result: "打印内容会保留筛选范围和生成时间，并使用适合管理层阅读的专用版式。" },
+      { title: "理解报告边界", steps: ["报告完全由当前工作台资料实时计算，不另存一份重复统计结果。", "归档记录默认排除，需要时可通过状态筛选纳入。",
+        "报告只用于内部进度管理，不构成审计结论、签署意见、税务判断或申报结果。"],
+      result: "正式判断、批准、签署及申报仍由负责人员完成。" },
+    ] },
     { id: "groups", title: "集团审计", summary: "集团可包含公司和子集团，并把合并就绪与本级合并流程分开管理。", topics: [
       { title: "建立集团或子集团", steps: ["在项目导航选择“新建公司”，再在公司结构选择“控股公司”。", "填写控股公司名称、报告期开始日和结束日、项目开始日、项目截止日及负责人。",
         "选择本级是否需要独立合并；如只用于分类，可关闭本级合并流程。"], result: "集团会成为可容纳公司或子集团的层级容器。" },
@@ -512,6 +563,9 @@ export function UserGuide() {
         "系统范本也可以删除；删除最后一个范本后，新业务模块会从空白流程开始。范本改动只影响之后建立的项目。"], result: "既有项目保留自己的节点和完成状态。" },
       { title: "公司名称去敏和集团范本", steps: ["编辑业务范本时选择“公司去敏”，每行输入一个需要替换的完整公司名称。", "系统只替换完全匹配的名称；保存前仍应人工复核。",
         "集团范本独立保存合并节点及各审计类别的默认就绪条件。"], result: "公开或复用范本前，可降低残留客户名称的风险。" },
+      { title: "导出和导入范本包", steps: ["在范本库选择“导出范本包”，勾选要分享的业务模块范本及控股公司范本。", "范本包只包含种类、节点、达成条件和就绪条件；不会包含公司、负责人、待清事项或税务资料。",
+        "选择“导入范本包”后先检查范本数、节点数、标签和版本备注，再逐项决定另存副本、替换现有范本或跳过。", "同来源范本默认另存副本；只有明确选择目标范本时才会替换。"],
+      result: "范本可以在电脑或团队之间携带，而既有项目不会因范本替换而改变。" },
     ] },
     { id: "archive", title: "归档与删除", summary: "归档用于保留历史记录，永久删除只在归档区提供。", topics: [
       { title: "归档和恢复", steps: ["在项目或集团标题区选择“归档”。", "记录会退出活跃导航、统计、集团计算和待清汇总，并进入只读状态。",
@@ -554,6 +608,7 @@ export function UserGuide() {
 export function SampleEditor({ sample, categories = createDefaultWorkstreamCategories(), onSave, onClose, onReset, onRedact }) {
   const { language, t } = useUiLanguage();
   const [draft, setDraft] = React.useState(() => JSON.parse(JSON.stringify(sample)));
+  const [tags, setTags] = React.useState(() => (sample.tags || []).join(", "));
   const updateNode = (nodeId, updater) => setDraft((current) => ({ ...current,
     nodes: current.nodes.map((node) => node.id === nodeId ? updater(node) : node) }));
   const moveNode = (index, direction) => setDraft((current) => {
@@ -567,6 +622,7 @@ export function SampleEditor({ sample, categories = createDefaultWorkstreamCateg
     event.preventDefault();
     if (!draft.name.trim() || draft.nodes.some((node) => !node.title.trim())) return;
     onSave({ ...draft, builtinKey: undefined, name: draft.name.trim(), description: draft.description.trim(),
+      tags: normalizeTemplateTags(tags), versionNote: draft.versionNote?.trim() || "",
       nodes: draft.nodes.map((node) => ({ ...node, title: node.title.trim(), description: node.description.trim(),
         conditions: node.conditions.map((condition) => ({ ...condition, label: condition.label.trim(), done: false }))
           .filter((condition) => condition.label) })) });
@@ -582,6 +638,11 @@ export function SampleEditor({ sample, categories = createDefaultWorkstreamCateg
       <label><span>{t("说明")}</span><input value={draft.description}
         onChange={(event) => setDraft((current) => ({ ...current, description: event.target.value }))}
         placeholder={t("说明这个范本的适用范围")} /></label>
+      <label><span>{t("标签")}</span><input value={tags} onChange={(event) => setTags(event.target.value)}
+        placeholder={t("例如：年度审计，航运，香港")} /></label>
+      <label><span>{t("版本备注")}</span><input maxLength="240" value={draft.versionNote || ""}
+        onChange={(event) => setDraft((current) => ({ ...current, versionNote: event.target.value }))}
+        placeholder={t("说明本次范本修改")} /></label>
       <small>{t("{nodes} 个节点 · {conditions} 项条件", { nodes: draft.nodes.length, conditions: totalConditions })}</small>
     </div>
     <div className="sample-editor-list">{draft.nodes.map((node, index) => <section className="sample-edit-node" key={node.id}>
@@ -649,8 +710,9 @@ export function ProjectRow({ project, outstandingStatuses, selected, onSelect })
   const stats = projectStats(project);
   const outstandingCount = (project.outstandingItems || []).filter((item) => outstandingIsOpen(item, outstandingStatuses)).length;
   return <button type="button" className="project-row" data-selected={selected || undefined} onClick={onSelect}>
-    <div className="project-row-title"><strong>{project.name}</strong>
-      <span>{project.entity || reportingPeriodLabel(project, language) || t("尚未填写项目资料")}</span></div>
+    <div className="project-row-title"><strong>{project.entity || project.name}</strong>
+      <span>{project.name !== project.entity ? project.name
+        : reportingPeriodLabel(project, language) || t("尚未填写项目资料")}</span></div>
     <div className="project-row-progress"><span>{stats.completedWorkstreams}/{stats.workstreams}</span></div>
     <div className="project-row-next"><small>{t("业务模块")}</small>
       <span>{stats.complete ? t("全部完成") : t("{done}/{total} 个模块完成", { done: stats.completedWorkstreams, total: stats.workstreams })}</span>

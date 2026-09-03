@@ -65,9 +65,13 @@ function TaxDeadlineForm({ initial, workstreams, onSubmit, onDelete, onCancel })
       <strong>{initial ? taxDeadlineCategoryLabel(initial, language) : t("建立一项合规期限")}</strong></div>
       <button type="button" className="text-button" onClick={onCancel}>{t("取消")}</button></header>
     <div className="tax-deadline-form-grid">
-      <label><span>{t("期限种类 *")}</span><select value={values.category} onChange={update("category")}>
-        {TAX_DEADLINE_CATEGORIES.map((category) => <option value={category} key={category}>
-          {taxDeadlineCategoryLabel(category, language)}</option>)}</select></label>
+      <div className="tax-deadline-category-control"><label><span>{t("期限种类 *")}</span>
+        <select value={values.category} onChange={update("category")}>
+          {TAX_DEADLINE_CATEGORIES.map((category) => <option value={category} key={category}>
+            {taxDeadlineCategoryLabel(category, language)}</option>)}</select></label>
+        {values.category !== "custom" && <button type="button" className="text-button"
+          onClick={() => setValues((current) => ({ ...current, category: "custom", customName: "" }))}>
+          <Plus aria-hidden="true" />{t("使用自定义种类")}</button>}</div>
       {values.category === "custom" && <label><span>{t("自定义期限名称 *")}</span><input required value={values.customName}
         onChange={update("customName")} placeholder={t("例如：物业税报税")} /></label>}
       <label><span>{t("课税年度")}</span><input value={values.taxYear} onChange={update("taxYear")}

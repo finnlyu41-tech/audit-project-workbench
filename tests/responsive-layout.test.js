@@ -11,6 +11,7 @@ const deadlineAlerts = readFileSync(new URL("../src/dashboard/deadline-alerts.js
 const taxDeadlines = readFileSync(new URL("../src/dashboard/tax-deadlines.jsx", import.meta.url), "utf8");
 const persistenceUi = readFileSync(new URL("../src/dashboard/persistence-ui.jsx", import.meta.url), "utf8");
 const persistenceHook = readFileSync(new URL("../src/dashboard/use-workbench-persistence.js", import.meta.url), "utf8");
+const managementReport = readFileSync(new URL("../src/dashboard/management-report.jsx", import.meta.url), "utf8");
 
 test("compact outstanding centre remains recoverable at narrow viewport widths", () => {
   assert.match(css, /@media \(max-width: 760px\)[\s\S]*?\.workbench-layout\[data-compact-layout\] > \.outstanding-center-shell\s*{[\s\S]*?position:\s*fixed/);
@@ -138,4 +139,13 @@ test("the tax deadline fact matches the other editable summary cells and opens d
   assert.match(taxDeadlines, /initialEditDeadlineId !== undefined/);
   assert.doesNotMatch(workbench, /<div className="tax-deadline-fact">/);
   assert.doesNotMatch(css, /\.tax-deadline-fact dd\s*{\s*overflow:\s*visible/);
+});
+
+test("management reports keep sortable detail and real paged-media numbering", () => {
+  assert.match(workbench, /<ManagementReport store={store}/);
+  assert.match(managementReport, /function SortableHeading/);
+  assert.match(managementReport, /<PrintScope filters={filters}/);
+  assert.match(css, /@page apw-report-en\s*{[\s\S]*?@bottom-right\s*{[\s\S]*?counter\(page\)[\s\S]*?counter\(pages\)/);
+  assert.match(css, /html\[lang="zh-Hans"\] \.management-report\s*{\s*page:\s*apw-report-zh-hans/);
+  assert.doesNotMatch(css, /\.print-report-footer\s*{[\s\S]*?position:\s*fixed/);
 });

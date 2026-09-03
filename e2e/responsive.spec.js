@@ -22,5 +22,13 @@ for (const width of [1280, 1440, 1920]) {
       await page.getByRole("button", { name: "Collapse outstanding centre" }).click();
       await expect(openOutstanding).toBeVisible();
     }
+
+    await page.getByRole("button", { name: "Management reports" }).click();
+    await expect(page.getByRole("heading", { name: "Portfolio report" })).toBeVisible();
+    const reportMetrics = await page.evaluate(() => ({
+      clientWidth: document.documentElement.clientWidth,
+      scrollWidth: document.documentElement.scrollWidth,
+    }));
+    expect(reportMetrics.scrollWidth).toBeLessThanOrEqual(reportMetrics.clientWidth + 1);
   });
 }

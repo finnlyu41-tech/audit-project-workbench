@@ -154,7 +154,7 @@ test("version 2 single-Sample data migrates into the Sample library", () => {
   const migrated = normalizeStore({ version: 2, projects: [], sample: legacySample });
 
   assert.equal(migrated.version, STORE_VERSION);
-  assert.equal(migrated.samples.length, 4);
+  assert.equal(migrated.samples.length, 5);
   const auditSample = migrated.samples.find((sample) => sample.workstreamType === "audit");
   assert.equal(auditSample.builtinKey, CORE_SAMPLE_KEY);
   assert.equal(migrated.selectedSampleIdsByCategory.audit, auditSample.id);
@@ -335,24 +335,61 @@ test("version 5 data migrates to template categories without changing the select
 
   assert.equal(migrated.version, STORE_VERSION);
   assert.deepEqual(migrated.workstreamCategories.map((category) => category.id),
-    ["quote_collection", "audit", "tax_computation_filing", "cdd", "custom"]);
+    ["quote_collection", "bookkeeping", "audit", "tax_computation_filing", "cdd", "custom"]);
   assert.equal(migrated.selectedSampleIdsByCategory.audit, auditSample.id);
   assert.equal(migrated.projects[0].workstreams[0].categoryId, "audit");
 });
 
-test("initialising creates a clean version 9 workspace with built-in categories and templates", () => {
+test("initialising creates a clean version 10 workspace with built-in categories and templates", () => {
   const initialised = emptyStore();
 
   assert.equal(initialised.version, STORE_VERSION);
   assert.deepEqual(initialised.projects, []);
   assert.deepEqual(initialised.groups, []);
-  assert.equal(initialised.workstreamCategories.length, 5);
-  assert.equal(initialised.samples.length, 4);
+  assert.equal(initialised.workstreamCategories.length, 6);
+  assert.equal(initialised.samples.length, 5);
   assert.equal(initialised.groupSamples.length, 1);
   assert.equal(initialised.selectedSampleIdsByCategory.audit, "sample-core-audit");
+  assert.equal(initialised.selectedSampleIdsByCategory.bookkeeping, "sample-core-bookkeeping");
 });
 
-test("version 8 data migrates to version 9 with empty tax registers and intact relationships", () => {
+test("bookkeeping is added during V9 migration with a complete built-in workflow", () => {
+  const previous = emptyStore();
+  previous.version = 9;
+  previous.workstreamCategories = previous.workstreamCategories.filter((category) => category.id !== "bookkeeping");
+  previous.samples = previous.samples.filter((sample) => sample.workstreamType !== "bookkeeping");
+  delete previous.selectedSampleIdsByCategory.bookkeeping;
+
+  const migrated = normalizeStore(previous);
+  const bookkeeping = migrated.samples.find((sample) => sample.workstreamType === "bookkeeping");
+
+  assert.ok(migrated.workstreamCategories.some((category) => category.id === "bookkeeping"));
+  assert.ok(bookkeeping?.nodes.length >= 5);
+  assert.equal(migrated.selectedSampleIdsByCategory.bookkeeping, bookkeeping.id);
+});
+
+test("a new V10 company may intentionally start without workstreams and add them later", () => {
+  const store = emptyStore();
+  const project = makeProject({ ...projectValues, workstreamSelections: [] }, true,
+    store.samples, store.workstreamCategories);
+  const restored = normalizeStore({ ...store, projects: [project] });
+
+  assert.deepEqual(project.workstreams, []);
+  assert.deepEqual(restored.projects[0].workstreams, []);
+  assert.equal(projectStats(restored.projects[0]).workstreams, 0);
+  assert.equal(projectIsComplete(restored.projects[0]), false);
+});
+
+test("choosing a blank starting workflow does not silently apply the category default", () => {
+  const store = emptyStore();
+  const project = makeProject({ ...projectValues, workstreamSelections: [{ type: "audit", categoryId: "audit", sampleId: "" }] },
+    true, store.samples, store.workstreamCategories);
+
+  assert.equal(project.workstreams.length, 1);
+  assert.deepEqual(project.workstreams[0].nodes, []);
+});
+
+test("version 8 data migrates to version 10 with empty tax registers and intact relationships", () => {
   const base = emptyStore();
   const project = makeProject(projectValues, true, base.samples, base.workstreamCategories);
   const group = makeGroup({ name: "Parent Holding", consolidationEnabled: false }, false, base.groupSamples[0]);
@@ -363,7 +400,7 @@ test("version 8 data migrates to version 9 with empty tax registers and intact r
 
   const migrated = normalizeStore({ ...base, version: 8, projects: [project], groups: [group] });
 
-  assert.equal(migrated.version, 9);
+  assert.equal(migrated.version, STORE_VERSION);
   assert.deepEqual(migrated.projects[0].taxDeadlines, []);
   assert.deepEqual(migrated.groups[0].taxDeadlines, []);
   assert.equal(migrated.projects[0].workstreams[0].id, workstreamId);
@@ -447,7 +484,7 @@ test("rescheduling requires a reason and retains the original date and full revi
   assert.equal(taxDeadlineUrgency(completed, new Date(2026, 10, 1)).level, "inactive");
 });
 
-test("version 9 JSON backup restoration preserves every tax-deadline field and revision", () => {
+test("version 9 JSON backup migrates to version 10 while preserving every tax-deadline field and revision", () => {
   const base = emptyStore();
   const project = makeProject({ ...projectValues, workstreamSelections: [{ type: "tax_computation_filing" }] },
     true, base.samples, base.workstreamCategories);
