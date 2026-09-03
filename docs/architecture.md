@@ -4,17 +4,19 @@ Audit Project Workbench (APW) is a small React application built with Vite.
 
 ## Layers
 
-- `src/dashboard/model.js`: pure data construction, V1–V7 migration, progress calculations and template de-identification.
+- `src/dashboard/model.js`: pure data construction, V1–V8 migration, progress calculations and template de-identification.
 - `src/dashboard/i18n.jsx`: UI-language state and system-text translations.
 - `src/dashboard/traditional.js`: deterministic Simplified-to-Traditional conversion for system-owned text only.
 - `src/dashboard/components.jsx`: reusable forms, rows, cards and modal components.
 - `src/dashboard/Workbench.jsx`: application state and project/group workflows.
 - `src/dashboard/group-components.jsx`: group hierarchy, component matrix and group-template interfaces.
+- `src/dashboard/timeline.jsx`: weekly project-schedule projection and horizontal duration-bar interface.
+- `src/dashboard/deadline-alerts.jsx`: compact, navigable presentation of derived overdue deadlines.
 - `src/dashboard/dashboard.css`: desktop-first layout and component styling.
 
 ## Persistence
 
-The application stores one versioned JSON object in browser `localStorage`. Backups use the same versioned structure. Storage version 5 added project `workstreams`, outstanding-item `workstreamId`, template `workstreamType`, per-status colours and `selectedSampleIdsByType`. Storage version 6 added `workstreamCategories`, template/workstream `categoryId` and `selectedSampleIdsByCategory`. Storage version 7 adds project/group `periodStart` and `periodEnd`, plus project `reportingFramework`; legacy free-text `period` values remain available as a fallback. Versions 1–6 migrate automatically when stored or imported data is loaded.
+The application stores one versioned JSON object in browser `localStorage`. Backups use the same versioned structure. Storage version 5 added project `workstreams`, outstanding-item `workstreamId`, template `workstreamType`, per-status colours and `selectedSampleIdsByType`. Storage version 6 added `workstreamCategories`, template/workstream `categoryId` and `selectedSampleIdsByCategory`. Storage version 7 added project/group `periodStart` and `periodEnd`, plus project `reportingFramework`; legacy free-text `period` values remain available as a fallback. Storage version 8 adds a separate project/group `startDate`, while `dueDate` remains the delivery deadline. Versions 1–7 migrate automatically when stored or imported data is loaded.
 
 Each project owns at least one `workstream`. Built-in types are `quote_collection`, `audit`, `tax_computation_filing` and `cdd`; each may appear once per project. User-defined categories map to custom workstreams and can be added, renamed or reordered. Custom workstreams are unlimited. Legacy project `nodes` become one audit workstream without changing node or condition identities, completion state, owner, due date or group references.
 
@@ -22,11 +24,15 @@ The historical `audit-progress-workbench:*` browser-storage keys are intentional
 
 Project data is intentionally independent from the template library. Editing, switching or deleting a template affects future projects only. Built-in templates have Simplified Chinese, Traditional Chinese and English variants. Exact matches to known built-in workflow text are localised at display time, including in legacy projects; all other custom template and project content is left unchanged. Legacy internal shorthand is migrated to professional trial-balance and general-ledger wording.
 
-The interface presents companies and holding companies through one creation flow. For backward compatibility with V1–V7 backups and browser data, the model and stored schema retain the internal names `projects`, `groups` and `members`; no migration or storage-version change is required for this terminology update.
+The interface presents companies and holding companies through one creation flow. For backward compatibility with V1–V8 backups and browser data, the model and stored schema retain the internal names `projects`, `groups` and `members`. Records may convert between company and holding-company structures. The active structure keeps the shared identity, reporting, scheduling, owner, notes and outstanding-item fields, while `conversionState` retains the opposite structure's workstreams or consolidation settings for a later round trip.
 
 Holding companies reference companies or other holding companies through member records rather than copying them. A company or intermediate holding company can have only one parent. Cycles are rejected. Holding-company progress reads each member's audit workstream; when no audit workstream exists it uses that member's explicit consolidation-readiness completion. Progress recursively combines the direct-member average at 70% with the current level's consolidation workflow at 30%; hierarchy-only holding companies use the direct-member average alone. Consolidation readiness remains an explicit gate and is not inferred from the percentage.
 
 Archived records are excluded from active navigation calculations, group progress and outstanding roll-ups. Relationships are retained, so restoring a project or group reinstates its former hierarchy. Archived detail is read-only. Permanent project deletion also removes its outstanding items, workstreams and group references; permanent group deletion leaves its members intact.
+
+The project schedule is a read-only projection of company and holding-company `startDate` and `dueDate` values. It follows the navigation status filter, orders records by owner and start date, and derives its weekly range at render time; selecting a row or duration bar returns to the canonical record rather than maintaining duplicate schedule data.
+
+Deadline alerts are also derived rather than stored. The model includes overdue deadlines only for active, incomplete records and workstreams, excludes archived or completed work, and suppresses a workstream reminder when it merely repeats its parent project's deadline. Completing, rescheduling or archiving the source therefore clears the reminder without separate reminder state.
 
 ## Domain boundaries
 

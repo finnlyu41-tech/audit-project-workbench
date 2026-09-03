@@ -1,5 +1,5 @@
 import React from "react";
-import { ArrowLeft, ArrowRight, Copy, Pencil, Play, Plus, Trash2, X } from "lucide-react";
+import { ArrowDown, ArrowLeft, ArrowRight, ArrowRightLeft, ArrowUp, Copy, Pencil, Play, Plus, Settings2, Trash2, X } from "lucide-react";
 import { GROUP_AUDIT_TYPES, GROUP_AUDIT_TYPE_KEYS, createDefaultWorkstreamCategories, dueTone, formatDate,
   nodeStatus, outstandingIsOpen, projectStats, reportingPeriodLabel, uid, workstreamCategoryLabel, workstreamStats,
   workstreamTypeLabel } from "./model.js";
@@ -25,7 +25,7 @@ export function Modal({ title, onClose, children, wide = false, large = false })
 }
 export function ProjectForm({ initial, onSubmit, onClose, submitLabel, allowWorkstreams = true,
   samples = [], workstreamCategories = createDefaultWorkstreamCategories(), selectedSampleIdsByCategory = {},
-  initialWorkstreamSelections, groupOptions = null, initialMembership }) {
+  initialWorkstreamSelections, groupOptions = null, initialMembership, onConvert }) {
   const { language, t } = useUiLanguage();
   const [values, setValues] = React.useState(() => ({
     name: initial?.name || "",
@@ -34,6 +34,7 @@ export function ProjectForm({ initial, onSubmit, onClose, submitLabel, allowWork
     period: initial?.period || "",
     periodStart: initial?.periodStart || "",
     periodEnd: initial?.periodEnd || "",
+    startDate: initial?.startDate || "",
     dueDate: initial?.dueDate || "",
     owner: initial?.owner || "",
     notes: initial?.notes || "",
@@ -50,7 +51,7 @@ export function ProjectForm({ initial, onSubmit, onClose, submitLabel, allowWork
       || workstreamCategories.find((item) => item.id === "audit") || workstreamCategories[0];
     const type = category?.builtinType || "custom";
     return { categoryId: category?.id || "audit", type,
-      customName: type === "custom" && category?.id !== "custom" ? category?.name || "" : source?.customName || "",
+      customName: category?.name || (type === "custom" ? source?.customName || "" : ""),
       sampleId: source?.sampleId || selectedSampleIdsByCategory[category?.id]
         || samples.find((sample) => sample.categoryId === category?.id)?.id || "" };
   };
@@ -74,6 +75,10 @@ export function ProjectForm({ initial, onSubmit, onClose, submitLabel, allowWork
         : submittedValues, useStarter);
     }
   }}>
+    {initial && onConvert && <section className="structure-conversion"><div><span>{t("公司结构")}</span>
+      <strong>{t("公司")}</strong><small>{t("可转换为控股公司；现有业务模块会保留以供以后恢复。")}</small></div>
+      <button type="button" className="button secondary" onClick={onConvert}><ArrowRightLeft aria-hidden="true" />
+        {t("转换为控股公司")}</button></section>}
     <label><span>{t("法律实体 *")}</span><input autoFocus required value={values.entity} onChange={update("entity")}
       placeholder={t("公司完整名称")} /></label>
     <div className="form-grid" data-columns="3">
@@ -85,12 +90,15 @@ export function ProjectForm({ initial, onSubmit, onClose, submitLabel, allowWork
     </div>
     <datalist id="reporting-framework-options">{["香港财务报告准则", "中小企财务报告框架及准则", "国际财务报告会计准则",
       "香港私人公司财务报告准则"].map((framework) => <option value={t(framework)} key={framework} />)}</datalist>
-    <div className="form-grid" data-columns="3">
+    <div className="form-grid" data-columns="4">
       <label><span>{t("报告期开始日")}</span><input type="date" value={values.periodStart} max={values.periodEnd || undefined}
         required={Boolean(values.periodEnd)} onChange={update("periodStart")} /></label>
       <label><span>{t("报告期结束日")}</span><input type="date" value={values.periodEnd} min={values.periodStart || undefined}
         required={Boolean(values.periodStart)} onChange={update("periodEnd")} /></label>
-      <label><span>{t("目标完成日期")}</span><input type="date" value={values.dueDate} onChange={update("dueDate")} /></label>
+      <label><span>{t("项目开始日")}</span><input type="date" value={values.startDate} max={values.dueDate || undefined}
+        onChange={update("startDate")} /></label>
+      <label><span>{t("项目截止日")}</span><input type="date" value={values.dueDate} min={values.startDate || undefined}
+        onChange={update("dueDate")} /></label>
     </div>
     {values.period && !values.periodStart && !values.periodEnd && <small className="form-help">
       {t("原有报告期间：{period}。请在适当时补充开始日和结束日。", { period: values.period })}</small>}
@@ -163,7 +171,7 @@ export function WorkstreamForm({ initial, availableCategories = createDefaultWor
     const category = categoryOptions.find((item) => item.id === event.target.value) || firstCategory;
     const type = category.builtinType || "custom";
     setValues((current) => ({ ...current, type, categoryId: category.id,
-      customName: type === "custom" ? (category.id === "custom" ? "" : category.name) : "",
+      customName: category.name || (type === "custom" && category.id === "custom" ? "" : current.customName),
       sampleId: selectedSampleIdsByCategory[category.id]
         || samples.find((sample) => sample.categoryId === category.id)?.id || "" }));
   };
@@ -204,12 +212,15 @@ export function WorkstreamCard({ workstream, selected, openItems = 0, onSelect, 
   </button>;
 }
 
-export function SampleLibrary({ samples, categoryLabel, selectedSampleId, onSelect, onCreate, onEdit, onDuplicate, onDelete, onUse }) {
+export function SampleLibrary({ samples, categoryLabel, selectedSampleId, onSelect, onCreate, onEdit, onDuplicate, onDelete, onUse,
+  onManageCategories }) {
   const { language, t } = useUiLanguage();
   return <section className="sample-library">
     <header className="sample-library-header"><div><strong>{t("业务模块范本")}</strong>
-      <span>{t("每个范本包含一组可编辑、排序和删除的节点。")}</span></div>
-      <button type="button" className="button primary" onClick={onCreate}><Plus aria-hidden="true" />{t("新建范本")}</button></header>
+      <span>{t("每个范本包含一组可编辑、排序和删除的节点。")}</span></div><div className="sample-library-actions">
+      {onManageCategories && <button type="button" className="button secondary icon-only" aria-label={t("管理种类")}
+        data-tooltip={t("管理种类")} onClick={onManageCategories}><Settings2 aria-hidden="true" /></button>}
+      <button type="button" className="button primary" onClick={onCreate}><Plus aria-hidden="true" />{t("新建范本")}</button></div></header>
     {samples.length ? <div className="sample-library-list">{samples.map((sample) => {
       const conditions = sample.nodes.reduce((sum, node) => sum + node.conditions.length, 0);
       const selected = sample.id === selectedSampleId;
@@ -292,15 +303,19 @@ export function OutstandingStatusEditor({ statuses, usageCounts, onSave, onClose
 
 export function WorkstreamCategoryEditor({ categories, usageCounts, onSave, onClose }) {
   const { language, t } = useUiLanguage();
-  const systemCategories = categories.filter((category) => category.builtinType);
-  const [draft, setDraft] = React.useState(() => categories.filter((category) => !category.builtinType)
-    .map((category) => ({ ...category })));
+  const [draft, setDraft] = React.useState(() => categories.map((category) => ({ ...category,
+    editorName: category.name || workstreamCategoryLabel(category, language), hadCustomName: Boolean(category.name) })));
   const updateCategory = (categoryId, name) => setDraft((current) => current.map((category) =>
-    category.id === categoryId ? { ...category, name } : category));
-  const moveCategory = (index, direction) => setDraft((current) => {
+    category.id === categoryId ? { ...category, editorName: name } : category));
+  const moveCategory = (categoryId, direction) => setDraft((current) => {
     const next = [...current];
-    const target = index + direction;
-    if (target >= 0 && target < next.length) [next[index], next[target]] = [next[target], next[index]];
+    const index = next.findIndex((category) => category.id === categoryId);
+    const system = Boolean(next[index]?.builtinType);
+    const peers = next.map((category, itemIndex) => ({ category, itemIndex }))
+      .filter(({ category }) => Boolean(category.builtinType) === system).map(({ itemIndex }) => itemIndex);
+    const position = peers.indexOf(index);
+    const target = peers[position + direction];
+    if (target !== undefined) [next[index], next[target]] = [next[target], next[index]];
     return next;
   });
   const removeCategory = (category) => {
@@ -310,41 +325,48 @@ export function WorkstreamCategoryEditor({ categories, usageCounts, onSave, onCl
         { templates: usage.templates, workstreams: usage.workstreams }));
       return;
     }
+    if (draft.length <= 1) {
+      window.alert(t("工作台至少要保留一个范本种类。"));
+      return;
+    }
     setDraft((current) => current.filter((item) => item.id !== category.id));
   };
+  const renderCategories = (items) => items.map((category, index) => {
+    const usage = usageCounts[category.id] || { templates: 0, workstreams: 0 };
+    return <div className="category-editor-row" data-system={category.builtinType || undefined} key={category.id}>
+      <input required value={category.editorName} aria-label={t("种类名称")}
+        onChange={(event) => updateCategory(category.id, event.target.value)} />
+      <small>{t("{templates} 个范本 · {workstreams} 个业务模块", usage)}</small>
+      <div>{category.builtinType && <i>{t("系统")}</i>}
+        <button type="button" className="icon-only" disabled={index === 0} onClick={() => moveCategory(category.id, -1)}
+          aria-label={t("上移种类")} data-tooltip={t("上移种类")} data-tooltip-side="left"><ArrowUp aria-hidden="true" /></button>
+        <button type="button" className="icon-only" disabled={index === items.length - 1} onClick={() => moveCategory(category.id, 1)}
+          aria-label={t("下移种类")} data-tooltip={t("下移种类")} data-tooltip-side="left"><ArrowDown aria-hidden="true" /></button>
+        <button type="button" className="icon-only" onClick={() => removeCategory(category)}
+          aria-label={t("删除")} data-tooltip={t("删除")} data-tooltip-side="left"><Trash2 aria-hidden="true" /></button></div></div>;
+  });
   return <form className="category-editor" onSubmit={(event) => {
     event.preventDefault();
-    const cleaned = draft.map((category) => ({ ...category, name: category.name.trim() }));
-    const names = [...systemCategories.map((category) => workstreamCategoryLabel(category, language)),
-      ...cleaned.map((category) => category.name)].map((name) => name.toLocaleLowerCase());
-    if (cleaned.some((category) => !category.name)) return;
+    const cleaned = draft.map(({ editorName, hadCustomName, ...category }) => ({ ...category,
+      name: category.builtinType && !hadCustomName
+        && editorName.trim() === workstreamTypeLabel(category.builtinType, language) ? "" : editorName.trim() }));
+    const names = cleaned.map((category) => workstreamCategoryLabel(category, language).toLocaleLowerCase());
+    if (cleaned.some((category) => !workstreamCategoryLabel(category, language))) return;
     if (new Set(names).size !== names.length) {
       window.alert(t("种类名称不能重复。"));
       return;
     }
-    onSave([...systemCategories, ...cleaned]);
+    onSave(cleaned);
   }}>
-    <p className="category-editor-help">{t("系统种类会保留；你可以新增、改名及排序自定义种类。自定义名称会保持原文。")}</p>
+    <p className="category-editor-help">{t("所有范本种类都可以改名、排序及删除；使用中的种类需要先移转相关范本及业务模块。")}</p>
     <section className="category-editor-section"><header><strong>{t("系统种类")}</strong>
-      <small>{t("系统种类用于保持内置流程和历史资料一致。")}</small></header>
-      <div className="category-editor-list">{systemCategories.map((category) => {
-        const usage = usageCounts[category.id] || { templates: 0, workstreams: 0 };
-        return <div className="category-editor-row" data-system key={category.id}><strong>{workstreamCategoryLabel(category, language)}</strong>
-          <small>{t("{templates} 个范本 · {workstreams} 个业务模块", usage)}</small><i>{t("系统")}</i></div>;
-      })}</div></section>
+      <small>{t("系统种类保留内置模块类型；自定义名称会保持原文。")}</small></header>
+      <div className="category-editor-list">{renderCategories(draft.filter((category) => category.builtinType))}</div></section>
     <section className="category-editor-section"><header><strong>{t("自定义种类")}</strong>
       <small>{t("可用于建立专属范本和业务模块。")}</small></header>
-      <div className="category-editor-list">{draft.map((category, index) => {
-        const usage = usageCounts[category.id] || { templates: 0, workstreams: 0 };
-        return <div className="category-editor-row" key={category.id}><input required value={category.name}
-          aria-label={t("种类名称") } onChange={(event) => updateCategory(category.id, event.target.value)} />
-          <small>{t("{templates} 个范本 · {workstreams} 个业务模块", usage)}</small>
-          <div><button type="button" disabled={index === 0} onClick={() => moveCategory(index, -1)} aria-label={t("上移种类")}>↑</button>
-            <button type="button" disabled={index === draft.length - 1} onClick={() => moveCategory(index, 1)} aria-label={t("下移种类")}>↓</button>
-            <button type="button" onClick={() => removeCategory(category)}>{t("删除")}</button></div></div>;
-      })}</div>
+      <div className="category-editor-list">{renderCategories(draft.filter((category) => !category.builtinType))}</div>
       <button type="button" className="status-add-button" onClick={() => setDraft((current) => [...current,
-        { id: uid("workstream-category"), name: "" }])}>{t("＋ 添加种类")}</button></section>
+        { id: uid("workstream-category"), name: "", editorName: "", hadCustomName: false }])}>{t("＋ 添加种类")}</button></section>
     <footer className="modal-actions"><button type="button" className="button secondary" onClick={onClose}>{t("取消")}</button>
       <button type="submit" className="button primary">{t("保存种类")}</button></footer>
   </form>;
@@ -357,22 +379,30 @@ export function UserGuide() {
       { title: "建立第一家公司", steps: ["在项目导航选择“新建公司”。", "选择“公司”或“控股公司”；同一个入口可建立两种公司结构。",
         "建立公司时先填写法律实体；项目名称只作为可选的内部称谓，再填写财务报告准则／框架、报告期开始日和结束日，并选择需要并行追踪的业务模块。", "选择“建立公司”，记录会出现在左侧项目导航。"],
       result: "项目建立后，每个业务模块会独立计算进度。" },
-      { title: "认识三区工作台", steps: ["左侧“项目导航”用于搜索、筛选和切换项目或集团。", "中间“项目工作区”或“集团工作区”用于处理模块、节点及合并工作。",
+      { title: "认识三区工作台", steps: ["最左侧窄工具栏集中放置项目排期、逾期提醒、范本库、使用指南、备份和语言入口。", "左侧“项目导航”用于搜索、筛选和切换项目或控股公司。", "中间“项目工作区”或“控股公司工作区”用于处理模块、节点及合并工作。",
         "右侧“待清中心”用于持续追踪缺少文件、等待签署和其他阻塞事项。", "左右区域都可以收起，需要时再展开。"],
       result: "日常工作集中在中间视觉热区，导航和待清事项仍保持随手可用。" },
       { title: "识别图标和悬停说明", steps: ["常用的编辑、复制、归档、新增和面板开关以统一线性图标显示。",
         "把鼠标停在图标上，会显示该按钮的完整功能说明。", "使用键盘移动焦点到图标时，也会显示相同说明，并保留屏幕阅读器名称。"],
-      result: "工具栏保持紧凑，同时不需要记住每个图标的含义。" },
+      result: "窄工具栏保持紧凑，同时不需要记住每个图标的含义。" },
     ] },
     { id: "projects", title: "公司与业务模块", summary: "公司记录是年度委聘容器，多个业务模块可以同时推进。", topics: [
       { title: "寻找和筛选项目", steps: ["在项目导航的搜索框输入项目、集团或负责人名称。", "使用“进行中”“已完成”“全部”及“归档”筛选所需记录。",
         "选择名称可打开资料；使用控股公司前的加减号展开或收起下级，层级线会显示归属。"], result: "你只会在当前筛选范围内看到相关记录。" },
+      { title: "安排项目开始日和截止日", steps: ["编辑公司或控股公司资料，分别填写项目开始日和项目截止日；它们与财务报告期间是不同字段。",
+        "选择最左侧窄工具栏的“项目排期”，按负责人查看所有横向工期条。", "使用左侧状态筛选同步缩小排期范围；选择任一排期行或工期条可返回该项目。",
+        "红色工期条代表已逾期，日期不完整的项目会显示提醒。"], result: "工作台会像年度计划表一样集中呈现项目起止时间，同时保留每个项目的详细流程。" },
+      { title: "查看逾期提醒", steps: ["左侧窄工具栏的铃铛会显示当前逾期数量；没有逾期时不显示数字。",
+        "选择铃铛可查看逾期项目、控股公司和业务模块，并按逾期天数排序。", "选择任一提醒可直接打开来源记录；业务模块提醒会同时定位到对应模块。",
+        "完成、修改截止日或归档记录后，提醒会自动清除。"], result: "逾期工作会集中显示，不需要逐一打开项目检查截止日期。" },
       { title: "拖动调整集团归属和层级", steps: ["按住公司或控股公司名称开始拖动。", "所有可接收的控股公司行会显示“可放入”；直接拖到所需层级并松开。",
         "拖到导航底部的“移到顶层”区域，即可移出当前控股公司。", "控股公司不能拖入自身或其下级控股公司，归档记录也不能拖动。"],
       result: "公司及子集团层级会立即更新，现有角色和合并就绪条件会保留。" },
       { title: "编辑项目资料及集团归属", steps: ["打开项目后选择“编辑公司及集团归属”。", "修改公司资料、财务报告准则／框架、负责人、报告期或备注。",
         "在“集团归属”选择集团，并设置集团角色和审计类别；选择独立公司即可移出集团。", "保存后，项目导航和集团汇总会立即更新。"],
       result: "公司和集团关系可以从公司资料直接维护。" },
+      { title: "转换公司结构", steps: ["在公司或控股公司的资料编辑页找到“公司结构”。", "选择“转换为控股公司”或“转换为公司”，并阅读确认提示。",
+        "公司转为控股公司时，原业务模块会保留供以后恢复；控股公司转为公司时，原下属记录会回到顶层。"], result: "集团架构发生变化时无需删除并重建记录，往返转换仍会保留可恢复的原结构资料。" },
       { title: "复制项目", steps: ["打开要沿用结构的项目，选择“复制项目”。", "系统会复制业务模块、节点和达成条件，并在名称后加入“副本”。",
         "副本中的勾选状态会重新开始，也不会复制原项目的待清事项。"], result: "你可以沿用年度或同类委聘结构，同时避免把旧状态带入新项目。" },
       { title: "添加和设置业务模块", steps: ["在项目工作区选择“添加业务模块”。", "选择模块类别、负责人、截止日和要套用的业务范本。",
@@ -399,7 +429,7 @@ export function UserGuide() {
         "正在被历史记录使用的状态不会被误删；需要先把相关事项改到其他状态。"], result: "状态名称、顺序、颜色和未清计算会同时更新。" },
     ] },
     { id: "groups", title: "集团审计", summary: "集团可包含公司和子集团，并把合并就绪与本级合并流程分开管理。", topics: [
-      { title: "建立集团或子集团", steps: ["在项目导航选择“新建公司”，再在公司结构选择“控股公司”。", "填写控股公司名称、报告期开始日和结束日、负责人及目标完成日期。",
+      { title: "建立集团或子集团", steps: ["在项目导航选择“新建公司”，再在公司结构选择“控股公司”。", "填写控股公司名称、报告期开始日和结束日、项目开始日、项目截止日及负责人。",
         "选择本级是否需要独立合并；如只用于分类，可关闭本级合并流程。"], result: "集团会成为可容纳公司或子集团的层级容器。" },
       { title: "加入和调整成员", steps: ["打开集团并选择“集团资料”。", "选择“添加公司／子集团”，关联现有记录或直接新建。",
         "选择成员卡片可修改角色、审计类别和合并就绪条件，也可将成员移出集团。"], result: "成员关系也可从公司资料的“集团归属”反向修改。" },
@@ -411,7 +441,7 @@ export function UserGuide() {
         "如果集团只用于分类，本级不会显示独立合并节点，进度直接来自下级组成部分。"], result: "组成部分准备与本级合并工作保持清楚分离。" },
     ] },
     { id: "templates", title: "范本与种类", summary: "范本用于快速建立新流程，修改范本不会改动既有项目。", topics: [
-      { title: "管理范本种类", steps: ["选择顶部“范本库”，再选择“管理种类”。", "新增自定义种类，或修改和排序已有的自定义种类。",
+      { title: "管理范本种类", steps: ["选择左侧窄工具栏的“范本库”，再选择“管理种类”。", "系统及自定义种类都可以改名、排序或删除。",
         "如种类仍有范本或业务模块在使用，系统会阻止删除并显示使用数量。"], result: "自定义种类会成为范本页签，也可直接用于建立同名业务模块。" },
       { title: "建立和使用多个范本", steps: ["先选择范本种类，再选择“新建范本”。", "填写范本名称、说明、节点和条件；同一种类可保存多个范本。",
         "选择一个范本作为当前使用，或选择“使用此范本”直接建立项目。"], result: "建立项目时可为每个业务模块单独选择范本或空白流程。" },
@@ -427,12 +457,12 @@ export function UserGuide() {
         "删除项目会清除其模块、待清事项和集团引用；删除集团不会连带删除成员项目或子集团。"], result: "永久删除适合确定不再需要的历史记录。" },
     ] },
     { id: "data", title: "备份、语言与数据", summary: "数据默认只存在当前浏览器；备份是跨电脑和防止遗失的关键。", topics: [
-      { title: "导出和恢复备份", steps: ["选择顶部“备份”→“导出备份”，保存 JSON 文件。", "需要恢复时选择“恢复备份”并选取文件。",
+      { title: "导出和恢复备份", steps: ["选择左侧窄工具栏的“备份”→“导出备份”，保存 JSON 文件。", "需要恢复时选择“恢复备份”并选取文件。",
         "恢复会替换当前浏览器内的数据；确认前请先导出当前备份。"], result: "备份包含项目、集团、范本、状态和自定义种类。" },
-      { title: "初始化工作台", steps: ["选择顶部“备份”→“初始化工作台”。", "先使用提示区的按钮导出当前备份。",
+      { title: "初始化工作台", steps: ["选择左侧窄工具栏的“备份”→“初始化工作台”。", "先使用提示区的按钮导出当前备份。",
         "阅读清除范围并勾选确认，再选择“确认初始化”。", "初始化会恢复内置范本、种类和状态，但保留当前界面语言。"],
       result: "全部项目、集团和自定义资料会从当前浏览器清除；只有备份文件可以找回。" },
-      { title: "切换界面语言", steps: ["选择顶部“语言”。", "选择简体中文、繁体中文或 English。",
+      { title: "切换界面语言", steps: ["选择左侧窄工具栏的“语言”。", "选择简体中文、繁体中文或 English。",
         "系统区域、按钮和内置范本会切换；你输入的项目、范本和自定义名称会保持原文。"], result: "同一份数据可以用三种系统语言操作。" },
       { title: "理解本机数据和多人使用", steps: ["在线版不会把项目资料上传到服务器；资料保存在当前浏览器。", "不同电脑或不同浏览器不会自动同步，也不会互相覆盖。",
         "要换电脑工作，请先导出备份，再在目标电脑恢复；多人同时协作应约定唯一主备份，避免各自修改后难以合并。"], result: "你可以清楚控制资料在哪里保存及如何转移。" },
@@ -559,7 +589,7 @@ export function ProjectRow({ project, outstandingStatuses, selected, onSelect })
   </button>;
 }
 
-export function NodeBoard({ nodes, readOnly = false, actions }) {
+export function NodeBoard({ nodes, readOnly = false, actions, label = "", title = "", description = "", percentage = null }) {
   const { t } = useUiLanguage();
   const currentNode = nodes.find((node) => !workstreamStats({ nodes: [node] }).complete);
   const [selectedId, setSelectedId] = React.useState(() => currentNode?.id || nodes[0]?.id || null);
@@ -568,11 +598,16 @@ export function NodeBoard({ nodes, readOnly = false, actions }) {
   }, [nodes, selectedId, currentNode?.id]);
   const selected = nodes.find((node) => node.id === selectedId) || nodes[0];
   return <div className="node-board" style={{ "--node-count": Math.max(nodes.length, 1) }}>
-    {!readOnly && <div className="node-structure-actions"><button type="button" className="button secondary icon-only"
-      aria-label={t("添加节点")} data-tooltip={t("添加节点")} onClick={actions.addNode}><Plus aria-hidden="true" /></button>
-      <button type="button" className="button danger-quiet icon-only" disabled={!selected} aria-label={t("删除所选节点")}
-        data-tooltip={t("删除所选节点")} data-tooltip-side="left"
-        onClick={() => selected && actions.deleteNode(selected)}><Trash2 aria-hidden="true" /></button></div>}
+    <header className="node-board-toolbar"><div className="node-board-heading">{label && <span>{label}</span>}
+      {title && <h3>{title}</h3>}{description && <p>{description}</p>}</div>
+      {percentage !== null && <div className="workflow-panel-progress"><strong>{percentage}%</strong>
+        <ProgressBar value={percentage} compact /></div>}
+      {!readOnly && <div className="node-structure-actions"><button type="button" className="button secondary icon-only"
+        aria-label={t("添加节点")} data-tooltip={t("添加节点")} onClick={actions.addNode}><Plus aria-hidden="true" /></button>
+        <button type="button" className="button danger-quiet icon-only" disabled={!selected} aria-label={t("删除所选节点")}
+          data-tooltip={t("删除所选节点")} data-tooltip-side="left"
+          onClick={() => selected && actions.deleteNode(selected)}><Trash2 aria-hidden="true" /></button></div>}
+    </header>
     {nodes.length ? <div className="node-track" role="tablist" aria-label={t("项目节点")}>{nodes.map((node, index) => {
       const status = nodeStatus(node); const done = node.conditions.filter((condition) => condition.done).length;
       return <button type="button" role="tab" aria-selected={selected?.id === node.id} className="node-track-card" title={node.title}

@@ -9,14 +9,16 @@
 ## 主要功能
 
 - Obsidian 式主工作区布局：左侧紧凑树状导航、中间宽工作区、右侧按需待清中心；左右区域均可收起，窄桌面窗口展开待清中心时不会挤压工作区。项目导航提供统一的“新建公司”入口，可拖动公司或控股公司改变归属及层级，并以加减号和连续层级线明确显示控股关系。
-- 顶部和工作区采用统一线性图标压缩高频操作；悬停或键盘聚焦会显示完整功能说明，同时保留无障碍名称。建立公司仍放在项目导航的视觉热区。
+- 最左侧采用固定窄工具栏，以统一线性图标收纳项目排期、范本、指南、备份和语言；悬停或键盘聚焦会显示完整功能说明，同时保留无障碍名称。建立公司仍放在项目导航的视觉热区。
 - 内置分章节使用指南，逐项说明入口、操作步骤和完成结果。
-- 每个项目记录法律实体、可自定义财务报告准则／框架，以及可覆盖短期或长期间的报告期开始日和结束日；多个业务模块可并行启用，并各自拥有负责人、截止日、横向节点和客观达成条件。
+- 每个项目记录法律实体、可自定义财务报告准则／框架，以及可覆盖短期或长期间的报告期开始日和结束日；项目执行另设独立开始日和截止日，避免与财务报告期间混淆。
+- 项目排期以负责人、公司／控股公司和按周横向工期条呈现，支持逾期提示、日期缺失提示、状态筛选及从排期直接返回项目；排期逻辑参考年度人员计划表，但不复制其中的客户资料。
+- 多个业务模块可并行启用，并各自拥有负责人、截止日、横向节点和客观达成条件。
 - 项目显示“已完成模块数／全部模块数”，只有全部启用模块完成后才算完成，不使用容易误导的混合百分比。
 - 多层控股公司结构：控股公司可包含公司或中间控股公司，每一级可选择独立合并流程或仅作层级分类。
 - 控股公司总览以紧凑状态栏显示组成部分进度、公司合并就绪、本级合并流程及未清事项，让公司清单和合并节点优先进入首屏。
 - 公司可按本团队审计、其他审计师或管理账设置不同的合并就绪条件。
-- 公司资料可直接选择或变更所属控股公司；控股公司资料可集中添加、移除及修改公司与中间控股公司。
+- 公司资料可直接选择或变更所属控股公司；控股公司资料可集中添加、移除及修改公司与中间控股公司。公司与控股公司可在资料编辑页双向转换，原业务模块或合并结构会保留以便日后恢复。
 - 控股公司的待清事项与下级公司事项集中汇总，同时保留来源和跳转入口。
 - 节点横向排列；所选节点的达成条件固定显示在下方，不会把相邻节点推离视野。
 - 独立待清中心不影响节点进度；状态可新增、改名、排序、定义“已清”语义并自定义颜色，事项可归属项目级或指定业务模块。
@@ -62,14 +64,17 @@ Audit Project Workbench (APW) is an English-first, desktop-first and local-first
 ### Features
 
 - An Obsidian-inspired, centre-first desktop layout with compact tree navigation, a wide company/holding-company workspace and an on-demand outstanding centre. The side panes collapse, and opening outstanding items on a narrower desktop does not resize the workspace. Project navigation contains the single New company entry point, exact-level drag-and-drop reassignment, explicit plus/minus disclosure controls and continuous hierarchy guides.
-- Consistent line icons condense frequent toolbar and workspace actions; hover or keyboard focus reveals the full explanation while preserving accessible names. Record creation stays in the navigation work area.
+- Consistent line icons condense project scheduling, deadline alerts, templates, guidance, backup, language and workspace actions; hover or keyboard focus reveals the full explanation while preserving accessible names. Record creation stays in the navigation work area.
 - A built-in, sectioned user guide explaining each entry point, procedure and expected result.
-- Project details capture the legal entity, a customisable financial reporting standard or framework, and reporting-period start and end dates suitable for short or extended periods; parallel workstreams retain independent owners, deadlines, horizontal stages and objective completion criteria.
+- Project details capture the legal entity, a customisable financial reporting standard or framework, reporting-period start and end dates, plus separate project start and deadline fields so the financial period is not confused with delivery timing.
+- A weekly horizontal schedule groups companies and holding companies by owner, highlights overdue or incomplete dates, follows the navigation status filter and links each bar back to the record. Its planning logic was informed by an annual staff plan without copying client data.
+- A persistent deadline-alert badge counts active overdue company, holding-company and distinct workstream deadlines; its compact list is ordered by days overdue and links directly to the source record. Completed, rescheduled or archived work clears automatically.
+- Parallel workstreams retain independent owners, deadlines, horizontal stages and objective completion criteria.
 - Project completion shown as completed workstreams out of total workstreams; all enabled workstreams must finish before the project completes.
 - Multi-level holding-company structures with companies, intermediate holding companies, optional consolidation workflows and hierarchy-only levels.
 - A compact holding-company status strip for component progress, company readiness, consolidation progress and open items, keeping the company matrix and consolidation stages in the first screenful.
 - Companies use readiness defaults for internal audits, other component auditors or management accounts.
-- Company details can change holding-company assignment directly, while holding-company details manage companies and intermediate holding companies in one member roster.
+- Company details can change holding-company assignment directly, while holding-company details manage companies and intermediate holding companies in one member roster. A record can convert in either direction between company and holding company while retaining recoverable workflow or consolidation state.
 - Holding-company outstanding items roll up subsidiary and intermediate holding-company items while preserving their source and navigation.
 - Horizontal stages with a stable detail panel below, so opening one stage never displaces its neighbours.
 - A separate outstanding centre that never changes stage progress, with custom labels, ordering, cleared-state semantics and colours; items can be project-level or linked to a workstream.

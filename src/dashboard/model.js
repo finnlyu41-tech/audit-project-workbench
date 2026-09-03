@@ -1,7 +1,7 @@
 import { toTraditional } from "./traditional.js";
 
 export const STORAGE_KEY = "audit-progress-workbench:v1";
-export const STORE_VERSION = 7;
+export const STORE_VERSION = 8;
 export const CORE_SAMPLE_KEY = "core-audit";
 export const CORE_GROUP_SAMPLE_KEY = "core-group";
 
@@ -311,6 +311,7 @@ export function makeNode(source = {}) {
 }
 
 export function workstreamTypeLabel(type, language = "zh", customName = "") {
+  if (customName) return customName;
   if (type === "custom") return customName || (language === "en" ? "Custom workstream"
     : language === "zh-Hant" ? "自訂模組" : "自定义模块");
   const labels = {
@@ -328,20 +329,22 @@ export function createDefaultWorkstreamCategories() {
 }
 
 export function normalizeWorkstreamCategories(value) {
-  const categories = createDefaultWorkstreamCategories();
-  const seen = new Set(categories.map((category) => category.id));
+  if (!Array.isArray(value)) return createDefaultWorkstreamCategories();
+  const builtinTypes = new Set(WORKSTREAM_TYPES);
+  const categories = [];
+  const seen = new Set();
   (Array.isArray(value) ? value : []).forEach((category) => {
     const id = typeof category?.id === "string" ? category.id.trim() : "";
     const name = typeof category?.name === "string" ? category.name.trim() : "";
-    if (!id || !name || seen.has(id) || id === "group") return;
+    if (!id || seen.has(id) || id === "group" || (!builtinTypes.has(id) && !name)) return;
     seen.add(id);
-    categories.push({ id, name });
+    categories.push(builtinTypes.has(id) ? { id, builtinType: id, name } : { id, name });
   });
-  return categories;
+  return categories.length ? categories : createDefaultWorkstreamCategories();
 }
 
 export function workstreamCategoryLabel(category, language = "zh") {
-  return category?.builtinType ? workstreamTypeLabel(category.builtinType, language) : (category?.name || "");
+  return category?.name || (category?.builtinType ? workstreamTypeLabel(category.builtinType, language) : "");
 }
 
 export function createDefaultSample(language = "zh", workstreamType = "audit") {
@@ -463,7 +466,7 @@ export function makeWorkstream(values = {}, sample = null) {
     id: values.id || uid("workstream"),
     type,
     categoryId: typeof values.categoryId === "string" && values.categoryId.trim() ? values.categoryId.trim() : type,
-    customName: type === "custom" ? (values.customName?.trim() || "自定义模块") : "",
+    customName: values.customName?.trim() || (type === "custom" ? "自定义模块" : ""),
     owner: values.owner?.trim() || "",
     dueDate: values.dueDate || "",
     createdAt: values.createdAt || now,
@@ -483,7 +486,7 @@ export function normalizeWorkstream(value, projectDefaults = {}) {
     id: value?.id || uid("workstream"),
     type,
     categoryId: typeof value?.categoryId === "string" && value.categoryId.trim() ? value.categoryId.trim() : type,
-    customName: type === "custom" && typeof value?.customName === "string" && value.customName.trim()
+    customName: typeof value?.customName === "string" && value.customName.trim()
       ? value.customName.trim() : (type === "custom" ? "自定义模块" : ""),
     owner: typeof value?.owner === "string" ? value.owner : (projectDefaults.owner || ""),
     dueDate: typeof value?.dueDate === "string" ? value.dueDate : (projectDefaults.dueDate || ""),
@@ -619,6 +622,7 @@ export function makeGroup(values, useStarter = true, groupSample = createDefault
     period: values.period?.trim() || "",
     periodStart: values.periodStart || "",
     periodEnd: values.periodEnd || "",
+    startDate: values.startDate || "",
     dueDate: values.dueDate || "",
     owner: values.owner?.trim() || "",
     notes: values.notes?.trim() || "",
@@ -712,6 +716,21 @@ export function normalizeStore(value) {
   const selectedGroupSampleId = groupSamples.some((sample) => sample.id === value.selectedGroupSampleId)
     ? value.selectedGroupSampleId : groupSamples[0].id;
   const defaultGroupSample = groupSamples.find((sample) => sample.id === selectedGroupSampleId) || groupSamples[0];
+  const normalizeConversionState = (state) => {
+    if (!state || typeof state !== "object") return undefined;
+    const normalized = {};
+    if (state.project && typeof state.project === "object") normalized.project = {
+      entity: typeof state.project.entity === "string" ? state.project.entity : "",
+      reportingFramework: typeof state.project.reportingFramework === "string" ? state.project.reportingFramework : "",
+      workstreams: Array.isArray(state.project.workstreams)
+        ? state.project.workstreams.map((workstream) => normalizeWorkstream(workstream)) : [],
+    };
+    if (state.group && typeof state.group === "object") normalized.group = {
+      consolidationEnabled: state.group.consolidationEnabled !== false,
+      nodes: normalizeNodeList(state.group.nodes),
+    };
+    return Object.keys(normalized).length ? normalized : undefined;
+  };
   const projects = value.projects.map((project) => {
     const owner = typeof project.owner === "string" ? project.owner : "";
     const dueDate = typeof project.dueDate === "string" ? project.dueDate : "";
@@ -746,6 +765,7 @@ export function normalizeStore(value) {
       period: typeof project?.period === "string" ? project.period : "",
       periodStart: typeof project?.periodStart === "string" ? project.periodStart : "",
       periodEnd: typeof project?.periodEnd === "string" ? project.periodEnd : "",
+      startDate: typeof project?.startDate === "string" ? project.startDate : "",
       dueDate,
       owner,
       notes: typeof project?.notes === "string" ? project.notes : "",
@@ -754,6 +774,7 @@ export function normalizeStore(value) {
       updatedAt: project?.updatedAt || new Date().toISOString(),
       outstandingItems,
       workstreams,
+      conversionState: normalizeConversionState(project?.conversionState),
     };
   });
   const groups = Array.isArray(value.groups) ? value.groups.map((group) => ({
@@ -762,6 +783,7 @@ export function normalizeStore(value) {
     period: typeof group?.period === "string" ? group.period : "",
     periodStart: typeof group?.periodStart === "string" ? group.periodStart : "",
     periodEnd: typeof group?.periodEnd === "string" ? group.periodEnd : "",
+    startDate: typeof group?.startDate === "string" ? group.startDate : "",
     dueDate: typeof group?.dueDate === "string" ? group.dueDate : "",
     owner: typeof group?.owner === "string" ? group.owner : "",
     notes: typeof group?.notes === "string" ? group.notes : "",
@@ -774,6 +796,7 @@ export function normalizeStore(value) {
     outstandingItems: Array.isArray(group?.outstandingItems)
       ? group.outstandingItems.map((item) => makeOutstandingItem(item, outstandingStatuses)) : [],
     nodes: normalizeNodeList(group?.nodes),
+    conversionState: normalizeConversionState(group?.conversionState),
   })) : [];
   return {
     version: STORE_VERSION,
@@ -826,6 +849,7 @@ export function makeProject(values, useStarter = true, sampleSource = null, cate
     period: values.period?.trim() || "",
     periodStart: values.periodStart || "",
     periodEnd: values.periodEnd || "",
+    startDate: values.startDate || "",
     dueDate: values.dueDate || "",
     owner: values.owner?.trim() || "",
     notes: values.notes?.trim() || "",
@@ -834,6 +858,96 @@ export function makeProject(values, useStarter = true, sampleSource = null, cate
     updatedAt: now,
     outstandingItems: [],
     workstreams,
+  };
+}
+
+function mergeConversionState(current, patch) {
+  const state = current && typeof current === "object" ? current : {};
+  return { ...state, ...patch };
+}
+
+export function convertProjectToGroup(store, projectId, groupSample = createDefaultGroupSample()) {
+  const project = store.projects.find((item) => item.id === projectId);
+  if (!project) return store;
+  const previousGroup = project.conversionState?.group;
+  const consolidationEnabled = previousGroup?.consolidationEnabled !== false;
+  const starterNodes = previousGroup?.nodes || groupSample?.nodes || [];
+  const now = new Date().toISOString();
+  const group = {
+    id: project.id,
+    name: project.entity || project.name || "未命名控股公司",
+    period: project.period || "",
+    periodStart: project.periodStart || "",
+    periodEnd: project.periodEnd || "",
+    startDate: project.startDate || "",
+    dueDate: project.dueDate || "",
+    owner: project.owner || "",
+    notes: project.notes || "",
+    consolidationEnabled,
+    archived: Boolean(project.archived),
+    createdAt: project.createdAt || now,
+    updatedAt: now,
+    members: [],
+    outstandingItems: (project.outstandingItems || []).map((item) => ({ ...item, workstreamId: null, updatedAt: now })),
+    nodes: consolidationEnabled ? normalizeNodeList(starterNodes) : [],
+    conversionState: mergeConversionState(project.conversionState, { project: {
+      entity: project.entity || "",
+      reportingFramework: project.reportingFramework || "",
+      workstreams: (project.workstreams || []).map((workstream) => normalizeWorkstream(workstream,
+        { owner: project.owner, dueDate: project.dueDate })),
+    } }),
+  };
+  return { ...store,
+    projects: store.projects.filter((item) => item.id !== projectId),
+    groups: [...store.groups.map((parent) => ({ ...parent, members: parent.members.map((member) =>
+      member.kind === "project" && member.refId === projectId
+        ? makeGroupMember({ id: member.id, kind: "group", refId: projectId, role: member.role }, groupSample) : member) })), group],
+  };
+}
+
+export function convertGroupToProject(store, groupId, groupSample = createDefaultGroupSample()) {
+  const group = store.groups.find((item) => item.id === groupId);
+  if (!group) return store;
+  const savedProject = group.conversionState?.project;
+  const baseProject = makeProject({ name: group.name, entity: savedProject?.entity || group.name,
+    reportingFramework: savedProject?.reportingFramework || "", period: group.period, periodStart: group.periodStart,
+    periodEnd: group.periodEnd, startDate: group.startDate, dueDate: group.dueDate, owner: group.owner, notes: group.notes,
+    workstreamSelections: [{ type: "audit", categoryId: "audit", sampleId: store.selectedSampleIdsByCategory?.audit }] },
+  true, store.samples, store.workstreamCategories);
+  const now = new Date().toISOString();
+  const workstreams = savedProject?.workstreams?.length
+    ? savedProject.workstreams.map((workstream) => normalizeWorkstream(workstream, { owner: group.owner, dueDate: group.dueDate }))
+    : baseProject.workstreams;
+  const workstreamIds = new Set(workstreams.map((workstream) => workstream.id));
+  const project = { ...baseProject,
+    id: group.id,
+    name: group.name,
+    entity: savedProject?.entity || group.name,
+    reportingFramework: savedProject?.reportingFramework || "",
+    period: group.period || "",
+    periodStart: group.periodStart || "",
+    periodEnd: group.periodEnd || "",
+    startDate: group.startDate || "",
+    dueDate: group.dueDate || "",
+    owner: group.owner || "",
+    notes: group.notes || "",
+    archived: Boolean(group.archived),
+    createdAt: group.createdAt || now,
+    updatedAt: now,
+    outstandingItems: (group.outstandingItems || []).map((item) => ({ ...item,
+      workstreamId: workstreamIds.has(item.workstreamId) ? item.workstreamId : null, updatedAt: now })),
+    workstreams,
+    conversionState: mergeConversionState(group.conversionState, { group: {
+      consolidationEnabled: group.consolidationEnabled !== false,
+      nodes: normalizeNodeList(group.nodes),
+    } }),
+  };
+  return { ...store,
+    projects: [...store.projects, project],
+    groups: store.groups.filter((item) => item.id !== groupId).map((parent) => ({ ...parent,
+      members: parent.members.map((member) => member.kind === "group" && member.refId === groupId
+        ? makeGroupMember({ id: member.id, kind: "project", refId: groupId, role: member.role,
+          auditType: "internal_team" }, groupSample) : member) })),
   };
 }
 
@@ -849,7 +963,7 @@ export function emptyStore() {
 }
 
 export function isValidStore(value) {
-  return value && [1, 2, 3, 4, 5, 6, STORE_VERSION].includes(value.version) && Array.isArray(value.projects);
+  return value && [1, 2, 3, 4, 5, 6, 7, STORE_VERSION].includes(value.version) && Array.isArray(value.projects);
 }
 
 export function outstandingStatusLabel(value, statuses = createDefaultOutstandingStatuses(), language = "zh") {
@@ -960,6 +1074,62 @@ export function projectStats(project) {
 
 export function projectIsComplete(project) {
   return projectStats(project).complete;
+}
+
+export function navigationStatusCounts(store) {
+  const counts = { active: 0, completed: 0, all: 0, archived: 0 };
+  const records = [
+    ...(store.projects || []).map((item) => ({ item, complete: projectStats(item).complete })),
+    ...(store.groups || []).map((item) => ({ item, complete: groupProgress(store, item.id).ready })),
+  ];
+  records.forEach(({ item, complete }) => {
+    if (item.archived) counts.archived += 1;
+    else {
+      counts.all += 1;
+      counts[complete ? "completed" : "active"] += 1;
+    }
+  });
+  return counts;
+}
+
+export function deadlineAlerts(store, now = new Date()) {
+  const current = now instanceof Date ? new Date(now) : new Date(now);
+  if (Number.isNaN(current.getTime())) return [];
+  const today = Date.UTC(current.getFullYear(), current.getMonth(), current.getDate());
+  const makeAlert = ({ id, targetKind, targetId, scope, recordName, owner, dueDate, workstream = null }) => {
+    if (!dueDate) return null;
+    const due = Date.parse(`${dueDate}T00:00:00Z`);
+    if (Number.isNaN(due) || due >= today) return null;
+    return { id, targetKind, targetId, scope, recordName, owner: owner || "", dueDate,
+      daysOverdue: Math.floor((today - due) / 86400000), workstream };
+  };
+  const alerts = [];
+
+  (store.projects || []).filter((project) => !project.archived).forEach((project) => {
+    const recordName = project.entity || project.name;
+    if (!projectStats(project).complete) {
+      const alert = makeAlert({ id: `project:${project.id}`, targetKind: "project", targetId: project.id,
+        scope: "project", recordName, owner: project.owner, dueDate: project.dueDate });
+      if (alert) alerts.push(alert);
+    }
+    (project.workstreams || []).filter((workstream) => !workstreamStats(workstream).complete
+      && workstream.dueDate !== project.dueDate).forEach((workstream) => {
+      const alert = makeAlert({ id: `workstream:${project.id}:${workstream.id}`, targetKind: "project", targetId: project.id,
+        scope: "workstream", recordName, owner: workstream.owner || project.owner, dueDate: workstream.dueDate,
+        workstream: { id: workstream.id, type: workstream.type, categoryId: workstream.categoryId,
+          customName: workstream.customName || "" } });
+      if (alert) alerts.push(alert);
+    });
+  });
+
+  (store.groups || []).filter((group) => !group.archived && !groupProgress(store, group.id).ready).forEach((group) => {
+    const alert = makeAlert({ id: `group:${group.id}`, targetKind: "group", targetId: group.id,
+      scope: "group", recordName: group.name, owner: group.owner, dueDate: group.dueDate });
+    if (alert) alerts.push(alert);
+  });
+
+  return alerts.sort((left, right) => right.daysOverdue - left.daysOverdue
+    || left.dueDate.localeCompare(right.dueDate) || left.recordName.localeCompare(right.recordName));
 }
 
 export function findParentMembership(store, kind, refId) {

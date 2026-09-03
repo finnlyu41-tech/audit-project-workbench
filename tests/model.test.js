@@ -9,10 +9,13 @@ import {
   canMoveWorkspaceItem,
   canNestGroup,
   collectGroupOutstandingEntries,
+  convertGroupToProject,
+  convertProjectToGroup,
   createDefaultGroupSample,
   createDefaultWorkstreamCategories,
   createDefaultSample,
   createDefaultOutstandingStatuses,
+  deadlineAlerts,
   duplicateSample,
   emptyStore,
   findParentMembership,
@@ -28,6 +31,7 @@ import {
   makeWorkstream,
   memberProgressPercentage,
   moveWorkspaceItem,
+  navigationStatusCounts,
   nodeIsComplete,
   normalizeStore,
   outstandingIsOpen,
@@ -36,6 +40,7 @@ import {
   redactSampleCompanies,
   reportingPeriodLabel,
   workstreamStats,
+  workstreamCategoryLabel,
   workstreamTypeLabel,
 } from "../src/dashboard/model.js";
 
@@ -44,6 +49,7 @@ const projectValues = {
   entity: "[Company Name] Limited",
   reportingFramework: "HKFRS Accounting Standards",
   period: "Year ended 31 March 2025",
+  startDate: "2025-04-01",
   dueDate: "2025-06-30",
   notes: "",
 };
@@ -328,7 +334,7 @@ test("version 5 data migrates to template categories without changing the select
   assert.equal(migrated.projects[0].workstreams[0].categoryId, "audit");
 });
 
-test("initialising creates a clean version 7 workspace with built-in categories and templates", () => {
+test("initialising creates a clean version 8 workspace with built-in categories and templates", () => {
   const initialised = emptyStore();
 
   assert.equal(initialised.version, STORE_VERSION);
@@ -338,6 +344,24 @@ test("initialising creates a clean version 7 workspace with built-in categories 
   assert.equal(initialised.samples.length, 4);
   assert.equal(initialised.groupSamples.length, 1);
   assert.equal(initialised.selectedSampleIdsByCategory.audit, "sample-core-audit");
+});
+
+test("unused built-in template categories can be renamed or removed without returning after reload", () => {
+  const saved = emptyStore();
+  saved.workstreamCategories = saved.workstreamCategories
+    .filter((category) => category.id !== "quote_collection")
+    .map((category) => category.id === "audit" ? { ...category, name: "Assurance" } : category);
+  saved.samples = saved.samples.filter((sample) => sample.categoryId !== "quote_collection");
+  delete saved.selectedSampleIdsByCategory.quote_collection;
+
+  const reloaded = normalizeStore(saved);
+  const auditCategory = reloaded.workstreamCategories.find((category) => category.id === "audit");
+
+  assert.equal(reloaded.workstreamCategories.some((category) => category.id === "quote_collection"), false);
+  assert.equal(auditCategory.builtinType, "audit");
+  assert.equal(workstreamCategoryLabel(auditCategory, "zh"), "Assurance");
+  assert.equal(workstreamTypeLabel("audit", "en", "Assurance"), "Assurance");
+  assert.equal(normalizeStore(reloaded).workstreamCategories.some((category) => category.id === "quote_collection"), false);
 });
 
 test("deleting the final workstream template persists and new workstreams start blank", () => {
@@ -573,9 +597,88 @@ test("reporting periods use start and end dates while custom frameworks and lega
   assert.equal(migrated.projects[0].period, projectValues.period);
   assert.equal(migrated.projects[0].periodStart, "");
   assert.equal(migrated.projects[0].periodEnd, "");
+  assert.equal(migrated.projects[0].startDate, projectValues.startDate);
   assert.equal(reportingPeriodLabel(migrated.projects[0], "en"), projectValues.period);
   assert.equal(migrated.projects[0].reportingFramework, "HKFRS Accounting Standards");
 
+  const versionSevenProject = { ...legacy };
+  delete versionSevenProject.startDate;
+  const scheduleMigrated = normalizeStore({ version: 7, projects: [versionSevenProject], groups: [] });
+  assert.equal(scheduleMigrated.projects[0].startDate, "");
+
   const customFramework = makeProject({ ...projectValues, reportingFramework: "  Contractual reporting basis  " }, false);
   assert.equal(customFramework.reportingFramework, "Contractual reporting basis");
+});
+
+test("company records can convert to holding companies and back without losing workflow progress", () => {
+  const base = emptyStore();
+  const groupSample = createDefaultGroupSample();
+  const project = makeProject(projectValues, true, base.samples, base.workstreamCategories);
+  project.workstreams[0].nodes[0].conditions[0].done = true;
+  project.outstandingItems.push(makeOutstandingItem({ title: "Waiting for signature", workstreamId: project.workstreams[0].id },
+    base.outstandingStatuses));
+  const parent = makeGroup({ name: "Parent Holding", consolidationEnabled: false }, false, groupSample);
+  parent.members.push(makeGroupMember({ kind: "project", refId: project.id, role: "Subsidiary" }, groupSample));
+  const store = { ...base, projects: [project], groups: [parent] };
+
+  const asGroup = convertProjectToGroup(store, project.id, groupSample);
+  const convertedGroup = asGroup.groups.find((item) => item.id === project.id);
+  assert.equal(asGroup.projects.some((item) => item.id === project.id), false);
+  assert.equal(convertedGroup.name, project.entity);
+  assert.equal(convertedGroup.outstandingItems[0].workstreamId, null);
+  assert.equal(convertedGroup.startDate, project.startDate);
+  assert.equal(convertedGroup.conversionState.project.workstreams[0].nodes[0].conditions[0].done, true);
+  assert.equal(findParentMembership(asGroup, "group", project.id).member.role, "Subsidiary");
+
+  const child = makeProject({ ...projectValues, name: "Detached Child" }, false);
+  convertedGroup.members.push(makeGroupMember({ kind: "project", refId: child.id }, groupSample));
+  const roundTrip = convertGroupToProject({ ...asGroup, projects: [child] }, project.id, groupSample);
+  const restored = roundTrip.projects.find((item) => item.id === project.id);
+  assert.equal(roundTrip.groups.some((item) => item.id === project.id), false);
+  assert.equal(restored.entity, project.entity);
+  assert.equal(restored.startDate, project.startDate);
+  assert.equal(restored.workstreams[0].nodes[0].conditions[0].done, true);
+  assert.equal(findParentMembership(roundTrip, "project", project.id).member.role, "Subsidiary");
+  assert.equal(findParentMembership(roundTrip, "project", child.id), null);
+
+  const reloaded = normalizeStore(roundTrip);
+  assert.equal(reloaded.projects.find((item) => item.id === project.id).conversionState.group.consolidationEnabled, true);
+});
+
+test("navigation status counts include companies and holding companies", () => {
+  const activeProject = makeProject(projectValues, false);
+  const completedProject = makeProject({ ...projectValues, name: "Completed" }, true);
+  completedProject.workstreams.flatMap((workstream) => workstream.nodes)
+    .flatMap((node) => node.conditions).forEach((condition) => { condition.done = true; });
+  const archivedGroup = makeGroup({ name: "Archived Holding", consolidationEnabled: false }, false);
+  archivedGroup.archived = true;
+  const activeGroup = makeGroup({ name: "Active Holding", consolidationEnabled: true }, false);
+  const counts = navigationStatusCounts({ projects: [activeProject, completedProject], groups: [activeGroup, archivedGroup] });
+
+  assert.deepEqual(counts, { active: 2, completed: 1, all: 3, archived: 1 });
+});
+
+test("deadline alerts include active overdue records and distinct workstream deadlines only", () => {
+  const overdueProject = makeProject({ ...projectValues, name: "Overdue", entity: "Overdue Limited",
+    owner: "Alex", dueDate: "2026-08-20" }, true);
+  overdueProject.workstreams[0].dueDate = "2026-08-25";
+  const futureProject = makeProject({ ...projectValues, name: "Future", dueDate: "2026-09-20" }, true);
+  const completedProject = makeProject({ ...projectValues, name: "Completed", dueDate: "2026-08-15" }, true);
+  completedProject.workstreams.flatMap((workstream) => workstream.nodes)
+    .flatMap((node) => node.conditions).forEach((condition) => { condition.done = true; });
+  const archivedProject = makeProject({ ...projectValues, name: "Archived", dueDate: "2026-08-10" }, true);
+  archivedProject.archived = true;
+  const group = makeGroup({ name: "Overdue Holding", owner: "Morgan", dueDate: "2026-08-01",
+    consolidationEnabled: true }, false);
+  const alerts = deadlineAlerts({ projects: [overdueProject, futureProject, completedProject, archivedProject], groups: [group] },
+    new Date("2026-09-03T09:00:00"));
+
+  assert.deepEqual(alerts.map((alert) => alert.id), [
+    `group:${group.id}`,
+    `project:${overdueProject.id}`,
+    `workstream:${overdueProject.id}:${overdueProject.workstreams[0].id}`,
+  ]);
+  assert.deepEqual(alerts.map((alert) => alert.daysOverdue), [33, 14, 9]);
+  assert.equal(alerts[1].recordName, "Overdue Limited");
+  assert.equal(alerts[2].owner, "Alex");
 });

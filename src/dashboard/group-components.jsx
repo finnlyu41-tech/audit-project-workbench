@@ -1,5 +1,5 @@
 import React from "react";
-import { Building, Building2, Copy, Minus, Pencil, Play, Plus, Trash2 } from "lucide-react";
+import { ArrowRightLeft, Building, Building2, Copy, Minus, Pencil, Play, Plus, Trash2 } from "lucide-react";
 import { ProgressBar } from "./components.jsx";
 import { GROUP_AUDIT_TYPES, GROUP_AUDIT_TYPE_KEYS, canMoveWorkspaceItem, collectGroupOutstandingEntries, formatDate,
   groupProgress, makeGroupMember, memberIsReady, memberProgressPercentage, outstandingIsOpen, projectStats,
@@ -9,13 +9,14 @@ import { useUiLanguage } from "./i18n.jsx";
 export const auditTypeKeys = GROUP_AUDIT_TYPE_KEYS;
 
 export function GroupForm({ initial, sampleName, allowTemplate = true, memberTargets = { projects: [], groups: [] },
-  availableProjects = [], availableGroups = [], groupSample, onSubmit, onClose }) {
+  availableProjects = [], availableGroups = [], groupSample, onSubmit, onClose, onConvert }) {
   const { t } = useUiLanguage();
   const [values, setValues] = React.useState(() => ({
     name: initial?.name || "",
     period: initial?.period || "",
     periodStart: initial?.periodStart || "",
     periodEnd: initial?.periodEnd || "",
+    startDate: initial?.startDate || "",
     dueDate: initial?.dueDate || "",
     owner: initial?.owner || "",
     notes: initial?.notes || "",
@@ -56,14 +57,21 @@ export function GroupForm({ initial, sampleName, allowTemplate = true, memberTar
     if (values.name.trim()) onSubmit({ ...values, name: values.name.trim(), period: values.period.trim(),
       owner: values.owner.trim(), notes: values.notes.trim(), ...(initial ? { members } : {}) }, useStarter);
   }}>
+    {initial && onConvert && <section className="structure-conversion"><div><span>{t("公司结构")}</span>
+      <strong>{t("控股公司")}</strong><small>{t("转换后，下属成员会移到顶层；合并节点会保留以供以后恢复。")}</small></div>
+      <button type="button" className="button secondary" onClick={onConvert}><ArrowRightLeft aria-hidden="true" />
+        {t("转换为公司")}</button></section>}
     <label><span>{t("集团名称 *")}</span><input autoFocus required value={values.name} onChange={update("name")}
       placeholder={t("例如：[集团名称] 2025年度集团审计")} /></label>
-    <div className="form-grid" data-columns="3">
+    <div className="form-grid" data-columns="4">
       <label><span>{t("报告期开始日")}</span><input type="date" value={values.periodStart} max={values.periodEnd || undefined}
         required={Boolean(values.periodEnd)} onChange={update("periodStart")} /></label>
       <label><span>{t("报告期结束日")}</span><input type="date" value={values.periodEnd} min={values.periodStart || undefined}
         required={Boolean(values.periodStart)} onChange={update("periodEnd")} /></label>
-      <label><span>{t("目标完成日期")}</span><input type="date" value={values.dueDate} onChange={update("dueDate")} /></label>
+      <label><span>{t("项目开始日")}</span><input type="date" value={values.startDate} max={values.dueDate || undefined}
+        onChange={update("startDate")} /></label>
+      <label><span>{t("项目截止日")}</span><input type="date" value={values.dueDate} min={values.startDate || undefined}
+        onChange={update("dueDate")} /></label>
     </div>
     {values.period && !values.periodStart && !values.periodEnd && <small className="form-help">
       {t("原有报告期间：{period}。请在适当时补充开始日和结束日。", { period: values.period })}</small>}

@@ -26,6 +26,10 @@ The project follows [Semantic Versioning](https://semver.org/).
 - A unified New company flow for creating either a company or a holding company.
 - Explicit drop targets on every eligible holding-company row, including expanded middle levels.
 - A centre-first, Obsidian-inspired workspace mode with an on-demand outstanding panel for narrower desktop windows.
+- Storage V8 project and holding-company start dates, kept separate from reporting-period dates and existing deadlines.
+- A weekly horizontal project schedule with sticky company details, owner ordering, overdue and incomplete-date states, status filtering and direct links back to records.
+- A global deadline-alert bell with a live overdue count and a sorted, navigable list covering companies, holding companies and distinct workstream deadlines.
+- Reversible company-to-holding-company conversion with recoverable workflow and consolidation state.
 
 ### Changed
 
@@ -44,6 +48,8 @@ The project follows [Semantic Versioning](https://semver.org/).
 - Increased small interface type and added responsive pane, toolbar, form and card layouts for browser zoom and narrower desktop windows.
 - Added explicit plus/minus disclosure controls and hierarchy guide lines to the holding-company navigation tree.
 - Replaced long high-frequency action labels with consistent Lucide icons, full hover/focus explanations and accessible labels.
+- Added numeric badges to navigation status filters and tightened stage controls into a single compact row.
+- Moved template-category management out of the category tabs and aligned consolidation-readiness labels with their completed-condition counts.
 
 ## [0.2.0] - 2026-09-02
 
