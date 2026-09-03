@@ -1,6 +1,7 @@
 import React from "react";
 import { ArrowRightLeft, Building, Building2, Copy, Minus, Pencil, Play, Plus, Trash2 } from "lucide-react";
 import { ProgressBar } from "./components.jsx";
+import { handleTabListKeyDown, tabIndexFor } from "./a11y.js";
 import { GROUP_AUDIT_TYPES, GROUP_AUDIT_TYPE_KEYS, canMoveWorkspaceItem, collectGroupOutstandingEntries, formatDate,
   groupProgress, makeGroupMember, memberIsReady, memberProgressPercentage, outstandingIsOpen, projectStats,
   reportingPeriodLabel, uid } from "./model.js";
@@ -100,9 +101,11 @@ export function GroupForm({ initial, sampleName, allowTemplate = true, memberTar
           <button type="button" disabled={archived} onClick={() => setMembers((current) => current.filter((item) => item.id !== member.id))}>{t("移除")}</button>
         </article>;
       })}{!members.length && <div className="group-membership-empty">{t("这个集团还没有公司或子集团。")}</div>}</div>
-      <div className="group-member-adder"><div className="choice-tabs" role="tablist"><button type="button" aria-selected={memberKind === "project"}
+      <div className="group-member-adder"><div className="choice-tabs" role="tablist" onKeyDown={handleTabListKeyDown}><button type="button" role="tab"
+        aria-selected={memberKind === "project"} tabIndex={tabIndexFor(memberKind === "project")}
         onClick={() => { setMemberKind("project"); setMemberRefId(""); }}>{t("公司项目")}</button>
-        <button type="button" aria-selected={memberKind === "group"} onClick={() => { setMemberKind("group"); setMemberRefId(""); }}>{t("子集团")}</button></div>
+        <button type="button" role="tab" aria-selected={memberKind === "group"} tabIndex={tabIndexFor(memberKind === "group")}
+          onClick={() => { setMemberKind("group"); setMemberRefId(""); }}>{t("子集团")}</button></div>
         <select aria-label={t("选择要加入的组成部分")} value={effectiveRefId} onChange={(event) => setMemberRefId(event.target.value)}>
           {candidates.map((candidate) => <option value={candidate.id} key={candidate.id}>{candidate.name}</option>)}</select>
         <button type="button" className="button secondary" disabled={!effectiveRefId} onClick={addMember}>{t("添加到集团")}</button></div>
@@ -293,16 +296,17 @@ export function GroupMatrix({ store, group, statuses, onOpen, onConfigure, readO
     <header className="group-section-header"><div><h3>{t("公司与子集团")}</h3>
       <p>{t("集中查看负责人、审计进度和进入合并前的条件。")}</p></div></header>
     <div className="group-matrix-filters">
-      <input value={owner} onChange={(event) => setOwner(event.target.value)} placeholder={t("筛选负责人")} />
-      <select value={auditType} onChange={(event) => setAuditType(event.target.value)}><option value="all">{t("全部审计类别")}</option>
+      <input value={owner} onChange={(event) => setOwner(event.target.value)} placeholder={t("筛选负责人")} aria-label={t("筛选负责人")} />
+      <select value={auditType} onChange={(event) => setAuditType(event.target.value)} aria-label={t("按审计类别筛选")}><option value="all">{t("全部审计类别")}</option>
         {GROUP_AUDIT_TYPES.map((value) => <option value={value} key={value}>{t(auditTypeKeys[value])}</option>)}</select>
-      <select value={readiness} onChange={(event) => setReadiness(event.target.value)}><option value="all">{t("全部就绪状态")}</option>
+      <select value={readiness} onChange={(event) => setReadiness(event.target.value)} aria-label={t("按就绪状态筛选")}><option value="all">{t("全部就绪状态")}</option>
         <option value="ready">{t("已具备合并条件")}</option><option value="not_ready">{t("尚未具备合并条件")}</option></select>
     </div>
     <div className="group-matrix" role="table" aria-label={t("集团组成部分矩阵")}>
-      <div className="group-matrix-head" role="row"><span>{t("公司／子集团")}</span><span>{t("角色")}</span>
-        <span>{t("审计类别")}</span><span>{t("负责人")}</span><span>{t("审计进度")}</span>
-        <span>{t("合并就绪")}</span><span>{t("待清")}</span><span>{t("截止日")}</span><span /></div>
+      <div className="group-matrix-head" role="row"><span role="columnheader">{t("公司／子集团")}</span><span role="columnheader">{t("角色")}</span>
+        <span role="columnheader">{t("审计类别")}</span><span role="columnheader">{t("负责人")}</span><span role="columnheader">{t("审计进度")}</span>
+        <span role="columnheader">{t("合并就绪")}</span><span role="columnheader">{t("待清")}</span><span role="columnheader">{t("截止日")}</span>
+        <span role="columnheader" aria-label={t("操作")} /></div>
       {rows.map(({ member, target, sourceGroupId, depth }) => {
         const isGroup = member.kind === "group";
         const percentage = isGroup ? groupProgress(store, target.id).percentage : memberProgressPercentage(store, member);
@@ -312,17 +316,18 @@ export function GroupMatrix({ store, group, statuses, onOpen, onConfigure, readO
           : target.outstandingItems.filter((item) => outstandingIsOpen(item, statuses)).length;
         const completedReadiness = member.readinessConditions?.filter((condition) => condition.done).length || 0;
         return <div className="group-matrix-row" role="row" key={member.id}>
-          <button type="button" className="matrix-name" style={{ "--matrix-depth": depth }} onClick={() => onOpen(member.kind, target.id)}>
+          <div role="cell" className="matrix-name-cell"><button type="button" className="matrix-name" style={{ "--matrix-depth": depth }} onClick={() => onOpen(member.kind, target.id)}>
             <span className="matrix-kind">{isGroup ? <Building2 aria-hidden="true" /> : <Building aria-hidden="true" />}</span><span><strong>{target.name}</strong>
-              <small>{target.entity || reportingPeriodLabel(target, language) || t(isGroup ? "子集团" : "公司项目")}</small></span></button>
-          <span>{member.role || t(isGroup ? "子集团" : "组成部分")}</span>
-          <span>{isGroup ? t(target.consolidationEnabled ? "子集团合并" : "分类集团") : t(auditTypeKeys[member.auditType])}</span>
-          <span>{target.owner || "—"}</span><span className="matrix-progress"><strong>{percentage}%</strong>
+              <small>{target.entity || reportingPeriodLabel(target, language) || t(isGroup ? "子集团" : "公司项目")}</small></span></button></div>
+          <span role="cell">{member.role || t(isGroup ? "子集团" : "组成部分")}</span>
+          <span role="cell">{isGroup ? t(target.consolidationEnabled ? "子集团合并" : "分类集团") : t(auditTypeKeys[member.auditType])}</span>
+          <span role="cell">{target.owner || "—"}</span><span role="cell" className="matrix-progress"><strong>{percentage}%</strong>
             <ProgressBar value={percentage} compact /></span>
-          <span><i className="readiness-pill" data-ready={ready || undefined}>{t(ready ? "已就绪" : "未就绪")}</i>
+          <span role="cell"><i className="readiness-pill" data-ready={ready || undefined}>{t(ready ? "已就绪" : "未就绪")}</i>
             {!isGroup && <small>{completedReadiness}/{member.readinessConditions.length}</small>}</span>
-          <span>{openOutstanding || "—"}</span><time>{formatDate(target.dueDate, language)}</time>
-          {readOnly ? <span /> : <button type="button" className="matrix-settings" onClick={() => onConfigure(sourceGroupId, member)}>{t("设置")}</button>}
+          <span role="cell">{openOutstanding || "—"}</span><time role="cell">{formatDate(target.dueDate, language)}</time>
+          <div role="cell" className="matrix-action-cell">{!readOnly && <button type="button" className="matrix-settings"
+            onClick={() => onConfigure(sourceGroupId, member)}>{t("设置")}</button>}</div>
         </div>;
       })}
       {!rows.length && <div className="matrix-empty">{t(group.members.length ? "没有符合筛选的组成部分" : "还没有加入公司或子集团")}</div>}
@@ -342,8 +347,10 @@ export function GroupMemberAddForm({ availableProjects, availableGroups, onLink,
   return <form className="workbench-form member-add-form" onSubmit={(event) => {
     event.preventDefault(); if (refId) onLink({ kind, refId, role, auditType });
   }}>
-    <div className="choice-tabs" role="tablist"><button type="button" aria-selected={kind === "project"}
-      onClick={() => setKind("project")}>{t("公司项目")}</button><button type="button" aria-selected={kind === "group"}
+    <div className="choice-tabs" role="tablist" onKeyDown={handleTabListKeyDown}><button type="button" role="tab"
+      aria-selected={kind === "project"} tabIndex={tabIndexFor(kind === "project")}
+      onClick={() => setKind("project")}>{t("公司项目")}</button><button type="button" role="tab"
+        aria-selected={kind === "group"} tabIndex={tabIndexFor(kind === "group")}
         onClick={() => setKind("group")}>{t("子集团")}</button></div>
     <label><span>{t(kind === "project" ? "选择未归属的公司项目" : "选择未归属的集团")}</span>
       <select value={refId} onChange={(event) => setRefId(event.target.value)}>{candidates.map((item) =>

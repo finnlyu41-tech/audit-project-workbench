@@ -2,6 +2,7 @@ import React from "react";
 import { BellRing, Building, Building2, ChevronRight, Layers3, ReceiptText } from "lucide-react";
 import { formatDate, taxDeadlineCategoryLabel, workstreamTypeLabel } from "./model.js";
 import { useUiLanguage } from "./i18n.jsx";
+import { handleTabListKeyDown, tabIndexFor } from "./a11y.js";
 
 function alertTitle(alert, language, t) {
   if (alert.scope === "tax") {
@@ -39,9 +40,9 @@ export function DeadlineAlertCentre({ alerts, onOpen }) {
       <strong>{alerts.length ? t("{count} 项期限需要关注", { count: alerts.length }) : t("目前没有需要关注的期限")}</strong>
       <small>{t("项目及模块显示逾期事项；税务期限同时显示即将到期事项。")}</small>
     </div></header>
-    <div className="deadline-alert-filters" role="tablist">{[["all", "全部", alerts.length], ["tax", "税务", taxCount],
+    <div className="deadline-alert-filters" role="tablist" aria-label={t("期限筛选")} onKeyDown={handleTabListKeyDown}>{[["all", "全部", alerts.length], ["tax", "税务", taxCount],
       ["delivery", "项目与模块", deliveryCount]].map(([value, label, count]) => <button type="button" role="tab" key={value}
-        aria-selected={filter === value} onClick={() => setFilter(value)}><span>{t(label)}</span><strong>{count}</strong></button>)}</div>
+        aria-selected={filter === value} tabIndex={tabIndexFor(filter === value)} onClick={() => setFilter(value)}><span>{t(label)}</span><strong>{count}</strong></button>)}</div>
     {visible.length ? <div className="deadline-alert-list">{visible.map((alert) => <button type="button"
       className="deadline-alert-row" key={alert.id} onClick={() => onOpen(alert)}
       data-urgency={alert.urgency || "overdue"}

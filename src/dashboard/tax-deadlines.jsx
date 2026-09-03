@@ -4,6 +4,7 @@ import { TAX_DEADLINE_CATEGORIES, TAX_DEADLINE_STATES, collectGroupTaxDeadlineEn
   taxDeadlineCategoryLabel, taxDeadlineStateLabel, taxDeadlineSummary, taxDeadlineUrgency,
   workstreamTypeLabel } from "./model.js";
 import { useUiLanguage } from "./i18n.jsx";
+import { handleTabListKeyDown, tabIndexFor } from "./a11y.js";
 
 function urgencyLabel(urgency, t) {
   if (urgency.level === "overdue") return t("逾期 {count} 天", { count: urgency.daysOverdue });
@@ -166,9 +167,12 @@ export function TaxDeadlineManager({ store, targetKind, targetId, focusDeadlineI
         { open: summary.openCount, attention: summary.attentionCount })}</small></div></div>
       {!readOnly && <button type="button" className="button primary" onClick={() => setEditing({ sourceType: targetKind,
         sourceId: targetId, deadlineId: null })}><Plus aria-hidden="true" />{t("新增期限")}</button>}</header>
-    {targetKind === "group" && <div className="tax-deadline-scope-tabs" role="tablist">
-      <button type="button" role="tab" aria-selected={scope === "own"} onClick={() => setScope("own")}>{t("本公司")}</button>
-      <button type="button" role="tab" aria-selected={scope === "group"} onClick={() => setScope("group")}>{t("本公司及下属公司")}</button></div>}
+    {targetKind === "group" && <div className="tax-deadline-scope-tabs" role="tablist" aria-label={t("税务期限范围")}
+      onKeyDown={handleTabListKeyDown}>
+      <button type="button" role="tab" aria-selected={scope === "own"} tabIndex={tabIndexFor(scope === "own")}
+        onClick={() => setScope("own")}>{t("本公司")}</button>
+      <button type="button" role="tab" aria-selected={scope === "group"} tabIndex={tabIndexFor(scope === "group")}
+        onClick={() => setScope("group")}>{t("本公司及下属公司")}</button></div>}
     <div className="tax-deadline-filters"><select value={urgencyFilter} onChange={(event) => setUrgencyFilter(event.target.value)}
       aria-label={t("按紧急程度筛选")}><option value="all">{t("全部期限")}</option>
       <option value="attention">{t("需要关注")}</option><option value="overdue">{t("已逾期")}</option>

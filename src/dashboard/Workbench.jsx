@@ -20,6 +20,7 @@ import { TaxDeadlineManager, TaxDeadlineSummaryButton } from "./tax-deadlines.js
 import { OpenWorkspaceFileConfirm, PersistenceConflictDialog, PersistenceSettingsPanel,
   persistenceStatusLabel } from "./persistence-ui.jsx";
 import { useWorkbenchPersistence } from "./use-workbench-persistence.js";
+import { handleTabListKeyDown, tabIndexFor } from "./a11y.js";
 import "./dashboard.css";
 
 const SIDEBAR_PREFERENCE_KEY = "audit-progress-workbench:sidebar-collapsed";
@@ -537,9 +538,9 @@ function DashboardWorkbench() {
               onClick={() => setModal({ type: "create-company" })}><Plus aria-hidden="true" /><span>{t("新建公司")}</span></button></div>
             <label className="search-field"><Search aria-hidden="true" /><input value={search} onChange={(event) => setSearch(event.target.value)}
               placeholder={t("搜索公司或负责人")} aria-label={t("搜索公司、控股公司或负责人")} /></label>
-            <div className="filter-tabs" role="tablist" aria-label={t("项目状态")}>{[["active", "活跃"], ["completed", "已完成"],
+            <div className="filter-tabs" role="tablist" aria-label={t("项目状态")} onKeyDown={handleTabListKeyDown}>{[["active", "活跃"], ["completed", "已完成"],
               ["all", "全部"], ["archived", "归档"]].map(([value, label]) => <button type="button" role="tab" key={value}
-                aria-selected={filter === value} onClick={() => setFilter(value)}><span>{t(label)}</span>
+                aria-selected={filter === value} tabIndex={tabIndexFor(filter === value)} onClick={() => setFilter(value)}><span>{t(label)}</span>
                 <strong>{navigationCounts[value]}</strong></button>)}</div></div>
           <WorkspaceTree store={store} selection={selection} onSelect={(next) => openWorkspaceRecord(next.kind, next.id)} search={search} filter={filter}
             statuses={store.outstandingStatuses} onMove={moveNavigationItem} /></>}
@@ -646,9 +647,11 @@ function DashboardWorkbench() {
             : [...target.outstandingItems, makeOutstandingItem(values, store.outstandingStatuses)] }));
           setModal(null); notify(t(modal.item ? "待清事项已更新" : "待清事项已添加")); }} /></Modal>}
     {modal?.type === "template-library" && <Modal title={t("范本库")} onClose={() => setModal(null)} wide>
-      <div className="template-category-bar"><div className="template-type-tabs" role="tablist">
-        {[...workstreamCategoryViews, { id: "group", label: t("集团范本") }].map((category) => <button type="button" key={category.id}
-          aria-selected={templateType === category.id} onClick={() => setTemplateType(category.id)}>{category.label}</button>)}</div></div>
+      <div className="template-category-bar"><div className="template-type-tabs" role="tablist" aria-label={t("范本种类")}
+        onKeyDown={handleTabListKeyDown}>
+        {[...workstreamCategoryViews, { id: "group", label: t("集团范本") }].map((category) => <button type="button" role="tab" key={category.id}
+          aria-selected={templateType === category.id} tabIndex={tabIndexFor(templateType === category.id)}
+          onClick={() => setTemplateType(category.id)}>{category.label}</button>)}</div></div>
       {templateType === "group" ? <GroupSampleLibrary samples={groupSampleViews} selectedSampleId={store.selectedGroupSampleId}
         onSelect={(sampleId) => setStore((current) => ({ ...current, selectedGroupSampleId: sampleId }))}
         onCreate={() => setModal({ type: "group-sample-edit", sample: makeBlankGroupSample(language) })}
@@ -726,9 +729,11 @@ function CompanyCreateForm({ initialKind = "project", samples, workstreamCategor
     <section className="company-kind-selector"><div><strong>{t("公司结构")}</strong>
       <span>{t(kind === "group" ? "控股公司可管理下属公司、合并就绪及合并节点。"
         : "公司可追踪业务模块，并可随时加入控股公司层级。")}</span></div>
-      <div className="choice-tabs" role="tablist" aria-label={t("公司结构")}>
-        <button type="button" role="tab" aria-selected={kind === "project"} onClick={() => setKind("project")}>{t("公司")}</button>
-        <button type="button" role="tab" aria-selected={kind === "group"} onClick={() => setKind("group")}>{t("控股公司")}</button>
+      <div className="choice-tabs" role="tablist" aria-label={t("公司结构")} onKeyDown={handleTabListKeyDown}>
+        <button type="button" role="tab" aria-selected={kind === "project"} tabIndex={tabIndexFor(kind === "project")}
+          onClick={() => setKind("project")}>{t("公司")}</button>
+        <button type="button" role="tab" aria-selected={kind === "group"} tabIndex={tabIndexFor(kind === "group")}
+          onClick={() => setKind("group")}>{t("控股公司")}</button>
       </div></section>
     {kind === "project" ? <ProjectForm key="project" samples={samples} workstreamCategories={workstreamCategories}
       selectedSampleIdsByCategory={selectedSampleIdsByCategory} initialWorkstreamSelections={initialWorkstreamSelections}
@@ -801,7 +806,7 @@ function ProjectDetail({ project, rawProject, statuses, parentMembership, active
           targetId: rawProject.id }) : null}>
         {t("已完成 {done}/{total}", { done: stats.completedWorkstreams, total: stats.workstreams })}</DetailFactAction>
       <DetailFactAction className="tax-deadline-fact" label={t("税务期限")} icon={readOnly ? ReceiptText : Pencil}
-        urgency={taxSummary.urgency} actionLabel={readOnly ? t("税务期限") : t("编辑税务期限")}
+        urgency={taxSummary.urgency} actionLabel={readOnly ? t("税务期限") : t(taxSummary.next ? "编辑税务期限" : "新增税务期限")}
         onClick={() => setModal({ type: "tax-deadlines", targetKind: "project", targetId: rawProject.id,
           ...(readOnly ? {} : { editDeadlineId: taxSummary.next?.id ?? null }) })}>{taxFactValue}</DetailFactAction></dl>
 
@@ -862,9 +867,9 @@ function GroupDetail({ store, group, statuses, updateWorkflowNodes, setModal, se
       <article><span>{t("未清事项")}</span><div><strong>{openItems}</strong><small>{t("项")}</small></div></article>
       <article className="group-tax-deadline"><span>{t("税务期限")}</span><TaxDeadlineSummaryButton deadlines={groupTaxDeadlines}
         now={deadlineClock} compact onClick={() => setModal({ type: "tax-deadlines", targetKind: "group", targetId: rawGroup.id })} /></article></section>
-    <div className="group-tabs" role="tablist">{[["overview", "组成部分"], ["workflow", "合并节点"], ["settings", "集团资料"]]
+    <div className="group-tabs" role="tablist" aria-label={t("控股公司工作区")} onKeyDown={handleTabListKeyDown}>{[["overview", "组成部分"], ["workflow", "合并节点"], ["settings", "集团资料"]]
       .map(([value, label]) => <button type="button" role="tab" aria-selected={tab === value} key={value}
-        onClick={() => setTab(value)}>{t(label)}</button>)}</div>
+        tabIndex={tabIndexFor(tab === value)} onClick={() => setTab(value)}>{t(label)}</button>)}</div>
     {tab === "overview" && <GroupMatrix store={store} group={rawGroup} statuses={statuses} readOnly={readOnly}
       onOpen={(kind, id) => setSelection({ kind, id })} onConfigure={(sourceGroupId, member) => setModal({ type: "member-edit",
         sourceGroupId, memberId: member.id })} />}

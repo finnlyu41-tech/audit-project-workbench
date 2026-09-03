@@ -13,7 +13,7 @@
 }
 
 .audit-workbench :is(button, input, textarea) { font: inherit; }
-.audit-workbench :is(button, input, textarea):focus-visible { outline: 2px solid var(--wb-accent); outline-offset: 2px; }
+.audit-workbench :is(button, input, textarea, select, [tabindex]):focus-visible { outline: 2px solid var(--wb-accent); outline-offset: 2px; }
 .audit-workbench .icon-only { display: inline-grid; width: 32px; min-width: 32px; height: 32px; min-height: 32px; padding: 0;
   place-items: center; flex: 0 0 auto; }
 .audit-workbench .icon-only svg { width: 16px; height: 16px; stroke-width: 1.9; }
@@ -541,19 +541,24 @@
 .workstream-overview, .workflow-panel { display: grid; gap: 10px; padding: 14px; border: 1px solid var(--border);
   border-radius: 11px; background: var(--surface); }
 .workstream-card-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 8px; }
-.workstream-card { display: grid; min-width: 0; gap: 10px; padding: 12px; border: 1px solid var(--border); border-radius: 10px;
-  cursor: pointer; background: var(--surface-raised); color: var(--text); text-align: left; }
+.workstream-card { position: relative; min-width: 0; overflow: visible; border: 1px solid var(--border); border-radius: 10px;
+  background: var(--surface-raised); color: var(--text); }
+.workstream-card-select { display: grid; width: 100%; min-width: 0; gap: 10px; padding: 12px 42px 12px 12px; border: 0;
+  border-radius: inherit; cursor: pointer; background: transparent; color: inherit; text-align: left; }
 .workstream-card:hover { border-color: var(--border-strong); }
 .workstream-card[data-selected] { border-color: var(--wb-accent); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--wb-accent) 22%, transparent); }
 .workstream-card[data-complete] { background: color-mix(in srgb, var(--wb-accent-soft) 48%, var(--surface-raised)); }
-.workstream-card-top { display: grid; grid-template-columns: 28px minmax(0, 1fr) auto; align-items: center; gap: 8px; }
+.workstream-card-top { display: grid; grid-template-columns: 28px minmax(0, 1fr); align-items: center; gap: 8px; }
 .workstream-card-top > i { display: grid; width: 28px; height: 28px; place-items: center; border-radius: 7px; background: var(--wb-accent-soft);
   color: var(--wb-accent-dark); font-size: 11px; font-style: normal; font-weight: 800; }
 .workstream-card-top > span { display: grid; min-width: 0; gap: 2px; }
 .workstream-card-top strong, .workstream-card-top small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .workstream-card-top strong { font-size: 12px; }
 .workstream-card-top small { color: var(--secondary); font-size: 10px; }
-.workstream-edit { color: var(--wb-accent-dark); font-size: 9px; font-weight: 650; }
+.workstream-edit { position: absolute; z-index: 1; top: 10px; right: 8px; display: grid; width: 28px; height: 28px; place-items: center;
+  padding: 0; border: 0; border-radius: 7px; cursor: pointer; background: transparent; color: var(--wb-accent-dark); }
+.workstream-edit:hover { background: var(--control-hover); }
+.workstream-edit svg { width: 14px; height: 14px; }
 .workstream-card-progress { display: grid; grid-template-columns: 34px minmax(0, 1fr); align-items: center; gap: 8px; }
 .workstream-card-progress strong { font-size: 11px; font-variant-numeric: tabular-nums; }
 .workstream-card-meta { display: grid; grid-template-columns: auto auto 1fr; align-items: center; gap: 7px; color: var(--secondary); }
@@ -940,7 +945,8 @@
 .group-matrix-row { min-height: 52px; padding: 6px 10px; border-bottom: 1px solid var(--border); font-size: 10px; }
 .group-matrix-row:last-child { border-bottom: 0; }
 .group-matrix-row:hover { background: color-mix(in srgb, var(--wb-accent-soft) 35%, transparent); }
-.group-matrix-row > span, .group-matrix-row time { min-width: 0; overflow: hidden; color: var(--secondary); text-overflow: ellipsis; white-space: nowrap; }
+.group-matrix-row > :is(span, time, div) { min-width: 0; overflow: hidden; color: var(--secondary); text-overflow: ellipsis; white-space: nowrap; }
+.matrix-name-cell { overflow: visible; }
 .matrix-name { display: flex; min-width: 0; align-items: center; gap: 8px; margin-left: calc(var(--matrix-depth) * 16px); padding: 0;
   border: 0; cursor: pointer; background: transparent; color: var(--text); text-align: left; }
 .matrix-name > span:last-child { display: grid; min-width: 0; gap: 2px; }
@@ -955,6 +961,7 @@
 .readiness-pill[data-ready] { background: var(--wb-accent-soft); color: var(--wb-accent-dark); }
 .group-matrix-row > span:has(.readiness-pill) { display: flex; align-items: center; gap: 6px; overflow: visible; }
 .group-matrix-row > span:has(.readiness-pill) small { font-size: 8px; }
+.matrix-action-cell { display: grid; place-items: center; overflow: visible; }
 .matrix-settings { padding: 5px 3px; border: 0; border-radius: 6px; cursor: pointer; background: transparent; color: var(--secondary); font-size: 8px; }
 .matrix-settings:hover { background: var(--control-hover); color: var(--text); }
 .matrix-empty { padding: 34px; color: var(--secondary); font-size: 11px; text-align: center; }

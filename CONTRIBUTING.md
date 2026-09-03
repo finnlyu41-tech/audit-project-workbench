@@ -14,6 +14,7 @@ Thank you for helping improve Audit Project Workbench (APW).
 ```bash
 corepack enable
 pnpm install
+pnpm exec playwright install chromium
 pnpm dev
 pnpm check
 ```
@@ -21,8 +22,8 @@ pnpm check
 ## Pull requests
 
 - Explain the user problem and the chosen behaviour.
-- Include tests for data-model changes.
-- Verify the desktop layout at common widths.
+- Include unit tests for data-model changes and Playwright coverage for critical user flows.
+- Verify the desktop layout at common widths and complete the relevant items in `docs/release-checklist.md`.
 - Confirm that existing browser data still migrates correctly.
 - Update bilingual user-facing text and documentation where relevant.
 

@@ -4,20 +4,61 @@ import { GROUP_AUDIT_TYPES, GROUP_AUDIT_TYPE_KEYS, createDefaultWorkstreamCatego
   nodeStatus, outstandingIsOpen, projectStats, reportingPeriodLabel, uid, workstreamCategoryLabel, workstreamStats,
   workstreamTypeLabel } from "./model.js";
 import { useUiLanguage } from "./i18n.jsx";
+import { handleTabListKeyDown, tabIndexFor } from "./a11y.js";
+
+const DIALOG_FOCUSABLE = [
+  "button:not([disabled])",
+  "a[href]",
+  "input:not([disabled]):not([type='hidden'])",
+  "select:not([disabled])",
+  "textarea:not([disabled])",
+  "[tabindex]:not([tabindex='-1'])",
+].join(",");
 
 export function Modal({ title, onClose, children, wide = false, large = false }) {
   const { t } = useUiLanguage();
+  const dialogRef = React.useRef(null);
+  const onCloseRef = React.useRef(onClose);
+  const returnFocusRef = React.useRef(typeof document === "undefined" ? null : document.activeElement);
+  const titleId = React.useId();
+  onCloseRef.current = onClose;
   React.useEffect(() => {
-    const closeOnEscape = (event) => event.key === "Escape" && onClose();
+    const focusDialog = window.requestAnimationFrame(() => {
+      const dialog = dialogRef.current;
+      if (!dialog || dialog.contains(document.activeElement)) return;
+      const preferred = dialog.querySelector("[data-dialog-initial-focus], input:not([type='hidden']):not([disabled]), select:not([disabled]), textarea:not([disabled])");
+      const fallback = [...dialog.querySelectorAll(DIALOG_FOCUSABLE)].find((element) => !element.matches("[data-modal-close]"));
+      (preferred || fallback || dialog).focus();
+    });
+    const closeOnEscape = (event) => {
+      if (event.key !== "Escape") return;
+      event.preventDefault();
+      onCloseRef.current();
+    };
     window.addEventListener("keydown", closeOnEscape);
-    return () => window.removeEventListener("keydown", closeOnEscape);
-  }, [onClose]);
+    return () => {
+      window.cancelAnimationFrame(focusDialog);
+      window.removeEventListener("keydown", closeOnEscape);
+      if (returnFocusRef.current?.isConnected) returnFocusRef.current.focus();
+    };
+  }, []);
+
+  const trapFocus = (event) => {
+    if (event.key !== "Tab") return;
+    const focusable = [...event.currentTarget.querySelectorAll(DIALOG_FOCUSABLE)]
+      .filter((element) => element.getClientRects().length > 0);
+    if (!focusable.length) { event.preventDefault(); event.currentTarget.focus(); return; }
+    const first = focusable[0];
+    const last = focusable[focusable.length - 1];
+    if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus(); }
+    else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
+  };
 
   return <div className="workbench-modal-backdrop" role="presentation" onMouseDown={onClose}>
     <section className="workbench-modal" data-wide={wide || undefined} data-large={large || undefined}
-      role="dialog" aria-modal="true" aria-label={title}
+      ref={dialogRef} role="dialog" aria-modal="true" aria-labelledby={titleId} tabIndex="-1" onKeyDown={trapFocus}
       onMouseDown={(event) => event.stopPropagation()}>
-      <header><h2>{title}</h2><button type="button" className="icon-button icon-only" onClick={onClose}
+      <header><h2 id={titleId}>{title}</h2><button type="button" className="icon-button icon-only" onClick={onClose} data-modal-close
         aria-label={t("关闭")} data-tooltip={t("关闭")} data-tooltip-side="left"><X aria-hidden="true" /></button></header>
       {children}
     </section>
@@ -204,18 +245,19 @@ export function WorkstreamForm({ initial, availableCategories = createDefaultWor
 export function WorkstreamCard({ workstream, selected, openItems = 0, onSelect, onEdit, readOnly = false }) {
   const { language, t } = useUiLanguage();
   const stats = workstreamStats(workstream);
-  return <button type="button" className="workstream-card" data-selected={selected || undefined}
-    data-complete={stats.complete || undefined} onClick={onSelect}>
+  const label = workstreamTypeLabel(workstream.type, language, workstream.customName);
+  return <article className="workstream-card" data-selected={selected || undefined} data-complete={stats.complete || undefined}>
+    <button type="button" className="workstream-card-select" aria-pressed={selected} onClick={onSelect}>
     <span className="workstream-card-top"><i>{workstreamTypeLabel(workstream.type, language, workstream.customName).slice(0, 1)}</i>
-      <span><strong>{workstreamTypeLabel(workstream.type, language, workstream.customName)}</strong>
-        <small>{workstream.owner || t("未设置负责人")}</small></span>
-      {!readOnly && <span role="button" tabIndex="0" className="workstream-edit" onClick={(event) => { event.stopPropagation(); onEdit(); }}
-        onKeyDown={(event) => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); event.stopPropagation(); onEdit(); } }}>{t("设置")}</span>}</span>
+      <span><strong>{label}</strong><small>{workstream.owner || t("未设置负责人")}</small></span></span>
     <span className="workstream-card-progress"><strong>{stats.percentage}%</strong><ProgressBar value={stats.percentage} compact /></span>
     <span className="workstream-card-meta"><small>{t("{done}/{total} 个节点", { done: stats.completedNodes, total: stats.nodes })}</small>
       <small>{openItems ? t("{count} 项未清", { count: openItems }) : t("无未清事项")}</small>
-      <time data-tone={dueTone(workstream)}>{formatDate(workstream.dueDate, language)}</time></span>
-  </button>;
+      <time data-tone={dueTone(workstream)}>{formatDate(workstream.dueDate, language)}</time></span></button>
+    {!readOnly && <button type="button" className="workstream-edit icon-only" onClick={onEdit}
+      aria-label={t("设置 {name}", { name: label })} data-tooltip={t("设置")}
+      data-tooltip-side="left"><Settings2 aria-hidden="true" /></button>}
+  </article>;
 }
 
 export function SampleLibrary({ samples, categoryLabel, selectedSampleId, onSelect, onCreate, onEdit, onDuplicate, onDelete, onUse,
@@ -596,7 +638,8 @@ export function NodeForm({ initial, onSubmit, onClose }) {
 
 export function ProgressBar({ value, compact = false }) {
   const { t } = useUiLanguage();
-  return <div className="progress-track" data-compact={compact || undefined} aria-label={t("完成 {value}%", { value })}>
+  return <div className="progress-track" data-compact={compact || undefined} role="progressbar"
+    aria-valuemin="0" aria-valuemax="100" aria-valuenow={value} aria-label={t("完成 {value}%", { value })}>
     <span style={{ width: `${value}%` }} />
   </div>;
 }
@@ -635,9 +678,9 @@ export function NodeBoard({ nodes, readOnly = false, actions, label = "", title 
           data-tooltip={t("删除所选节点")} data-tooltip-side="left"
           onClick={() => selected && actions.deleteNode(selected)}><Trash2 aria-hidden="true" /></button></div>}
     </header>
-    {nodes.length ? <div className="node-track" role="tablist" aria-label={t("项目节点")}>{nodes.map((node, index) => {
+    {nodes.length ? <div className="node-track" role="tablist" aria-label={t("项目节点")} onKeyDown={handleTabListKeyDown}>{nodes.map((node, index) => {
       const status = nodeStatus(node); const done = node.conditions.filter((condition) => condition.done).length;
-      return <button type="button" role="tab" aria-selected={selected?.id === node.id} className="node-track-card" title={node.title}
+      return <button type="button" role="tab" aria-selected={selected?.id === node.id} tabIndex={tabIndexFor(selected?.id === node.id)} className="node-track-card" title={node.title}
         data-status={status} data-current={currentNode?.id === node.id || undefined} key={node.id} onClick={() => setSelectedId(node.id)}>
         <span className="node-track-number">{index + 1}</span><span><strong>{node.title}</strong>
           <small>{done}/{node.conditions.length} {t("项条件")}</small></span><i>{t(status)}</i></button>;

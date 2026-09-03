@@ -38,6 +38,7 @@
 ```bash
 corepack enable
 pnpm install
+pnpm exec playwright install chromium
 pnpm dev
 ```
 
@@ -94,6 +95,7 @@ Audit Project Workbench (APW) is an English-first, desktop-first and local-first
 ```bash
 corepack enable
 pnpm install
+pnpm exec playwright install chromium
 pnpm dev
 ```
 
