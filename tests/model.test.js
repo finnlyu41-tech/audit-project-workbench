@@ -9,6 +9,7 @@ import {
   canMoveWorkspaceItem,
   canNestGroup,
   collectGroupOutstandingEntries,
+  collectGroupTaxDeadlineEntries,
   convertGroupToProject,
   convertProjectToGroup,
   createDefaultGroupSample,
@@ -28,6 +29,7 @@ import {
   makeGroupMember,
   makeOutstandingItem,
   makeProject,
+  makeTaxDeadline,
   makeWorkstream,
   memberProgressPercentage,
   moveWorkspaceItem,
@@ -39,6 +41,10 @@ import {
   projectStats,
   redactSampleCompanies,
   reportingPeriodLabel,
+  reviseTaxDeadline,
+  taxDeadlineCategoryLabel,
+  taxDeadlineSummary,
+  taxDeadlineUrgency,
   workstreamStats,
   workstreamCategoryLabel,
   workstreamTypeLabel,
@@ -334,7 +340,7 @@ test("version 5 data migrates to template categories without changing the select
   assert.equal(migrated.projects[0].workstreams[0].categoryId, "audit");
 });
 
-test("initialising creates a clean version 8 workspace with built-in categories and templates", () => {
+test("initialising creates a clean version 9 workspace with built-in categories and templates", () => {
   const initialised = emptyStore();
 
   assert.equal(initialised.version, STORE_VERSION);
@@ -344,6 +350,118 @@ test("initialising creates a clean version 8 workspace with built-in categories 
   assert.equal(initialised.samples.length, 4);
   assert.equal(initialised.groupSamples.length, 1);
   assert.equal(initialised.selectedSampleIdsByCategory.audit, "sample-core-audit");
+});
+
+test("version 8 data migrates to version 9 with empty tax registers and intact relationships", () => {
+  const base = emptyStore();
+  const project = makeProject(projectValues, true, base.samples, base.workstreamCategories);
+  const group = makeGroup({ name: "Parent Holding", consolidationEnabled: false }, false, base.groupSamples[0]);
+  group.members.push(makeGroupMember({ kind: "project", refId: project.id, role: "Subsidiary" }, base.groupSamples[0]));
+  const workstreamId = project.workstreams[0].id;
+  delete project.taxDeadlines;
+  delete group.taxDeadlines;
+
+  const migrated = normalizeStore({ ...base, version: 8, projects: [project], groups: [group] });
+
+  assert.equal(migrated.version, 9);
+  assert.deepEqual(migrated.projects[0].taxDeadlines, []);
+  assert.deepEqual(migrated.groups[0].taxDeadlines, []);
+  assert.equal(migrated.projects[0].workstreams[0].id, workstreamId);
+  assert.equal(migrated.groups[0].members[0].refId, project.id);
+});
+
+test("version 8 migration keeps intentional template and category deletions", () => {
+  const saved = emptyStore();
+  saved.version = 8;
+  saved.workstreamCategories = saved.workstreamCategories.filter((category) => category.id !== "cdd");
+  saved.samples = saved.samples.filter((sample) => sample.categoryId !== "cdd");
+  delete saved.selectedSampleIdsByCategory.cdd;
+
+  const migrated = normalizeStore(saved);
+
+  assert.equal(migrated.workstreamCategories.some((category) => category.id === "cdd"), false);
+  assert.equal(migrated.samples.some((sample) => sample.categoryId === "cdd"), false);
+});
+
+test("tax deadline normalization preserves valid workstream links and applies safe defaults", () => {
+  const base = emptyStore();
+  const project = makeProject({ ...projectValues, workstreamSelections: [{ type: "tax_computation_filing" }] },
+    true, base.samples, base.workstreamCategories);
+  const taxWorkstream = project.workstreams[0];
+  project.taxDeadlines = [makeTaxDeadline({ category: "custom", customName: "Property tax filing",
+    taxYear: "2025/26", dueDate: "2026-11-02", linkedWorkstreamId: taxWorkstream.id }),
+  makeTaxDeadline({ category: "tax_payment", dueDate: "2026-12-01", reminderDays: 17,
+    linkedWorkstreamId: "missing-workstream" })];
+
+  const migrated = normalizeStore({ ...base, version: 9, projects: [project] });
+  const [custom, payment] = migrated.projects[0].taxDeadlines;
+
+  assert.equal(custom.originalDueDate, "2026-11-02");
+  assert.equal(custom.reminderDays, 30);
+  assert.equal(custom.linkedWorkstreamId, taxWorkstream.id);
+  assert.equal(taxDeadlineCategoryLabel(custom, "en"), "Property tax filing");
+  assert.equal(payment.reminderDays, 17);
+  assert.equal(payment.linkedWorkstreamId, null);
+  assert.equal(taxDeadlineCategoryLabel("profits_tax_filing", "en"), "Profits tax filing");
+  assert.equal(taxDeadlineCategoryLabel("employers_return", "zh-Hant"), "僱主報稅表");
+});
+
+test("tax deadline urgency honours calendar-day and per-item reminder boundaries", () => {
+  const now = new Date(2026, 8, 3, 15, 30);
+  const urgency = (dueDate, reminderDays = 30, state = "open") => taxDeadlineUrgency(
+    makeTaxDeadline({ dueDate, reminderDays, state }), now).level;
+
+  assert.equal(urgency("2026-09-02"), "overdue");
+  assert.equal(urgency("2026-09-03"), "due_today");
+  assert.equal(urgency("2026-10-03"), "due_soon");
+  assert.equal(urgency("2026-10-04"), "upcoming");
+  assert.equal(urgency("2026-09-10", 6), "upcoming");
+  assert.equal(urgency("2026-09-10", 7), "due_soon");
+  assert.equal(urgency("2026-09-02", 30, "completed"), "inactive");
+  assert.equal(urgency("2026-09-02", 30, "not_applicable"), "inactive");
+
+  const summary = taxDeadlineSummary([
+    makeTaxDeadline({ dueDate: "2026-09-20", reminderDays: 30 }),
+    makeTaxDeadline({ dueDate: "2026-09-01" }),
+    makeTaxDeadline({ dueDate: "2026-09-03", state: "completed" }),
+  ], now);
+  assert.equal(summary.openCount, 2);
+  assert.equal(summary.attentionCount, 2);
+  assert.equal(summary.next.dueDate, "2026-09-01");
+  assert.equal(summary.urgency, "overdue");
+});
+
+test("rescheduling requires a reason and retains the original date and full revision history", () => {
+  const deadline = makeTaxDeadline({ category: "profits_tax_filing", dueDate: "2026-09-30" });
+  assert.throws(() => reviseTaxDeadline(deadline, { dueDate: "2026-10-31" }), /reason is required/iu);
+
+  const revised = reviseTaxDeadline(deadline, { dueDate: "2026-10-31" }, "Extension approved",
+    "2026-09-10T08:30:00.000Z");
+  assert.equal(revised.originalDueDate, "2026-09-30");
+  assert.deepEqual(revised.revisions, [{ fromDueDate: "2026-09-30", toDueDate: "2026-10-31",
+    reason: "Extension approved", changedAt: "2026-09-10T08:30:00.000Z" }]);
+
+  const completed = reviseTaxDeadline(revised, { state: "completed" }, "", "2026-10-20T09:00:00.000Z");
+  assert.equal(completed.completedAt, "2026-10-20T09:00:00.000Z");
+  assert.equal(completed.revisions.length, 1);
+  assert.equal(taxDeadlineUrgency(completed, new Date(2026, 10, 1)).level, "inactive");
+});
+
+test("version 9 JSON backup restoration preserves every tax-deadline field and revision", () => {
+  const base = emptyStore();
+  const project = makeProject({ ...projectValues, workstreamSelections: [{ type: "tax_computation_filing" }] },
+    true, base.samples, base.workstreamCategories);
+  const workstreamId = project.workstreams[0].id;
+  const original = makeTaxDeadline({ id: "tax-fixed", category: "custom", customName: "Country-by-country return",
+    taxYear: "2025/26", owner: "Taylor", originalDueDate: "2026-09-30", dueDate: "2026-10-31", reminderDays: 45,
+    state: "open", linkedWorkstreamId: workstreamId, reference: "IRD reference 123", note: "Manual source checked",
+    revisions: [{ fromDueDate: "2026-09-30", toDueDate: "2026-10-31", reason: "Written extension",
+      changedAt: "2026-09-12T09:30:00.000Z" }], createdAt: "2026-09-01T00:00:00.000Z",
+    updatedAt: "2026-09-12T09:30:00.000Z" });
+  project.taxDeadlines = [original];
+
+  const restored = normalizeStore(JSON.parse(JSON.stringify({ ...base, projects: [project] })));
+  assert.deepEqual(restored.projects[0].taxDeadlines[0], original);
 });
 
 test("unused built-in template categories can be renamed or removed without returning after reload", () => {
@@ -617,6 +735,10 @@ test("company records can convert to holding companies and back without losing w
   project.workstreams[0].nodes[0].conditions[0].done = true;
   project.outstandingItems.push(makeOutstandingItem({ title: "Waiting for signature", workstreamId: project.workstreams[0].id },
     base.outstandingStatuses));
+  project.taxDeadlines.push(makeTaxDeadline({ category: "profits_tax_filing", taxYear: "2025/26",
+    dueDate: "2026-11-16", linkedWorkstreamId: project.workstreams[0].id,
+    revisions: [{ fromDueDate: "2026-10-16", toDueDate: "2026-11-16", reason: "Extension approved",
+      changedAt: "2026-09-01T00:00:00.000Z" }] }));
   const parent = makeGroup({ name: "Parent Holding", consolidationEnabled: false }, false, groupSample);
   parent.members.push(makeGroupMember({ kind: "project", refId: project.id, role: "Subsidiary" }, groupSample));
   const store = { ...base, projects: [project], groups: [parent] };
@@ -626,6 +748,9 @@ test("company records can convert to holding companies and back without losing w
   assert.equal(asGroup.projects.some((item) => item.id === project.id), false);
   assert.equal(convertedGroup.name, project.entity);
   assert.equal(convertedGroup.outstandingItems[0].workstreamId, null);
+  assert.equal(convertedGroup.taxDeadlines[0].dueDate, "2026-11-16");
+  assert.equal(convertedGroup.taxDeadlines[0].linkedWorkstreamId, null);
+  assert.equal(convertedGroup.taxDeadlines[0].revisions.length, 1);
   assert.equal(convertedGroup.startDate, project.startDate);
   assert.equal(convertedGroup.conversionState.project.workstreams[0].nodes[0].conditions[0].done, true);
   assert.equal(findParentMembership(asGroup, "group", project.id).member.role, "Subsidiary");
@@ -638,11 +763,36 @@ test("company records can convert to holding companies and back without losing w
   assert.equal(restored.entity, project.entity);
   assert.equal(restored.startDate, project.startDate);
   assert.equal(restored.workstreams[0].nodes[0].conditions[0].done, true);
+  assert.equal(restored.taxDeadlines[0].dueDate, "2026-11-16");
+  assert.equal(restored.taxDeadlines[0].revisions[0].reason, "Extension approved");
   assert.equal(findParentMembership(roundTrip, "project", project.id).member.role, "Subsidiary");
   assert.equal(findParentMembership(roundTrip, "project", child.id), null);
 
   const reloaded = normalizeStore(roundTrip);
   assert.equal(reloaded.projects.find((item) => item.id === project.id).conversionState.group.consolidationEnabled, true);
+});
+
+test("holding-company tax roll-up traverses multiple levels, excludes archives and de-duplicates references", () => {
+  const base = emptyStore();
+  const project = makeProject({ ...projectValues, entity: "Leaf Limited" }, false);
+  project.taxDeadlines.push(makeTaxDeadline({ category: "tax_payment", dueDate: "2026-09-30" }));
+  const archived = makeProject({ ...projectValues, entity: "Archived Limited" }, false);
+  archived.archived = true;
+  archived.taxDeadlines.push(makeTaxDeadline({ category: "employers_return", dueDate: "2026-10-02" }));
+  const child = makeGroup({ name: "Intermediate Holding", consolidationEnabled: false }, false, base.groupSamples[0]);
+  child.taxDeadlines.push(makeTaxDeadline({ category: "profits_tax_filing", dueDate: "2026-11-01" }));
+  child.members.push(makeGroupMember({ kind: "project", refId: project.id }, base.groupSamples[0]));
+  child.members.push(makeGroupMember({ kind: "project", refId: archived.id }, base.groupSamples[0]));
+  const root = makeGroup({ name: "Root Holding", consolidationEnabled: false }, false, base.groupSamples[0]);
+  root.members.push(makeGroupMember({ kind: "group", refId: child.id }, base.groupSamples[0]));
+  root.members.push(makeGroupMember({ kind: "project", refId: project.id }, base.groupSamples[0]));
+  const store = { ...base, projects: [project, archived], groups: [root, child] };
+
+  const active = collectGroupTaxDeadlineEntries(store, root.id);
+  assert.deepEqual(active.map((entry) => entry.sourceName), ["Intermediate Holding", "Leaf Limited"]);
+  assert.equal(active.filter((entry) => entry.sourceId === project.id).length, 1);
+  const historical = collectGroupTaxDeadlineEntries(store, root.id, new Set(), 0, true);
+  assert.equal(historical.some((entry) => entry.sourceId === archived.id), true);
 });
 
 test("navigation status counts include companies and holding companies", () => {
@@ -681,4 +831,31 @@ test("deadline alerts include active overdue records and distinct workstream dea
   assert.deepEqual(alerts.map((alert) => alert.daysOverdue), [33, 14, 9]);
   assert.equal(alerts[1].recordName, "Overdue Limited");
   assert.equal(alerts[2].owner, "Alex");
+});
+
+test("tax alerts survive project completion, use the reminder window and never duplicate holding roll-ups", () => {
+  const base = emptyStore();
+  const completed = makeProject({ ...projectValues, name: "Completed", entity: "Completed Limited" }, true);
+  completed.workstreams.flatMap((workstream) => workstream.nodes)
+    .flatMap((node) => node.conditions).forEach((condition) => { condition.done = true; });
+  const deadline = makeTaxDeadline({ category: "profits_tax_filing", dueDate: "2026-09-20", reminderDays: 30 });
+  completed.taxDeadlines.push(deadline);
+  const archived = makeProject({ ...projectValues, name: "Archived" }, false);
+  archived.archived = true;
+  archived.taxDeadlines.push(makeTaxDeadline({ dueDate: "2026-09-01" }));
+  const holding = makeGroup({ name: "Parent Holding", consolidationEnabled: false }, false, base.groupSamples[0]);
+  holding.members.push(makeGroupMember({ kind: "project", refId: completed.id }, base.groupSamples[0]));
+  holding.taxDeadlines.push(makeTaxDeadline({ category: "tax_payment", dueDate: "2026-09-03" }));
+  holding.taxDeadlines.push(makeTaxDeadline({ category: "employers_return", dueDate: "2026-09-02", state: "completed" }));
+
+  const alerts = deadlineAlerts({ projects: [completed, archived], groups: [holding] }, new Date(2026, 8, 3, 9));
+  const taxAlerts = alerts.filter((alert) => alert.scope === "tax");
+
+  assert.equal(projectStats(completed).complete, true);
+  assert.deepEqual(taxAlerts.map((alert) => alert.id), [
+    `tax:group:${holding.id}:${holding.taxDeadlines[0].id}`,
+    `tax:project:${completed.id}:${deadline.id}`,
+  ]);
+  assert.deepEqual(taxAlerts.map((alert) => alert.urgency), ["due_today", "due_soon"]);
+  assert.equal(taxAlerts.filter((alert) => alert.targetId === completed.id).length, 1);
 });

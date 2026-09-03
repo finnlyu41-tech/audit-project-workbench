@@ -1,6 +1,6 @@
 import React from "react";
-import { Building, Building2, CalendarClock, CircleAlert, LocateFixed } from "lucide-react";
-import { formatDate, groupProgress, projectStats } from "./model.js";
+import { Building, Building2, CalendarClock, CircleAlert, LocateFixed, ReceiptText } from "lucide-react";
+import { formatDate, groupProgress, projectStats, taxDeadlineCategoryLabel, taxDeadlineUrgency } from "./model.js";
 import { useUiLanguage } from "./i18n.jsx";
 
 const DAY_MS = 86400000;
@@ -48,6 +48,7 @@ function scheduleRows(store, filter) {
     owner: project.owner,
     startDate: project.startDate,
     dueDate: project.dueDate,
+    taxDeadlines: (project.taxDeadlines || []).filter((deadline) => deadline.state === "open" && deadline.dueDate),
     archived: project.archived,
     complete: projectStats(project).complete,
   }));
@@ -59,6 +60,7 @@ function scheduleRows(store, filter) {
     owner: group.owner,
     startDate: group.startDate,
     dueDate: group.dueDate,
+    taxDeadlines: (group.taxDeadlines || []).filter((deadline) => deadline.state === "open" && deadline.dueDate),
     archived: group.archived,
     complete: groupProgress(store, group.id).ready,
   }));
@@ -71,7 +73,8 @@ function scheduleRows(store, filter) {
 function makeTimeline(rows) {
   const today = new Date();
   today.setHours(0, 0, 0, 0);
-  const suppliedDates = rows.flatMap((row) => [parseDate(row.startDate), parseDate(row.dueDate)]).filter(Boolean);
+  const suppliedDates = rows.flatMap((row) => [parseDate(row.startDate), parseDate(row.dueDate),
+    ...(row.taxDeadlines || []).map((deadline) => parseDate(deadline.dueDate))]).filter(Boolean);
   const earliest = suppliedDates.length ? new Date(Math.min(...suppliedDates.map((date) => date.getTime()))) : addDays(today, -28);
   const latest = suppliedDates.length ? new Date(Math.max(...suppliedDates.map((date) => date.getTime()))) : addDays(today, 84);
   let rangeStart = startOfWeek(addDays(earliest, -7));
@@ -95,7 +98,7 @@ function dayOffset(date, rangeStart) {
   return (date.getTime() - rangeStart.getTime()) / DAY_MS;
 }
 
-export function ProjectSchedule({ store, filter, onOpen }) {
+export function ProjectSchedule({ store, filter, onOpen, onOpenTaxDeadline }) {
   const { language, t } = useUiLanguage();
   const scrollRef = React.useRef(null);
   const rows = React.useMemo(() => scheduleRows(store, filter), [store, filter]);
@@ -124,6 +127,7 @@ export function ProjectSchedule({ store, filter, onOpen }) {
     </header>
     <div className="schedule-legend" aria-label={t("排期图例")}><span><i data-tone="active" />{t("进行中")}</span>
       <span><i data-tone="complete" />{t("已完成")}</span><span><i data-tone="overdue" />{t("已逾期")}</span>
+      <span><ReceiptText aria-hidden="true" />{t("税务期限")}</span>
       <span><CircleAlert aria-hidden="true" />{t("日期不完整")}</span></div>
     {rows.length ? <div className="schedule-scroll" ref={scrollRef}>
       <div className="schedule-grid" style={{ "--timeline-width": `${width}px`, "--week-width": `${timeline.weekWidth}px` }}>
@@ -145,6 +149,8 @@ export function ProjectSchedule({ store, filter, onOpen }) {
           const durationDays = start && due && !invalid ? Math.max(1, dayOffset(due, start) + 1) : 0;
           const barWidth = durationDays ? Math.max(8, (durationDays / 7) * timeline.weekWidth) : 0;
           const durationWeeks = durationDays ? Math.max(1, Math.ceil(durationDays / 7)) : 0;
+          const taxMarkers = Object.values((row.taxDeadlines || []).reduce((groups, deadline) => ({ ...groups,
+            [deadline.dueDate]: [...(groups[deadline.dueDate] || []), deadline] }), {}));
           return <React.Fragment key={`${row.kind}-${row.id}`}>
             <button type="button" className="schedule-row-meta" onClick={() => onOpen(row.kind, row.id)}>
               <i data-kind={row.kind}>{row.kind === "group" ? <Building2 aria-hidden="true" /> : <Building aria-hidden="true" />}</i>
@@ -170,6 +176,22 @@ export function ProjectSchedule({ store, filter, onOpen }) {
                 <CircleAlert aria-hidden="true" />{t("设置项目日期")}</button>}
               {invalid && <button type="button" className="schedule-missing" data-danger onClick={() => onOpen(row.kind, row.id)}>
                 <CircleAlert aria-hidden="true" />{t("截止日早于开始日")}</button>}
+              {taxMarkers.map((deadlines) => {
+                const markerDate = parseDate(deadlines[0].dueDate);
+                if (!markerDate) return null;
+                const markerLeft = (dayOffset(markerDate, timeline.rangeStart) / 7) * timeline.weekWidth;
+                const urgency = deadlines.some((deadline) => taxDeadlineUrgency(deadline, timeline.today).level === "overdue") ? "overdue"
+                  : deadlines.some((deadline) => taxDeadlineUrgency(deadline, timeline.today).level === "due_today") ? "due_today"
+                    : deadlines.some((deadline) => taxDeadlineUrgency(deadline, timeline.today).level === "due_soon") ? "due_soon" : "upcoming";
+                const names = deadlines.map((deadline) => taxDeadlineCategoryLabel(deadline, language)).join(" · ");
+                return <button type="button" className="schedule-tax-marker" key={deadlines[0].dueDate}
+                  style={{ left: markerLeft }} data-urgency={urgency}
+                  onClick={() => onOpenTaxDeadline?.(row.kind, row.id, deadlines.length === 1 ? deadlines[0].id : null)}
+                  aria-label={t("{name} 在 {date} 有 {count} 项税务期限", { name: row.name,
+                    date: formatDate(deadlines[0].dueDate, language), count: deadlines.length })}
+                  data-tooltip={`${formatDate(deadlines[0].dueDate, language)} · ${names}`}>
+                  <ReceiptText aria-hidden="true" />{deadlines.length > 1 && <strong>{deadlines.length}</strong>}</button>;
+              })}
             </div>
           </React.Fragment>;
         })}

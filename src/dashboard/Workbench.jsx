@@ -1,20 +1,25 @@
 import React from "react";
 import { Archive, ArchiveRestore, BellRing, BookOpen, Building, Building2, CalendarRange, Copy, DatabaseBackup, Languages, LibraryBig, ListPlus, Palette,
-  PanelRightClose, PanelRightOpen, PanelsTopLeft, Pencil, Plus, Search, Trash2 } from "lucide-react";
+  PanelRightClose, PanelRightOpen, PanelsTopLeft, Pencil, Plus, ReceiptText, Search, Settings, Settings2, Trash2 } from "lucide-react";
 import { Modal, NodeBoard, NodeForm, OutstandingStatusEditor, ProgressBar, ProjectForm, SampleEditor,
   SampleLibrary, UserGuide, WorkstreamCard, WorkstreamCategoryEditor, WorkstreamForm } from "./components.jsx";
 import { GroupForm, GroupMatrix, GroupMemberAddForm, GroupMemberForm, GroupSampleEditor, GroupSampleLibrary,
   WorkspaceTree } from "./group-components.jsx";
-import { STORAGE_KEY, activeOutstandingItems,
-  assignProjectToGroup, canMoveWorkspaceItem, canNestGroup, collectGroupOutstandingEntries, createDefaultGroupSample, createDefaultSample, duplicateGroupSample,
+import { activeOutstandingItems,
+  assignProjectToGroup, canMoveWorkspaceItem, canNestGroup, collectGroupOutstandingEntries, collectGroupTaxDeadlineEntries,
+  createDefaultGroupSample, createDefaultSample, duplicateGroupSample,
   convertGroupToProject, convertProjectToGroup, deadlineAlerts, duplicateSample, emptyStore, findParentMembership, formatDate, groupProgress, isValidStore, loadStore, localizeGroupSample,
   localizeGroupWorkflowNodes, localizeOutstandingStatuses, localizeReadinessConditions, localizeSample, localizeWorkstream, makeBlankGroupSample,
-  makeBlankSample, makeGroup, makeGroupMember, makeNode, makeOutstandingItem, makeProject, makeWorkstream, moveWorkspaceItem,
-  navigationStatusCounts, normalizeStore, outstandingIsOpen, projectStats, redactSampleCompanies, reportingPeriodLabel, uid, workstreamStats,
-  workstreamCategoryLabel, workstreamTypeLabel } from "./model.js";
+  makeBlankSample, makeGroup, makeGroupMember, makeNode, makeOutstandingItem, makeProject, makeTaxDeadline, makeWorkstream, moveWorkspaceItem,
+  navigationStatusCounts, normalizeStore, outstandingIsOpen, projectStats, redactSampleCompanies, reportingPeriodLabel, taxDeadlineSummary, uid,
+  workstreamStats, reviseTaxDeadline, workstreamCategoryLabel, workstreamTypeLabel } from "./model.js";
 import { LanguageProvider, useUiLanguage } from "./i18n.jsx";
 import { DeadlineAlertCentre } from "./deadline-alerts.jsx";
 import { ProjectSchedule } from "./timeline.jsx";
+import { TaxDeadlineManager, TaxDeadlineSummaryButton } from "./tax-deadlines.jsx";
+import { OpenWorkspaceFileConfirm, PersistenceConflictDialog, PersistenceSettingsPanel,
+  persistenceStatusLabel } from "./persistence-ui.jsx";
+import { useWorkbenchPersistence } from "./use-workbench-persistence.js";
 import "./dashboard.css";
 
 const SIDEBAR_PREFERENCE_KEY = "audit-progress-workbench:sidebar-collapsed";
@@ -27,6 +32,7 @@ export function DashboardContent() {
 function DashboardWorkbench() {
   const { language, setLanguage, t } = useUiLanguage();
   const [store, setStore] = React.useState(loadStore);
+  const persistence = useWorkbenchPersistence({ store, setStore });
   const [selection, setSelection] = React.useState(null);
   const [activeWorkstreamId, setActiveWorkstreamId] = React.useState(null);
   const [search, setSearch] = React.useState("");
@@ -50,6 +56,7 @@ function DashboardWorkbench() {
   const toolbarRef = React.useRef(null);
   const toolbarMenuRefs = React.useRef([]);
   const deadlineNoticeShownRef = React.useRef(false);
+  const shownConflictRef = React.useRef(null);
   const deadlineAlertItems = React.useMemo(() => deadlineAlerts(store, deadlineClock), [store, deadlineClock]);
   const closeMenu = React.useCallback(() => toolbarMenuRefs.current.forEach((menu) => {
     if (menu) menu.open = false;
@@ -60,7 +67,6 @@ function DashboardWorkbench() {
     });
   }, []);
 
-  React.useEffect(() => localStorage.setItem(STORAGE_KEY, JSON.stringify(store)), [store]);
   React.useEffect(() => {
     const timer = window.setInterval(() => setDeadlineClock(new Date()), 60000);
     return () => window.clearInterval(timer);
@@ -112,9 +118,16 @@ function DashboardWorkbench() {
     return () => window.clearTimeout(timer);
   }, [message]);
   React.useEffect(() => {
+    if (!persistence.conflict) { shownConflictRef.current = null; return; }
+    if (!modal && shownConflictRef.current !== persistence.conflict) {
+      shownConflictRef.current = persistence.conflict;
+      setModal({ type: "persistence-conflict" });
+    }
+  }, [modal, persistence.conflict]);
+  React.useEffect(() => {
     if (deadlineNoticeShownRef.current || !deadlineAlertItems.length) return;
     deadlineNoticeShownRef.current = true;
-    setMessage(t("{count} 项截止日期已逾期", { count: deadlineAlertItems.length }));
+    setMessage(t("{count} 项期限需要关注", { count: deadlineAlertItems.length }));
   }, [deadlineAlertItems.length, t]);
   React.useEffect(() => {
     const dismissMenus = (event) => {
@@ -135,11 +148,20 @@ function DashboardWorkbench() {
     setSelection({ kind, id });
     setWorkspaceView("detail");
   }, []);
+  const openTaxDeadlineCentre = React.useCallback((kind, id, deadlineId = null) => {
+    openWorkspaceRecord(kind, id);
+    setModal({ type: "tax-deadlines", targetKind: kind, targetId: id, deadlineId });
+  }, [openWorkspaceRecord]);
   const openDeadlineAlert = React.useCallback((alert) => {
+    if (alert.scope === "tax") {
+      setFilter("all");
+      openTaxDeadlineCentre(alert.targetKind, alert.targetId, alert.taxDeadline?.id || null);
+      return;
+    }
     openWorkspaceRecord(alert.targetKind, alert.targetId);
     setActiveWorkstreamId(alert.scope === "workstream" ? alert.workstream?.id || null : null);
     setModal(null);
-  }, [openWorkspaceRecord]);
+  }, [openTaxDeadlineCentre, openWorkspaceRecord]);
   const selectedProjectSource = selection?.kind === "project"
     ? store.projects.find((project) => project.id === selection.id) || null : null;
   const selectedGroupSource = selection?.kind === "group"
@@ -176,6 +198,26 @@ function DashboardWorkbench() {
     groups: current.groups.map((group) => group.id === groupId
       ? { ...updater(group), updatedAt: new Date().toISOString() } : group),
   })), []);
+  const saveTaxDeadline = React.useCallback((kind, targetId, existing, values, revisionReason = "") => {
+    const updateTarget = kind === "group" ? updateGroup : updateProject;
+    updateTarget(targetId, (target) => {
+      const workstreamIds = new Set((target.workstreams || []).map((workstream) => workstream.id));
+      const cleanedValues = { ...values, linkedWorkstreamId: kind === "project" && workstreamIds.has(values.linkedWorkstreamId)
+        ? values.linkedWorkstreamId : null };
+      const taxDeadlines = existing
+        ? (target.taxDeadlines || []).map((deadline) => deadline.id === existing.id
+          ? reviseTaxDeadline(deadline, cleanedValues, revisionReason) : deadline)
+        : [...(target.taxDeadlines || []), makeTaxDeadline(cleanedValues)];
+      return { ...target, taxDeadlines };
+    });
+    notify(t(existing ? "税务期限已更新" : "税务期限已新增"));
+  }, [t, updateGroup, updateProject]);
+  const deleteTaxDeadline = React.useCallback((kind, targetId, deadlineId) => {
+    const updateTarget = kind === "group" ? updateGroup : updateProject;
+    updateTarget(targetId, (target) => ({ ...target,
+      taxDeadlines: (target.taxDeadlines || []).filter((deadline) => deadline.id !== deadlineId) }));
+    notify(t("税务期限已删除"));
+  }, [t, updateGroup, updateProject]);
   const moveNavigationItem = (kind, refId, parentGroupId) => {
     if (!canMoveWorkspaceItem(store, kind, refId, parentGroupId)) {
       notify(t("无法移动到这个集团")); return;
@@ -236,7 +278,7 @@ function DashboardWorkbench() {
   const duplicateProject = (project) => {
     const now = new Date().toISOString();
     const copy = { ...project, id: uid("project"), name: `${project.name}${t("（副本）")}`, archived: false,
-      createdAt: now, updatedAt: now, outstandingItems: [], workstreams: project.workstreams.map((workstream) => makeWorkstream({
+      createdAt: now, updatedAt: now, outstandingItems: [], taxDeadlines: [], workstreams: project.workstreams.map((workstream) => makeWorkstream({
         type: workstream.type, categoryId: workstream.categoryId, customName: workstream.customName,
         owner: workstream.owner, dueDate: workstream.dueDate,
       }, workstream.nodes)) };
@@ -245,6 +287,11 @@ function DashboardWorkbench() {
     notify(t("已复制流程，所有完成状态已重置"));
   };
   const archiveTarget = (kind, id) => {
+    const target = kind === "project" ? store.projects.find((item) => item.id === id)
+      : store.groups.find((item) => item.id === id);
+    const openTaxDeadlines = (target?.taxDeadlines || []).filter((deadline) => deadline.state === "open").length;
+    if (openTaxDeadlines && !window.confirm(t("这家公司还有 {count} 项未完成税务期限。归档后相关提醒会隐藏，是否继续？",
+      { count: openTaxDeadlines }))) return;
     (kind === "project" ? updateProject : updateGroup)(id, (item) => ({ ...item, archived: true }));
     setFilter("archived"); notify(t(kind === "project" ? "项目已归档" : "集团已归档"));
   };
@@ -281,7 +328,9 @@ function DashboardWorkbench() {
     updateProject(projectId, (current) => ({ ...current,
       workstreams: current.workstreams.filter((workstream) => workstream.id !== workstreamId),
       outstandingItems: current.outstandingItems.map((item) => item.workstreamId === workstreamId
-        ? { ...item, workstreamId: null } : item) }));
+        ? { ...item, workstreamId: null } : item),
+      taxDeadlines: (current.taxDeadlines || []).map((deadline) => deadline.linkedWorkstreamId === workstreamId
+        ? { ...deadline, linkedWorkstreamId: null, updatedAt: new Date().toISOString() } : deadline) }));
     setActiveWorkstreamId(project.workstreams.find((workstream) => workstream.id !== workstreamId)?.id || null);
     setModal(null); notify(t("业务模块已移除"));
   };
@@ -370,20 +419,29 @@ function DashboardWorkbench() {
     if (!file) return;
     try {
       const parsed = JSON.parse(await file.text()); if (!isValidStore(parsed)) throw new Error("invalid");
-      if (!window.confirm(t("将导入 {projects} 个项目、{groups} 个集团及全部范本，并替换当前数据，是否继续？",
-        { projects: parsed.projects.length, groups: parsed.groups?.length || 0 }))) return;
+      const confirmKey = persistence.settings.mode === "linked_file"
+        ? "将导入 {projects} 个项目、{groups} 个集团及全部范本，并替换浏览器资料和当前关联文件，是否继续？"
+        : "将导入 {projects} 个项目、{groups} 个集团及全部范本，并替换当前数据，是否继续？";
+      if (!window.confirm(t(confirmKey, { projects: parsed.projects.length, groups: parsed.groups?.length || 0 }))) return;
       const normalized = normalizeStore(parsed); setStore(normalized); setSelection(null); setWorkspaceView("detail"); setFilter("active"); notify(t("备份已恢复"));
     } catch { window.alert(t("这不是有效的工作台备份文件。")); }
     finally { if (importRef.current) importRef.current.value = ""; closeMenu(); }
   };
-  const initializeWorkbench = () => {
+  const initializeWorkbench = async () => {
+    if (persistence.settings.mode === "linked_file") await persistence.disconnect();
     setStore(emptyStore()); setSelection(null); setWorkspaceView("detail"); setActiveWorkstreamId(null); setFilter("active"); setSearch("");
     setTemplateType("audit"); setModal(null); notify(t("工作台已初始化"));
+  };
+  const openExistingWorkspaceFile = async () => {
+    const candidate = await persistence.chooseExistingFile();
+    if (candidate) setModal({ type: "open-workspace-file", candidate });
   };
 
   const modalTargetProject = modal?.targetKind === "project" ? store.projects.find((item) => item.id === modal.targetId) : null;
   const modalTargetGroup = modal?.targetKind === "group" ? store.groups.find((item) => item.id === modal.targetId) : null;
   const modalTargetWorkstream = modalTargetProject?.workstreams.find((item) => item.id === modal.workstreamId) || null;
+  const quickProjectTitle = ({ owner: "负责人", schedule: "项目排期", framework: "财务报告准则／框架",
+    group: "所属集团" })[modal?.quickField] || "编辑项目资料";
   const modalWorkflowNodes = modal?.targetKind === "group" ? modalTargetGroup?.nodes : modalTargetWorkstream?.nodes;
   const modalNode = modalWorkflowNodes?.find((item) => item.id === modal?.nodeId) || modal?.node || null;
   const availableProjects = store.projects.filter((project) => !project.archived && !findParentMembership(store, "project", project.id));
@@ -392,6 +450,7 @@ function DashboardWorkbench() {
   const activeOutstandingCount = activeOutstandingItems(store).filter((item) => outstandingIsOpen(item, store.outstandingStatuses)).length;
   const languageLabel = language === "en" ? "English" : language === "zh-Hant" ? "繁體中文" : "简体中文";
   const languageCode = language === "en" ? "EN" : language === "zh-Hant" ? "繁" : "简";
+  const saveStateLabel = persistenceStatusLabel(persistence.status, t);
   const outstandingPanelCollapsed = compactLayout ? !compactOutstandingOpen : outstandingCollapsed;
   const expandOutstandingPanel = () => compactLayout ? setCompactOutstandingOpen(true) : setOutstandingCollapsed(false);
   const collapseOutstandingPanel = () => compactLayout ? setCompactOutstandingOpen(false) : setOutstandingCollapsed(true);
@@ -413,8 +472,8 @@ function DashboardWorkbench() {
             <CalendarRange aria-hidden="true" /></button>
           <button type="button" className="app-rail-button deadline-alert-trigger" aria-haspopup="dialog"
             data-active={modal?.type === "deadline-alerts" || undefined} data-alert={deadlineAlertItems.length > 0 || undefined}
-            aria-label={deadlineAlertItems.length ? t("逾期提醒 · {count}", { count: deadlineAlertItems.length }) : t("逾期提醒")}
-            data-tooltip={deadlineAlertItems.length ? t("逾期提醒 · {count}", { count: deadlineAlertItems.length }) : t("逾期提醒")}
+            aria-label={deadlineAlertItems.length ? t("期限提醒 · {count}", { count: deadlineAlertItems.length }) : t("期限提醒")}
+            data-tooltip={deadlineAlertItems.length ? t("期限提醒 · {count}", { count: deadlineAlertItems.length }) : t("期限提醒")}
             data-tooltip-side="right" onClick={() => { closeMenu(); setModal({ type: "deadline-alerts" }); }}>
             <BellRing aria-hidden="true" />{deadlineAlertItems.length > 0 && <strong className="app-rail-badge">
               {deadlineAlertItems.length > 99 ? "99+" : deadlineAlertItems.length}</strong>}</button>
@@ -430,14 +489,29 @@ function DashboardWorkbench() {
             <BookOpen aria-hidden="true" /></button>
         </div>
         <div className="app-rail-secondary">
+          <button type="button" className="app-rail-button" aria-haspopup="dialog"
+            data-active={modal?.type === "persistence-settings" || undefined}
+            aria-label={t("设置")} data-tooltip={t("设置")} data-tooltip-side="right"
+            onClick={() => { closeMenu(); setModal({ type: "persistence-settings" }); }}>
+            <Settings aria-hidden="true" /></button>
           <details className="toolbar-menu" ref={(element) => { toolbarMenuRefs.current[0] = element; }}>
-            <summary className="toolbar-icon-summary" aria-label={t("备份")} data-tooltip={t("备份")}
-              data-tooltip-side="right" onClick={() => closeOtherMenus(0)}><DatabaseBackup aria-hidden="true" /></summary>
+            <summary className="toolbar-icon-summary" aria-label={`${t("备份")} · ${saveStateLabel}`}
+              data-tooltip={`${t("备份")} · ${saveStateLabel}`} data-tooltip-side="right"
+              onClick={() => closeOtherMenus(0)}><DatabaseBackup aria-hidden="true" />
+              <span className="persistence-save-dot" data-status={persistence.status} aria-hidden="true" /></summary>
             <div className="toolbar-menu-popover"><input ref={importRef} type="file" accept="application/json" hidden
               onChange={(event) => importBackup(event.target.files?.[0])} />
-              <button type="button" onClick={() => { closeMenu(); importRef.current?.click(); }}>{t("恢复备份")}…</button>
-              <button type="button" onClick={exportBackup}>{t("导出备份")}</button>
-              <button type="button" className="toolbar-menu-danger" onClick={() => { closeMenu(); setModal({ type: "initialize-workbench" }); }}>
+              <div className="persistence-menu-status" role="status" aria-label={saveStateLabel}>
+                <span className="persistence-save-dot" data-status={persistence.status} />
+                <strong>{saveStateLabel}</strong></div>
+              {persistence.settings.mode === "linked_file" && <button type="button" aria-label={t("立即保存")} onClick={async () => {
+                closeMenu(); const saved = await persistence.saveNow();
+                notify(t(saved ? "资料已保存" : "资料尚未同步，请检查保存设置"));
+              }}>{t("立即保存")}</button>}
+              <button type="button" aria-label={t("恢复备份")} onClick={() => { closeMenu(); importRef.current?.click(); }}>{t("恢复备份")}…</button>
+              <button type="button" aria-label={t("导出备份")} onClick={exportBackup}>{t("导出备份")}</button>
+              <button type="button" className="toolbar-menu-danger" aria-label={t("初始化工作台")}
+                onClick={() => { closeMenu(); setModal({ type: "initialize-workbench" }); }}>
                 {t("初始化工作台")}…</button></div></details>
           <details className="toolbar-menu" ref={(element) => { toolbarMenuRefs.current[1] = element; }}>
             <summary className="language-summary toolbar-icon-summary" aria-label={`${t("语言")} · ${languageLabel}`}
@@ -471,14 +545,16 @@ function DashboardWorkbench() {
             statuses={store.outstandingStatuses} onMove={moveNavigationItem} /></>}
       </aside>
       <main className="project-detail" aria-label={t(workspaceView === "schedule" ? "项目排期" : selectedGroup ? "集团工作区" : "项目工作区")}>
-        {workspaceView === "schedule" ? <ProjectSchedule store={store} filter={filter} onOpen={openWorkspaceRecord} />
+        {workspaceView === "schedule" ? <ProjectSchedule store={store} filter={filter} onOpen={openWorkspaceRecord}
+          onOpenTaxDeadline={openTaxDeadlineCentre} />
           : selectedProject ? <ProjectDetail project={selectedProject} rawProject={selectedProjectSource} statuses={outstandingStatusViews}
           parentMembership={selectedProjectMembership}
           activeWorkstreamId={activeWorkstreamId} setActiveWorkstreamId={setActiveWorkstreamId} updateWorkflowNodes={updateWorkflowNodes}
-          setModal={setModal} duplicateProject={duplicateProject} archiveTarget={archiveTarget} restoreTarget={restoreTarget} />
+          setModal={setModal} duplicateProject={duplicateProject} archiveTarget={archiveTarget} restoreTarget={restoreTarget}
+          deadlineClock={deadlineClock} />
           : selectedGroup ? <GroupDetail store={store} group={selectedGroup} statuses={outstandingStatusViews}
             updateWorkflowNodes={updateWorkflowNodes} setModal={setModal} setSelection={(next) => openWorkspaceRecord(next.kind, next.id)}
-            archiveTarget={archiveTarget} restoreTarget={restoreTarget} />
+            archiveTarget={archiveTarget} restoreTarget={restoreTarget} deadlineClock={deadlineClock} />
             : <div className="detail-empty"><span className="empty-mark">◎</span><h2>{t("选择一个项目或集团")}</h2>
               <p>{t("选择后可查看业务模块、集团合并及待清事项。")}</p></div>}
       </main>
@@ -501,15 +577,23 @@ function DashboardWorkbench() {
       </aside>
     </section>
 
-    {modal?.type === "deadline-alerts" && <Modal title={t("逾期提醒")} onClose={() => setModal(null)} wide>
+    {modal?.type === "deadline-alerts" && <Modal title={t("期限提醒")} onClose={() => setModal(null)} wide>
       <DeadlineAlertCentre alerts={deadlineAlertItems} onOpen={openDeadlineAlert} /></Modal>}
+    {modal?.type === "tax-deadlines" && (modalTargetProject || modalTargetGroup) && <Modal title={t("税务期限")} onClose={() => setModal(null)} large>
+      <TaxDeadlineManager store={store} targetKind={modal.targetKind} targetId={modal.targetId}
+        focusDeadlineId={modal.deadlineId} initialEditDeadlineId={modal.editDeadlineId}
+        readOnly={Boolean((modalTargetProject || modalTargetGroup)?.archived)}
+        onSave={saveTaxDeadline} onDelete={deleteTaxDeadline}
+        onOpenSource={(kind, id, deadlineId) => openTaxDeadlineCentre(kind, id, deadlineId)} /></Modal>}
     {modal?.type === "create-company" && <Modal title={t("新建公司")} onClose={() => setModal(null)} wide>
       <CompanyCreateForm initialKind={modal.initialKind} samples={sampleViews} workstreamCategories={workstreamCategoryViews}
         selectedSampleIdsByCategory={store.selectedSampleIdsByCategory} selectedGroupSample={selectedGroupSample}
         initialWorkstreamSelections={modal.initialWorkstreamSelections} onCreateProject={createProject}
         onCreateGroup={createGroup} onClose={() => setModal(null)} /></Modal>}
-    {modal?.type === "edit-project" && selectedProjectSource && <Modal title={t("编辑项目资料")} onClose={() => setModal(null)} wide>
+    {modal?.type === "edit-project" && selectedProjectSource && <Modal title={t(quickProjectTitle)} onClose={() => setModal(null)}
+      wide={!modal.quickField}>
       <ProjectForm initial={selectedProjectSource} allowWorkstreams={false} onClose={() => setModal(null)} submitLabel="保存修改"
+        quickField={modal.quickField}
         onConvert={convertSelectedProjectToGroup}
         initialMembership={selectedProjectMembership} groupOptions={store.groups.filter((group) => !group.archived
           || group.id === selectedProjectMembership?.group.id)} onSubmit={(values) => {
@@ -587,8 +671,27 @@ function DashboardWorkbench() {
         onSave={saveWorkstreamCategories} onClose={() => setModal({ type: "template-library" })} /></Modal>}
     {modal?.type === "user-guide" && <Modal title={t("使用指南")} onClose={() => setModal(null)} large>
       <UserGuide /></Modal>}
+    {modal?.type === "persistence-settings" && <Modal title={t("设置")} onClose={() => setModal(null)} wide>
+      <PersistenceSettingsPanel persistence={persistence} onClose={() => setModal(null)}
+        onOpenExisting={openExistingWorkspaceFile}
+        onResolveConflict={() => setModal({ type: "persistence-conflict" })} /></Modal>}
+    {modal?.type === "open-workspace-file" && <Modal title={t("打开工作台文件")} onClose={() => setModal({ type: "persistence-settings" })} wide>
+      <OpenWorkspaceFileConfirm candidate={modal.candidate} onClose={() => setModal({ type: "persistence-settings" })}
+        onConfirm={async (candidate) => {
+          const opened = await persistence.activateExistingFile(candidate);
+          if (opened) { setModal(null); notify(t("本地工作台文件已关联")); }
+          return opened;
+        }} /></Modal>}
+    {modal?.type === "persistence-conflict" && persistence.conflict && <Modal title={t("处理版本冲突")} onClose={() => setModal(null)} wide>
+      <PersistenceConflictDialog conflict={persistence.conflict} onClose={() => setModal(null)}
+        onResolve={async (choice) => {
+          const resolved = await persistence.resolveConflict(choice);
+          if (resolved) { setModal(null); notify(t("版本冲突已处理并恢复自动保存")); }
+          return resolved;
+        }} /></Modal>}
     {modal?.type === "initialize-workbench" && <Modal title={t("初始化工作台")} onClose={() => setModal(null)}>
-      <InitializeWorkbenchConfirm onExport={exportBackup} onInitialize={initializeWorkbench} onClose={() => setModal(null)} /></Modal>}
+      <InitializeWorkbenchConfirm onExport={exportBackup} onInitialize={initializeWorkbench} onClose={() => setModal(null)}
+        linkedFileName={persistence.settings.mode === "linked_file" ? persistence.linkedFileName : ""} /></Modal>}
     {modal?.type === "sample-edit" && <SampleEditModal modal={modal} store={store} language={language} t={t}
       categories={workstreamCategoryViews} saveSample={saveSample} resetSample={resetSample} setModal={setModal} />}
     {modal?.type === "sample-redact" && <Modal title={t("范本公司名称去敏")} onClose={() => setModal(null)}>
@@ -635,14 +738,25 @@ function CompanyCreateForm({ initialKind = "project", samples, workstreamCategor
   </div>;
 }
 
+function DetailFactAction({ label, children, onClick, actionLabel, icon: Icon = Pencil, className = "", urgency }) {
+  return <div className={["detail-fact", onClick ? "detail-fact-action" : "", className].filter(Boolean).join(" ")}>
+    <dt>{label}</dt><dd data-urgency={urgency || undefined}>{onClick ? <button type="button" className="detail-fact-link" onClick={onClick}
+      aria-label={actionLabel} title={actionLabel}><span className="detail-fact-content">{children}</span>
+      <Icon aria-hidden="true" /></button> : children}</dd>
+  </div>;
+}
+
 function ProjectDetail({ project, rawProject, statuses, parentMembership, activeWorkstreamId, setActiveWorkstreamId,
-  updateWorkflowNodes, setModal, duplicateProject, archiveTarget, restoreTarget }) {
+  updateWorkflowNodes, setModal, duplicateProject, archiveTarget, restoreTarget, deadlineClock }) {
   const { language, t } = useUiLanguage();
   const stats = projectStats(project);
   const readOnly = Boolean(rawProject.archived);
   const activeWorkstream = project.workstreams.find((workstream) => workstream.id === activeWorkstreamId)
     || project.workstreams[0] || null;
   const activeRawWorkstream = rawProject.workstreams.find((workstream) => workstream.id === activeWorkstream?.id) || null;
+  const taxSummary = taxDeadlineSummary(rawProject.taxDeadlines, deadlineClock);
+  const nextTaxDate = taxSummary.next ? formatDate(taxSummary.next.dueDate, language) : t("没有未完成期限");
+  const taxFactValue = taxSummary.next ? `${nextTaxDate} · ${t("{count} 项未完成", { count: taxSummary.openCount })}` : nextTaxDate;
   const periodLabel = reportingPeriodLabel(project, language);
   const primaryName = project.entity || project.name;
   const secondaryName = project.entity && project.name !== project.entity ? project.name : "";
@@ -666,13 +780,30 @@ function ProjectDetail({ project, rawProject, statuses, parentMembership, active
         <button type="button" className="button secondary icon-only" aria-label={t("归档项目")}
           data-tooltip={t("归档项目")} onClick={() => archiveTarget("project", rawProject.id)}><Archive aria-hidden="true" /></button></>}</div>
     </header>
-    <dl className="detail-facts"><div><dt>{t("负责人")}</dt><dd>{project.owner || t("未设置")}</dd></div>
-      <div className="date-range-fact"><dt>{t("项目排期")}</dt><dd><time>{project.startDate ? formatDate(project.startDate, language) : t("未设置开始日")}</time>
-        <span aria-hidden="true">→</span><time>{project.dueDate ? formatDate(project.dueDate, language) : t("未设置截止日")}</time></dd></div>
-      <div><dt>{t("财务报告准则／框架")}</dt><dd>{project.reportingFramework || t("未设置")}</dd></div>
-      <div><dt>{t("所属集团")}</dt><dd>{parentMembership?.group.name || t("独立公司")}</dd></div>
-      <div><dt>{t("业务模块")}</dt><dd>{t("已完成 {done}/{total}", { done: stats.completedWorkstreams, total: stats.workstreams })}</dd></div>
-      <div><dt>{t("项目状态")}</dt><dd>{t(stats.complete ? "已完成" : "进行中")}</dd></div></dl>
+    <dl className="detail-facts"><DetailFactAction label={t("负责人")} actionLabel={`${t("编辑项目资料")}：${t("负责人")}`}
+      onClick={!readOnly ? () => setModal({ type: "edit-project", quickField: "owner" }) : null}>
+      {project.owner || t("未设置")}</DetailFactAction>
+      <DetailFactAction className="date-range-fact" label={t("项目排期")} icon={CalendarRange}
+        actionLabel={`${t("编辑项目资料")}：${t("项目排期")}`}
+        onClick={!readOnly ? () => setModal({ type: "edit-project", quickField: "schedule" }) : null}>
+        <time>{project.startDate ? formatDate(project.startDate, language) : t("未设置开始日")}</time>
+        <span aria-hidden="true">→</span><time>{project.dueDate ? formatDate(project.dueDate, language) : t("未设置截止日")}</time>
+      </DetailFactAction>
+      <DetailFactAction label={t("财务报告准则／框架")} actionLabel={`${t("编辑项目资料")}：${t("财务报告准则／框架")}`}
+        onClick={!readOnly ? () => setModal({ type: "edit-project", quickField: "framework" }) : null}>
+        {project.reportingFramework || t("未设置")}</DetailFactAction>
+      <DetailFactAction label={t("所属集团")} actionLabel={`${t("编辑项目资料")}：${t("所属集团")}`}
+        onClick={!readOnly ? () => setModal({ type: "edit-project", quickField: "group" }) : null}>
+        {parentMembership?.group.name || t("独立公司")}</DetailFactAction>
+      <DetailFactAction label={t("业务模块")} icon={Settings2} actionLabel={t("业务模块设置")}
+        onClick={!readOnly ? () => setModal(activeRawWorkstream ? { type: "workstream-edit", targetKind: "project",
+          targetId: rawProject.id, workstreamId: activeRawWorkstream.id } : { type: "workstream-add", targetKind: "project",
+          targetId: rawProject.id }) : null}>
+        {t("已完成 {done}/{total}", { done: stats.completedWorkstreams, total: stats.workstreams })}</DetailFactAction>
+      <DetailFactAction className="tax-deadline-fact" label={t("税务期限")} icon={readOnly ? ReceiptText : Pencil}
+        urgency={taxSummary.urgency} actionLabel={readOnly ? t("税务期限") : t("编辑税务期限")}
+        onClick={() => setModal({ type: "tax-deadlines", targetKind: "project", targetId: rawProject.id,
+          ...(readOnly ? {} : { editDeadlineId: taxSummary.next?.id ?? null }) })}>{taxFactValue}</DetailFactAction></dl>
 
     <section className="workstream-overview"><header className="section-heading"><div><h3>{t("业务模块")}</h3>
       <p>{t("各模块并行推进，并分别追踪负责人、截止日和完成条件。")}</p></div>
@@ -697,7 +828,8 @@ function ProjectDetail({ project, rawProject, statuses, parentMembership, active
   </div>;
 }
 
-function GroupDetail({ store, group, statuses, updateWorkflowNodes, setModal, setSelection, archiveTarget, restoreTarget }) {
+function GroupDetail({ store, group, statuses, updateWorkflowNodes, setModal, setSelection, archiveTarget, restoreTarget,
+  deadlineClock }) {
   const { language, t } = useUiLanguage();
   const [tab, setTab] = React.useState("overview");
   const rawGroup = store.groups.find((item) => item.id === group.id);
@@ -705,6 +837,8 @@ function GroupDetail({ store, group, statuses, updateWorkflowNodes, setModal, se
   const stats = groupProgress(store, group.id);
   const openItems = collectGroupOutstandingEntries(store, group.id, new Set(), 0, readOnly)
     .filter((entry) => outstandingIsOpen(entry.item, statuses)).length;
+  const groupTaxDeadlines = collectGroupTaxDeadlineEntries(store, group.id, new Set(), 0, readOnly)
+    .map((entry) => entry.deadline);
   if (!rawGroup) return null;
   return <div className="workspace-detail-inner">
     {readOnly && <div className="archive-banner"><strong>{t("已归档，只读")}</strong>
@@ -725,7 +859,9 @@ function GroupDetail({ store, group, statuses, updateWorkflowNodes, setModal, se
       <article><span>{t("公司合并就绪")}</span><div><strong>{stats.readyCompanies}/{stats.totalCompanies}</strong><small>{t("家公司")}</small></div></article>
       <article><span>{t("本级合并流程")}</span><div><strong>{group.consolidationEnabled ? `${stats.consolidationPercentage}%` : t("不适用")}</strong></div>
         {group.consolidationEnabled && <ProgressBar value={stats.consolidationPercentage} compact />}</article>
-      <article><span>{t("未清事项")}</span><div><strong>{openItems}</strong><small>{t("项")}</small></div></article></section>
+      <article><span>{t("未清事项")}</span><div><strong>{openItems}</strong><small>{t("项")}</small></div></article>
+      <article className="group-tax-deadline"><span>{t("税务期限")}</span><TaxDeadlineSummaryButton deadlines={groupTaxDeadlines}
+        now={deadlineClock} compact onClick={() => setModal({ type: "tax-deadlines", targetKind: "group", targetId: rawGroup.id })} /></article></section>
     <div className="group-tabs" role="tablist">{[["overview", "组成部分"], ["workflow", "合并节点"], ["settings", "集团资料"]]
       .map(([value, label]) => <button type="button" role="tab" aria-selected={tab === value} key={value}
         onClick={() => setTab(value)}>{t(label)}</button>)}</div>
@@ -907,11 +1043,13 @@ function DeleteConfirm({ name, kind, onDelete, onClose }) {
       <button type="button" className="button danger" onClick={onDelete}>{t("确认永久删除")}</button></footer></div>;
 }
 
-function InitializeWorkbenchConfirm({ onExport, onInitialize, onClose }) {
+function InitializeWorkbenchConfirm({ onExport, onInitialize, onClose, linkedFileName = "" }) {
   const { t } = useUiLanguage();
   const [confirmed, setConfirmed] = React.useState(false);
   return <div className="initialize-confirm"><strong>{t("恢复为全新工作台")}</strong>
     <p>{t("初始化会清除当前浏览器内的全部项目、集团、待清事项、自定义范本、自定义种类及自定义状态，并恢复内置内容。此操作不可撤销。")}</p>
+    {linkedFileName && <p className="initialize-file-note">{t("初始化前会断开“{name}”，该文件本身不会被清除或覆盖。",
+      { name: linkedFileName })}</p>}
     <section><span>{t("建议先导出当前备份；如需找回资料，只能从备份文件恢复。")}</span>
       <button type="button" className="button secondary" onClick={onExport}>{t("先导出备份")}</button></section>
     <label><input type="checkbox" checked={confirmed} onChange={(event) => setConfirmed(event.target.checked)} />

@@ -12,11 +12,15 @@ Audit Project Workbench (APW) is a small React application built with Vite.
 - `src/dashboard/group-components.jsx`: group hierarchy, component matrix and group-template interfaces.
 - `src/dashboard/timeline.jsx`: weekly project-schedule projection and horizontal duration-bar interface.
 - `src/dashboard/deadline-alerts.jsx`: compact, navigable presentation of derived overdue deadlines.
+- `src/dashboard/persistence.js` and `use-workbench-persistence.js`: device-local persistence settings, linked-file access, serial autosave, permission recovery and conflict resolution.
+- `src/dashboard/persistence-ui.jsx`: compact storage settings, file review and conflict-resolution interfaces.
 - `src/dashboard/dashboard.css`: desktop-first layout and component styling.
 
 ## Persistence
 
-The application stores one versioned JSON object in browser `localStorage`. Backups use the same versioned structure. Storage version 5 added project `workstreams`, outstanding-item `workstreamId`, template `workstreamType`, per-status colours and `selectedSampleIdsByType`. Storage version 6 added `workstreamCategories`, template/workstream `categoryId` and `selectedSampleIdsByCategory`. Storage version 7 added project/group `periodStart` and `periodEnd`, plus project `reportingFramework`; legacy free-text `period` values remain available as a fallback. Storage version 8 adds a separate project/group `startDate`, while `dueDate` remains the delivery deadline. Versions 1–7 migrate automatically when stored or imported data is loaded.
+The application always stores one versioned JSON safety copy in browser `localStorage`. Backups and optional linked `.apw.json` files use the same structure. Storage version 5 added project `workstreams`, outstanding-item `workstreamId`, template `workstreamType`, per-status colours and `selectedSampleIdsByType`. Version 6 added category-aware templates, version 7 added reporting-period ranges and reporting frameworks, version 8 added separate project start dates, and version 9 added company and holding-company tax-deadline registers. Versions 1–8 migrate automatically when browser, backup or linked-file data is loaded.
+
+Persistence preferences are device-local and deliberately separate from the V9 business-data schema. The selected mode and leave-warning preference use a small versioned `localStorage` record; the structured-cloneable `FileSystemFileHandle` is stored in IndexedDB. Neither is exported. Linked-file writes are debounced and serialized, while every change reaches the browser safety copy first. A saved digest distinguishes browser-only changes, file-only changes and true two-sided conflicts on reopening. File permission is queried silently on startup but requested only after a user gesture.
 
 Each project owns at least one `workstream`. Built-in types are `quote_collection`, `audit`, `tax_computation_filing` and `cdd`; each may appear once per project. User-defined categories map to custom workstreams and can be added, renamed or reordered. Custom workstreams are unlimited. Legacy project `nodes` become one audit workstream without changing node or condition identities, completion state, owner, due date or group references.
 

@@ -30,6 +30,10 @@ The project follows [Semantic Versioning](https://semver.org/).
 - A weekly horizontal project schedule with sticky company details, owner ordering, overdue and incomplete-date states, status filtering and direct links back to records.
 - A global deadline-alert bell with a live overdue count and a sorted, navigable list covering companies, holding companies and distinct workstream deadlines.
 - Reversible company-to-holding-company conversion with recoverable workflow and consolidation state.
+- Storage V9 tax-deadline registers for companies and holding companies, including custom types, per-item reminder windows, optional tax-workstream links, original dates and reasoned revision history.
+- Tax deadline summaries, multi-level holding-company roll-ups, urgency/owner/type filters, global reminder integration and same-day-counted schedule markers.
+- Optional linked-local-file mode with a continuously updated `.apw.json` file, browser safety copy, persisted file handle, explicit save state, permission recovery and two-sided conflict resolution.
+- Compact storage settings, unsynced-leave protection and recovery-copy downloads before resolving divergent browser and file versions.
 
 ### Changed
 

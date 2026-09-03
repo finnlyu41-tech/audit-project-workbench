@@ -1,7 +1,7 @@
 import { toTraditional } from "./traditional.js";
 
 export const STORAGE_KEY = "audit-progress-workbench:v1";
-export const STORE_VERSION = 8;
+export const STORE_VERSION = 9;
 export const CORE_SAMPLE_KEY = "core-audit";
 export const CORE_GROUP_SAMPLE_KEY = "core-group";
 
@@ -19,6 +19,20 @@ export const WORKSTREAM_SAMPLE_KEYS = {
   audit: CORE_SAMPLE_KEY,
   tax_computation_filing: "core-tax-computation-filing",
   cdd: "core-cdd",
+};
+
+export const TAX_DEADLINE_CATEGORIES = ["profits_tax_filing", "tax_payment", "employers_return", "custom"];
+export const TAX_DEADLINE_CATEGORY_KEYS = {
+  profits_tax_filing: "利得税报税",
+  tax_payment: "税款缴付",
+  employers_return: "雇主报税表",
+  custom: "其他税务期限",
+};
+export const TAX_DEADLINE_STATES = ["open", "completed", "not_applicable"];
+export const TAX_DEADLINE_STATE_KEYS = {
+  open: "未完成",
+  completed: "已完成",
+  not_applicable: "不适用",
 };
 
 export const GROUP_AUDIT_TYPES = ["internal_team", "component_auditor", "management_accounts"];
@@ -632,6 +646,7 @@ export function makeGroup(values, useStarter = true, groupSample = createDefault
     updatedAt: now,
     members: [],
     outstandingItems: [],
+    taxDeadlines: Array.isArray(values.taxDeadlines) ? values.taxDeadlines.map(makeTaxDeadline) : [],
     nodes: consolidationEnabled && useStarter ? (groupSample?.nodes || []).map((node) => makeNode({
       title: node.title,
       description: node.description,
@@ -655,6 +670,127 @@ export function makeOutstandingItem(values = {}, statuses = createDefaultOutstan
   };
 }
 
+function normalizedReminderDays(value) {
+  if (value === "" || value === null || value === undefined) return 30;
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? Math.max(0, Math.min(365, Math.round(parsed))) : 30;
+}
+
+function normalizeTaxDeadlineRevision(value) {
+  if (!value || typeof value !== "object") return null;
+  const fromDueDate = typeof value.fromDueDate === "string" ? value.fromDueDate : "";
+  const toDueDate = typeof value.toDueDate === "string" ? value.toDueDate : "";
+  if (!fromDueDate || !toDueDate || fromDueDate === toDueDate) return null;
+  return {
+    fromDueDate,
+    toDueDate,
+    reason: typeof value.reason === "string" ? value.reason.trim() : "",
+    changedAt: value.changedAt || new Date().toISOString(),
+  };
+}
+
+export function makeTaxDeadline(values = {}) {
+  const now = new Date().toISOString();
+  const category = TAX_DEADLINE_CATEGORIES.includes(values.category) ? values.category : "profits_tax_filing";
+  const state = TAX_DEADLINE_STATES.includes(values.state) ? values.state : "open";
+  const dueDate = typeof values.dueDate === "string" ? values.dueDate : "";
+  return {
+    id: values.id || uid("tax-deadline"),
+    category,
+    customName: typeof values.customName === "string" ? values.customName.trim() : "",
+    taxYear: typeof values.taxYear === "string" ? values.taxYear.trim() : "",
+    owner: typeof values.owner === "string" ? values.owner.trim() : "",
+    originalDueDate: typeof values.originalDueDate === "string" && values.originalDueDate
+      ? values.originalDueDate : dueDate,
+    dueDate,
+    reminderDays: normalizedReminderDays(values.reminderDays),
+    state,
+    completedAt: state === "completed" ? (values.completedAt || now) : "",
+    linkedWorkstreamId: typeof values.linkedWorkstreamId === "string" && values.linkedWorkstreamId
+      ? values.linkedWorkstreamId : null,
+    reference: typeof values.reference === "string" ? values.reference.trim() : "",
+    note: typeof values.note === "string" ? values.note.trim() : "",
+    revisions: Array.isArray(values.revisions)
+      ? values.revisions.map(normalizeTaxDeadlineRevision).filter(Boolean) : [],
+    createdAt: values.createdAt || now,
+    updatedAt: values.updatedAt || now,
+  };
+}
+
+export function reviseTaxDeadline(current, values = {}, reason = "", changedAt = new Date().toISOString()) {
+  const normalized = makeTaxDeadline({ ...current, ...values, id: current.id, createdAt: current.createdAt,
+    originalDueDate: current.originalDueDate || current.dueDate || values.dueDate,
+    revisions: current.revisions || [], updatedAt: changedAt });
+  const dueDateChanged = Boolean(current.dueDate && normalized.dueDate && current.dueDate !== normalized.dueDate);
+  const revisionReason = typeof reason === "string" ? reason.trim() : "";
+  if (dueDateChanged && !revisionReason) throw new Error("A reason is required when changing a saved tax deadline date.");
+  if (dueDateChanged) normalized.revisions = [...normalized.revisions, {
+    fromDueDate: current.dueDate,
+    toDueDate: normalized.dueDate,
+    reason: revisionReason,
+    changedAt,
+  }];
+  normalized.completedAt = normalized.state === "completed"
+    ? (current.state === "completed" && current.completedAt ? current.completedAt : changedAt) : "";
+  return normalized;
+}
+
+export function taxDeadlineCategoryLabel(deadlineOrCategory, language = "zh") {
+  const category = typeof deadlineOrCategory === "string" ? deadlineOrCategory : deadlineOrCategory?.category;
+  const customName = typeof deadlineOrCategory === "object" ? deadlineOrCategory?.customName : "";
+  if (category === "custom" && customName) return customName;
+  const key = TAX_DEADLINE_CATEGORY_KEYS[category] || TAX_DEADLINE_CATEGORY_KEYS.custom;
+  if (language === "en") return {
+    profits_tax_filing: "Profits tax filing",
+    tax_payment: "Tax payment",
+    employers_return: "Employer’s return",
+    custom: "Other tax deadline",
+  }[category] || "Other tax deadline";
+  return language === "zh-Hant" ? toTraditional(key) : key;
+}
+
+export function taxDeadlineStateLabel(state, language = "zh") {
+  const key = TAX_DEADLINE_STATE_KEYS[state] || TAX_DEADLINE_STATE_KEYS.open;
+  if (language === "en") return { open: "Open", completed: "Completed", not_applicable: "Not applicable" }[state] || "Open";
+  return language === "zh-Hant" ? toTraditional(key) : key;
+}
+
+function utcDay(value) {
+  if (!value) return null;
+  const parsed = Date.parse(`${value}T00:00:00Z`);
+  return Number.isNaN(parsed) ? null : parsed;
+}
+
+function todayUtc(now = new Date()) {
+  const current = now instanceof Date ? new Date(now) : new Date(now);
+  return Number.isNaN(current.getTime()) ? null
+    : Date.UTC(current.getFullYear(), current.getMonth(), current.getDate());
+}
+
+export function taxDeadlineUrgency(deadline, now = new Date()) {
+  if (!deadline || deadline.state !== "open") return { level: "inactive", daysUntil: null, daysOverdue: 0 };
+  const due = utcDay(deadline.dueDate);
+  const today = todayUtc(now);
+  if (due === null || today === null) return { level: "inactive", daysUntil: null, daysOverdue: 0 };
+  const daysUntil = Math.round((due - today) / 86400000);
+  if (daysUntil < 0) return { level: "overdue", daysUntil, daysOverdue: Math.abs(daysUntil) };
+  if (daysUntil === 0) return { level: "due_today", daysUntil, daysOverdue: 0 };
+  if (daysUntil <= normalizedReminderDays(deadline.reminderDays)) {
+    return { level: "due_soon", daysUntil, daysOverdue: 0 };
+  }
+  return { level: "upcoming", daysUntil, daysOverdue: 0 };
+}
+
+export function taxDeadlineSummary(deadlines = [], now = new Date()) {
+  const open = deadlines.filter((deadline) => deadline?.state === "open");
+  const dated = open.filter((deadline) => utcDay(deadline.dueDate) !== null).sort((left, right) =>
+    left.dueDate.localeCompare(right.dueDate) || taxDeadlineCategoryLabel(left, "en").localeCompare(taxDeadlineCategoryLabel(right, "en")));
+  const attention = dated.filter((deadline) => ["overdue", "due_today", "due_soon"].includes(taxDeadlineUrgency(deadline, now).level));
+  const next = attention[0] || dated[0] || null;
+  return { openCount: open.length, attentionCount: attention.length, next,
+    urgency: next ? taxDeadlineUrgency(next, now).level : "inactive" };
+}
+
 function normalizeNodeList(nodes, removeLegacyOutstanding = false) {
   return Array.isArray(nodes) ? nodes.map((node) => ({
     id: node?.id || uid("node"),
@@ -675,7 +811,7 @@ export function normalizeStore(value) {
   const workstreamCategories = normalizeWorkstreamCategories(value.workstreamCategories);
   const categoryById = new Map(workstreamCategories.map((category) => [category.id, category]));
   const rawSamples = Array.isArray(value.samples) ? value.samples : [value.sample];
-  const restoreMissingBuiltinSamples = value.version !== STORE_VERSION || !Array.isArray(value.samples);
+  const restoreMissingBuiltinSamples = !Array.isArray(value.samples) || Number(value.version) < 5;
   const seenSampleIds = new Set();
   const samples = rawSamples.filter(Boolean).map((sample) => {
     const normalized = normalizeSample(sample);
@@ -757,6 +893,9 @@ export function normalizeStore(value) {
         const normalized = makeOutstandingItem(item, outstandingStatuses);
         return { ...normalized, workstreamId: workstreamIds.has(normalized.workstreamId) ? normalized.workstreamId : null };
       }) : [];
+    const taxDeadlines = Array.isArray(project.taxDeadlines)
+      ? project.taxDeadlines.map(makeTaxDeadline).map((deadline) => ({ ...deadline,
+        linkedWorkstreamId: workstreamIds.has(deadline.linkedWorkstreamId) ? deadline.linkedWorkstreamId : null })) : [];
     return {
       id: project?.id || uid("project"),
       name: typeof project?.name === "string" && project.name.trim() ? project.name.trim() : "未命名项目",
@@ -773,6 +912,7 @@ export function normalizeStore(value) {
       createdAt: project?.createdAt || new Date().toISOString(),
       updatedAt: project?.updatedAt || new Date().toISOString(),
       outstandingItems,
+      taxDeadlines,
       workstreams,
       conversionState: normalizeConversionState(project?.conversionState),
     };
@@ -795,6 +935,8 @@ export function normalizeStore(value) {
       .map((member) => makeGroupMember(member, defaultGroupSample)) : [],
     outstandingItems: Array.isArray(group?.outstandingItems)
       ? group.outstandingItems.map((item) => makeOutstandingItem(item, outstandingStatuses)) : [],
+    taxDeadlines: Array.isArray(group?.taxDeadlines)
+      ? group.taxDeadlines.map((deadline) => ({ ...makeTaxDeadline(deadline), linkedWorkstreamId: null })) : [],
     nodes: normalizeNodeList(group?.nodes),
     conversionState: normalizeConversionState(group?.conversionState),
   })) : [];
@@ -857,6 +999,7 @@ export function makeProject(values, useStarter = true, sampleSource = null, cate
     createdAt: now,
     updatedAt: now,
     outstandingItems: [],
+    taxDeadlines: [],
     workstreams,
   };
 }
@@ -889,6 +1032,7 @@ export function convertProjectToGroup(store, projectId, groupSample = createDefa
     updatedAt: now,
     members: [],
     outstandingItems: (project.outstandingItems || []).map((item) => ({ ...item, workstreamId: null, updatedAt: now })),
+    taxDeadlines: (project.taxDeadlines || []).map((deadline) => ({ ...makeTaxDeadline(deadline), linkedWorkstreamId: null })),
     nodes: consolidationEnabled ? normalizeNodeList(starterNodes) : [],
     conversionState: mergeConversionState(project.conversionState, { project: {
       entity: project.entity || "",
@@ -936,6 +1080,7 @@ export function convertGroupToProject(store, groupId, groupSample = createDefaul
     updatedAt: now,
     outstandingItems: (group.outstandingItems || []).map((item) => ({ ...item,
       workstreamId: workstreamIds.has(item.workstreamId) ? item.workstreamId : null, updatedAt: now })),
+    taxDeadlines: (group.taxDeadlines || []).map((deadline) => ({ ...makeTaxDeadline(deadline), linkedWorkstreamId: null })),
     workstreams,
     conversionState: mergeConversionState(group.conversionState, { group: {
       consolidationEnabled: group.consolidationEnabled !== false,
@@ -963,7 +1108,7 @@ export function emptyStore() {
 }
 
 export function isValidStore(value) {
-  return value && [1, 2, 3, 4, 5, 6, 7, STORE_VERSION].includes(value.version) && Array.isArray(value.projects);
+  return value && [1, 2, 3, 4, 5, 6, 7, 8, STORE_VERSION].includes(value.version) && Array.isArray(value.projects);
 }
 
 export function outstandingStatusLabel(value, statuses = createDefaultOutstandingStatuses(), language = "zh") {
@@ -1120,6 +1265,14 @@ export function deadlineAlerts(store, now = new Date()) {
           customName: workstream.customName || "" } });
       if (alert) alerts.push(alert);
     });
+    (project.taxDeadlines || []).forEach((deadline) => {
+      const urgency = taxDeadlineUrgency(deadline, now);
+      if (!["overdue", "due_today", "due_soon"].includes(urgency.level)) return;
+      alerts.push({ id: `tax:project:${project.id}:${deadline.id}`, targetKind: "project", targetId: project.id,
+        scope: "tax", recordName, owner: deadline.owner || project.owner || "", dueDate: deadline.dueDate,
+        daysOverdue: urgency.daysOverdue, daysUntil: urgency.daysUntil, urgency: urgency.level,
+        taxDeadline: { ...deadline } });
+    });
   });
 
   (store.groups || []).filter((group) => !group.archived && !groupProgress(store, group.id).ready).forEach((group) => {
@@ -1127,8 +1280,20 @@ export function deadlineAlerts(store, now = new Date()) {
       scope: "group", recordName: group.name, owner: group.owner, dueDate: group.dueDate });
     if (alert) alerts.push(alert);
   });
+  (store.groups || []).filter((group) => !group.archived).forEach((group) => {
+    (group.taxDeadlines || []).forEach((deadline) => {
+      const urgency = taxDeadlineUrgency(deadline, now);
+      if (!["overdue", "due_today", "due_soon"].includes(urgency.level)) return;
+      alerts.push({ id: `tax:group:${group.id}:${deadline.id}`, targetKind: "group", targetId: group.id,
+        scope: "tax", recordName: group.name, owner: deadline.owner || group.owner || "", dueDate: deadline.dueDate,
+        daysOverdue: urgency.daysOverdue, daysUntil: urgency.daysUntil, urgency: urgency.level,
+        taxDeadline: { ...deadline, linkedWorkstreamId: null } });
+    });
+  });
 
-  return alerts.sort((left, right) => right.daysOverdue - left.daysOverdue
+  const urgencyRank = { overdue: 0, due_today: 1, due_soon: 2 };
+  return alerts.sort((left, right) => (urgencyRank[left.urgency || "overdue"] ?? 0) - (urgencyRank[right.urgency || "overdue"] ?? 0)
+    || (left.urgency === "overdue" || !left.urgency ? right.daysOverdue - left.daysOverdue : left.dueDate.localeCompare(right.dueDate))
     || left.dueDate.localeCompare(right.dueDate) || left.recordName.localeCompare(right.recordName));
 }
 
@@ -1295,6 +1460,37 @@ export function collectGroupOutstandingEntries(store, groupId, visited = new Set
     const child = store.groups.find((item) => item.id === member.refId);
     if (!child || (!includeArchived && child.archived)) return [];
     return collectGroupOutstandingEntries(store, member.refId, nextVisited, depth + 1, includeArchived);
+  });
+  return [...own, ...children];
+}
+
+export function collectGroupTaxDeadlineEntries(store, groupId, visited = new Set(), depth = 0, includeArchived = false,
+  seenEntries = new Set()) {
+  if (visited.has(groupId)) return [];
+  const group = (store.groups || []).find((item) => item.id === groupId);
+  if (!group) return [];
+  const nextVisited = new Set(visited).add(groupId);
+  const own = (group.taxDeadlines || []).flatMap((deadline) => {
+    const entryKey = `group:${group.id}:${deadline.id}`;
+    if (seenEntries.has(entryKey)) return [];
+    seenEntries.add(entryKey);
+    return [{ deadline, sourceType: "group", sourceId: group.id, sourceName: group.name, depth }];
+  });
+  const children = (group.members || []).flatMap((member) => {
+    if (member.kind === "project") {
+      const project = (store.projects || []).find((item) => item.id === member.refId);
+      if (!project || (!includeArchived && project.archived)) return [];
+      return (project.taxDeadlines || []).flatMap((deadline) => {
+        const entryKey = `project:${project.id}:${deadline.id}`;
+        if (seenEntries.has(entryKey)) return [];
+        seenEntries.add(entryKey);
+        return [{ deadline, sourceType: "project", sourceId: project.id,
+          sourceName: project.entity || project.name, depth: depth + 1 }];
+      });
+    }
+    const child = (store.groups || []).find((item) => item.id === member.refId);
+    if (!child || (!includeArchived && child.archived)) return [];
+    return collectGroupTaxDeadlineEntries(store, member.refId, nextVisited, depth + 1, includeArchived, seenEntries);
   });
   return [...own, ...children];
 }

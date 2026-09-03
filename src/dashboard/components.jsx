@@ -25,7 +25,7 @@ export function Modal({ title, onClose, children, wide = false, large = false })
 }
 export function ProjectForm({ initial, onSubmit, onClose, submitLabel, allowWorkstreams = true,
   samples = [], workstreamCategories = createDefaultWorkstreamCategories(), selectedSampleIdsByCategory = {},
-  initialWorkstreamSelections, groupOptions = null, initialMembership, onConvert }) {
+  initialWorkstreamSelections, groupOptions = null, initialMembership, onConvert, quickField = null }) {
   const { language, t } = useUiLanguage();
   const [values, setValues] = React.useState(() => ({
     name: initial?.name || "",
@@ -45,6 +45,10 @@ export function ProjectForm({ initial, onSubmit, onClose, submitLabel, allowWork
     auditType: initialMembership?.member?.auditType || "internal_team",
   }));
   const [useStarter, setUseStarter] = React.useState(true);
+  const fullForm = !quickField;
+  const showProfileFields = fullForm || quickField === "owner" || quickField === "framework";
+  const showScheduleFields = fullForm || quickField === "schedule";
+  const showGroupFields = Boolean(groupOptions && (fullForm || quickField === "group"));
   const makeSelection = (source) => {
     const requestedCategoryId = typeof source === "string" ? source : source?.categoryId;
     const category = workstreamCategories.find((item) => item.id === requestedCategoryId)
@@ -63,7 +67,7 @@ export function ProjectForm({ initial, onSubmit, onClose, submitLabel, allowWork
     : [...current, makeSelection({ categoryId: category.id })]);
   const updateSelection = (index, patch) => setSelections((current) => current.map((item, itemIndex) =>
     itemIndex === index ? { ...item, ...patch } : item));
-  return <form className="workbench-form" onSubmit={(event) => {
+  return <form className="workbench-form" data-quick-field={quickField || undefined} onSubmit={(event) => {
     event.preventDefault();
     const validSelections = selections.filter((item) => item.type !== "custom" || item.customName.trim());
     const legalEntity = values.entity.trim();
@@ -75,36 +79,38 @@ export function ProjectForm({ initial, onSubmit, onClose, submitLabel, allowWork
         : submittedValues, useStarter);
     }
   }}>
-    {initial && onConvert && <section className="structure-conversion"><div><span>{t("公司结构")}</span>
+    {fullForm && initial && onConvert && <section className="structure-conversion"><div><span>{t("公司结构")}</span>
       <strong>{t("公司")}</strong><small>{t("可转换为控股公司；现有业务模块会保留以供以后恢复。")}</small></div>
       <button type="button" className="button secondary" onClick={onConvert}><ArrowRightLeft aria-hidden="true" />
         {t("转换为控股公司")}</button></section>}
-    <label><span>{t("法律实体 *")}</span><input autoFocus required value={values.entity} onChange={update("entity")}
-      placeholder={t("公司完整名称")} /></label>
-    <div className="form-grid" data-columns="3">
-      <label><span>{t("项目名称（内部称谓）")}</span><input value={values.name} onChange={update("name")}
-        placeholder={t("例如：2025年度审计及税务")} /></label>
-      <label><span>{t("财务报告准则／框架")}</span><input list="reporting-framework-options" value={values.reportingFramework}
-        onChange={update("reportingFramework")} placeholder={t("选择常用框架或直接输入")} /></label>
-      <label><span>{t("负责人")}</span><input value={values.owner} onChange={update("owner")} placeholder={t("例如：项目经理或主审")}/></label>
-    </div>
-    <datalist id="reporting-framework-options">{["香港财务报告准则", "中小企财务报告框架及准则", "国际财务报告会计准则",
-      "香港私人公司财务报告准则"].map((framework) => <option value={t(framework)} key={framework} />)}</datalist>
-    <div className="form-grid" data-columns="4">
-      <label><span>{t("报告期开始日")}</span><input type="date" value={values.periodStart} max={values.periodEnd || undefined}
-        required={Boolean(values.periodEnd)} onChange={update("periodStart")} /></label>
-      <label><span>{t("报告期结束日")}</span><input type="date" value={values.periodEnd} min={values.periodStart || undefined}
-        required={Boolean(values.periodStart)} onChange={update("periodEnd")} /></label>
-      <label><span>{t("项目开始日")}</span><input type="date" value={values.startDate} max={values.dueDate || undefined}
+    {fullForm && <label><span>{t("法律实体 *")}</span><input autoFocus required value={values.entity} onChange={update("entity")}
+      placeholder={t("公司完整名称")} /></label>}
+    {showProfileFields && <div className="form-grid" data-columns={fullForm ? "3" : "1"}>
+      {fullForm && <label><span>{t("项目名称（内部称谓）")}</span><input value={values.name} onChange={update("name")}
+        placeholder={t("例如：2025年度审计及税务")} /></label>}
+      {(fullForm || quickField === "framework") && <label><span>{t("财务报告准则／框架")}</span><input
+        autoFocus={quickField === "framework"} list="reporting-framework-options" value={values.reportingFramework}
+        onChange={update("reportingFramework")} placeholder={t("选择常用框架或直接输入")} /></label>}
+      {(fullForm || quickField === "owner") && <label><span>{t("负责人")}</span><input autoFocus={quickField === "owner"}
+        value={values.owner} onChange={update("owner")} placeholder={t("例如：项目经理或主审")}/></label>}
+    </div>}
+    {(fullForm || quickField === "framework") && <datalist id="reporting-framework-options">{["香港财务报告准则", "中小企财务报告框架及准则", "国际财务报告会计准则",
+      "香港私人公司财务报告准则"].map((framework) => <option value={t(framework)} key={framework} />)}</datalist>}
+    {showScheduleFields && <div className="form-grid" data-columns={fullForm ? "4" : "2"}>
+      {fullForm && <label><span>{t("报告期开始日")}</span><input type="date" value={values.periodStart} max={values.periodEnd || undefined}
+        required={Boolean(values.periodEnd)} onChange={update("periodStart")} /></label>}
+      {fullForm && <label><span>{t("报告期结束日")}</span><input type="date" value={values.periodEnd} min={values.periodStart || undefined}
+        required={Boolean(values.periodStart)} onChange={update("periodEnd")} /></label>}
+      <label><span>{t("项目开始日")}</span><input autoFocus={quickField === "schedule"} type="date" value={values.startDate} max={values.dueDate || undefined}
         onChange={update("startDate")} /></label>
       <label><span>{t("项目截止日")}</span><input type="date" value={values.dueDate} min={values.startDate || undefined}
         onChange={update("dueDate")} /></label>
-    </div>
-    {values.period && !values.periodStart && !values.periodEnd && <small className="form-help">
+    </div>}
+    {fullForm && values.period && !values.periodStart && !values.periodEnd && <small className="form-help">
       {t("原有报告期间：{period}。请在适当时补充开始日和结束日。", { period: values.period })}</small>}
-    {groupOptions && <section className="project-group-assignment"><header><strong>{t("集团归属")}</strong>
+    {showGroupFields && <section className="project-group-assignment"><header><strong>{t("集团归属")}</strong>
       <span>{t("可在公司资料中直接加入、变更或移出集团。")}</span></header>
-      <label><span>{t("所属集团")}</span><select value={membership.groupId}
+      <label><span>{t("所属集团")}</span><select autoFocus={quickField === "group"} value={membership.groupId}
         onChange={(event) => setMembership((current) => ({ ...current, groupId: event.target.value }))}>
         <option value="">{t("独立公司（不属于集团）")}</option>
         {groupOptions.map((group) => <option value={group.id} key={group.id} disabled={group.archived}>
@@ -117,7 +123,7 @@ export function ProjectForm({ initial, onSubmit, onClose, submitLabel, allowWork
           {GROUP_AUDIT_TYPES.map((value) => <option value={value} key={value}>{t(GROUP_AUDIT_TYPE_KEYS[value])}</option>)}</select></label></div>}
       <small>{t("保存后，项目导航和集团汇总会立即更新。")}</small>
     </section>}
-    {allowWorkstreams && <section className="project-workstream-picker"><header><strong>{t("选择业务模块")}</strong>
+    {fullForm && allowWorkstreams && <section className="project-workstream-picker"><header><strong>{t("选择业务模块")}</strong>
       <span>{t("每个模块独立追踪进度、负责人和截止日。")}</span></header>
       <div className="workstream-choice-grid">{workstreamCategories.filter((category) => category.id !== "custom").map((category) =>
         <label className="workstream-choice" key={category.id}
@@ -140,8 +146,8 @@ export function ProjectForm({ initial, onSubmit, onClose, submitLabel, allowWork
       <label className="check-option"><input type="checkbox" checked={useStarter}
         onChange={(event) => setUseStarter(event.target.checked)} /><span><strong>{t("套用所选业务范本")}</strong>
           <small>{t("建立后仍可自由增加、修改、排序或删除。")}</small></span></label></section>}
-    <label><span>{t("备注")}</span><textarea rows="3" value={values.notes} onChange={update("notes")}
-      placeholder={t("可记录负责人、客户要求或其他背景")} /></label>
+    {fullForm && <label><span>{t("备注")}</span><textarea rows="3" value={values.notes} onChange={update("notes")}
+      placeholder={t("可记录负责人、客户要求或其他背景")} /></label>}
     <footer className="modal-actions"><button type="button" className="button secondary" onClick={onClose}>{t("取消")}</button>
       <button type="submit" className="button primary">{t(submitLabel || "建立项目")}</button></footer>
   </form>;
@@ -379,7 +385,7 @@ export function UserGuide() {
       { title: "建立第一家公司", steps: ["在项目导航选择“新建公司”。", "选择“公司”或“控股公司”；同一个入口可建立两种公司结构。",
         "建立公司时先填写法律实体；项目名称只作为可选的内部称谓，再填写财务报告准则／框架、报告期开始日和结束日，并选择需要并行追踪的业务模块。", "选择“建立公司”，记录会出现在左侧项目导航。"],
       result: "项目建立后，每个业务模块会独立计算进度。" },
-      { title: "认识三区工作台", steps: ["最左侧窄工具栏集中放置项目排期、逾期提醒、范本库、使用指南、备份和语言入口。", "左侧“项目导航”用于搜索、筛选和切换项目或控股公司。", "中间“项目工作区”或“控股公司工作区”用于处理模块、节点及合并工作。",
+      { title: "认识三区工作台", steps: ["最左侧窄工具栏集中放置项目排期、逾期提醒、范本库、使用指南、设置、备份和语言入口。", "左侧“项目导航”用于搜索、筛选和切换项目或控股公司。", "中间“项目工作区”或“控股公司工作区”用于处理模块、节点及合并工作。",
         "右侧“待清中心”用于持续追踪缺少文件、等待签署和其他阻塞事项。", "左右区域都可以收起，需要时再展开。"],
       result: "日常工作集中在中间视觉热区，导航和待清事项仍保持随手可用。" },
       { title: "识别图标和悬停说明", steps: ["常用的编辑、复制、归档、新增和面板开关以统一线性图标显示。",
@@ -411,6 +417,21 @@ export function UserGuide() {
         "原本属于该模块的待清事项会保留，并自动改为项目级事项。"], result: "项目至少会保留一个业务模块。" },
       { title: "判断项目完成", steps: ["每个业务模块会显示已完成节点及自身进度。", "只有模块内所有节点的全部达成条件完成，该模块才算完成。",
         "只有项目内全部启用模块完成，项目才会进入“已完成”筛选。"], result: "项目导航显示完成模块数，不使用容易误导的混合百分比。" },
+    ] },
+    { id: "tax", title: "税务期限", summary: "把法定税务期限与内部项目和业务模块截止日分开管理。", topics: [
+      { title: "建立税务期限", steps: ["打开公司，在资料摘要选择“税务期限”。", "选择“新增期限”，填写期限种类、课税年度、当前期限、负责人和提前提醒天数。",
+        "需要时关联税务业务模块，并记录税务局参考编号、来源或备注。"], result: "同一家公司可以同时追踪报税、缴税及其他自定义税务期限。" },
+      { title: "查看期限提醒和排期", steps: ["税务期限默认提前三十天进入左侧铃铛的期限提醒；每项期限都可以调整提前天数。",
+        "红色代表已逾期，橙色代表今天到期，琥珀色代表即将到期。", "项目排期会在公司工期条上以税务标记显示；同一天的多个期限会合并显示数量。"],
+      result: "即使项目模块已经完成，未完成的税务期限仍会继续提醒。" },
+      { title: "完成、改期和追溯", steps: ["期限办结后选择“标记为已完成”；不需要办理时可编辑为“不适用”。",
+        "修改已保存的期限日期时必须填写改期原因，原期限和变更记录会继续保留。", "删除期限会同时删除其改期记录，因此系统会先要求确认。"],
+      result: "税务期限不会自动勾选节点，也不会改变项目或税务模块进度。" },
+      { title: "查看控股公司税务期限", steps: ["控股公司可记录自己的税务期限。", "在期限面板切换“本公司及下属公司”，可汇总各层级未归档公司的期限。",
+        "选择来源图标可直接打开对应公司；全局提醒不会因控股公司汇总而重复计算。"], result: "控股公司税务安排可以集中查看，同时仍由各法律实体保留自己的期限记录。" },
+      { title: "了解提醒与资料边界", steps: ["期限由使用者按税务通知或其他权威资料手动录入；工作台不会自动解释或计算法定期限。",
+        "税务资料保存在当前选择的浏览器或本地文件中，关闭网页后不会在后台发送邮件、系统通知或其他提醒。", "归档公司会隐藏其期限提醒；恢复后未完成期限会重新进入计算。"],
+      result: "期限台账用于安排和提醒，专业判断、核对及申报仍由负责人员完成。" },
     ] },
     { id: "stages", title: "节点与达成条件", summary: "横向节点负责表达流程，达成条件负责客观确认完成。", topics: [
       { title: "查看横向节点", steps: ["先选择一个业务模块或集团的“合并节点”页签。", "所有节点会横向排列；选择任一节点，其详情固定显示在下方。",
@@ -456,16 +477,22 @@ export function UserGuide() {
       { title: "永久删除", steps: ["只有归档记录会显示“永久删除”。", "确认不可撤销警告后才会删除。",
         "删除项目会清除其模块、待清事项和集团引用；删除集团不会连带删除成员项目或子集团。"], result: "永久删除适合确定不再需要的历史记录。" },
     ] },
-    { id: "data", title: "备份、语言与数据", summary: "数据默认只存在当前浏览器；备份是跨电脑和防止遗失的关键。", topics: [
+    { id: "data", title: "保存、备份与数据", summary: "浏览器自动保存是默认方式，也可以关联一个持续同步的本地文件。", topics: [
+      { title: "选择保存模式", steps: ["选择左侧窄工具栏的“设置”，打开“保存位置”。", "浏览器自动保存适合在同一浏览器使用；关联本地文件会同时保留浏览器安全副本。",
+        "备份图标右下角的状态点会显示已保存、正在保存、需要重新连接或保存失败。"], result: "正常保存完成后可以直接关闭页面，不会出现离开提示。" },
+      { title: "关联或打开本地文件", steps: ["选择“新建并关联文件”，把当前工作台保存成 .apw.json 文件。", "如已有工作台文件，选择“打开现有工作台文件”，先核对资料数量和版本再确认替换。",
+        "更换文件或断开关联都不会删除原本的本地文件。"], result: "本地文件会在每次修改后自动更新，并可作为普通 JSON 备份恢复。" },
+      { title: "重新连接和处理冲突", steps: ["浏览器权限失效时选择“重新连接”；系统不会在页面加载时主动弹出权限请求。", "如浏览器副本和本地文件都被修改，选择“处理版本冲突”。",
+        "决定使用哪个版本后，被替换的版本会先下载为恢复备份。"], result: "自动同步只会在来源明确后继续，不会静默覆盖两个不同版本。" },
       { title: "导出和恢复备份", steps: ["选择左侧窄工具栏的“备份”→“导出备份”，保存 JSON 文件。", "需要恢复时选择“恢复备份”并选取文件。",
-        "恢复会替换当前浏览器内的数据；确认前请先导出当前备份。"], result: "备份包含项目、集团、范本、状态和自定义种类。" },
+        "恢复会替换当前资料；使用本地文件模式时也会更新关联文件，因此确认前应先导出当前备份。"], result: "备份包含项目、集团、税务期限及其改期记录、范本、状态和自定义种类。" },
       { title: "初始化工作台", steps: ["选择左侧窄工具栏的“备份”→“初始化工作台”。", "先使用提示区的按钮导出当前备份。",
-        "阅读清除范围并勾选确认，再选择“确认初始化”。", "初始化会恢复内置范本、种类和状态，但保留当前界面语言。"],
-      result: "全部项目、集团和自定义资料会从当前浏览器清除；只有备份文件可以找回。" },
+        "阅读清除范围并勾选确认，再选择“确认初始化”。", "如已关联本地文件，初始化会先断开关联并保留该文件，再清理浏览器工作台。"],
+      result: "初始化会恢复内置范本、种类和状态并保留界面语言；旧本地文件不会被覆盖。" },
       { title: "切换界面语言", steps: ["选择左侧窄工具栏的“语言”。", "选择简体中文、繁体中文或 English。",
         "系统区域、按钮和内置范本会切换；你输入的项目、范本和自定义名称会保持原文。"], result: "同一份数据可以用三种系统语言操作。" },
-      { title: "理解本机数据和多人使用", steps: ["在线版不会把项目资料上传到服务器；资料保存在当前浏览器。", "不同电脑或不同浏览器不会自动同步，也不会互相覆盖。",
-        "要换电脑工作，请先导出备份，再在目标电脑恢复；多人同时协作应约定唯一主备份，避免各自修改后难以合并。"], result: "你可以清楚控制资料在哪里保存及如何转移。" },
+      { title: "理解本机数据和多人使用", steps: ["在线版不会把项目资料上传到服务器；资料保存在浏览器或你主动关联的本地文件。", "文件授权只保留在当前浏览器和电脑，换电脑时需要重新打开文件或恢复备份。",
+        "本地文件不会自动提供多人同步；多人使用时仍应约定唯一主文件，避免同时编辑产生分支。"], result: "你可以清楚控制资料在哪里保存及如何转移。" },
     ] },
   ];
   const [activeId, setActiveId] = React.useState(sections[0].id);
