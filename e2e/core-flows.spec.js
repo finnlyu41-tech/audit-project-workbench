@@ -170,11 +170,21 @@ test("one engagement can add and save three reporting years with one shared work
     ["2024-01-01", "2024-12-31"],
     ["2025-01-01", "2025-12-31"],
   ]);
-  const periodSummary = page.locator(".tree-engagement-row .navigation-period-summary");
-  await expect(periodSummary.locator(".navigation-period-heading")).toHaveText("Year-end dates");
-  await expect(periodSummary.locator(".navigation-period-value")).toHaveText([
+  const periodSummary = page.locator(".tree-engagement-row .period-summary");
+  await expect(periodSummary.locator(".period-summary-heading")).toHaveText("Year-end dates");
+  await expect(periodSummary.locator(".period-summary-value")).toHaveText([
     "December 31, 2023", "December 31, 2024", "December 31, 2025",
   ]);
+
+  await page.locator(".app-rail-button[aria-label='Project schedule']").click();
+  const scheduleSummary = page.locator(".schedule-row-meta .period-summary");
+  await expect(scheduleSummary.locator(".period-summary-heading")).toHaveText("Year-end dates");
+  await expect(scheduleSummary.locator(".period-summary-value")).toHaveText([
+    "December 31, 2023", "December 31, 2024", "December 31, 2025",
+  ]);
+  await page.locator(".schedule-detail-toggle").click();
+  await expect(page.locator(".schedule-row-meta .period-summary-compact"))
+    .toHaveText("3 year-end dates · 2023–2025");
 });
 
 test("editing an engagement can start the next annual engagement directly", async ({ page }) => {

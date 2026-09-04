@@ -130,12 +130,18 @@ test("simplified view compacts navigation and schedule while retaining core proj
   await openWorkbench(page, workspaceFixture());
 
   const navigationToggle = page.locator(".navigation-density-toggle");
+  const detailedNavigationWidth = (await page.locator(".project-panel").boundingBox()).width;
   await expect(navigationToggle).toHaveAttribute("aria-pressed", "false");
   await expect(page.locator(".tree-engagement-period")).toContainText("Alex Chan");
   await navigationToggle.click();
   await expect(navigationToggle).toHaveAttribute("aria-pressed", "true");
   await expect(page.locator(".tree-engagement-period")).not.toContainText("Alex Chan");
   await expect(page.locator(".workspace-tree .tree-progress")).toHaveCount(0);
+  await expect.poll(async () => (await page.locator(".project-panel").boundingBox()).width)
+    .toBeLessThan(detailedNavigationWidth - 50);
+  const compactNavigationWidth = (await page.locator(".project-panel").boundingBox()).width;
+  await expect(page.locator(".project-panel-resizer")).toBeHidden();
+  expect(await page.locator(".filter-tabs").evaluate((element) => getComputedStyle(element).gridTemplateColumns.split(" ").length)).toBe(4);
   await expect.poll(() => page.evaluate(() => localStorage.getItem("audit-progress-workbench:simplified-view"))).toBe("true");
 
   await page.getByRole("tab", { name: "Projects", exact: true }).click();
@@ -147,9 +153,9 @@ test("simplified view compacts navigation and schedule while retaining core proj
   await page.locator(".app-rail-button[aria-label='Project schedule']").click();
   const compactRow = page.locator(".schedule-row-meta");
   await expect(page.locator(".schedule-grid")).toHaveAttribute("data-simplified", "true");
-  await expect(page.locator(".schedule-reporting-period")).toHaveCount(0);
+  await expect(page.locator(".schedule-reporting-period")).toHaveText("YE December 31, 2026");
   await expect(page.locator(".schedule-project-type")).toContainText("Audit");
-  await expect(page.locator(".schedule-project-type")).toContainText("December 31, 2026");
+  await expect(page.locator(".schedule-project-type")).not.toContainText("December 31, 2026");
   await expect(page.locator(".schedule-project-type")).not.toContainText("Alex Chan");
   const compactHeight = (await compactRow.boundingBox()).height;
 
@@ -162,4 +168,5 @@ test("simplified view compacts navigation and schedule while retaining core proj
   await navigationToggle.click();
   await page.reload();
   await expect(page.locator(".navigation-density-toggle")).toHaveAttribute("aria-pressed", "true");
+  expect((await page.locator(".project-panel").boundingBox()).width).toBeCloseTo(compactNavigationWidth, 0);
 });

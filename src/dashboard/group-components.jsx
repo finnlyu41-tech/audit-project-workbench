@@ -3,10 +3,11 @@ import { ArrowRightLeft, Building, Building2, ChevronsDown, ChevronsUp, Copy, Mi
 import { ProgressBar } from "./components.jsx";
 import { handleTabListKeyDown, tabIndexFor } from "./a11y.js";
 import { GROUP_AUDIT_TYPES, GROUP_AUDIT_TYPE_KEYS, canMoveWorkspaceItem, collectGroupOutstandingEntries, formatDate,
-  engagementMatchesNavigationFilters, engagementReportingPeriods, engagementTypeValues, engagementTypesLabel, formalReportingPeriodLabel,
-  groupProgress, inferPeriodPreset, makeGroupMember, memberIsReady, memberProgressPercentage, normalizeTemplateTags,
+  engagementMatchesNavigationFilters, engagementTypeValues, engagementTypesLabel,
+  groupProgress, makeGroupMember, memberIsReady, memberProgressPercentage, normalizeTemplateTags,
   outstandingIsOpen, projectStats, fiscalPeriodShortLabel, reportingPeriodLabel, uid, yearEndOrPeriodLabel } from "./model.js";
 import { useUiLanguage } from "./i18n.jsx";
+import { ReportingPeriodSummary } from "./reporting-period-summary.jsx";
 
 export const auditTypeKeys = GROUP_AUDIT_TYPE_KEYS;
 
@@ -155,25 +156,6 @@ export function WorkspaceTree(props) {
   return <LegacyWorkspaceTree {...props} />;
 }
 
-function NavigationPeriodLabel({ engagement, language, t, className, owner = "" }) {
-  const periods = engagementReportingPeriods(engagement);
-  const fullLabel = yearEndOrPeriodLabel(engagement, language) || t("未设置报告期间");
-  if (periods.length <= 1) return <small className={className} title={fullLabel}>
-    {[fullLabel, owner].filter(Boolean).join(" · ")}
-  </small>;
-  const yearEndsOnly = periods.every((period) => ["calendar", "apr_mar"]
-    .includes(inferPeriodPreset(period.periodStart, period.periodEnd)));
-  const values = periods.map((period) => yearEndsOnly
-    ? formalReportingPeriodLabel(period, language) : yearEndOrPeriodLabel(period, language));
-  const accessibleLabel = [fullLabel, owner].filter(Boolean).join(" · ");
-  return <small className={`${className} navigation-period-summary`} aria-label={accessibleLabel} title={accessibleLabel}>
-    <span className="navigation-period-heading">{t(yearEndsOnly ? "年结日" : "报告期间")}</span>
-    <span className="navigation-period-values">{values.map((value, index) =>
-      <span className="navigation-period-value" key={periods[index].id}>{value}</span>)}</span>
-    {owner && <span className="navigation-period-owner">{owner}</span>}
-  </small>;
-}
-
 function EntityEngagementWorkspaceList({ store, selection, onSelect, search, filter, statuses, navigationFilters, simplifiedView }) {
   const { language, t } = useUiLanguage();
   const query = search.trim().toLocaleLowerCase();
@@ -216,7 +198,8 @@ function EntityEngagementWorkspaceList({ store, selection, onSelect, search, fil
         data-selected={selection?.kind === kind && selection.id === engagement.id || undefined}
         onClick={() => onSelect({ kind, id: engagement.id, entityId: entity.id })}>
         <span className="tree-copy"><strong className="flat-engagement-type">{typeLabel}</strong>
-          <NavigationPeriodLabel engagement={engagement} language={language} t={t} className="flat-engagement-period" />
+          <ReportingPeriodSummary engagement={engagement} language={language} t={t} className="flat-engagement-period"
+            compact={simplifiedView} />
           <small className="flat-engagement-company">{[entity.legalName, simplifiedView ? "" : engagement.owner]
             .filter(Boolean).join(" · ")}</small></span>
         {!simplifiedView && outstanding > 0 && <em>{outstanding}</em>}{!simplifiedView && <span className="tree-progress">{complete ? "✓" : `${progress}%`}</span>}
@@ -338,8 +321,8 @@ function EntityWorkspaceTree({ store, selection, onSelect, onMove, search, filte
       data-selected={selection?.kind === kind && selection.id === engagement.id || undefined}
       onClick={() => onSelect({ kind, id: engagement.id, entityId: entity.id })}>
         <span className="tree-copy"><strong className="tree-engagement-type">{typeLabel}</strong>
-        <NavigationPeriodLabel engagement={engagement} language={language} t={t} className="tree-engagement-period"
-          owner={simplifiedView ? "" : engagement.owner} /></span>
+        <ReportingPeriodSummary engagement={engagement} language={language} t={t} className="tree-engagement-period"
+          owner={simplifiedView ? "" : engagement.owner} compact={simplifiedView} /></span>
       {!simplifiedView && outstanding > 0 && <em>{outstanding}</em>}{!simplifiedView && <span className="tree-progress">{complete ? "✓" : entity.kind === "company"
         ? `${projectStats(store.projects.find((item) => item.id === engagement.id) || { workstreams: [] }).percentage}%` : `${groupProgress(store, engagement.id).percentage}%`}</span>}
     </button>;

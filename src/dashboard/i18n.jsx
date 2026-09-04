@@ -236,6 +236,8 @@ const english = {
   "香港私人公司财务报告准则": "HKFRS for Private Entities",
   "报告期间": "Reporting period",
   "年结日": "Year-end dates",
+  "{count} 个年结日": "{count} year-end dates",
+  "{count} 个报告期间": "{count} reporting periods",
   "报告期间 {number}": "Reporting period {number}",
   "一个项目可包含多个报告年度，共用负责人、排期、模块和进度。": "One engagement can contain multiple reporting periods with one owner, schedule, workflow and progress record.",
   "一个项目可包含多个报告年度，并共用模块、负责人、排期、待清事项和进度。": "One engagement can contain multiple reporting periods and share its workflow, owner, schedule, outstanding items and progress.",

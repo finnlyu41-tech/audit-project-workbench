@@ -41,6 +41,7 @@ const SIMPLIFIED_VIEW_KEY = "audit-progress-workbench:simplified-view";
 const DEFAULT_NAVIGATION_WIDTH = 320;
 const MIN_NAVIGATION_WIDTH = 220;
 const MAX_NAVIGATION_WIDTH = 520;
+const COMPACT_NAVIGATION_WIDTH = 250;
 const EMPTY_GROUP_SAMPLE = Object.freeze({ id: "", name: "", nodes: [], readinessTemplates: {} });
 
 function clampNavigationWidth(value) {
@@ -852,7 +853,8 @@ function DashboardWorkbench() {
     <section className="workbench-layout" data-sidebar-collapsed={sidebarCollapsed || undefined}
       data-compact-layout={compactLayout || undefined} data-outstanding-collapsed={outstandingPanelCollapsed || undefined}
       data-resizing-navigation={resizingNavigation || undefined} data-simplified-view={simplifiedView || undefined}
-      style={{ "--project-panel-width": `${navigationWidth}px` }}>
+      style={{ "--project-panel-width": `${navigationWidth}px`,
+        "--effective-project-panel-width": `${simplifiedView ? Math.min(navigationWidth, COMPACT_NAVIGATION_WIDTH) : navigationWidth}px` }}>
       <aside className="project-panel" aria-label={t("项目导航")}>
         {!sidebarCollapsed && <>
           <div className="project-panel-controls"><div className="project-panel-title"><div>

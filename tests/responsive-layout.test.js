@@ -94,10 +94,13 @@ test("one persistent simplified-view toggle compacts both navigation and project
   assert.match(workbench, /localStorage\.setItem\(SIMPLIFIED_VIEW_KEY, String\(simplifiedView\)\)/);
   assert.match(workbench, /viewMode={navigationView} simplifiedView={simplifiedView}/);
   assert.match(workbench, /simplifiedView={simplifiedView} onToggleSimplifiedView=/);
+  assert.match(workbench, /--effective-project-panel-width/);
   assert.match(groupComponents, /data-simplified={simplifiedView \|\| undefined}/);
   assert.match(timeline, /className="button secondary schedule-detail-toggle" aria-pressed={simplifiedView}/);
   assert.match(timeline, /data-simplified={simplifiedView \|\| undefined}/);
   assert.match(css, /\.workspace-tree\[data-simplified\] \.tree-row\s*{[^}]*grid-template-columns:\s*minmax\(0, 1fr\)/);
+  assert.match(css, /\.workbench-layout\[data-simplified-view\] \.project-panel-resizer\s*{\s*display:\s*none/);
+  assert.match(css, /\.workbench-layout\[data-simplified-view\] \.filter-tabs\s*{[^}]*repeat\(4/);
   assert.match(css, /\.schedule-grid\[data-simplified\] \.schedule-row-meta,[^}]*min-height:\s*56px/);
 });
 
@@ -178,7 +181,7 @@ test("company navigation and schedule metadata columns are resizable and remembe
   assert.match(workbench, /NAVIGATION_WIDTH_KEY = "audit-progress-workbench:navigation-width"/);
   assert.match(workbench, /className="project-panel-resizer" role="separator"/);
   assert.match(workbench, /--project-panel-width/);
-  assert.match(css, /grid-template-columns:\s*var\(--project-panel-width/);
+  assert.match(css, /grid-template-columns:\s*var\(--effective-project-panel-width/);
   assert.match(timeline, /SCHEDULE_META_WIDTH_KEY = "audit-progress-workbench:schedule-meta-width"/);
   assert.match(timeline, /className="schedule-column-resizer" role="separator"/);
   assert.match(css, /grid-template-columns:\s*var\(--schedule-meta-width/);

@@ -6,6 +6,17 @@ The project follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.6.7] - 2026-09-04
+
+### Changed
+
+- Multi-year schedule rows show one year-end heading followed by separate full-date labels, replacing repeated inline prefixes and awkward paragraph wrapping.
+- Simplified view now gives navigation a genuinely compact 250px presentation with denser controls, one-row status filters and concise multi-period summaries such as `3 year-end dates · 2026–2028`.
+
+### Fixed
+
+- Detailed and simplified schedule rows now share the same reporting-period hierarchy as company and project navigation without hiding any authoritative date.
+
 ## [0.6.6] - 2026-09-04
 
 ### Changed

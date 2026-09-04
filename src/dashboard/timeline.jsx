@@ -3,6 +3,7 @@ import { Building, Building2, CalendarClock, CircleAlert, Eye, EyeOff, LocateFix
 import { engagementLatestPeriodEnd, engagementTypesLabel, formatDate, groupProgress, projectStats, taxDeadlineCategoryLabel, taxDeadlineUrgency,
   workspaceScheduleOrder, yearEndOrPeriodLabel } from "./model.js";
 import { useUiLanguage } from "./i18n.jsx";
+import { ReportingPeriodSummary } from "./reporting-period-summary.jsx";
 
 const DAY_MS = 86400000;
 const SCHEDULE_META_WIDTH_KEY = "audit-progress-workbench:schedule-meta-width";
@@ -111,6 +112,7 @@ function scheduleRows(store, filter, language = "en") {
         id: engagement.id,
         kind,
         name: entity.legalName,
+        engagement,
         periodLabel: yearEndOrPeriodLabel(engagement, language),
         engagementTypes: engagement.engagementTypes || [],
         engagementType: engagement.engagementType || "",
@@ -431,8 +433,6 @@ export function ProjectSchedule({ store, filter, onOpen, onEditSchedule, onOpenT
           const projectTypeLabel = engagementTypesLabel(row, language);
           const projectTypeOwner = [projectTypeLabel,
             row.owner || t("未设置负责人")].filter(Boolean).join(" · ");
-          const simplifiedIdentity = [projectTypeLabel,
-            row.periodLabel].filter(Boolean).join(" · ");
           const openSchedule = () => row.archived || !onEditSchedule
             ? onOpen(row.kind, row.id) : onEditSchedule(row.kind, row.id);
           return <React.Fragment key={rowKey}>
@@ -446,8 +446,11 @@ export function ProjectSchedule({ store, filter, onOpen, onEditSchedule, onOpenT
                 onKeyDown={(event) => reorderWithKeyboard(event, rowKey)}>
                 {!simplifiedView && <i data-kind={row.kind}>{row.kind === "group" ? <Building2 aria-hidden="true" /> : <Building aria-hidden="true" />}</i>}
                 <span><strong>{row.name}</strong>{simplifiedView
-                  ? simplifiedIdentity && <small className="schedule-project-type">{simplifiedIdentity}</small>
-                  : <>{row.periodLabel && <small className="schedule-reporting-period">{row.periodLabel}</small>}
+                  ? <>{projectTypeLabel && <small className="schedule-project-type">{projectTypeLabel}</small>}
+                    {row.periodLabel && <ReportingPeriodSummary engagement={row.engagement || row} language={language} t={t}
+                      className="schedule-reporting-period" compact />}</>
+                  : <>{row.periodLabel && <ReportingPeriodSummary engagement={row.engagement || row} language={language} t={t}
+                      className="schedule-reporting-period" />}
                     {projectTypeOwner && <small className="schedule-project-type">{projectTypeOwner}</small>}
                     {row.secondaryName && <small>{row.secondaryName}</small>}</>}
                 </span>
