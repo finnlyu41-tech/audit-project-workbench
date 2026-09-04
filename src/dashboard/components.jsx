@@ -285,9 +285,8 @@ export function WorkstreamCard({ workstream, selected, openItems = 0, onSelect, 
     data-editable={!readOnly || undefined} data-dragging={dragging || undefined} data-drop-position={dropPosition}
     onDragOver={onDragOver} onDrop={onDrop}>
     <button type="button" className="workstream-card-select" aria-pressed={selected} onClick={onSelect}>
-    <span className="workstream-card-top"><i>{workstreamTypeLabel(workstream.type, language, workstream.customName).slice(0, 1)}</i>
+    <span className="workstream-card-top"><ProgressBar value={stats.percentage} compact />
       <span><strong>{label}</strong><small>{workstream.owner || t("未设置负责人")}</small></span></span>
-    <span className="workstream-card-progress"><ProgressBar value={stats.percentage} compact /></span>
     <span className="workstream-card-meta"><small>{t("{done}/{total} 个节点", { done: stats.completedNodes, total: stats.nodes })}</small>
       <small>{openItems ? t("{count} 项未清", { count: openItems }) : t("无未清事项")}</small>
       <time data-tone={dueTone(workstream)}>{formatDate(workstream.dueDate, language)}</time></span></button>
@@ -488,7 +487,7 @@ export function UserGuide() {
     ] },
     { id: "projects", title: "公司与年度项目", summary: "一个公司主档可以承载多个互相独立的报告期间和委聘。", topics: [
       { title: "寻找公司和年度项目", steps: ["在公司列表的搜索框输入法律实体、年度、项目类型或负责人。", "使用“进行中”“已完成”“全部”及“归档”筛选所需记录。",
-        "选择公司名称打开主档概览；展开公司后选择 FY 标签进入对应年度工作区。", "控股公司前的加减号和层级线会显示当前归属。"], result: "公司名称保持为导航主标识，年度项目不会被内部名称混淆。" },
+        "选择“公司”查看层级并打开主档；选择“项目”平铺搜索年度项目，点击年结或报告期间进入工作区。", "公司列表可一键展开或收起全部公司，控股层级仍以加减号和层级线显示。"], result: "公司名称保持为导航主标识，年度项目不会被内部名称混淆。" },
       { title: "修改会计年度和报告期间", steps: ["在公司概览编辑默认会计年度；修改默认值不会改变已经建立的项目。", "在年度项目设置中修改报告开始日或结束日。",
         "手动改变自动生成的日期后，该项目会改为自定义期间；完整起止日期始终是权威数据。", "归档项目也参与重复期间检查。"], result: "短年度和非完整年度可以准确记录，不会被强制按整年处理。" },
       { title: "建立连续年度项目", steps: ["从公司概览选择“新建年度项目”；系统会建议现有最新期间之后的下一年度。", "默认可复制上一年度的流程结构，也可从范本或空白项目开始。",

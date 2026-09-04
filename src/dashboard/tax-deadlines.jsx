@@ -1,8 +1,8 @@
 import React from "react";
 import { Ban, Check, ExternalLink, History, Pencil, Plus, ReceiptText, Trash2 } from "lucide-react";
 import { TAX_DEADLINE_CATEGORIES, TAX_DEADLINE_STATES, collectGroupTaxDeadlineEntries, formatDate,
-  fiscalPeriodShortLabel, taxDeadlineCategoryLabel, taxDeadlineStateLabel, taxDeadlineSummary, taxDeadlineUrgency,
-  workstreamTypeLabel } from "./model.js";
+  taxDeadlineCategoryLabel, taxDeadlineStateLabel, taxDeadlineSummary, taxDeadlineUrgency,
+  workstreamTypeLabel, yearEndOrPeriodLabel } from "./model.js";
 import { useUiLanguage } from "./i18n.jsx";
 import { handleTabListKeyDown, tabIndexFor } from "./a11y.js";
 
@@ -103,7 +103,7 @@ function TaxDeadlineForm({ initial, engagements = [], initialEngagementId = "", 
         onChange={(event) => setValues((current) => ({ ...current, linkedEngagementId: event.target.value,
           linkedWorkstreamId: "" }))}><option value="">{t("不关联年度项目")}</option>
         {engagements.map((engagement) => <option value={engagement.id} key={engagement.id}>
-          {fiscalPeriodShortLabel(engagement, language)}</option>)}</select></label>}
+          {yearEndOrPeriodLabel(engagement, language)}</option>)}</select></label>}
       {values.linkedEngagementId && workstreams.length > 0 && <label><span>{t("关联业务模块")}</span><select value={values.linkedWorkstreamId}
         onChange={update("linkedWorkstreamId")}><option value="">{t("不关联模块")}</option>
         {workstreams.map((workstream) => <option value={workstream.id} key={workstream.id}>

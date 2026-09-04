@@ -8,7 +8,7 @@
 
 ## 主要功能
 
-- Obsidian 式主工作区布局：左侧紧凑树状导航、中间宽工作区、右侧按需待清中心；左右区域均可收起，导航栏宽度也可拖动调整并保存。导航以法律实体为主标识，在公司下面展开各年度项目；可拖动公司或控股公司改变当前归属及层级，并以加减号和连续层级线明确显示控股关系。
+- Obsidian 式主工作区布局：左侧可在公司层级与年度项目平铺列表之间切换，中间为宽工作区，右侧为按需待清中心；左右区域均可收起，导航栏宽度也可拖动调整并保存。公司视图可一键展开或收起全部公司，并以加减号和连续层级线明确显示控股关系；项目视图直接显示公司、明确年结／DOI 期间、项目类型、负责人和进度。
 - 最左侧采用固定窄工具栏，以统一线性图标收纳项目排期、范本、指南、设置、备份和语言；悬停或键盘聚焦会显示完整功能说明，同时保留无障碍名称。建立公司仍放在项目导航的视觉热区。
 - 内置分章节使用指南，逐项说明入口、操作步骤和完成结果。
 - 新建公司只建立长期主档，不混入年度项目设置；主体类型可直接输入有限公司、个人独资、合伙企业或其他形式，且与是否启用控股公司架构分开。控股归属角色只在选定母公司后显示。
@@ -70,7 +70,7 @@ Audit Project Workbench (APW) is an English-first, desktop-first and local-first
 
 ### Features
 
-- An Obsidian-inspired, centre-first desktop layout with compact tree navigation, a wide company/holding-company workspace and an on-demand outstanding centre. Navigation prioritises each legal entity and expands its annual engagements; current holding assignments support exact-level drag-and-drop, explicit plus/minus disclosure controls and continuous hierarchy guides.
+- An Obsidian-inspired, centre-first desktop layout with switchable company-hierarchy and flat annual-project navigation, a wide company/holding-company workspace and an on-demand outstanding centre. The company view can expand or collapse every branch in one action and retains exact-level drag-and-drop plus continuous hierarchy guides; the project view surfaces company, explicit year end or DOI period, engagement type, owner and progress directly.
 - Consistent line icons condense project scheduling, deadline alerts, templates, guidance, settings, backup, language and workspace actions; hover or keyboard focus reveals the full explanation while preserving accessible names. Record creation stays in the navigation work area.
 - A built-in, sectioned user guide explaining each entry point, procedure and expected result.
 - New company creates a company master only. Its free-text entity type (limited company, sole proprietorship, partnership, individual or another form) is independent from the holding-company structure control; relationship fields appear only after a parent is selected.

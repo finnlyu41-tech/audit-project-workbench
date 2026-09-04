@@ -77,6 +77,11 @@
   border-radius: 7px; cursor: pointer; background: var(--wb-accent); color: white; font-size: 9px; font-weight: 700; white-space: nowrap; }
 .project-panel-new svg { width: 13px; height: 13px; stroke-width: 2.1; }
 .project-panel-new:hover { border-color: var(--wb-accent-dark); background: var(--wb-accent-dark); }
+.navigation-view-tabs { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 3px; padding: 3px; border-radius: 9px;
+  background: color-mix(in srgb, var(--wb-accent) 9%, var(--control)); }
+.navigation-view-tabs button { min-height: 30px; padding: 5px 8px; border: 0; border-radius: 7px; cursor: pointer; background: transparent;
+  color: var(--secondary); font-size: 12px; font-weight: 650; }
+.navigation-view-tabs button[aria-selected="true"] { background: var(--surface-raised); color: var(--wb-accent-dark); box-shadow: var(--shadow-sm); }
 .sidebar-toggle { display: grid; width: 25px; height: 25px; place-items: center; border: 1px solid var(--border); border-radius: 7px;
   cursor: pointer; background: var(--surface-raised); color: var(--secondary); font-size: 18px; line-height: 1; }
 .sidebar-toggle svg { width: 14px; height: 14px; }
@@ -91,7 +96,7 @@
 .search-field:focus-within { border-color: var(--wb-accent); box-shadow: 0 0 0 2px color-mix(in srgb, var(--wb-accent) 15%, transparent); }
 .search-field > svg { width: 15px; height: 15px; color: var(--secondary); }
 .search-field input { min-width: 0; border: 0; outline: 0; background: transparent; color: var(--text); font-size: 13px; }
-.filter-tabs { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 3px; padding: 3px; border-radius: 9px; background: var(--control); }
+.filter-tabs { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 3px; padding: 3px; border-radius: 9px; background: var(--control); }
 .filter-tabs button { display: grid; min-width: 0; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 4px;
   padding: 7px 6px; border: 0; border-radius: 7px; cursor: pointer; background: transparent;
   color: var(--secondary); font-size: 12px; white-space: nowrap; }
@@ -590,9 +595,8 @@
 .workstream-card[data-dragging] { opacity: .5; }
 .workstream-card[data-drop-position="before"] { box-shadow: inset 3px 0 var(--wb-accent); }
 .workstream-card[data-drop-position="after"] { box-shadow: inset -3px 0 var(--wb-accent); }
-.workstream-card-top { display: grid; grid-template-columns: 28px minmax(0, 1fr); align-items: center; gap: 8px; }
-.workstream-card-top > i { display: grid; width: 28px; height: 28px; place-items: center; border-radius: 7px; background: var(--wb-accent-soft);
-  color: var(--wb-accent-dark); font-size: 11px; font-style: normal; font-weight: 800; }
+.workstream-card-top { display: grid; grid-template-columns: 32px minmax(0, 1fr); align-items: start; gap: 9px; }
+.workstream-card-top > .progress-track { align-self: start; }
 .workstream-card-top > span { display: grid; min-width: 0; gap: 2px; }
 .workstream-card-top strong, .workstream-card-top small { min-width: 0; overflow-wrap: anywhere; white-space: normal; }
 .workstream-card-top strong { font-size: 12px; line-height: 1.25; }
@@ -612,7 +616,6 @@
 .workstream-empty span { display: grid; gap: 2px; }
 .workstream-empty strong { font-size: 12px; }
 .workstream-empty small { color: var(--secondary); font-size: 10px; }
-.workstream-card-progress { display: flex; align-items: center; }
 .workstream-card-meta { display: flex; min-width: 0; align-items: baseline; flex-wrap: wrap; gap: 4px 8px; color: var(--secondary); }
 .workstream-card-meta small, .workstream-card-meta time { min-width: 0; overflow-wrap: anywhere; font-size: 9px; white-space: normal; }
 .workstream-card-meta time { margin-left: auto; text-align: right; }
@@ -927,6 +930,17 @@
   background: var(--surface-raised); color: var(--wb-accent-dark); box-shadow: var(--shadow-sm); }
 
 .workspace-tree { position: relative; display: grid; min-height: 0; flex: 1; align-content: start; overflow-y: auto; padding: 7px; scrollbar-gutter: stable; }
+.workspace-tree-bulk-actions { position: sticky; z-index: 4; top: 0; display: flex; justify-content: flex-end; padding: 0 0 5px;
+  background: color-mix(in srgb, var(--surface-raised) 92%, transparent); backdrop-filter: blur(6px); }
+.workspace-tree-bulk-actions button { display: inline-flex; min-height: 27px; align-items: center; gap: 5px; padding: 4px 8px;
+  border: 1px solid var(--border); border-radius: 7px; cursor: pointer; background: var(--surface-raised); color: var(--secondary);
+  font-size: 10px; font-weight: 650; }
+.workspace-tree-bulk-actions button:hover { border-color: var(--wb-accent); color: var(--wb-accent-dark); }
+.workspace-tree-bulk-actions svg { width: 13px; height: 13px; }
+.flat-engagement-list { gap: 4px; }
+.flat-engagement-row { grid-template-columns: 26px minmax(0, 1fr) auto 38px; align-items: start; padding-block: 10px; }
+.flat-engagement-row .tree-kind-mark { margin-top: 1px; background: var(--wb-accent-soft); color: var(--wb-accent-dark); }
+.flat-engagement-period { color: var(--wb-accent-dark) !important; font-weight: 700; }
 .tree-branch { min-width: 0; }
 .tree-group-line { position: relative; display: grid; min-width: 0; grid-template-columns: 18px minmax(0, 1fr); align-items: center;
   gap: 3px; margin-left: calc(var(--tree-depth) * 15px); border-radius: 9px; }
@@ -1103,21 +1117,21 @@
 .readiness-template-grid button { border: 0; cursor: pointer; background: transparent; color: var(--secondary); font-size: 9px; }
 .readiness-template-grid > section > button { justify-self: start; color: var(--wb-accent-dark); font-weight: 650; }
 
-/* Compact, but never microscopic: the desktop workbench uses a clear 10–13px supporting type scale. */
+/* Compact, but readable: important navigation and workflow text uses a clear 12–14px scale. */
 .project-panel-new, .tree-root-drop, .tree-drop-hint, .detail-actions .button,
-.node-structure-actions .button, .workstream-edit, .matrix-settings, .member-create-shortcuts button { font-size: 11px; }
+.node-structure-actions .button, .workstream-edit, .matrix-settings, .member-create-shortcuts button { font-size: 12px; }
 .workspace-label, .detail-facts dt, .group-status-strip article > span, .group-status-strip article small,
 .group-tabs button, .group-section-header p, .group-matrix-head, .group-settings-panel dt,
 .outstanding-shell-title span, .outstanding-source button, .outstanding-source span,
-.outstanding-item > footer select, .outstanding-item > footer button, .status-color-pill { font-size: 10px; }
+.outstanding-item > footer select, .outstanding-item > footer button, .status-color-pill { font-size: 12px; }
 .workstream-card-top small, .workstream-card-meta small, .workstream-card-meta time,
 .node-track-card small, .node-track-card > i, .node-detail-panel > header span,
 .outstanding-center-tools :is(select, button), .outstanding-item p, .outstanding-center-empty span,
 .matrix-name small, .readiness-pill, .group-matrix-row > span:has(.readiness-pill) small,
-.settings-member-list small { font-size: 10px; }
+.settings-member-list small { font-size: 12px; }
 .workstream-card-top strong, .tree-copy strong, .group-matrix-row, .matrix-name strong,
-  .group-settings-panel dd, .settings-member-list strong { font-size: 12px; }
-.outstanding-item > header strong { font-size: 12px; }
+  .group-settings-panel dd, .settings-member-list strong { font-size: 14px; }
+.outstanding-item > header strong { font-size: 14px; }
 
 @media (max-width: 1280px) {
   .settings-member-list { grid-template-columns: repeat(2, minmax(0, 1fr)); }
@@ -2307,6 +2321,38 @@
   .template-transfer-actions .button { flex: 1; }
   .template-export-list { grid-template-columns: minmax(0, 1fr); padding-inline: 12px; }
   .template-import-controls { grid-template-columns: minmax(0, 1fr); }
+}
+
+/* Screen readability pass: compact supporting copy remains legible without changing the print layout. */
+@media screen {
+  .audit-workbench { font-size: 15px; }
+  .audit-workbench :is(button, input, textarea, select) { font-size: 14px; }
+  .audit-workbench small { font-size: 13px !important; line-height: 1.4; }
+  .audit-workbench :is(label > span, dt) { font-size: 13px !important; line-height: 1.4; }
+  .project-panel-title strong { font-size: 16px; }
+  .tree-copy strong, .workstream-card-top strong, .node-track-card strong, .entity-facts strong,
+  .annual-project-open strong, .entity-outstanding-summary button strong, .entity-children button strong,
+  .component-identity strong, .management-report-section h3, .management-risk-grid button strong,
+  .record-workstream-grid strong, .record-stage-list strong { font-size: 14px; }
+  .flat-engagement-period, .annual-period > strong { font-size: 14px !important; }
+  .tree-progress, .tree-row em, .workspace-tree-bulk-actions button { font-size: 12px; }
+  .entity-overview-title span, .management-report-heading > div:first-child > span,
+  .management-report-filters label > span, .management-metric-strip span,
+  .management-report-section > header span, .record-report-facts span { font-size: 12px; }
+  .entity-overview-title p, .annual-project-list header p, .entity-outstanding-summary header p,
+  .entity-children header p, .holding-components-panel header p, .management-report-heading p { font-size: 13px; }
+  .entity-overview-actions .button, .annual-project-list > header .button,
+  .holding-components-panel > header .button, .entity-overview-footer .button { font-size: 13px; }
+  .annual-project-list h3, .entity-outstanding-summary h3, .entity-children h3,
+  .holding-components-panel h3 { font-size: 16px; }
+  .schedule-heading p, .schedule-corner span, .schedule-months span,
+  .schedule-weeks span, .schedule-row-open small, .schedule-empty span { font-size: 13px; }
+  .schedule-corner strong, .schedule-row-open strong { font-size: 14px; }
+  .schedule-bar span, .schedule-today-header b, .schedule-missing { font-size: 11px; }
+  .management-report-table, .record-risk-tables table { font-size: 13px; }
+  .management-report-table th, .record-risk-tables th { font-size: 12px; }
+  .management-risk-grid > article > header strong, .record-risk-tables > article > header strong,
+  .record-report-facts strong { font-size: 14px; }
 }
 
 @media print {

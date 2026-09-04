@@ -61,7 +61,7 @@ test("a first DOI engagement uses the company's next year end and shows the form
   await page.locator(".tree-entity-row").filter({ hasText: "DOI Example Limited" }).click();
 
   const formalPeriod = "For the period from February 10, 2025 (DOI) to March 31, 2025";
-  await expect(page.getByText(formalPeriod, { exact: true })).toBeVisible();
+  await expect(page.locator(".entity-facts > button").first().getByText(formalPeriod, { exact: true })).toBeVisible();
   await expect(page.locator(".entity-facts > button").first()).toHaveAttribute("title", formalPeriod);
   expect((await readStoredWorkspace(page)).engagements[0]).toMatchObject({ periodPreset: "doi_year_end",
     periodStart: "2025-02-10", periodEnd: "2025-03-31" });
@@ -89,7 +89,9 @@ test("one company creates three independent annual engagements with generated fi
   expect(stored.engagements.map((engagement) => [engagement.periodStart, engagement.periodEnd])).toEqual([
     ["2025-01-01", "2025-12-31"], ["2024-01-01", "2024-12-31"], ["2023-01-01", "2023-12-31"],
   ]);
-  await expect(page.locator(".annual-period > strong")).toHaveText(["FY2025", "FY2024", "FY2023"]);
+  await expect(page.locator(".annual-period > strong")).toHaveText([
+    "YE December 31, 2025", "YE December 31, 2024", "YE December 31, 2023",
+  ]);
 
   await page.getByRole("button", { name: "New annual engagement", exact: true }).click();
   const duplicateDialog = page.getByRole("dialog", { name: /New annual engagement/ });
@@ -201,6 +203,23 @@ test("a custom engagement type is saved and visible below the year in navigation
   expect((await readStoredWorkspace(page)).engagements[0].engagementType).toBe("Marine bookkeeping");
 });
 
+test("switches between company hierarchy and a flat searchable project list", async ({ page }) => {
+  await openWorkbench(page, workspaceFixture());
+  const viewTabs = page.locator(".navigation-view-tabs");
+  await viewTabs.getByRole("tab", { name: "Projects" }).click();
+  await expect(viewTabs.getByRole("tab", { name: "Projects" })).toHaveAttribute("aria-selected", "true");
+  const projectRow = page.locator(".flat-engagement-row");
+  await expect(projectRow).toHaveCount(1);
+  await expect(projectRow).toContainText("Example Services Limited");
+  await expect(projectRow).toContainText("YE December 31, 2026");
+  await expect(projectRow).toContainText("Audit");
+  await page.getByRole("textbox", { name: "Search projects, companies or owners" }).fill("Alex Chan");
+  await expect(projectRow).toHaveCount(1);
+  await projectRow.click();
+  await expect(page.getByRole("heading", { name: "Example Services Limited" })).toBeVisible();
+  await expect.poll(() => page.evaluate(() => localStorage.getItem("audit-progress-workbench:navigation-view"))).toBe("projects");
+});
+
 test("holding relationship fields appear only after a parent holding company is chosen", async ({ page }) => {
   await openWorkbench(page, hierarchyFixture());
   await page.locator(".tree-entity-row").filter({ hasText: "Standalone Company Limited" }).click();
@@ -229,22 +248,22 @@ test("progress, outstanding items and tax deadlines remain independent", async (
   await openWorkbench(page, workspaceFixture());
   const auditCard = page.locator(".workstream-card").filter({ hasText: "Audit" });
   const taxCard = page.locator(".workstream-card").filter({ hasText: "Tax computation & filing" });
-  await expect(auditCard.locator(".workstream-card-progress [role='progressbar']")).toHaveAttribute("aria-valuenow", "0");
-  await expect(taxCard.locator(".workstream-card-progress [role='progressbar']")).toHaveAttribute("aria-valuenow", "0");
+  await expect(auditCard.locator(".workstream-card-top [role='progressbar']")).toHaveAttribute("aria-valuenow", "0");
+  await expect(taxCard.locator(".workstream-card-top [role='progressbar']")).toHaveAttribute("aria-valuenow", "0");
 
   await auditCard.locator(".workstream-card-select").click();
   await page.locator(".node-track-card").filter({ hasText: "Engagement setup" }).click();
   await page.getByRole("checkbox", { name: "Scope confirmed" }).check();
-  await expect(auditCard.locator(".workstream-card-progress [role='progressbar']")).not.toHaveAttribute("aria-valuenow", "0");
-  await expect(taxCard.locator(".workstream-card-progress [role='progressbar']")).toHaveAttribute("aria-valuenow", "0");
-  const auditProgress = await auditCard.locator(".workstream-card-progress [role='progressbar']").getAttribute("aria-valuenow");
+  await expect(auditCard.locator(".workstream-card-top [role='progressbar']")).not.toHaveAttribute("aria-valuenow", "0");
+  await expect(taxCard.locator(".workstream-card-top [role='progressbar']")).toHaveAttribute("aria-valuenow", "0");
+  const auditProgress = await auditCard.locator(".workstream-card-top [role='progressbar']").getAttribute("aria-valuenow");
 
   await page.getByRole("button", { name: "Add outstanding item" }).click();
   const outstandingDialog = page.getByRole("dialog", { name: "Add outstanding item" });
   await outstandingDialog.getByLabel("Outstanding item *").fill("Signed representation letter missing");
   await outstandingDialog.getByRole("button", { name: "Save outstanding item" }).click();
   await expect(page.getByText("Signed representation letter missing")).toBeVisible();
-  await expect(auditCard.locator(".workstream-card-progress [role='progressbar']")).toHaveAttribute("aria-valuenow", auditProgress);
+  await expect(auditCard.locator(".workstream-card-top [role='progressbar']")).toHaveAttribute("aria-valuenow", auditProgress);
 
   await page.locator(".tax-deadline-fact").getByRole("button", { name: "Add tax deadline" }).click();
   const deadlineDialog = page.getByRole("dialog", { name: "Tax deadlines" });

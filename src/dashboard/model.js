@@ -2209,6 +2209,30 @@ export function navigationStatusCounts(store) {
   return counts;
 }
 
+export function engagementNavigationStatusCounts(store) {
+  if (!Array.isArray(store?.entities) || !Array.isArray(store?.engagements)) {
+    return navigationStatusCounts(store);
+  }
+  const counts = { active: 0, completed: 0, all: 0, archived: 0 };
+  const entityById = new Map(store.entities.map((entity) => [entity.id, entity]));
+  store.engagements.forEach((engagement) => {
+    const entity = entityById.get(engagement.entityId);
+    const archived = Boolean(entity?.archived || engagement.archived);
+    const view = entity?.kind === "holding_company"
+      ? store.groups.find((group) => group.id === engagement.id)
+      : store.projects.find((project) => project.id === engagement.id);
+    const complete = entity?.kind === "holding_company"
+      ? Boolean(view && groupProgress(store, engagement.id).ready)
+      : Boolean(view && projectStats(view).complete);
+    if (archived) counts.archived += 1;
+    else {
+      counts.all += 1;
+      counts[complete ? "completed" : "active"] += 1;
+    }
+  });
+  return counts;
+}
+
 export function deadlineAlerts(store, now = new Date()) {
   const current = now instanceof Date ? new Date(now) : new Date(now);
   if (Number.isNaN(current.getTime())) return [];
@@ -2235,14 +2259,14 @@ export function deadlineAlerts(store, now = new Date()) {
           : Boolean(view && projectStats(view).complete);
         if (!complete) {
           const alert = makeAlert({ id: `${targetKind}:${engagement.id}`, targetKind, targetId: engagement.id,
-            scope: targetKind, recordName: `${entity.legalName} · ${fiscalPeriodShortLabel(engagement, "en")}`,
+            scope: targetKind, recordName: `${entity.legalName} · ${yearEndOrPeriodLabel(engagement, "en")}`,
             owner: engagement.owner, dueDate: engagement.dueDate });
           if (alert) alerts.push(alert);
         }
         if (targetKind === "project") (engagement.workstreams || []).filter((workstream) => !workstreamStats(workstream).complete
           && workstream.dueDate !== engagement.dueDate).forEach((workstream) => {
           const alert = makeAlert({ id: `workstream:${engagement.id}:${workstream.id}`, targetKind, targetId: engagement.id,
-            scope: "workstream", recordName: `${entity.legalName} · ${fiscalPeriodShortLabel(engagement, "en")}`,
+            scope: "workstream", recordName: `${entity.legalName} · ${yearEndOrPeriodLabel(engagement, "en")}`,
             owner: workstream.owner || engagement.owner, dueDate: workstream.dueDate,
             workstream: { id: workstream.id, type: workstream.type, categoryId: workstream.categoryId,
               customName: workstream.customName || "" } });

@@ -1,6 +1,19 @@
 import { expect, test } from "@playwright/test";
 import { hierarchyFixture, openWorkbench, readStoredWorkspace } from "./helpers.js";
 
+test("expands and collapses every visible company branch in one action", async ({ page }) => {
+  await openWorkbench(page, hierarchyFixture());
+  const bulkToggle = page.locator(".workspace-tree-bulk-actions button");
+  if (await bulkToggle.getAttribute("aria-label") === "Collapse all companies") await bulkToggle.click();
+  await expect(bulkToggle).toHaveAttribute("aria-label", "Expand all companies");
+  await bulkToggle.click();
+  await expect(bulkToggle).toHaveAttribute("aria-label", "Collapse all companies");
+  await expect(page.locator(".tree-expander[aria-expanded='false']")).toHaveCount(0);
+  await bulkToggle.click();
+  await expect(page.locator(".tree-children")).toHaveCount(0);
+  await expect(bulkToggle).toHaveAttribute("aria-label", "Expand all companies");
+});
+
 test("moves a standalone company directly into an expanded second-level holding company", async ({ page }) => {
   await openWorkbench(page, hierarchyFixture());
   const source = page.locator(".tree-entity-row").filter({ hasText: "Standalone Company Limited" });

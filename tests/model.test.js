@@ -45,6 +45,7 @@ import {
   mergeEntities,
   moveEntity,
   moveWorkspaceItem,
+  engagementNavigationStatusCounts,
   navigationStatusCounts,
   nodeIsComplete,
   normalizeStore,
@@ -1214,4 +1215,5 @@ test("company masters without annual engagements count as active navigation reco
   const base = emptyStore();
   const store = reconcileWorkbenchStore(base, { ...base, entities: [makeEntity({ legalName: "Empty Limited" })], engagements: [] });
   assert.deepEqual(navigationStatusCounts(store), { active: 1, completed: 0, all: 1, archived: 0 });
+  assert.deepEqual(engagementNavigationStatusCounts(store), { active: 0, completed: 0, all: 0, archived: 0 });
 });

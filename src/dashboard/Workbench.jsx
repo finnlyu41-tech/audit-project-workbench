@@ -15,7 +15,7 @@ import { activeOutstandingItems,
   localizeGroupWorkflowNodes, localizeOutstandingStatuses, localizeReadinessConditions, localizeSample, localizeWorkstream, makeBlankGroupSample,
   makeBlankSample, makeEngagement, makeEntity, makeGroup, makeGroupMember, makeNode, makeOutstandingItem, makeProject, makeTaxDeadline, makeWorkstream,
   mergeEntities, moveEntity, moveWorkspaceItem,
-  navigationStatusCounts, normalizeStore, outstandingIsOpen, preserveLegacyRecovery, projectStats, reconcileWorkbenchStore, redactSampleCompanies, reorderWorkstreams, reorderWorkspaceSchedule, reportingPeriodLabel, syncEngagementToCurrentStructure, taxDeadlineSummary, uid, V10_RECOVERY_KEY,
+  engagementNavigationStatusCounts, navigationStatusCounts, normalizeStore, outstandingIsOpen, preserveLegacyRecovery, projectStats, reconcileWorkbenchStore, redactSampleCompanies, reorderWorkstreams, reorderWorkspaceSchedule, reportingPeriodLabel, syncEngagementToCurrentStructure, taxDeadlineSummary, uid, V10_RECOVERY_KEY,
   workstreamStats, reviseTaxDeadline, workstreamCategoryLabel, workstreamTypeLabel } from "./model.js";
 import { LanguageProvider, useUiLanguage } from "./i18n.jsx";
 import { DeadlineAlertCentre } from "./deadline-alerts.jsx";
@@ -35,7 +35,8 @@ import "./dashboard.css";
 const SIDEBAR_PREFERENCE_KEY = "audit-progress-workbench:sidebar-collapsed";
 const OUTSTANDING_PREFERENCE_KEY = "audit-progress-workbench:outstanding-collapsed";
 const NAVIGATION_WIDTH_KEY = "audit-progress-workbench:navigation-width";
-const DEFAULT_NAVIGATION_WIDTH = 280;
+const NAVIGATION_VIEW_KEY = "audit-progress-workbench:navigation-view";
+const DEFAULT_NAVIGATION_WIDTH = 320;
 const MIN_NAVIGATION_WIDTH = 220;
 const MAX_NAVIGATION_WIDTH = 520;
 
@@ -88,6 +89,10 @@ function DashboardWorkbench() {
   const [activeWorkstreamId, setActiveWorkstreamId] = React.useState(null);
   const [search, setSearch] = React.useState("");
   const [filter, setFilter] = React.useState("active");
+  const [navigationView, setNavigationView] = React.useState(() => {
+    try { return localStorage.getItem(NAVIGATION_VIEW_KEY) === "projects" ? "projects" : "companies"; }
+    catch { return "companies"; }
+  });
   const [templateType, setTemplateType] = React.useState("audit");
   const [templateTag, setTemplateTag] = React.useState("all");
   const [templateSort, setTemplateSort] = React.useState("updated");
@@ -136,6 +141,9 @@ function DashboardWorkbench() {
   React.useEffect(() => {
     try { localStorage.setItem(OUTSTANDING_PREFERENCE_KEY, String(outstandingCollapsed)); } catch { /* optional */ }
   }, [outstandingCollapsed]);
+  React.useEffect(() => {
+    try { localStorage.setItem(NAVIGATION_VIEW_KEY, navigationView); } catch { /* optional */ }
+  }, [navigationView]);
   React.useEffect(() => {
     const query = window.matchMedia("(max-width: 1399px)");
     const updateCompactLayout = (event) => {
@@ -305,7 +313,8 @@ function DashboardWorkbench() {
     workstreams: store.projects.reduce((count, project) => count
       + project.workstreams.filter((workstream) => workstream.categoryId === category.id).length, 0),
   }]));
-  const navigationCounts = navigationStatusCounts(store);
+  const navigationCounts = navigationView === "projects"
+    ? engagementNavigationStatusCounts(store) : navigationStatusCounts(store);
 
   const updateProject = React.useCallback((projectId, updater) => setStore((current) => ({ ...current,
     projects: current.projects.map((project) => project.id === projectId
@@ -802,17 +811,22 @@ function DashboardWorkbench() {
       <aside className="project-panel" aria-label={t("项目导航")}>
         {!sidebarCollapsed && <>
           <div className="project-panel-controls"><div className="project-panel-title"><div>
-            <strong>{t("公司列表")}</strong></div><button type="button" className="project-panel-new"
+            <strong>{t(navigationView === "projects" ? "项目列表" : "公司列表")}</strong></div><button type="button" className="project-panel-new"
               aria-label={t("新建公司")} data-tooltip={t("新建公司")} data-tooltip-side="left"
               onClick={() => setModal({ type: "create-entity" })}><Plus aria-hidden="true" /><span>{t("新建公司")}</span></button></div>
+            <div className="navigation-view-tabs" role="tablist" aria-label={t("公司与项目视图")} onKeyDown={handleTabListKeyDown}>
+              {["companies", "projects"].map((value) => <button type="button" role="tab" key={value}
+                aria-selected={navigationView === value} tabIndex={tabIndexFor(navigationView === value)}
+                onClick={() => setNavigationView(value)}>{t(value === "companies" ? "公司" : "项目")}</button>)}</div>
             <label className="search-field"><Search aria-hidden="true" /><input value={search} onChange={(event) => setSearch(event.target.value)}
-              placeholder={t("搜索公司或负责人")} aria-label={t("搜索公司、控股公司或负责人")} /></label>
+              placeholder={t(navigationView === "projects" ? "搜索项目、公司或负责人" : "搜索公司或负责人")}
+              aria-label={t(navigationView === "projects" ? "搜索项目、公司或负责人" : "搜索公司、控股公司或负责人")} /></label>
             <div className="filter-tabs" role="tablist" aria-label={t("项目状态")} onKeyDown={handleTabListKeyDown}>{[["active", "活跃"], ["completed", "已完成"],
               ["all", "全部"], ["archived", "归档"]].map(([value, label]) => <button type="button" role="tab" key={value}
                 aria-selected={filter === value} tabIndex={tabIndexFor(filter === value)} onClick={() => setFilter(value)}><span>{t(label)}</span>
                 <strong>{navigationCounts[value]}</strong></button>)}</div></div>
           <WorkspaceTree store={store} selection={selection} onSelect={(next) => openWorkspaceRecord(next.kind, next.id)} search={search} filter={filter}
-            statuses={store.outstandingStatuses} onMove={moveNavigationItem} /></>}
+            statuses={store.outstandingStatuses} onMove={moveNavigationItem} viewMode={navigationView} /></>}
         {!sidebarCollapsed && <button type="button" className="project-panel-resizer" role="separator" aria-orientation="vertical"
           aria-label={t("拖动调整公司导航宽度")} aria-valuemin={MIN_NAVIGATION_WIDTH} aria-valuemax={MAX_NAVIGATION_WIDTH}
           aria-valuenow={navigationWidth} aria-keyshortcuts="ArrowLeft ArrowRight Home End"

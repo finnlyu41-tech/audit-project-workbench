@@ -2,7 +2,6 @@ import {
   collectGroupOutstandingEntries,
   collectGroupTaxDeadlineEntries,
   entityForEngagement,
-  fiscalPeriodShortLabel,
   findParentMembership,
   groupProgress,
   memberIsReady,
@@ -12,6 +11,7 @@ import {
   projectStats,
   taxDeadlineUrgency,
   workstreamStats,
+  yearEndOrPeriodLabel,
 } from "./model.js";
 
 export const DEFAULT_MANAGEMENT_REPORT_FILTERS = {
@@ -175,7 +175,7 @@ function recordRow(store, kind, record, now) {
     id: record.id,
     entityId: record.entityId || null,
     name: kind === "project" ? record.entity || record.name : record.name,
-    periodLabel: Array.isArray(store?.engagements) ? fiscalPeriodShortLabel(record, "en") : "",
+    periodLabel: Array.isArray(store?.engagements) ? yearEndOrPeriodLabel(record, "en") : "",
     periodPreset: record.periodPreset || "custom",
     periodStart: record.periodStart || "",
     periodEnd: record.periodEnd || "",
@@ -341,7 +341,7 @@ function flattenGroupMembers(store, groupId, depth = 0, visited = new Set()) {
         id: target?.id || component.id,
         entityId: entity?.id || component.entityId,
         name: entity?.legalName || component.entitySnapshot?.legalName || "",
-        periodLabel: target ? fiscalPeriodShortLabel(target, "en") : component.periodSnapshot?.label || "",
+        periodLabel: target ? yearEndOrPeriodLabel(target, "en") : component.periodSnapshot?.label || "",
         owner: target?.owner || "",
         depth,
         archived: Boolean(target?.archived || entity?.archived),
@@ -422,7 +422,7 @@ export function buildRecordReport(store, kind, id, nowValue = new Date()) {
           : store.projects.find((item) => item.id === engagement.id);
         const complete = viewKind === "group" ? Boolean(view && groupProgress(store, engagement.id).ready)
           : Boolean(view && projectStats(view).complete);
-        return { id: engagement.id, kind: viewKind, label: fiscalPeriodShortLabel(engagement, "en"),
+        return { id: engagement.id, kind: viewKind, label: yearEndOrPeriodLabel(engagement, "en"),
           engagementType: engagement.engagementType || "",
           periodStart: engagement.periodStart, periodEnd: engagement.periodEnd, owner: engagement.owner,
           startDate: engagement.startDate, dueDate: engagement.dueDate, archived: engagement.archived, complete };
@@ -437,7 +437,7 @@ export function buildRecordReport(store, kind, id, nowValue = new Date()) {
       outstanding: (store.engagements || []).filter((engagement) => engagement.entityId === entity.id)
         .flatMap((engagement) => directOutstanding(engagement, store.outstandingStatuses).map((item) => ({
           engagementId: engagement.id,
-          periodLabel: fiscalPeriodShortLabel(engagement, "en"),
+          periodLabel: yearEndOrPeriodLabel(engagement, "en"),
           item: reportOutstanding(item, engagement),
           ageDays: ageInDays(item.createdAt, now),
         }))),

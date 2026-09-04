@@ -5,7 +5,7 @@ import { ProgressBar } from "./components.jsx";
 import { engagementPeriodExists, engagementsForEntity, engagementTypeLabel, fiscalPeriodForYear, fiscalPeriodShortLabel,
   fiscalPeriodFromIncorporation, formalReportingPeriodLabel, formatDate, groupProgress, inferPeriodPreset,
   outstandingIsOpen, outstandingStatusLabel, projectStats, suggestNextFiscalYear, taxDeadlineSummary,
-  workstreamCategoryLabel } from "./model.js";
+  workstreamCategoryLabel, yearEndOrPeriodLabel } from "./model.js";
 import { useUiLanguage } from "./i18n.jsx";
 
 const FRAMEWORKS = [
@@ -171,7 +171,7 @@ export function EngagementForm({ store, entity, initial = null, preferredSourceI
   };
   if (quickField === "schedule") return <form className="workbench-form" data-quick-field="schedule" onSubmit={submit}>
     <div className="engagement-company-lock"><i>{entity.kind === "holding_company" ? <Building2 aria-hidden="true" /> : <Building aria-hidden="true" />}</i>
-      <span><small>{t("年度项目")}</small><strong>{entity.legalName} · {fiscalPeriodShortLabel(initial, language)}</strong></span></div>
+      <span><small>{t("年度项目")}</small><strong>{entity.legalName} · {yearEndOrPeriodLabel(initial, language)}</strong></span></div>
     <div className="project-date-groups" data-single="true"><fieldset><legend>{t("项目排期")}</legend><div>
       <label><span>{t("开始日")}</span><input autoFocus type="date" value={values.startDate} max={values.dueDate || undefined}
         onChange={update("startDate")} /></label><label><span>{t("截止日")}</span><input type="date" value={values.dueDate}
@@ -185,7 +185,7 @@ export function EngagementForm({ store, entity, initial = null, preferredSourceI
     const label = quickField === "owner" ? "负责人" : "财务报告准则／框架";
     return <form className="workbench-form engagement-quick-form" data-quick-field={quickField} onSubmit={submit}>
       <div className="engagement-company-lock"><i>{entity.kind === "holding_company" ? <Building2 aria-hidden="true" /> : <Building aria-hidden="true" />}</i>
-        <span><small>{t("年度项目")}</small><strong>{entity.legalName} · {fiscalPeriodShortLabel(initial, language)}</strong></span></div>
+        <span><small>{t("年度项目")}</small><strong>{entity.legalName} · {yearEndOrPeriodLabel(initial, language)}</strong></span></div>
       <label><span>{t(label)}</span>{quickField === "framework" ? <><input autoFocus list="v11-quick-framework-options"
         value={values[field]} onChange={update(field)} placeholder={t("选择常用框架或直接输入")} />
         <datalist id="v11-quick-framework-options">{FRAMEWORKS.map((framework) => <option key={framework} value={framework} />)}</datalist></>
@@ -219,7 +219,7 @@ export function EngagementForm({ store, entity, initial = null, preferredSourceI
         <label><span>{t("报告结束日 *")}</span><input type="date" required value={values.periodEnd}
           min={values.periodStart || undefined} onChange={changeDate("periodEnd")} /></label></div>
       {values.periodStart && values.periodEnd && <div className="period-preview"><CalendarPlus aria-hidden="true" />
-        <strong>{fiscalPeriodShortLabel(values, language)}</strong><span>{formatDate(values.periodStart, language)} → {formatDate(values.periodEnd, language)}</span></div>}
+        <strong>{yearEndOrPeriodLabel(values, language)}</strong><span>{formatDate(values.periodStart, language)} → {formatDate(values.periodEnd, language)}</span></div>}
     </section>
     {!initial && <section className="engagement-source"><header><strong>{t("起始方式")}</strong>
       <span>{t("新年度默认复制最近项目的结构，并清空所有完成状态、负责人和日期。")}</span></header>
@@ -229,7 +229,7 @@ export function EngagementForm({ store, entity, initial = null, preferredSourceI
         <button type="button" data-active={sourceMode === "blank" || undefined} onClick={() => setSourceMode("blank")}>{t("空白项目")}</button></div>
       {sourceMode === "previous" && <label><span>{t("来源年度")}</span><select value={sourceEngagementId}
         onChange={(event) => setSourceEngagementId(event.target.value)}>{existing.map((engagement) => <option key={engagement.id} value={engagement.id}>
-          {fiscalPeriodShortLabel(engagement, language)}</option>)}</select></label>}
+          {yearEndOrPeriodLabel(engagement, language)}</option>)}</select></label>}
       {sourceMode === "template" && entity.kind === "company" && <div className="annual-template-picker">
         {store.workstreamCategories.filter((category) => category.id !== "custom").map((category) => {
           const selected = selections.find((selection) => selection.categoryId === category.id);
@@ -245,7 +245,7 @@ export function EngagementForm({ store, entity, initial = null, preferredSourceI
     <div className="form-grid" data-columns="2"><label><span>{t("项目类型")}</span><input list="v11-engagement-type-options"
       value={values.engagementType} onChange={update("engagementType")} placeholder={t("例如：Audit、Bookkeeping 或自定义服务")} />
       <datalist id="v11-engagement-type-options">{ENGAGEMENT_TYPES.map((type) => <option key={type} value={type}>
-        {engagementTypeLabel(type, language)}</option>)}</datalist></label>
+        {engagementTypeLabel(type, language)}</option>)}</datalist><small className="form-help">{t("可选择预设类型，也可以直接输入并保存自定义类型。")}</small></label>
       <label><span>{t("财务报告准则／框架")}</span><input list="v11-framework-options"
       value={values.reportingFramework} onChange={update("reportingFramework")} placeholder={t("选择常用框架或直接输入")} />
       <datalist id="v11-framework-options">{FRAMEWORKS.map((framework) => <option key={framework} value={framework} />)}</datalist></label>
@@ -308,7 +308,7 @@ export function EntityOverview({ store, entity, onEdit, onNewEngagement, onOpenE
         const percentage = stats?.percentage || 0;
         return <article key={engagement.id} data-archived={engagement.archived || undefined}>
           <button type="button" className="annual-project-open" onClick={() => onOpenEngagement(engagement)}>
-            <span className="annual-period"><strong>{fiscalPeriodShortLabel(engagement, language)}</strong>
+            <span className="annual-period"><strong>{yearEndOrPeriodLabel(engagement, language)}</strong>
               <small>{engagementTypeLabel(engagement.engagementType, language) || t("项目类型未设置")}</small>
               <small>{formatDate(engagement.periodStart, language)} → {formatDate(engagement.periodEnd, language)}</small></span>
             <span className="annual-owner"><small>{t("负责人")}</small><strong>{engagement.owner || t("未设置")}</strong></span>
@@ -326,7 +326,7 @@ export function EntityOverview({ store, entity, onEdit, onNewEngagement, onOpenE
     <section className="entity-outstanding-summary"><header><div><h3>{t("历年待清事项")}</h3>
       <p>{t("每项均标注来源年度；进入对应项目后处理。")}</p></div><strong>{openOutstanding.length}</strong></header>
       {openOutstanding.length ? <div>{openOutstanding.map(({ engagement, item }) => <button type="button" key={`${engagement.id}:${item.id}`}
-        onClick={() => onOpenEngagement(engagement)}><span><strong>{item.title}</strong><small>{fiscalPeriodShortLabel(engagement, language)}
+        onClick={() => onOpenEngagement(engagement)}><span><strong>{item.title}</strong><small>{yearEndOrPeriodLabel(engagement, language)}
           </small></span>
         <em>{outstandingStatusLabel(item.status, store.outstandingStatuses, language)}</em><ChevronRight aria-hidden="true" /></button>)}</div>
         : <p className="entity-children-empty">{t("所有年度项目目前都没有未清事项。")}</p>}
@@ -422,7 +422,7 @@ export function HoldingComponentsPanel({ store, engagement, readOnly = false, on
                 : { engagementId: "", periodStart: "", periodEnd: "", label: "" } });
           }}>
           <option value="">{matching.length > 1 ? t("多项匹配，待指定") : t("待指定")}</option>
-          {candidates.map((candidate) => <option key={candidate.id} value={candidate.id}>{fiscalPeriodShortLabel(candidate, language)}
+          {candidates.map((candidate) => <option key={candidate.id} value={candidate.id}>{yearEndOrPeriodLabel(candidate, language)}
             {candidate.periodStart === engagement.periodStart && candidate.periodEnd === engagement.periodEnd ? ` · ${t("期间匹配")}` : ""}</option>)}</select></label>
         <div className="component-progress"><span>{t("审计进度")}</span><ProgressBar value={progressFor(component)} compact /></div>
         <div className="component-readiness"><span>{t("合并就绪")}</span><strong>{done}/{component.readinessConditions?.length || 0}</strong></div>

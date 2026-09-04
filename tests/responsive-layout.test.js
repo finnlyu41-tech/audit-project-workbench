@@ -67,6 +67,15 @@ test("navigation filters show numeric counts without widening the compact tabs",
   assert.match(css, /\.filter-tabs button > strong\s*{[\s\S]*?font-variant-numeric:\s*tabular-nums/);
 });
 
+test("navigation switches between a company hierarchy and a flat annual-project list", () => {
+  assert.match(workbench, /NAVIGATION_VIEW_KEY = "audit-progress-workbench:navigation-view"/);
+  assert.match(workbench, /className="navigation-view-tabs"/);
+  assert.match(workbench, /viewMode={navigationView}/);
+  assert.match(groupComponents, /className="tree-row flat-engagement-row"/);
+  assert.match(groupComponents, /yearEndOrPeriodLabel\(engagement, language\)/);
+  assert.match(groupComponents, /className="workspace-tree-bulk-actions"/);
+});
+
 test("workflow controls share one compact row and template category management stays in the content header", () => {
   assert.match(components, /className="node-board-toolbar"[\s\S]*?className="node-structure-actions"/);
   assert.match(components, /className="sample-library-actions"[\s\S]*?onManageCategories/);
@@ -133,6 +142,8 @@ test("completion progress uses one compact green ring instead of horizontal bars
   assert.match(components, /--progress-angle/);
   assert.match(css, /\.progress-track\s*{[^}]*border-radius:\s*50%;[^}]*conic-gradient/);
   assert.match(css, /\.progress-track\[data-compact\]\s*{[^}]*width:\s*32px/);
+  assert.match(components, /className="workstream-card-top"><ProgressBar value={stats\.percentage} compact/);
+  assert.doesNotMatch(components, /className="workstream-card-progress"/);
   assert.doesNotMatch(css, /\.progress-track > span\s*{[^}]*width:/);
 });
 
@@ -144,10 +155,17 @@ test("annual engagement forms omit internal names and project notes", () => {
 test("annual engagements expose a customisable type throughout navigation and reporting", () => {
   assert.match(v11Components, /list="v11-engagement-type-options"/);
   assert.match(v11Components, /value={values\.engagementType}/);
+  assert.match(v11Components, /可选择预设类型，也可以直接输入并保存自定义类型/);
   assert.match(groupComponents, /engagementTypeLabel\(engagement\.engagementType, language\)/);
   assert.match(managementReport, /className="management-company-cell" rowSpan={group\.rows\.length}/);
   assert.match(managementReport, /className="management-period-cell"/);
   assert.match(managementReport, /engagementTypeLabel\(row\.engagementType, language\)/);
+});
+
+test("screen typography keeps supporting interface text readable", () => {
+  assert.match(css, /@media screen\s*{[\s\S]*?\.audit-workbench small\s*{[^}]*font-size:\s*13px !important/);
+  assert.match(css, /\.management-report-table, \.record-risk-tables table\s*{\s*font-size:\s*13px/);
+  assert.match(css, /\.schedule-corner strong, \.schedule-row-open strong\s*{\s*font-size:\s*14px/);
 });
 
 test("owner quick edit can apply the same person to every workstream", () => {

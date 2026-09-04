@@ -6,6 +6,24 @@ The project follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.6.3] - 2026-09-04
+
+### Added
+
+- A saved Companies / Projects navigation switch, with a flat annual-project list showing company, explicit year end or DOI period, project type, owner and progress.
+- One-click Expand all / Collapse all controls for the company hierarchy.
+- Clear form guidance that engagement types accept both suggested values and free-text custom types.
+
+### Changed
+
+- Annual engagements now use explicit `YE December 31, 2025` or full `For the period from … (DOI) to …` wording in navigation, company histories, deadline links and reports.
+- Workstream progress rings sit in the title row instead of occupying a separate row.
+- Increased screen typography throughout navigation, project workspaces, schedules and management reports, with a wider default resizable navigation panel.
+
+### Fixed
+
+- Status filters keep complete labels in a two-by-two layout, and long project metadata wraps without colliding with progress or actions.
+
 ## [0.6.2] - 2026-09-04
 
 ### Added
