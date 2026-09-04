@@ -1,5 +1,5 @@
 import React from "react";
-import { ArrowDown, ArrowLeft, ArrowRight, ArrowRightLeft, ArrowUp, Copy, Pencil, Play, Plus, Settings2, Trash2, X } from "lucide-react";
+import { ArrowDown, ArrowLeft, ArrowRight, ArrowRightLeft, ArrowUp, Copy, GripVertical, Pencil, Play, Plus, Settings2, Trash2, X } from "lucide-react";
 import { GROUP_AUDIT_TYPES, GROUP_AUDIT_TYPE_KEYS, createDefaultWorkstreamCategories, dueTone, formatDate,
   nodeStatus, normalizeTemplateTags, outstandingIsOpen, projectStats, reportingPeriodLabel, uid, workstreamCategoryLabel, workstreamStats,
   workstreamTypeLabel } from "./model.js";
@@ -276,21 +276,33 @@ export function WorkstreamForm({ initial, availableCategories = createDefaultWor
   </form>;
 }
 
-export function WorkstreamCard({ workstream, selected, openItems = 0, onSelect, onEdit, readOnly = false }) {
+export function WorkstreamCard({ workstream, selected, openItems = 0, onSelect, onEdit, readOnly = false,
+  dragging = false, dropPosition, onDragStart, onDragEnd, onDragOver, onDrop, onReorderKeyDown }) {
   const { language, t } = useUiLanguage();
   const stats = workstreamStats(workstream);
   const label = workstreamTypeLabel(workstream.type, language, workstream.customName);
-  return <article className="workstream-card" data-selected={selected || undefined} data-complete={stats.complete || undefined}>
+  return <article className="workstream-card" data-selected={selected || undefined} data-complete={stats.complete || undefined}
+    data-editable={!readOnly || undefined} data-dragging={dragging || undefined} data-drop-position={dropPosition}
+    onDragOver={onDragOver} onDrop={onDrop}>
     <button type="button" className="workstream-card-select" aria-pressed={selected} onClick={onSelect}>
     <span className="workstream-card-top"><i>{workstreamTypeLabel(workstream.type, language, workstream.customName).slice(0, 1)}</i>
       <span><strong>{label}</strong><small>{workstream.owner || t("未设置负责人")}</small></span></span>
-    <span className="workstream-card-progress"><strong>{stats.percentage}%</strong><ProgressBar value={stats.percentage} compact /></span>
+    <span className="workstream-card-progress"><ProgressBar value={stats.percentage} compact /></span>
     <span className="workstream-card-meta"><small>{t("{done}/{total} 个节点", { done: stats.completedNodes, total: stats.nodes })}</small>
       <small>{openItems ? t("{count} 项未清", { count: openItems }) : t("无未清事项")}</small>
       <time data-tone={dueTone(workstream)}>{formatDate(workstream.dueDate, language)}</time></span></button>
-    {!readOnly && <button type="button" className="workstream-edit icon-only" onClick={onEdit}
-      aria-label={t("设置 {name}", { name: label })} data-tooltip={t("设置")}
-      data-tooltip-side="left"><Settings2 aria-hidden="true" /></button>}
+    {!readOnly && <div className="workstream-card-actions">
+      <button type="button" className="workstream-drag-handle icon-only" draggable="true"
+        aria-label={t("拖动调整“{name}”的业务模块顺序；按 Alt 加方向键也可移动", { name: label })}
+        aria-keyshortcuts="Alt+ArrowLeft Alt+ArrowRight Alt+ArrowUp Alt+ArrowDown"
+        data-tooltip={t("拖动调整业务模块顺序；Alt + 方向键也可移动")}
+        onDragStart={onDragStart} onDragEnd={onDragEnd} onKeyDown={onReorderKeyDown}>
+        <GripVertical aria-hidden="true" />
+      </button>
+      <button type="button" className="workstream-edit icon-only" onClick={onEdit}
+        aria-label={t("设置 {name}", { name: label })} data-tooltip={t("设置")}
+        data-tooltip-side="left"><Settings2 aria-hidden="true" /></button>
+    </div>}
   </article>;
 }
 
@@ -475,7 +487,7 @@ export function UserGuide() {
       result: "窄工具栏保持紧凑，同时不需要记住每个图标的含义。" },
     ] },
     { id: "projects", title: "公司与年度项目", summary: "一个公司主档可以承载多个互相独立的报告期间和委聘。", topics: [
-      { title: "寻找公司和年度项目", steps: ["在公司列表的搜索框输入法律实体、年度、内部项目名称或负责人。", "使用“进行中”“已完成”“全部”及“归档”筛选所需记录。",
+      { title: "寻找公司和年度项目", steps: ["在公司列表的搜索框输入法律实体、年度、项目类型或负责人。", "使用“进行中”“已完成”“全部”及“归档”筛选所需记录。",
         "选择公司名称打开主档概览；展开公司后选择 FY 标签进入对应年度工作区。", "控股公司前的加减号和层级线会显示当前归属。"], result: "公司名称保持为导航主标识，年度项目不会被内部名称混淆。" },
       { title: "修改会计年度和报告期间", steps: ["在公司概览编辑默认会计年度；修改默认值不会改变已经建立的项目。", "在年度项目设置中修改报告开始日或结束日。",
         "手动改变自动生成的日期后，该项目会改为自定义期间；完整起止日期始终是权威数据。", "归档项目也参与重复期间检查。"], result: "短年度和非完整年度可以准确记录，不会被强制按整年处理。" },
@@ -706,9 +718,11 @@ export function NodeForm({ initial, onSubmit, onClose }) {
 
 export function ProgressBar({ value, compact = false }) {
   const { t } = useUiLanguage();
+  const percentage = Math.min(100, Math.max(0, Math.round(Number(value) || 0)));
   return <div className="progress-track" data-compact={compact || undefined} role="progressbar"
-    aria-valuemin="0" aria-valuemax="100" aria-valuenow={value} aria-label={t("完成 {value}%", { value })}>
-    <span style={{ width: `${value}%` }} />
+    data-complete={percentage === 100 || undefined} aria-valuemin="0" aria-valuemax="100" aria-valuenow={percentage}
+    aria-label={t("完成 {value}%", { value: percentage })} style={{ "--progress-angle": `${percentage * 3.6}deg` }}>
+    <span aria-hidden="true">{percentage}%</span>
   </div>;
 }
 
@@ -731,16 +745,93 @@ export function ProjectRow({ project, outstandingStatuses, selected, onSelect })
 export function NodeBoard({ nodes, readOnly = false, actions, label = "", title = "", description = "", percentage = null }) {
   const { t } = useUiLanguage();
   const currentNode = nodes.find((node) => !workstreamStats({ nodes: [node] }).complete);
-  const [selectedId, setSelectedId] = React.useState(() => currentNode?.id || nodes[0]?.id || null);
+  const [selectedId, setSelectedId] = React.useState(null);
+  const [draggingNodeId, setDraggingNodeId] = React.useState(null);
+  const [nodeDropTarget, setNodeDropTarget] = React.useState(null);
+  const [draggingConditionId, setDraggingConditionId] = React.useState(null);
+  const [conditionDropTarget, setConditionDropTarget] = React.useState(null);
+  const draggingNodeRef = React.useRef(null);
+  const draggingConditionRef = React.useRef(null);
   React.useEffect(() => {
-    if (!nodes.some((node) => node.id === selectedId)) setSelectedId(currentNode?.id || nodes[0]?.id || null);
-  }, [nodes, selectedId, currentNode?.id]);
-  const selected = nodes.find((node) => node.id === selectedId) || nodes[0];
+    if (selectedId && !nodes.some((node) => node.id === selectedId)) setSelectedId(null);
+  }, [nodes, selectedId]);
+  const selected = nodes.find((node) => node.id === selectedId) || null;
+  const finishNodeDrag = () => {
+    draggingNodeRef.current = null;
+    setDraggingNodeId(null);
+    setNodeDropTarget(null);
+  };
+  const beginNodeDrag = (event, nodeId) => {
+    draggingNodeRef.current = nodeId;
+    setDraggingNodeId(nodeId);
+    event.dataTransfer.effectAllowed = "move";
+    event.dataTransfer.setData("application/x-audit-workbench-node", nodeId);
+    event.dataTransfer.setData("text/plain", nodeId);
+  };
+  const dragOverNode = (event, nodeId) => {
+    const sourceId = draggingNodeRef.current;
+    if (!sourceId || sourceId === nodeId) return;
+    event.preventDefault();
+    event.dataTransfer.dropEffect = "move";
+    const bounds = event.currentTarget.getBoundingClientRect();
+    setNodeDropTarget({ id: nodeId, position: event.clientX < bounds.left + bounds.width / 2 ? "before" : "after" });
+  };
+  const dropNode = (event, nodeId) => {
+    const sourceId = draggingNodeRef.current;
+    if (!sourceId || sourceId === nodeId) return;
+    event.preventDefault();
+    const bounds = event.currentTarget.getBoundingClientRect();
+    actions.reorderNode(sourceId, nodeId, event.clientX < bounds.left + bounds.width / 2 ? "before" : "after");
+    finishNodeDrag();
+  };
+  const reorderNodeWithKeyboard = (event, node, index) => {
+    if (readOnly || !event.altKey || !["ArrowLeft", "ArrowRight"].includes(event.key)) return;
+    const target = nodes[index + (event.key === "ArrowLeft" ? -1 : 1)];
+    if (!target) return;
+    event.preventDefault();
+    event.stopPropagation();
+    actions.reorderNode(node.id, target.id, event.key === "ArrowLeft" ? "before" : "after");
+  };
+  const finishConditionDrag = () => {
+    draggingConditionRef.current = null;
+    setDraggingConditionId(null);
+    setConditionDropTarget(null);
+  };
+  const beginConditionDrag = (event, conditionId) => {
+    draggingConditionRef.current = conditionId;
+    setDraggingConditionId(conditionId);
+    event.dataTransfer.effectAllowed = "move";
+    event.dataTransfer.setData("application/x-audit-workbench-condition", conditionId);
+    event.dataTransfer.setData("text/plain", conditionId);
+  };
+  const dragOverCondition = (event, conditionId) => {
+    const sourceId = draggingConditionRef.current;
+    if (!sourceId || sourceId === conditionId) return;
+    event.preventDefault();
+    event.dataTransfer.dropEffect = "move";
+    const bounds = event.currentTarget.getBoundingClientRect();
+    setConditionDropTarget({ id: conditionId, position: event.clientY < bounds.top + bounds.height / 2 ? "before" : "after" });
+  };
+  const dropCondition = (event, conditionId) => {
+    const sourceId = draggingConditionRef.current;
+    if (!sourceId || sourceId === conditionId || !selected) return;
+    event.preventDefault();
+    const bounds = event.currentTarget.getBoundingClientRect();
+    actions.reorderCondition(selected.id, sourceId, conditionId,
+      event.clientY < bounds.top + bounds.height / 2 ? "before" : "after");
+    finishConditionDrag();
+  };
+  const reorderConditionWithKeyboard = (event, condition, index) => {
+    if (readOnly || !event.altKey || !["ArrowUp", "ArrowDown"].includes(event.key) || !selected) return;
+    const target = selected.conditions[index + (event.key === "ArrowUp" ? -1 : 1)];
+    if (!target) return;
+    event.preventDefault();
+    actions.reorderCondition(selected.id, condition.id, target.id, event.key === "ArrowUp" ? "before" : "after");
+  };
   return <div className="node-board" style={{ "--node-count": Math.max(nodes.length, 1) }}>
     <header className="node-board-toolbar"><div className="node-board-heading">{label && <span>{label}</span>}
       {title && <h3>{title}</h3>}{description && <p>{description}</p>}</div>
-      {percentage !== null && <div className="workflow-panel-progress"><strong>{percentage}%</strong>
-        <ProgressBar value={percentage} compact /></div>}
+      {percentage !== null && <div className="workflow-panel-progress"><ProgressBar value={percentage} compact /></div>}
       {!readOnly && <div className="node-structure-actions"><button type="button" className="button secondary icon-only"
         aria-label={t("添加节点")} data-tooltip={t("添加节点")} onClick={actions.addNode}><Plus aria-hidden="true" /></button>
         <button type="button" className="button danger-quiet icon-only" disabled={!selected} aria-label={t("删除所选节点")}
@@ -749,10 +840,18 @@ export function NodeBoard({ nodes, readOnly = false, actions, label = "", title 
     </header>
     {nodes.length ? <div className="node-track" role="tablist" aria-label={t("项目节点")} onKeyDown={handleTabListKeyDown}>{nodes.map((node, index) => {
       const status = nodeStatus(node); const done = node.conditions.filter((condition) => condition.done).length;
-      return <button type="button" role="tab" aria-selected={selected?.id === node.id} tabIndex={tabIndexFor(selected?.id === node.id)} className="node-track-card" title={node.title}
-        data-status={status} data-current={currentNode?.id === node.id || undefined} key={node.id} onClick={() => setSelectedId(node.id)}>
+      return <button type="button" role="tab" aria-selected={selected?.id === node.id} aria-expanded={selected?.id === node.id}
+        tabIndex={selected ? tabIndexFor(selected.id === node.id) : index === 0 ? 0 : -1} className="node-track-card" title={node.title}
+        aria-description={!readOnly ? t("拖动调整节点顺序；Alt + 左右方向键也可移动") : undefined}
+        data-status={status} data-current={currentNode?.id === node.id || undefined} data-dragging={draggingNodeId === node.id || undefined}
+        data-drop-position={nodeDropTarget?.id === node.id ? nodeDropTarget.position : undefined} key={node.id}
+        draggable={!readOnly} onDragStart={(event) => beginNodeDrag(event, node.id)} onDragEnd={finishNodeDrag}
+        onDragOver={(event) => dragOverNode(event, node.id)} onDrop={(event) => dropNode(event, node.id)}
+        onKeyDown={(event) => reorderNodeWithKeyboard(event, node, index)}
+        onClick={() => setSelectedId((current) => current === node.id ? null : node.id)}>
         <span className="node-track-number">{index + 1}</span><span><strong>{node.title}</strong>
-          <small>{done}/{node.conditions.length} {t("项条件")}</small></span><i>{t(status)}</i></button>;
+          <small>{done}/{node.conditions.length} {t("项条件")}</small></span><i>{t(status)}</i>
+        {!readOnly && <GripVertical className="node-track-grip" aria-hidden="true" />}</button>;
     })}</div> : <div className="inline-empty"><strong>{t("还没有节点")}</strong>
       <span>{readOnly ? t("此记录没有保存节点。") : t("添加第一个节点后，即可设置完成条件。")}</span></div>}
     {selected && <section className="node-detail-panel"><header><div><span>{t("节点详情")}</span><h4>{selected.title}</h4>
@@ -763,8 +862,16 @@ export function NodeBoard({ nodes, readOnly = false, actions, label = "", title 
           aria-label={t("下移节点")} data-tooltip={t("下移节点")}><ArrowRight aria-hidden="true" /></button>
         <button type="button" className="icon-only" onClick={() => actions.editNode(selected)} aria-label={t("编辑节点")}
           data-tooltip={t("编辑节点")}><Pencil aria-hidden="true" /></button></div>}</header>
-      {selected.conditions.length ? <div className="condition-list">{selected.conditions.map((condition) => <div className="condition-row"
-        data-done={condition.done || undefined} key={condition.id}><label><input type="checkbox" disabled={readOnly}
+      {selected.conditions.length ? <div className="condition-list">{selected.conditions.map((condition, index) => <div className="condition-row"
+        data-done={condition.done || undefined} data-dragging={draggingConditionId === condition.id || undefined}
+        data-drop-position={conditionDropTarget?.id === condition.id ? conditionDropTarget.position : undefined}
+        onDragOver={(event) => dragOverCondition(event, condition.id)} onDrop={(event) => dropCondition(event, condition.id)}
+        key={condition.id}>{!readOnly && <button type="button" className="condition-drag-handle icon-only" draggable="true"
+          aria-label={t("拖动调整“{name}”的完成条件顺序；按 Alt 加上下方向键也可移动", { name: condition.label })}
+          aria-keyshortcuts="Alt+ArrowUp Alt+ArrowDown" data-tooltip={t("拖动调整完成条件顺序；Alt + 上下方向键也可移动")}
+          onDragStart={(event) => beginConditionDrag(event, condition.id)} onDragEnd={finishConditionDrag}
+          onKeyDown={(event) => reorderConditionWithKeyboard(event, condition, index)}><GripVertical aria-hidden="true" /></button>}
+        <label><input type="checkbox" disabled={readOnly}
           checked={condition.done} onChange={() => actions.toggle(selected.id, condition.id)} /><span>{condition.label}</span></label>
         {!readOnly && <div className="condition-actions"><button type="button" className="icon-only"
           onClick={() => actions.editCondition(selected, condition)} aria-label={t("修改")} data-tooltip={t("修改")}>

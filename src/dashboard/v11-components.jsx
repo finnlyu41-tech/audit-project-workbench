@@ -2,7 +2,7 @@ import React from "react";
 import { Archive, ArchiveRestore, Building, Building2, CalendarDays, CalendarPlus, ChevronRight, CircleAlert,
   Edit3, FolderTree, GitMerge, Plus, ReceiptText, Settings2, Trash2 } from "lucide-react";
 import { ProgressBar } from "./components.jsx";
-import { engagementPeriodExists, engagementsForEntity, fiscalPeriodForYear, fiscalPeriodShortLabel,
+import { engagementPeriodExists, engagementsForEntity, engagementTypeLabel, fiscalPeriodForYear, fiscalPeriodShortLabel,
   fiscalPeriodFromIncorporation, formalReportingPeriodLabel, formatDate, groupProgress, inferPeriodPreset,
   outstandingIsOpen, outstandingStatusLabel, projectStats, suggestNextFiscalYear, taxDeadlineSummary,
   workstreamCategoryLabel } from "./model.js";
@@ -13,6 +13,15 @@ const FRAMEWORKS = [
   "SME-FRF and SME-FRS",
   "IFRS Accounting Standards",
   "HKFRS for Private Entities",
+];
+
+const ENGAGEMENT_TYPES = [
+  "Audit",
+  "Bookkeeping",
+  "Tax computation & filing",
+  "Customer due diligence",
+  "Quotation & collection",
+  "Group consolidation",
 ];
 
 function presetLabel(value, t) {
@@ -96,6 +105,8 @@ export function EngagementForm({ store, entity, initial = null, preferredSourceI
     : fiscalPeriodForYear(initialPreset, suggestedYear);
   const [values, setValues] = React.useState(() => ({
     internalName: initial?.internalName || "",
+    engagementType: initial?.engagementType || existing[0]?.engagementType
+      || (entity.kind === "holding_company" ? "Group consolidation" : "Audit"),
     periodPreset: initialPreset,
     baseYear: suggestedYear,
     periodStart: generated.periodStart || "",
@@ -112,6 +123,7 @@ export function EngagementForm({ store, entity, initial = null, preferredSourceI
   const [sourceEngagementId, setSourceEngagementId] = React.useState(preferredSourceId || previousDefault?.id || "");
   const [selections, setSelections] = React.useState(() => initialSelections(store.workstreamCategories,
     store.selectedSampleIdsByCategory));
+  const [applyOwnerToWorkstreams, setApplyOwnerToWorkstreams] = React.useState(false);
   const [error, setError] = React.useState("");
   const update = (field) => (event) => setValues((current) => ({ ...current, [field]: event.target.value }));
   const changePreset = (event) => {
@@ -153,7 +165,9 @@ export function EngagementForm({ store, entity, initial = null, preferredSourceI
     onSubmit({ ...values, entityId: entity.id, baseYear: undefined,
       periodPreset: values.periodPreset === "custom" ? inferPeriodPreset(values.periodStart, values.periodEnd) === "custom"
         ? "custom" : values.periodPreset : values.periodPreset,
-      workstreamSelections: selections }, { sourceMode, sourceEngagement: source });
+      workstreamSelections: selections,
+      applyOwnerToWorkstreams: quickField === "owner" && applyOwnerToWorkstreams },
+    { sourceMode, sourceEngagement: source });
   };
   if (quickField === "schedule") return <form className="workbench-form" data-quick-field="schedule" onSubmit={submit}>
     <div className="engagement-company-lock"><i>{entity.kind === "holding_company" ? <Building2 aria-hidden="true" /> : <Building aria-hidden="true" />}</i>
@@ -176,6 +190,12 @@ export function EngagementForm({ store, entity, initial = null, preferredSourceI
         value={values[field]} onChange={update(field)} placeholder={t("选择常用框架或直接输入")} />
         <datalist id="v11-quick-framework-options">{FRAMEWORKS.map((framework) => <option key={framework} value={framework} />)}</datalist></>
         : <input autoFocus value={values[field]} onChange={update(field)} placeholder={t("例如：项目经理或主审")} />}</label>
+      {quickField === "owner" && initial?.workstreams?.length > 0 && <label className="check-option apply-owner-option">
+        <input type="checkbox" checked={applyOwnerToWorkstreams}
+          onChange={(event) => setApplyOwnerToWorkstreams(event.target.checked)} />
+        <span><strong>{t("应用到所有业务模块")}</strong>
+          <small>{t("同时把 {count} 个业务模块的负责人设为相同人员。", { count: initial.workstreams.length })}</small></span>
+      </label>}
       {error && <div className="form-error" role="alert"><CircleAlert aria-hidden="true" />{error}</div>}
       <footer className="modal-actions"><button type="button" className="button secondary" onClick={onClose}>{t("取消")}</button>
         <button type="submit" className="button primary">{t("保存")}</button></footer>
@@ -209,7 +229,7 @@ export function EngagementForm({ store, entity, initial = null, preferredSourceI
         <button type="button" data-active={sourceMode === "blank" || undefined} onClick={() => setSourceMode("blank")}>{t("空白项目")}</button></div>
       {sourceMode === "previous" && <label><span>{t("来源年度")}</span><select value={sourceEngagementId}
         onChange={(event) => setSourceEngagementId(event.target.value)}>{existing.map((engagement) => <option key={engagement.id} value={engagement.id}>
-          {fiscalPeriodShortLabel(engagement, language)}{engagement.internalName ? ` · ${engagement.internalName}` : ""}</option>)}</select></label>}
+          {fiscalPeriodShortLabel(engagement, language)}</option>)}</select></label>}
       {sourceMode === "template" && entity.kind === "company" && <div className="annual-template-picker">
         {store.workstreamCategories.filter((category) => category.id !== "custom").map((category) => {
           const selected = selections.find((selection) => selection.categoryId === category.id);
@@ -222,19 +242,20 @@ export function EngagementForm({ store, entity, initial = null, preferredSourceI
               {templates.map((template) => <option key={template.id} value={template.id}>{template.name}</option>)}</select>}</div>;
         })}</div>}
     </section>}
-    <div className="form-grid" data-columns="2"><label><span>{t("财务报告准则／框架")}</span><input list="v11-framework-options"
+    <div className="form-grid" data-columns="2"><label><span>{t("项目类型")}</span><input list="v11-engagement-type-options"
+      value={values.engagementType} onChange={update("engagementType")} placeholder={t("例如：Audit、Bookkeeping 或自定义服务")} />
+      <datalist id="v11-engagement-type-options">{ENGAGEMENT_TYPES.map((type) => <option key={type} value={type}>
+        {engagementTypeLabel(type, language)}</option>)}</datalist></label>
+      <label><span>{t("财务报告准则／框架")}</span><input list="v11-framework-options"
       value={values.reportingFramework} onChange={update("reportingFramework")} placeholder={t("选择常用框架或直接输入")} />
       <datalist id="v11-framework-options">{FRAMEWORKS.map((framework) => <option key={framework} value={framework} />)}</datalist></label>
       <label><span>{t("负责人")}</span><input value={values.owner} onChange={update("owner")} placeholder={t("例如：项目经理或主审")} /></label>
       <label><span>{t("项目开始日")}</span><input type="date" value={values.startDate} max={values.dueDate || undefined}
         onChange={update("startDate")} /></label><label><span>{t("项目截止日")}</span><input type="date" value={values.dueDate}
-          min={values.startDate || undefined} onChange={update("dueDate")} /></label>
-      <label className="span-two"><span>{t("内部项目名称（可选）")}</span><input value={values.internalName} onChange={update("internalName")}
-        placeholder={t("导航仍优先显示公司名称和完整报告期间")} /></label></div>
+          min={values.startDate || undefined} onChange={update("dueDate")} /></label></div>
     {entity.kind === "holding_company" && <label className="check-option"><input type="checkbox" checked={values.consolidationEnabled}
       onChange={(event) => setValues((current) => ({ ...current, consolidationEnabled: event.target.checked }))} />
       <span><strong>{t("本级需要独立合并流程")}</strong><small>{t("关闭后，本级只汇总组成部分。")}</small></span></label>}
-    <label><span>{t("项目备注")}</span><textarea rows="3" value={values.notes} onChange={update("notes")} /></label>
     {error && <div className="form-error" role="alert"><CircleAlert aria-hidden="true" />{error}</div>}
     <footer className="modal-actions"><button type="button" className="button secondary" onClick={onClose}>{t("取消")}</button>
       <button type="submit" className="button primary">{t(initial ? "保存项目" : "建立年度项目")}</button></footer>
@@ -288,11 +309,12 @@ export function EntityOverview({ store, entity, onEdit, onNewEngagement, onOpenE
         return <article key={engagement.id} data-archived={engagement.archived || undefined}>
           <button type="button" className="annual-project-open" onClick={() => onOpenEngagement(engagement)}>
             <span className="annual-period"><strong>{fiscalPeriodShortLabel(engagement, language)}</strong>
+              <small>{engagementTypeLabel(engagement.engagementType, language) || t("项目类型未设置")}</small>
               <small>{formatDate(engagement.periodStart, language)} → {formatDate(engagement.periodEnd, language)}</small></span>
             <span className="annual-owner"><small>{t("负责人")}</small><strong>{engagement.owner || t("未设置")}</strong></span>
             <span className="annual-schedule"><small>{t("项目排期")}</small><strong>{engagement.startDate && engagement.dueDate
               ? `${formatDate(engagement.startDate, language)} → ${formatDate(engagement.dueDate, language)}` : t("未完整设置")}</strong></span>
-            <span className="annual-progress"><strong>{percentage}%</strong><ProgressBar value={percentage} compact /></span>
+            <span className="annual-progress"><ProgressBar value={percentage} compact /></span>
             <ChevronRight aria-hidden="true" /></button>
           {!engagement.archived && <button type="button" className="icon-only" onClick={() => onEditEngagement(engagement)}
             aria-label={t("编辑年度项目")} data-tooltip={t("编辑年度项目")}><Settings2 aria-hidden="true" /></button>}
@@ -305,7 +327,7 @@ export function EntityOverview({ store, entity, onEdit, onNewEngagement, onOpenE
       <p>{t("每项均标注来源年度；进入对应项目后处理。")}</p></div><strong>{openOutstanding.length}</strong></header>
       {openOutstanding.length ? <div>{openOutstanding.map(({ engagement, item }) => <button type="button" key={`${engagement.id}:${item.id}`}
         onClick={() => onOpenEngagement(engagement)}><span><strong>{item.title}</strong><small>{fiscalPeriodShortLabel(engagement, language)}
-          {engagement.internalName ? ` · ${engagement.internalName}` : ""}</small></span>
+          </small></span>
         <em>{outstandingStatusLabel(item.status, store.outstandingStatuses, language)}</em><ChevronRight aria-hidden="true" /></button>)}</div>
         : <p className="entity-children-empty">{t("所有年度项目目前都没有未清事项。")}</p>}
     </section>
@@ -402,7 +424,7 @@ export function HoldingComponentsPanel({ store, engagement, readOnly = false, on
           <option value="">{matching.length > 1 ? t("多项匹配，待指定") : t("待指定")}</option>
           {candidates.map((candidate) => <option key={candidate.id} value={candidate.id}>{fiscalPeriodShortLabel(candidate, language)}
             {candidate.periodStart === engagement.periodStart && candidate.periodEnd === engagement.periodEnd ? ` · ${t("期间匹配")}` : ""}</option>)}</select></label>
-        <div className="component-progress"><span>{t("审计进度")}</span><strong>{progressFor(component)}%</strong><ProgressBar value={progressFor(component)} compact /></div>
+        <div className="component-progress"><span>{t("审计进度")}</span><ProgressBar value={progressFor(component)} compact /></div>
         <div className="component-readiness"><span>{t("合并就绪")}</span><strong>{done}/{component.readinessConditions?.length || 0}</strong></div>
         {target && <button type="button" className="icon-only" onClick={() => onOpen(targetEntity?.kind === "holding_company" ? "group" : "project", target.id)}
           aria-label={t("打开年度项目")} data-tooltip={t("打开年度项目")}><ChevronRight aria-hidden="true" /></button>}

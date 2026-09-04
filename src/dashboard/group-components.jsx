@@ -3,7 +3,7 @@ import { ArrowRightLeft, Building, Building2, CalendarDays, Copy, Minus, Pencil,
 import { ProgressBar } from "./components.jsx";
 import { handleTabListKeyDown, tabIndexFor } from "./a11y.js";
 import { GROUP_AUDIT_TYPES, GROUP_AUDIT_TYPE_KEYS, canMoveWorkspaceItem, collectGroupOutstandingEntries, formatDate,
-  groupProgress, makeGroupMember, memberIsReady, memberProgressPercentage, normalizeTemplateTags, outstandingIsOpen, projectStats,
+  engagementTypeLabel, groupProgress, makeGroupMember, memberIsReady, memberProgressPercentage, normalizeTemplateTags, outstandingIsOpen, projectStats,
   fiscalPeriodShortLabel, reportingPeriodLabel, uid } from "./model.js";
 import { useUiLanguage } from "./i18n.jsx";
 
@@ -161,6 +161,21 @@ function EntityWorkspaceTree({ store, selection, onSelect, onMove, search, filte
   const draggingRef = React.useRef(null);
   const entityById = new Map(store.entities.map((entity) => [entity.id, entity]));
   const entityOrder = new Map((store.entityOrder || []).map((id, index) => [id, index]));
+  React.useEffect(() => {
+    if (!["project", "group"].includes(selection?.kind)) return;
+    const engagement = store.engagements.find((item) => item.id === selection.id);
+    if (!engagement?.entityId) return;
+    setExpanded((current) => {
+      const next = new Set(current);
+      let entity = store.entities.find((item) => item.id === engagement.entityId);
+      let changed = false;
+      while (entity) {
+        if (!next.has(entity.id)) { next.add(entity.id); changed = true; }
+        entity = store.entities.find((item) => item.id === entity.parentEntityId);
+      }
+      return changed ? next : current;
+    });
+  }, [selection?.kind, selection?.id, store.engagements, store.entities]);
   const query = search.trim().toLocaleLowerCase();
   const entityEngagements = (entityId) => store.engagements.filter((engagement) => engagement.entityId === entityId)
     .sort((left, right) => (right.periodEnd || "").localeCompare(left.periodEnd || "")
@@ -176,7 +191,7 @@ function EntityWorkspaceTree({ store, selection, onSelect, onMove, search, filte
     const complete = engagementComplete(engagement, entity);
     if (filter === "active" && complete) return false;
     if (filter === "completed" && !complete) return false;
-    if (query && ![entity.legalName, engagement.internalName, engagement.owner,
+    if (query && ![entity.legalName, engagement.engagementType, engagement.internalName, engagement.owner,
       fiscalPeriodShortLabel(engagement, language), reportingPeriodLabel(engagement, language)]
       .some((value) => String(value || "").toLocaleLowerCase().includes(query))) return false;
     return true;
@@ -246,7 +261,8 @@ function EntityWorkspaceTree({ store, selection, onSelect, onMove, search, filte
       onClick={() => onSelect({ kind, id: engagement.id, entityId: entity.id })}>
       <span className="tree-kind-mark"><CalendarDays aria-hidden="true" /></span><span className="tree-copy">
         <strong>{fiscalPeriodShortLabel(engagement, language) || t("未设置报告期间")}</strong>
-        <small>{[engagement.internalName, engagement.owner].filter(Boolean).join(" · ") || t(complete ? "已完成" : "进行中")}</small></span>
+        <small>{[engagementTypeLabel(engagement.engagementType, language), engagement.owner]
+          .filter(Boolean).join(" · ") || t(complete ? "已完成" : "进行中")}</small></span>
       {outstanding > 0 && <em>{outstanding}</em>}<span className="tree-progress">{complete ? "✓" : entity.kind === "company"
         ? `${projectStats(store.projects.find((item) => item.id === engagement.id) || { workstreams: [] }).percentage}%` : `${groupProgress(store, engagement.id).percentage}%`}</span>
     </button>;
@@ -300,7 +316,7 @@ function LegacyWorkspaceTree({ store, selection, onSelect, onMove, search, filte
     .filter((member) => member.kind === "group" && store.groups.some((child) => child.id === member.refId
       && child.archived === archiveMode)).map((member) => member.refId)));
   const query = search.trim().toLowerCase();
-  const matchesText = (item) => !query || [item.name, item.entity, item.reportingFramework, item.period, item.periodStart,
+  const matchesText = (item) => !query || [item.name, item.entity, item.engagementType, item.reportingFramework, item.period, item.periodStart,
     item.periodEnd, reportingPeriodLabel(item, language), item.owner]
     .some((value) => value?.toLowerCase().includes(query));
   const visibleProject = (project) => itemMatchesFilter(project, "project", filter, store) && matchesText(project);
@@ -361,7 +377,7 @@ function LegacyWorkspaceTree({ store, selection, onSelect, onMove, search, filte
       onDragStart={(event) => beginDrag(event, "project", project.id)} onDragEnd={finishDrag}
       onClick={() => onSelect({ kind: "project", id: project.id })}>
       <span className="tree-kind-mark"><Building aria-hidden="true" /></span><span className="tree-copy"><strong>{project.entity || project.name}</strong>
-        <small>{[project.name !== project.entity ? project.name : "", project.owner].filter(Boolean).join(" · ")
+        <small>{[engagementTypeLabel(project.engagementType, language), project.name !== project.entity ? project.name : "", project.owner].filter(Boolean).join(" · ")
           || reportingPeriodLabel(project, language) || t("尚未填写项目资料")}</small></span>
       {outstanding > 0 && <em>{outstanding}</em>}<span className="tree-progress">{stats.completedWorkstreams}/{stats.workstreams}</span>
     </button>;
@@ -477,7 +493,7 @@ export function GroupMatrix({ store, group, statuses, onOpen, onConfigure, readO
               <small>{target.entity || reportingPeriodLabel(target, language) || t(isGroup ? "子集团" : "公司项目")}</small></span></button></div>
           <span role="cell">{member.role || t(isGroup ? "子集团" : "组成部分")}</span>
           <span role="cell">{isGroup ? t(target.consolidationEnabled ? "子集团合并" : "分类集团") : t(auditTypeKeys[member.auditType])}</span>
-          <span role="cell">{target.owner || "—"}</span><span role="cell" className="matrix-progress"><strong>{percentage}%</strong>
+          <span role="cell">{target.owner || "—"}</span><span role="cell" className="matrix-progress">
             <ProgressBar value={percentage} compact /></span>
           <span role="cell"><i className="readiness-pill" data-ready={ready || undefined}>{t(ready ? "已就绪" : "未就绪")}</i>
             {!isGroup && <small>{completedReadiness}/{member.readinessConditions.length}</small>}</span>

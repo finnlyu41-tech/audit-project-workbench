@@ -20,6 +20,7 @@ import {
   deadlineAlerts,
   duplicateSample,
   emptyStore,
+  engagementTypeLabel,
   engagementPeriodExists,
   engagementsForEntity,
   fiscalPeriodForYear,
@@ -56,6 +57,7 @@ import {
   reconcileWorkbenchStore,
   redactSampleCompanies,
   reorderWorkspaceSchedule,
+  reorderWorkstreams,
   reportingPeriodLabel,
   reviseTaxDeadline,
   taxDeadlineCategoryLabel,
@@ -65,6 +67,7 @@ import {
   workstreamCategoryLabel,
   workspaceScheduleOrder,
   workstreamTypeLabel,
+  yearEndOrPeriodLabel,
 } from "../src/dashboard/model.js";
 
 const projectValues = {
@@ -1019,6 +1022,36 @@ test("formal period labels show a year-end date for full years and DOI wording f
     "期間：2025年4月1日（DOI）至2025年12月31日");
   assert.equal(formalReportingPeriodLabel({ periodPreset: "custom", periodStart: "2025-07-01", periodEnd: "2025-12-31" }, "en"),
     "For the period from July 1, 2025 to December 31, 2025");
+  assert.equal(yearEndOrPeriodLabel({ periodPreset: "calendar", periodStart: "2025-01-01", periodEnd: "2025-12-31" }, "en"),
+    "YE December 31, 2025");
+  assert.equal(yearEndOrPeriodLabel({ periodPreset: "doi_year_end", periodStart: "2025-04-01", periodEnd: "2025-12-31" }, "en"),
+    "For the period from April 1, 2025 (DOI) to December 31, 2025");
+});
+
+test("engagement types are preserved, inferred for legacy records and localised without changing custom text", () => {
+  const store = emptyStore();
+  const entity = makeEntity({ legalName: "Type Limited" });
+  const bookkeeping = makeEngagement({ entityId: entity.id, engagementType: "Bookkeeping",
+    periodStart: "2025-01-01", periodEnd: "2025-12-31" }, {
+    entity, store, sourceMode: "blank", workstreamCategories: store.workstreamCategories,
+    outstandingStatuses: store.outstandingStatuses,
+  });
+  assert.equal(bookkeeping.engagementType, "Bookkeeping");
+  assert.equal(engagementTypeLabel(bookkeeping.engagementType, "zh-Hant"), "賬務處理");
+  assert.equal(engagementTypeLabel("Marine compliance", "zh-Hant"), "Marine compliance");
+  const legacy = normalizeStore({ ...store, projects: undefined, groups: undefined, entities: [entity], engagements: [{ ...bookkeeping,
+    engagementType: undefined, workstreams: [makeWorkstream({ type: "audit" }, [])] }] });
+  assert.equal(legacy.engagements[0].engagementType, "Audit");
+});
+
+test("workstream reordering supports before and after positions without mutating the source", () => {
+  const workstreams = ["audit", "tax", "bookkeeping"].map((id) => ({ id }));
+  const reordered = reorderWorkstreams(workstreams, "bookkeeping", "audit", "before");
+  assert.deepEqual(reordered.map((item) => item.id), ["bookkeeping", "audit", "tax"]);
+  assert.deepEqual(workstreams.map((item) => item.id), ["audit", "tax", "bookkeeping"]);
+  assert.deepEqual(reorderWorkstreams(workstreams, "audit", "tax", "after").map((item) => item.id),
+    ["tax", "audit", "bookkeeping"]);
+  assert.equal(reorderWorkstreams(workstreams, "missing", "tax"), workstreams);
 });
 
 test("built-in workflows use a small number of milestone completion gates", () => {
@@ -1086,7 +1119,8 @@ test("new-year copy keeps structure and framework while clearing owners dates st
   const store = emptyStore();
   const entity = makeEntity({ legalName: "Carry Forward Limited" });
   const source = makeEngagement({ entityId: entity.id, periodStart: "2024-01-01", periodEnd: "2024-12-31",
-    reportingFramework: "HKFRS Accounting Standards", workstreamSelections: [{ type: "audit", categoryId: "audit" }] },
+    engagementType: "Bookkeeping", reportingFramework: "HKFRS Accounting Standards",
+    workstreamSelections: [{ type: "audit", categoryId: "audit" }] },
   { entity, store, sourceMode: "template", samples: store.samples, workstreamCategories: store.workstreamCategories,
     outstandingStatuses: store.outstandingStatuses });
   source.owner = "Old owner";
@@ -1102,6 +1136,7 @@ test("new-year copy keeps structure and framework while clearing owners dates st
   });
 
   assert.equal(copied.reportingFramework, "HKFRS Accounting Standards");
+  assert.equal(copied.engagementType, "Bookkeeping");
   assert.equal(copied.owner, "");
   assert.equal(copied.startDate, "");
   assert.equal(copied.dueDate, "");

@@ -174,9 +174,12 @@ function recordRow(store, kind, record, now) {
     kind,
     id: record.id,
     entityId: record.entityId || null,
-    name: Array.isArray(store?.engagements)
-      ? `${kind === "project" ? record.entity || record.name : record.name} · ${fiscalPeriodShortLabel(record, "en")}`
-      : kind === "project" ? record.entity || record.name : record.name,
+    name: kind === "project" ? record.entity || record.name : record.name,
+    periodLabel: Array.isArray(store?.engagements) ? fiscalPeriodShortLabel(record, "en") : "",
+    periodPreset: record.periodPreset || "custom",
+    periodStart: record.periodStart || "",
+    periodEnd: record.periodEnd || "",
+    engagementType: record.engagementType || "",
     secondaryName: kind === "project" && record.entity && record.name !== record.entity ? record.name : "",
     owner: record.owner || "",
     startDate: record.startDate || "",
@@ -282,6 +285,7 @@ function projectRecordReport(store, project, now) {
     id: project.id,
     name: project.entity || project.name,
     secondaryName: project.entity && project.name !== project.entity ? project.name : "",
+    engagementType: project.engagementType || "",
     owner: project.owner,
     periodStart: project.periodStart,
     periodEnd: project.periodEnd,
@@ -419,6 +423,7 @@ export function buildRecordReport(store, kind, id, nowValue = new Date()) {
         const complete = viewKind === "group" ? Boolean(view && groupProgress(store, engagement.id).ready)
           : Boolean(view && projectStats(view).complete);
         return { id: engagement.id, kind: viewKind, label: fiscalPeriodShortLabel(engagement, "en"),
+          engagementType: engagement.engagementType || "",
           periodStart: engagement.periodStart, periodEnd: engagement.periodEnd, owner: engagement.owner,
           startDate: engagement.startDate, dueDate: engagement.dueDate, archived: engagement.archived, complete };
       });

@@ -6,6 +6,27 @@ The project follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.6.2] - 2026-09-04
+
+### Added
+
+- Customisable annual-engagement types, shown with every financial year in navigation, schedules and management reports.
+- Saved drag-and-drop ordering for workstreams, workflow stages and completion criteria, with keyboard alternatives.
+- “Apply to all workstreams” when changing an engagement owner.
+- Persistent drag handles for resizing the company navigation and schedule identity columns.
+
+### Changed
+
+- Replaced linear progress bars with compact green circular progress rings throughout the workbench; schedule duration bars remain horizontal.
+- Workstream stages now open only after selecting their parent workstream, and stage details toggle open or closed from the selected stage.
+- Schedule and portfolio views group annual engagements under one company and separate the company name from each year-end or reporting-period label.
+- Removed internal project-name and project-note fields from the annual-engagement form while preserving existing stored values for compatibility.
+
+### Fixed
+
+- Long workstream names, company names, period labels and report cells now wrap or reveal their full value instead of colliding with neighbouring controls.
+- Selected annual engagements automatically reveal their company ancestry without forcing unrelated navigation groups open.
+
 ## [0.6.1] - 2026-09-04
 
 ### Added

@@ -129,6 +129,78 @@ test("workspace back and forward buttons revisit app views without changing data
   expect((await readStoredWorkspace(page)).engagements).toHaveLength(1);
 });
 
+test("workstreams can be dragged into a new saved order", async ({ page }) => {
+  await openWorkbench(page, workspaceFixture());
+  const auditCard = page.locator(".workstream-card").filter({ hasText: "Audit" });
+  const taxCard = page.locator(".workstream-card").filter({ hasText: "Tax computation & filing" });
+  await taxCard.locator(".workstream-drag-handle").dragTo(auditCard, { targetPosition: { x: 4, y: 20 } });
+  await expect(page.locator(".workstream-card").first()).toContainText("Tax computation & filing");
+  let stored = await readStoredWorkspace(page);
+  expect(stored.engagements[0].workstreams.map((workstream) => workstream.type)).toEqual(["tax_computation_filing", "audit"]);
+  await page.reload();
+  await expect(page.locator(".workstream-card").first()).toContainText("Tax computation & filing");
+});
+
+test("workstream stages and completion criteria can be expanded, collapsed and dragged into a saved order", async ({ page }) => {
+  await openWorkbench(page, workspaceFixture());
+  const auditCard = page.locator(".workstream-card").filter({ hasText: "Audit" });
+  await expect(page.locator(".workflow-panel")).toHaveCount(0);
+  await auditCard.locator(".workstream-card-select").click();
+  await expect(page.locator(".workflow-panel")).toBeVisible();
+  await auditCard.locator(".workstream-card-select").click();
+  await expect(page.locator(".workflow-panel")).toHaveCount(0);
+  await auditCard.locator(".workstream-card-select").click();
+
+  const setupStage = page.locator(".node-track-card").filter({ hasText: "Engagement setup" });
+  const executionStage = page.locator(".node-track-card").filter({ hasText: "Audit execution" });
+  await executionStage.dragTo(setupStage, { targetPosition: { x: 4, y: 20 } });
+  await expect(page.locator(".node-track-card").first()).toContainText("Audit execution");
+  await setupStage.click();
+  await expect(page.locator(".node-detail-panel")).toBeVisible();
+  await setupStage.click();
+  await expect(page.locator(".node-detail-panel")).toHaveCount(0);
+  await setupStage.click();
+
+  const scope = page.locator(".condition-row").filter({ hasText: "Scope confirmed" });
+  const independence = page.locator(".condition-row").filter({ hasText: "Independence confirmed" });
+  await independence.locator(".condition-drag-handle").dragTo(scope, { targetPosition: { x: 20, y: 2 } });
+  await expect(page.locator(".condition-row").first()).toContainText("Independence confirmed");
+  let stored = await readStoredWorkspace(page);
+  let audit = stored.engagements[0].workstreams.find((workstream) => workstream.type === "audit");
+  expect(audit.nodes.map((node) => node.title)).toEqual(["Audit execution", "Engagement setup"]);
+  expect(audit.nodes[1].conditions.map((condition) => condition.label)).toEqual(["Independence confirmed", "Scope confirmed"]);
+
+  await page.reload();
+  await page.locator(".workstream-card").filter({ hasText: "Audit" }).locator(".workstream-card-select").click();
+  await expect(page.locator(".node-track-card").first()).toContainText("Audit execution");
+  await page.locator(".node-track-card").filter({ hasText: "Engagement setup" }).click();
+  await expect(page.locator(".condition-row").first()).toContainText("Independence confirmed");
+});
+
+test("owner quick edit can apply one owner to every workstream", async ({ page }) => {
+  await openWorkbench(page, workspaceFixture());
+  await page.locator(".detail-facts > .detail-fact").first().getByRole("button").click();
+  const dialog = page.getByRole("dialog", { name: /Owner/ });
+  await dialog.getByLabel("Owner", { exact: true }).fill("Morgan Lee");
+  await dialog.getByRole("checkbox", { name: /Apply to all workstreams/ }).check();
+  await dialog.getByRole("button", { name: "Save" }).click();
+  const stored = await readStoredWorkspace(page);
+  expect(stored.engagements[0].owner).toBe("Morgan Lee");
+  expect(stored.engagements[0].workstreams.every((workstream) => workstream.owner === "Morgan Lee")).toBe(true);
+});
+
+test("a custom engagement type is saved and visible below the year in navigation", async ({ page }) => {
+  await openWorkbench(page, workspaceFixture());
+  await page.getByRole("button", { name: "Edit annual engagement" }).click();
+  const dialog = page.getByRole("dialog", { name: /Edit annual engagement/ });
+  await expect(dialog.getByLabel("Internal engagement name (optional)")).toHaveCount(0);
+  await expect(dialog.getByLabel("Project notes")).toHaveCount(0);
+  await dialog.getByLabel("Engagement type").fill("Marine bookkeeping");
+  await dialog.getByRole("button", { name: "Save engagement" }).click();
+  await expect(page.locator(".tree-engagement-row")).toContainText("Marine bookkeeping");
+  expect((await readStoredWorkspace(page)).engagements[0].engagementType).toBe("Marine bookkeeping");
+});
+
 test("holding relationship fields appear only after a parent holding company is chosen", async ({ page }) => {
   await openWorkbench(page, hierarchyFixture());
   await page.locator(".tree-entity-row").filter({ hasText: "Standalone Company Limited" }).click();
@@ -157,20 +229,22 @@ test("progress, outstanding items and tax deadlines remain independent", async (
   await openWorkbench(page, workspaceFixture());
   const auditCard = page.locator(".workstream-card").filter({ hasText: "Audit" });
   const taxCard = page.locator(".workstream-card").filter({ hasText: "Tax computation & filing" });
-  await expect(auditCard.locator(".workstream-card-progress strong")).toHaveText("0%");
-  await expect(taxCard.locator(".workstream-card-progress strong")).toHaveText("0%");
+  await expect(auditCard.locator(".workstream-card-progress [role='progressbar']")).toHaveAttribute("aria-valuenow", "0");
+  await expect(taxCard.locator(".workstream-card-progress [role='progressbar']")).toHaveAttribute("aria-valuenow", "0");
 
+  await auditCard.locator(".workstream-card-select").click();
+  await page.locator(".node-track-card").filter({ hasText: "Engagement setup" }).click();
   await page.getByRole("checkbox", { name: "Scope confirmed" }).check();
-  await expect(auditCard.locator(".workstream-card-progress strong")).not.toHaveText("0%");
-  await expect(taxCard.locator(".workstream-card-progress strong")).toHaveText("0%");
-  const auditProgress = await auditCard.locator(".workstream-card-progress strong").textContent();
+  await expect(auditCard.locator(".workstream-card-progress [role='progressbar']")).not.toHaveAttribute("aria-valuenow", "0");
+  await expect(taxCard.locator(".workstream-card-progress [role='progressbar']")).toHaveAttribute("aria-valuenow", "0");
+  const auditProgress = await auditCard.locator(".workstream-card-progress [role='progressbar']").getAttribute("aria-valuenow");
 
   await page.getByRole("button", { name: "Add outstanding item" }).click();
   const outstandingDialog = page.getByRole("dialog", { name: "Add outstanding item" });
   await outstandingDialog.getByLabel("Outstanding item *").fill("Signed representation letter missing");
   await outstandingDialog.getByRole("button", { name: "Save outstanding item" }).click();
   await expect(page.getByText("Signed representation letter missing")).toBeVisible();
-  await expect(auditCard.locator(".workstream-card-progress strong")).toHaveText(auditProgress);
+  await expect(auditCard.locator(".workstream-card-progress [role='progressbar']")).toHaveAttribute("aria-valuenow", auditProgress);
 
   await page.locator(".tax-deadline-fact").getByRole("button", { name: "Add tax deadline" }).click();
   const deadlineDialog = page.getByRole("dialog", { name: "Tax deadlines" });

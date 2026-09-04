@@ -100,6 +100,62 @@ test("project schedule rows support direct date editing and persistent drag orde
   assert.match(css, /\.schedule-row-meta\[data-drop-position="before"\]/);
 });
 
+test("company navigation and schedule metadata columns are resizable and remember their width", () => {
+  assert.match(workbench, /NAVIGATION_WIDTH_KEY = "audit-progress-workbench:navigation-width"/);
+  assert.match(workbench, /className="project-panel-resizer" role="separator"/);
+  assert.match(workbench, /--project-panel-width/);
+  assert.match(css, /grid-template-columns:\s*var\(--project-panel-width/);
+  assert.match(timeline, /SCHEDULE_META_WIDTH_KEY = "audit-progress-workbench:schedule-meta-width"/);
+  assert.match(timeline, /className="schedule-column-resizer" role="separator"/);
+  assert.match(css, /grid-template-columns:\s*var\(--schedule-meta-width/);
+  assert.match(css, /\.project-panel-resizer[\s\S]*?cursor:\s*col-resize/);
+  assert.match(css, /\.schedule-column-resizer[\s\S]*?cursor:\s*col-resize/);
+});
+
+test("workstream cards reorder directly and contain long text inside each card", () => {
+  assert.match(components, /className="workstream-drag-handle icon-only" draggable="true"/);
+  assert.match(workbench, /reorderWorkstreams\(project\.workstreams, sourceId, targetId, position\)/);
+  assert.match(css, /\.workstream-card\s*{[^}]*overflow:\s*hidden/);
+  assert.match(css, /\.workstream-card-top strong, \.workstream-card-top small\s*{[^}]*overflow-wrap:\s*anywhere/);
+  assert.match(css, /\.workstream-card-meta\s*{[^}]*flex-wrap:\s*wrap/);
+});
+
+test("workstreams and stages disclose one level at a time while stages and criteria remain draggable", () => {
+  assert.match(workbench, /current === workstream\.id \? null : workstream\.id/);
+  assert.match(components, /setSelectedId\(\(current\) => current === node\.id \? null : node\.id\)/);
+  assert.match(components, /draggable={!readOnly} onDragStart={\(event\) => beginNodeDrag/);
+  assert.match(components, /className="condition-drag-handle icon-only" draggable="true"/);
+  assert.match(workbench, /reorderCondition:[\s\S]*?reorderWorkstreams\(node\.conditions/);
+  assert.match(css, /\.condition-row\[data-drop-position="before"\]/);
+});
+
+test("completion progress uses one compact green ring instead of horizontal bars", () => {
+  assert.match(components, /--progress-angle/);
+  assert.match(css, /\.progress-track\s*{[^}]*border-radius:\s*50%;[^}]*conic-gradient/);
+  assert.match(css, /\.progress-track\[data-compact\]\s*{[^}]*width:\s*32px/);
+  assert.doesNotMatch(css, /\.progress-track > span\s*{[^}]*width:/);
+});
+
+test("annual engagement forms omit internal names and project notes", () => {
+  assert.doesNotMatch(v11Components, /<span>{t\("内部项目名称（可选）"\)}<\/span>/);
+  assert.doesNotMatch(v11Components, /<span>{t\("项目备注"\)}<\/span>/);
+});
+
+test("annual engagements expose a customisable type throughout navigation and reporting", () => {
+  assert.match(v11Components, /list="v11-engagement-type-options"/);
+  assert.match(v11Components, /value={values\.engagementType}/);
+  assert.match(groupComponents, /engagementTypeLabel\(engagement\.engagementType, language\)/);
+  assert.match(managementReport, /className="management-company-cell" rowSpan={group\.rows\.length}/);
+  assert.match(managementReport, /className="management-period-cell"/);
+  assert.match(managementReport, /engagementTypeLabel\(row\.engagementType, language\)/);
+});
+
+test("owner quick edit can apply the same person to every workstream", () => {
+  assert.match(v11Components, /className="check-option apply-owner-option"/);
+  assert.match(v11Components, /applyOwnerToWorkstreams:\s*quickField === "owner"/);
+  assert.match(workbench, /engagement\.workstreams\.map\(\(workstream\) => \(\{ \.\.\.workstream,[\s\S]*?owner:\s*values\.owner/);
+});
+
 test("overdue deadlines use a compact global badge and open a navigable alert list", () => {
   assert.match(workbench, /className="app-rail-button deadline-alert-trigger"/);
   assert.match(workbench, /<strong className="app-rail-badge">/);

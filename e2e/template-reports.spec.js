@@ -1,5 +1,6 @@
 import fs from "node:fs/promises";
 import { expect, test } from "@playwright/test";
+import { canonicalStorePayload, emptyStore, makeEngagement, makeEntity } from "../src/dashboard/model.js";
 import { openWorkbench, readStoredWorkspace, workspaceFixture } from "./helpers.js";
 
 test("exports a portable template package and imports an explicit replacement without changing an existing project", async ({ page }) => {
@@ -79,4 +80,27 @@ test("management reports filter the portfolio, show a current record and invoke 
   await expect(page.locator(".management-report").getByText("DO NOT PRINT THIS NOTE")).toHaveCount(0);
   await page.getByRole("button", { name: "Print report" }).click();
   await expect.poll(() => page.evaluate(() => document.documentElement.dataset.printInvoked)).toBe("true");
+});
+
+test("portfolio detail groups multiple annual engagements under one company", async ({ page }) => {
+  const store = emptyStore();
+  const entity = makeEntity({ legalName: "Grouped Years Limited" });
+  store.entities.push(entity);
+  for (const year of [2023, 2024, 2025]) {
+    const engagement = makeEngagement({ entityId: entity.id, engagementType: year === 2025 ? "Bookkeeping" : "Audit",
+      periodStart: `${year}-01-01`, periodEnd: `${year}-12-31`, periodPreset: "calendar" }, {
+      entity, store, sourceMode: "blank", workstreamCategories: store.workstreamCategories,
+      outstandingStatuses: store.outstandingStatuses,
+    });
+    store.engagements.push(engagement);
+  }
+  await openWorkbench(page, canonicalStorePayload(store));
+  await page.getByRole("button", { name: "Management reports" }).click();
+  await expect(page.locator(".management-company-cell")).toHaveCount(1);
+  await expect(page.locator(".management-company-cell")).toContainText("3 annual engagements");
+  await expect(page.locator(".management-report-table tbody tr")).toHaveCount(3);
+  await expect(page.locator(".management-period-cell strong")).toHaveText([
+    "YE December 31, 2023", "YE December 31, 2024", "YE December 31, 2025",
+  ]);
+  await expect(page.locator(".management-period-cell").last()).toContainText("Bookkeeping");
 });

@@ -1,12 +1,14 @@
 import React from "react";
 import { AlertTriangle, ArrowDown, ArrowUp, ArrowUpDown, BarChart3, Building, Building2, CalendarRange, CircleAlert, Layers3, Printer, ReceiptText } from "lucide-react";
 import {
+  engagementTypeLabel,
   formatDate,
   outstandingStatusLabel,
   reportingPeriodLabel,
   taxDeadlineCategoryLabel,
   workstreamCategoryLabel,
   workstreamTypeLabel,
+  yearEndOrPeriodLabel,
 } from "./model.js";
 import { buildPortfolioReport, buildRecordReport, DEFAULT_MANAGEMENT_REPORT_FILTERS } from "./reporting.js";
 import { handleTabListKeyDown, tabIndexFor } from "./a11y.js";
@@ -99,26 +101,42 @@ function PortfolioTable({ report, onOpen }) {
       return (sort.direction === "asc" ? compared : -compared) || left.name.localeCompare(right.name);
     });
   }, [language, report.rows, sort]);
+  const groups = React.useMemo(() => {
+    const grouped = new Map();
+    rows.forEach((row) => {
+      const key = row.entityId || `${row.kind}:${row.name}`;
+      if (!grouped.has(key)) grouped.set(key, { key, name: row.name, kind: row.kind, rows: [] });
+      grouped.get(key).rows.push(row);
+    });
+    return [...grouped.values()];
+  }, [rows]);
   return <section className="management-report-section"><header><div><h3>{t("项目组合明细")}</h3>
     <span>{t("{count} 项记录", { count: report.rows.length })}</span></div></header>
     {report.rows.length ? <div className="management-table-scroll"><table className="management-report-table"><thead><tr>
       <SortableHeading name="name" label={t("公司／控股公司")} sort={sort} onSort={toggleSort} />
+      <th>{t("年结／报告期间")}</th>
       <SortableHeading name="owner" label={t("负责人")} sort={sort} onSort={toggleSort} />
       <SortableHeading name="hierarchy" label={t("所属层级")} sort={sort} onSort={toggleSort} />
       <SortableHeading name="schedule" label={t("项目排期")} sort={sort} onSort={toggleSort} />
       <SortableHeading name="progress" label={t("进度")} sort={sort} onSort={toggleSort} />
       <SortableHeading name="outstanding" label={t("待清")} sort={sort} onSort={toggleSort} />
       <SortableHeading name="tax" label={t("税务期限")} sort={sort} onSort={toggleSort} /></tr></thead><tbody>
-      {rows.map((row) => <tr key={`${row.kind}:${row.id}`} data-urgency={row.deliveryUrgency}>
-        <td><button type="button" onClick={() => onOpen(row.kind, row.id)}><span className="report-record-icon">
-          {row.kind === "group" ? <Building2 aria-hidden="true" /> : <Building aria-hidden="true" />}</span><span><strong>{row.name}</strong>
-          <small>{recordTypeLabel(row.kind, t)}{row.secondaryName ? ` · ${row.secondaryName}` : ""}</small></span></button></td>
+      {groups.flatMap((group) => group.rows.map((row, index) => <tr key={`${row.kind}:${row.id}`} data-urgency={row.deliveryUrgency}>
+        {index === 0 && <td className="management-company-cell" rowSpan={group.rows.length}><button type="button"
+          onClick={() => onOpen(row.kind, row.id)}><span className="report-record-icon">
+            {group.kind === "group" ? <Building2 aria-hidden="true" /> : <Building aria-hidden="true" />}</span><span>
+            <strong>{group.name}</strong><small>{recordTypeLabel(group.kind, t)} · {t("{count} 个年度项目", { count: group.rows.length })}</small>
+          </span></button></td>}
+        <td className="management-period-cell"><button type="button" onClick={() => onOpen(row.kind, row.id)}>
+          <strong>{yearEndOrPeriodLabel(row, language) || row.periodLabel || t("未设置报告期间")}</strong>
+          <small>{engagementTypeLabel(row.engagementType, language) || t("项目类型未设置")}
+            {row.secondaryName ? ` · ${row.secondaryName}` : ""}</small></button></td>
         <td>{row.owner || "—"}</td><td>{row.hierarchy.length ? row.hierarchy.map((item) => item.name).join(" / ") : t("顶层")}</td>
         <td><span>{formatDate(row.startDate, language)} → {formatDate(row.dueDate, language)}</span>
           <small data-urgency={row.deliveryUrgency}>{urgencyLabel(row.deliveryUrgency, t)}</small></td>
         <td>{row.kind === "project" ? t("{done}/{total} 个模块", { done: row.completedWorkstreams, total: row.totalWorkstreams })
           : `${row.progress}%`}</td><td>{row.openOutstanding}</td><td><span>{row.taxAttention}/{row.taxOpen}</span>
-          {row.taxUrgency !== "none" && <small data-urgency={row.taxUrgency}>{urgencyLabel(row.taxUrgency, t)}</small>}</td></tr>)}</tbody></table></div>
+          {row.taxUrgency !== "none" && <small data-urgency={row.taxUrgency}>{urgencyLabel(row.taxUrgency, t)}</small>}</td></tr>))}</tbody></table></div>
       : <div className="management-report-empty"><strong>{t("没有符合筛选的记录")}</strong><span>{t("调整筛选条件后再查看。")}</span></div>}
   </section>;
 }
@@ -148,7 +166,9 @@ function ProjectRecordReport({ report, statuses }) {
   const { language, t } = useUiLanguage();
   const period = reportingPeriodLabel(report, language) || t("未设置");
   return <>
-    <section className="record-report-facts"><div><span>{t("负责人")}</span><strong>{report.owner || t("未设置")}</strong></div>
+    <section className="record-report-facts"><div><span>{t("项目类型")}</span><strong>
+      {engagementTypeLabel(report.engagementType, language) || t("项目类型未设置")}</strong></div>
+      <div><span>{t("负责人")}</span><strong>{report.owner || t("未设置")}</strong></div>
       <div><span>{t("报告期间")}</span><strong>{period}</strong></div><div><span>{t("财务报告准则／框架")}</span>
         <strong>{report.reportingFramework ? t(report.reportingFramework) : t("未设置")}</strong></div><div><span>{t("项目排期")}</span>
         <strong>{formatDate(report.startDate, language)} → {formatDate(report.dueDate, language)}</strong></div></section>
@@ -192,8 +212,9 @@ function EntityRecordReport({ report, statuses }) {
       <div><span>{t("年度项目")}</span><strong>{report.projects.length}</strong></div><div><span>{t("未完成税务期限")}</span><strong>{report.taxDeadlines.length}</strong></div></section>
     <section className="management-report-section"><header><div><h3>{t("历年项目")}</h3><span>{t("报告期间、负责人、排期和状态")}</span></div></header>
       {report.projects.length ? <div className="management-table-scroll"><table className="management-report-table"><thead><tr>
-        <th>{t("报告期间")}</th><th>{t("负责人")}</th><th>{t("项目排期")}</th><th>{t("状态")}</th></tr></thead><tbody>
+        <th>{t("报告期间")}</th><th>{t("项目类型")}</th><th>{t("负责人")}</th><th>{t("项目排期")}</th><th>{t("状态")}</th></tr></thead><tbody>
         {report.projects.map((project) => <tr key={project.id}><td><strong>{project.label}</strong><small>{formatDate(project.periodStart, language)} → {formatDate(project.periodEnd, language)}</small></td>
+          <td>{engagementTypeLabel(project.engagementType, language) || t("项目类型未设置")}</td>
           <td>{project.owner || "—"}</td><td>{formatDate(project.startDate, language)} → {formatDate(project.dueDate, language)}</td>
           <td>{t(project.archived ? "归档" : project.complete ? "已完成" : "进行中")}</td></tr>)}</tbody></table></div>
         : <div className="management-report-empty compact"><strong>{t("这家公司还没有年度项目")}</strong></div>}</section>

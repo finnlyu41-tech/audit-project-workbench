@@ -1,10 +1,28 @@
 import React from "react";
 import { Building, Building2, CalendarClock, CircleAlert, GripVertical, LocateFixed, ReceiptText } from "lucide-react";
-import { formatDate, groupProgress, projectStats, taxDeadlineCategoryLabel, taxDeadlineUrgency,
-  fiscalPeriodShortLabel, workspaceScheduleOrder } from "./model.js";
+import { engagementTypeLabel, formatDate, groupProgress, projectStats, taxDeadlineCategoryLabel, taxDeadlineUrgency,
+  workspaceScheduleOrder, yearEndOrPeriodLabel } from "./model.js";
 import { useUiLanguage } from "./i18n.jsx";
 
 const DAY_MS = 86400000;
+const SCHEDULE_META_WIDTH_KEY = "audit-progress-workbench:schedule-meta-width";
+const DEFAULT_META_WIDTH = 310;
+const MIN_META_WIDTH = 250;
+const MAX_META_WIDTH = 560;
+
+function clampMetaWidth(value) {
+  return Math.min(MAX_META_WIDTH, Math.max(MIN_META_WIDTH, Math.round(Number(value) || DEFAULT_META_WIDTH)));
+}
+
+function savedMetaWidth() {
+  try { return clampMetaWidth(window.localStorage.getItem(SCHEDULE_META_WIDTH_KEY)); }
+  catch { return DEFAULT_META_WIDTH; }
+}
+
+function saveMetaWidth(value) {
+  try { window.localStorage.setItem(SCHEDULE_META_WIDTH_KEY, String(clampMetaWidth(value))); }
+  catch { /* Layout preferences can safely fall back to the default width. */ }
+}
 
 function parseDate(value) {
   if (!value) return null;
@@ -60,8 +78,10 @@ function scheduleRows(store, filter, language = "en") {
       const row = {
         id: engagement.id,
         kind,
-        name: `${entity.legalName} · ${fiscalPeriodShortLabel(engagement, language)}`,
-        secondaryName: engagement.internalName || "",
+        name: entity.legalName,
+        periodLabel: yearEndOrPeriodLabel(engagement, language),
+        engagementType: engagement.engagementType || "",
+        secondaryName: "",
         owner: engagement.owner,
         startDate: engagement.startDate,
         dueDate: engagement.dueDate,
@@ -138,8 +158,11 @@ export function ProjectSchedule({ store, filter, onOpen, onEditSchedule, onOpenT
   const { language, t } = useUiLanguage();
   const scrollRef = React.useRef(null);
   const draggingRef = React.useRef(null);
+  const resizeRef = React.useRef(null);
   const [draggingKey, setDraggingKey] = React.useState(null);
   const [dropTarget, setDropTarget] = React.useState(null);
+  const [metaWidth, setMetaWidth] = React.useState(savedMetaWidth);
+  const [resizingMeta, setResizingMeta] = React.useState(false);
   const rows = React.useMemo(() => scheduleRows(store, filter, language), [store, filter, language]);
   const timeline = React.useMemo(() => makeTimeline(rows), [rows]);
   const width = timeline.weekCount * timeline.weekWidth;
@@ -186,6 +209,64 @@ export function ProjectSchedule({ store, filter, onOpen, onEditSchedule, onOpenT
     event.preventDefault();
     onReorder?.(key, `${target.kind}:${target.id}`, event.key === "ArrowUp" ? "before" : "after");
   };
+  const beginMetaResize = (event) => {
+    event.preventDefault();
+    resizeRef.current = { pointerId: event.pointerId, startX: event.clientX, startWidth: metaWidth, currentWidth: metaWidth };
+    event.currentTarget.setPointerCapture(event.pointerId);
+    setResizingMeta(true);
+  };
+  const resizeMeta = (event) => {
+    const resize = resizeRef.current;
+    if (!resize || resize.pointerId !== event.pointerId) return;
+    const width = clampMetaWidth(resize.startWidth + event.clientX - resize.startX);
+    resize.currentWidth = width;
+    setMetaWidth(width);
+  };
+  const finishMetaResize = (event) => {
+    const resize = resizeRef.current;
+    if (!resize || resize.pointerId !== event.pointerId) return;
+    saveMetaWidth(resize.currentWidth);
+    resizeRef.current = null;
+    setResizingMeta(false);
+  };
+  const resizeMetaWithKeyboard = (event) => {
+    const increments = { ArrowLeft: -20, ArrowRight: 20, Home: MIN_META_WIDTH, End: MAX_META_WIDTH };
+    if (!(event.key in increments)) return;
+    event.preventDefault();
+    const width = event.key === "Home" || event.key === "End" ? increments[event.key]
+      : clampMetaWidth(metaWidth + increments[event.key]);
+    setMetaWidth(width);
+    saveMetaWidth(width);
+  };
+  const resetMetaWidth = () => {
+    setMetaWidth(DEFAULT_META_WIDTH);
+    saveMetaWidth(DEFAULT_META_WIDTH);
+  };
+  React.useEffect(() => {
+    if (!resizingMeta) return undefined;
+    const move = (event) => {
+      const resize = resizeRef.current;
+      if (!resize || resize.pointerId !== event.pointerId) return;
+      const width = clampMetaWidth(resize.startWidth + event.clientX - resize.startX);
+      resize.currentWidth = width;
+      setMetaWidth(width);
+    };
+    const finish = (event) => {
+      const resize = resizeRef.current;
+      if (!resize || resize.pointerId !== event.pointerId) return;
+      saveMetaWidth(resize.currentWidth);
+      resizeRef.current = null;
+      setResizingMeta(false);
+    };
+    window.addEventListener("pointermove", move);
+    window.addEventListener("pointerup", finish);
+    window.addEventListener("pointercancel", finish);
+    return () => {
+      window.removeEventListener("pointermove", move);
+      window.removeEventListener("pointerup", finish);
+      window.removeEventListener("pointercancel", finish);
+    };
+  }, [resizingMeta]);
 
   const scrollToToday = () => {
     const viewport = scrollRef.current;
@@ -218,8 +299,16 @@ export function ProjectSchedule({ store, filter, onOpen, onEditSchedule, onOpenT
       <span><CircleAlert aria-hidden="true" />{t("日期不完整")}</span></div>
     {rows.length ? <div className="schedule-scroll" ref={scrollRef} tabIndex="0" onWheel={horizontalWheel}
       aria-label={t("可横向滚动的项目排期")}>
-      <div className="schedule-grid" style={{ "--timeline-width": `${width}px`, "--week-width": `${timeline.weekWidth}px` }}>
-        <div className="schedule-corner"><strong>{t("公司／控股公司")}</strong><span>{t("负责人 · 开始日 → 截止日")}</span></div>
+      <div className="schedule-grid" data-resizing={resizingMeta || undefined}
+        style={{ "--timeline-width": `${width}px`, "--week-width": `${timeline.weekWidth}px`, "--schedule-meta-width": `${metaWidth}px` }}>
+        <div className="schedule-corner"><strong>{t("公司／控股公司")}</strong><span>{t("负责人 · 开始日 → 截止日")}</span>
+          <button type="button" className="schedule-column-resizer" role="separator" aria-orientation="vertical"
+            aria-label={t("拖动调整公司栏宽度")} aria-valuemin={MIN_META_WIDTH} aria-valuemax={MAX_META_WIDTH}
+            aria-valuenow={metaWidth} aria-keyshortcuts="ArrowLeft ArrowRight Home End"
+            data-tooltip={t("拖动调整公司栏宽度；双击恢复默认宽度")}
+            onPointerDown={beginMetaResize} onPointerMove={resizeMeta} onPointerUp={finishMetaResize}
+            onPointerCancel={finishMetaResize} onKeyDown={resizeMetaWithKeyboard} onDoubleClick={resetMetaWidth} />
+        </div>
         <div className="schedule-calendar-header" style={{ width }}>
           <div className="schedule-months">{timeline.monthGroups.map((month) => <span key={month.key}
             style={{ width: month.weeks * timeline.weekWidth }}>{monthFormatter.format(month.date)}</span>)}</div>
@@ -230,6 +319,7 @@ export function ProjectSchedule({ store, filter, onOpen, onEditSchedule, onOpenT
         </div>
         {rows.map((row) => {
           const rowKey = `${row.kind}:${row.id}`;
+          const rowAccessibleName = [row.name, row.periodLabel].filter(Boolean).join(" · ");
           const dropPosition = dropTarget?.key === rowKey ? dropTarget.position : undefined;
           const canReorder = filter !== "archived" && !row.archived;
           const start = parseDate(row.startDate);
@@ -251,7 +341,7 @@ export function ProjectSchedule({ store, filter, onOpen, onEditSchedule, onOpenT
               data-drop-position={dropPosition} onDragOver={(event) => dragOver(event, rowKey)}
               onDrop={(event) => drop(event, rowKey)}>
               {canReorder ? <button type="button" className="schedule-drag-handle" draggable="true"
-                aria-label={t("拖动调整“{name}”的排期顺序；按 Alt 加上下方向键也可移动", { name: row.name })}
+                aria-label={t("拖动调整“{name}”的排期顺序；按 Alt 加上下方向键也可移动", { name: rowAccessibleName })}
                 aria-keyshortcuts="Alt+ArrowUp Alt+ArrowDown"
                 data-tooltip={t("拖动调整顺序；Alt + 上下方向键也可移动")}
                 onDragStart={(event) => beginDrag(event, rowKey)} onDragEnd={finishDrag}
@@ -259,12 +349,14 @@ export function ProjectSchedule({ store, filter, onOpen, onEditSchedule, onOpenT
                 : <span className="schedule-drag-spacer" aria-hidden="true" />}
               <button type="button" className="schedule-row-open" onClick={() => onOpen(row.kind, row.id)}>
                 <i data-kind={row.kind}>{row.kind === "group" ? <Building2 aria-hidden="true" /> : <Building aria-hidden="true" />}</i>
-                <span><strong>{row.name}</strong>{row.secondaryName && <small>{row.secondaryName}</small>}
-                  <small>{row.owner || t("未设置负责人")} · {row.startDate ? formatDate(row.startDate, language) : t("未设置开始日")}
+                <span><strong>{row.name}</strong>{row.periodLabel && <small className="schedule-reporting-period">{row.periodLabel}</small>}
+                  {row.engagementType && <small className="schedule-project-type">{engagementTypeLabel(row.engagementType, language)}</small>}
+                  {row.secondaryName && <small>{row.secondaryName}</small>}
+                  <small className="schedule-delivery-period">{row.owner || t("未设置负责人")} · {row.startDate ? formatDate(row.startDate, language) : t("未设置开始日")}
                     <b aria-hidden="true">→</b>{row.dueDate ? formatDate(row.dueDate, language) : t("未设置截止日")}</small></span>
               </button>
               {!row.archived && <button type="button" className="schedule-row-edit"
-                aria-label={t("编辑“{name}”的项目排期", { name: row.name })}
+                aria-label={t("编辑“{name}”的项目排期", { name: rowAccessibleName })}
                 data-tooltip={t("编辑项目开始日和截止日")}
                 onClick={() => onEditSchedule?.(row.kind, row.id)}><CalendarClock aria-hidden="true" /></button>}
             </div>

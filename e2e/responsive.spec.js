@@ -66,3 +66,37 @@ test("long annual engagement forms scroll inside the dialog while the header rem
   expect(after.y).toBeCloseTo(before.y, 0);
   expect(await body.evaluate((element) => element.scrollTop)).toBeGreaterThan(0);
 });
+
+test("company navigation and schedule company columns resize by dragging and persist", async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 900 });
+  await openWorkbench(page, workspaceFixture());
+  const panel = page.locator(".project-panel");
+  const navBefore = (await panel.boundingBox()).width;
+  const navHandle = await page.locator(".project-panel-resizer").boundingBox();
+  await page.mouse.move(navHandle.x + navHandle.width / 2, navHandle.y + 120);
+  await page.mouse.down();
+  await page.mouse.move(navHandle.x + navHandle.width / 2 + 90, navHandle.y + 120, { steps: 5 });
+  await page.mouse.up();
+  const navAfter = (await panel.boundingBox()).width;
+  expect(navAfter).toBeGreaterThan(navBefore + 60);
+  expect(await page.evaluate(() => Number(localStorage.getItem("audit-progress-workbench:navigation-width")))).toBeGreaterThan(navBefore + 60);
+
+  await page.locator(".app-rail-button[aria-label='Project schedule']").click();
+  await expect(page.locator(".schedule-reporting-period")).toHaveText("YE December 31, 2026");
+  const corner = page.locator(".schedule-corner");
+  const scheduleBefore = (await corner.boundingBox()).width;
+  const scheduleHandle = await page.locator(".schedule-column-resizer").boundingBox();
+  await page.mouse.move(scheduleHandle.x + scheduleHandle.width / 2, scheduleHandle.y + 20);
+  await page.mouse.down();
+  await page.mouse.move(scheduleHandle.x + scheduleHandle.width / 2 + 80, scheduleHandle.y + 20, { steps: 5 });
+  await page.mouse.up();
+  const scheduleAfter = (await corner.boundingBox()).width;
+  expect(scheduleAfter).toBeGreaterThan(scheduleBefore + 50);
+  expect(await page.evaluate(() => Number(localStorage.getItem("audit-progress-workbench:schedule-meta-width")))).toBeGreaterThan(scheduleBefore + 50);
+
+  await page.reload();
+  await page.locator(".app-rail-button[aria-label='Project schedule']").click();
+  await expect(page.locator(".schedule-corner")).toBeVisible();
+  expect((await page.locator(".project-panel").boundingBox()).width).toBeCloseTo(navAfter, 0);
+  expect((await page.locator(".schedule-corner").boundingBox()).width).toBeCloseTo(scheduleAfter, 0);
+});

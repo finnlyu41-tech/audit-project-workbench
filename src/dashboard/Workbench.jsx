@@ -11,11 +11,11 @@ import { activeOutstandingItems,
   createDefaultGroupSample, createDefaultSample, duplicateGroupSample,
   canonicalStorePayload,
   convertGroupToProject, convertProjectToGroup, deadlineAlerts, duplicateSample, emptyStore, engagementsForEntity,
-  entityForEngagement, findParentMembership, formatDate, groupProgress, isValidStore, loadStore, localizeGroupSample,
+  engagementTypeLabel, entityForEngagement, findParentMembership, formatDate, groupProgress, isValidStore, loadStore, localizeGroupSample,
   localizeGroupWorkflowNodes, localizeOutstandingStatuses, localizeReadinessConditions, localizeSample, localizeWorkstream, makeBlankGroupSample,
   makeBlankSample, makeEngagement, makeEntity, makeGroup, makeGroupMember, makeNode, makeOutstandingItem, makeProject, makeTaxDeadline, makeWorkstream,
   mergeEntities, moveEntity, moveWorkspaceItem,
-  navigationStatusCounts, normalizeStore, outstandingIsOpen, preserveLegacyRecovery, projectStats, reconcileWorkbenchStore, redactSampleCompanies, reorderWorkspaceSchedule, reportingPeriodLabel, syncEngagementToCurrentStructure, taxDeadlineSummary, uid, V10_RECOVERY_KEY,
+  navigationStatusCounts, normalizeStore, outstandingIsOpen, preserveLegacyRecovery, projectStats, reconcileWorkbenchStore, redactSampleCompanies, reorderWorkstreams, reorderWorkspaceSchedule, reportingPeriodLabel, syncEngagementToCurrentStructure, taxDeadlineSummary, uid, V10_RECOVERY_KEY,
   workstreamStats, reviseTaxDeadline, workstreamCategoryLabel, workstreamTypeLabel } from "./model.js";
 import { LanguageProvider, useUiLanguage } from "./i18n.jsx";
 import { DeadlineAlertCentre } from "./deadline-alerts.jsx";
@@ -34,6 +34,25 @@ import "./dashboard.css";
 
 const SIDEBAR_PREFERENCE_KEY = "audit-progress-workbench:sidebar-collapsed";
 const OUTSTANDING_PREFERENCE_KEY = "audit-progress-workbench:outstanding-collapsed";
+const NAVIGATION_WIDTH_KEY = "audit-progress-workbench:navigation-width";
+const DEFAULT_NAVIGATION_WIDTH = 280;
+const MIN_NAVIGATION_WIDTH = 220;
+const MAX_NAVIGATION_WIDTH = 520;
+
+function clampNavigationWidth(value) {
+  return Math.min(MAX_NAVIGATION_WIDTH, Math.max(MIN_NAVIGATION_WIDTH,
+    Math.round(Number(value) || DEFAULT_NAVIGATION_WIDTH)));
+}
+
+function loadNavigationWidth() {
+  try { return clampNavigationWidth(localStorage.getItem(NAVIGATION_WIDTH_KEY)); }
+  catch { return DEFAULT_NAVIGATION_WIDTH; }
+}
+
+function saveNavigationWidth(value) {
+  try { localStorage.setItem(NAVIGATION_WIDTH_KEY, String(clampNavigationWidth(value))); }
+  catch { /* Layout preferences can safely fall back to the default width. */ }
+}
 
 export function DashboardContent() {
   return <LanguageProvider><DashboardWorkbench /></LanguageProvider>;
@@ -79,6 +98,8 @@ function DashboardWorkbench() {
   const [sidebarCollapsed, setSidebarCollapsed] = React.useState(() => {
     try { return localStorage.getItem(SIDEBAR_PREFERENCE_KEY) === "true"; } catch { return false; }
   });
+  const [navigationWidth, setNavigationWidth] = React.useState(loadNavigationWidth);
+  const [resizingNavigation, setResizingNavigation] = React.useState(false);
   const [outstandingCollapsed, setOutstandingCollapsed] = React.useState(() => {
     try { return localStorage.getItem(OUTSTANDING_PREFERENCE_KEY) === "true"; } catch { return false; }
   });
@@ -93,6 +114,7 @@ function DashboardWorkbench() {
   const deadlineNoticeShownRef = React.useRef(false);
   const shownConflictRef = React.useRef(null);
   const navigationHistoryRef = React.useRef({ entries: [], index: -1, restoring: false });
+  const navigationResizeRef = React.useRef(null);
   const [, setNavigationHistoryRevision] = React.useState(0);
   const deadlineAlertItems = React.useMemo(() => deadlineAlerts(store, deadlineClock), [store, deadlineClock]);
   const closeMenu = React.useCallback(() => toolbarMenuRefs.current.forEach((menu) => {
@@ -174,10 +196,7 @@ function DashboardWorkbench() {
   React.useEffect(() => {
     if (selection?.kind !== "project") { setActiveWorkstreamId(null); return; }
     const project = store.projects.find((item) => item.id === selection.id);
-    if (!project?.workstreams.some((workstream) => workstream.id === activeWorkstreamId)) {
-      setActiveWorkstreamId(project?.workstreams.find((workstream) => workstream.type === "audit")?.id
-        || project?.workstreams[0]?.id || null);
-    }
+    if (activeWorkstreamId && !project?.workstreams.some((workstream) => workstream.id === activeWorkstreamId)) setActiveWorkstreamId(null);
   }, [selection, store.projects, activeWorkstreamId]);
   React.useEffect(() => {
     if (!message) return undefined;
@@ -362,6 +381,11 @@ function DashboardWorkbench() {
     setStore((current) => reorderWorkspaceSchedule(current, sourceKey, targetKey, position));
     notify(t("项目排期顺序已更新"));
   };
+  const reorderProjectWorkstreams = (projectId, sourceId, targetId, position) => {
+    updateProject(projectId, (project) => ({ ...project,
+      workstreams: reorderWorkstreams(project.workstreams, sourceId, targetId, position) }));
+    notify(t("业务模块顺序已更新"));
+  };
   const updateWorkflowNodes = (targetKind, targetId, workstreamId, updater) => {
     if (targetKind === "group") updateGroup(targetId, (group) => ({ ...group, nodes: updater(group.nodes) }));
     else updateProject(targetId, (project) => ({ ...project, workstreams: project.workstreams.map((workstream) =>
@@ -388,7 +412,7 @@ function DashboardWorkbench() {
       setStore((current) => ({ ...current, engagements: [engagement, ...current.engagements],
         scheduleOrder: [`${kind}:${engagement.id}`, ...(current.scheduleOrder || []).filter((key) => !key.endsWith(`:${engagement.id}`))] }));
       setSelection({ kind, id: engagement.id }); setWorkspaceView("detail"); setFilter("active"); setModal(null);
-      setActiveWorkstreamId(engagement.workstreams[0]?.id || null); notify(t("年度项目已建立并自动保存"));
+      setActiveWorkstreamId(null); notify(t("年度项目已建立并自动保存"));
     } catch (error) { window.alert(t(error.message.includes("already exists")
       ? "这家公司已经有相同报告期间的项目，包括归档项目。" : "请检查报告期间后再建立项目。")); }
   };
@@ -416,7 +440,7 @@ function DashboardWorkbench() {
     const sample = store.samples.find((item) => item.id === values.sampleId && item.categoryId === values.categoryId) || null;
     const workstream = makeWorkstream(values, sample);
     updateProject(projectId, (project) => ({ ...project, workstreams: [...project.workstreams, workstream] }));
-    setActiveWorkstreamId(workstream.id); setModal(null); notify(t("业务模块已添加"));
+    setActiveWorkstreamId(null); setModal(null); notify(t("业务模块已添加"));
   };
   const updateWorkstream = (projectId, workstreamId, values) => {
     updateProject(projectId, (project) => ({ ...project, workstreams: project.workstreams.map((workstream) =>
@@ -634,6 +658,65 @@ function DashboardWorkbench() {
   };
   const backHistoryIndex = nextHistoryIndex(-1);
   const forwardHistoryIndex = nextHistoryIndex(1);
+  const beginNavigationResize = (event) => {
+    event.preventDefault();
+    navigationResizeRef.current = { pointerId: event.pointerId, startX: event.clientX,
+      startWidth: navigationWidth, currentWidth: navigationWidth };
+    event.currentTarget.setPointerCapture(event.pointerId);
+    setResizingNavigation(true);
+  };
+  const resizeNavigation = (event) => {
+    const resize = navigationResizeRef.current;
+    if (!resize || resize.pointerId !== event.pointerId) return;
+    const width = clampNavigationWidth(resize.startWidth + event.clientX - resize.startX);
+    resize.currentWidth = width;
+    setNavigationWidth(width);
+  };
+  const finishNavigationResize = (event) => {
+    const resize = navigationResizeRef.current;
+    if (!resize || resize.pointerId !== event.pointerId) return;
+    saveNavigationWidth(resize.currentWidth);
+    navigationResizeRef.current = null;
+    setResizingNavigation(false);
+  };
+  const resizeNavigationWithKeyboard = (event) => {
+    const increments = { ArrowLeft: -20, ArrowRight: 20, Home: MIN_NAVIGATION_WIDTH, End: MAX_NAVIGATION_WIDTH };
+    if (!(event.key in increments)) return;
+    event.preventDefault();
+    const width = ["Home", "End"].includes(event.key) ? increments[event.key]
+      : clampNavigationWidth(navigationWidth + increments[event.key]);
+    setNavigationWidth(width);
+    saveNavigationWidth(width);
+  };
+  const resetNavigationWidth = () => {
+    setNavigationWidth(DEFAULT_NAVIGATION_WIDTH);
+    saveNavigationWidth(DEFAULT_NAVIGATION_WIDTH);
+  };
+  React.useEffect(() => {
+    if (!resizingNavigation) return undefined;
+    const move = (event) => {
+      const resize = navigationResizeRef.current;
+      if (!resize || resize.pointerId !== event.pointerId) return;
+      const width = clampNavigationWidth(resize.startWidth + event.clientX - resize.startX);
+      resize.currentWidth = width;
+      setNavigationWidth(width);
+    };
+    const finish = (event) => {
+      const resize = navigationResizeRef.current;
+      if (!resize || resize.pointerId !== event.pointerId) return;
+      saveNavigationWidth(resize.currentWidth);
+      navigationResizeRef.current = null;
+      setResizingNavigation(false);
+    };
+    window.addEventListener("pointermove", move);
+    window.addEventListener("pointerup", finish);
+    window.addEventListener("pointercancel", finish);
+    return () => {
+      window.removeEventListener("pointermove", move);
+      window.removeEventListener("pointerup", finish);
+      window.removeEventListener("pointercancel", finish);
+    };
+  }, [resizingNavigation]);
 
   return <article className="audit-workbench" onMouseOver={revealOverflowText} onFocusCapture={revealOverflowText}>
     {message && <div className="save-toast" role="status">{message}</div>}
@@ -713,7 +796,9 @@ function DashboardWorkbench() {
     </aside>
 
     <section className="workbench-layout" data-sidebar-collapsed={sidebarCollapsed || undefined}
-      data-compact-layout={compactLayout || undefined} data-outstanding-collapsed={outstandingPanelCollapsed || undefined}>
+      data-compact-layout={compactLayout || undefined} data-outstanding-collapsed={outstandingPanelCollapsed || undefined}
+      data-resizing-navigation={resizingNavigation || undefined}
+      style={{ "--project-panel-width": `${navigationWidth}px` }}>
       <aside className="project-panel" aria-label={t("项目导航")}>
         {!sidebarCollapsed && <>
           <div className="project-panel-controls"><div className="project-panel-title"><div>
@@ -728,6 +813,12 @@ function DashboardWorkbench() {
                 <strong>{navigationCounts[value]}</strong></button>)}</div></div>
           <WorkspaceTree store={store} selection={selection} onSelect={(next) => openWorkspaceRecord(next.kind, next.id)} search={search} filter={filter}
             statuses={store.outstandingStatuses} onMove={moveNavigationItem} /></>}
+        {!sidebarCollapsed && <button type="button" className="project-panel-resizer" role="separator" aria-orientation="vertical"
+          aria-label={t("拖动调整公司导航宽度")} aria-valuemin={MIN_NAVIGATION_WIDTH} aria-valuemax={MAX_NAVIGATION_WIDTH}
+          aria-valuenow={navigationWidth} aria-keyshortcuts="ArrowLeft ArrowRight Home End"
+          data-tooltip={t("拖动调整公司导航宽度；双击恢复默认宽度")} data-tooltip-side="right"
+          onPointerDown={beginNavigationResize} onPointerMove={resizeNavigation} onPointerUp={finishNavigationResize}
+          onPointerCancel={finishNavigationResize} onKeyDown={resizeNavigationWithKeyboard} onDoubleClick={resetNavigationWidth} />}
       </aside>
       <main className="project-detail" aria-label={t(workspaceView === "schedule" ? "项目排期"
         : workspaceView === "report" ? "管理层报告" : selectedEntitySource ? "公司概览" : selectedGroup ? "集团工作区" : "项目工作区")}>
@@ -764,7 +855,7 @@ function DashboardWorkbench() {
           parentMembership={selectedProjectMembership}
           activeWorkstreamId={activeWorkstreamId} setActiveWorkstreamId={setActiveWorkstreamId} updateWorkflowNodes={updateWorkflowNodes}
           setModal={setModal} duplicateProject={duplicateProject} archiveTarget={archiveTarget} restoreTarget={restoreTarget}
-          deadlineClock={deadlineClock} />
+          onReorderWorkstreams={reorderProjectWorkstreams} deadlineClock={deadlineClock} />
           : selectedGroup ? <GroupDetail store={store} group={selectedGroup} statuses={outstandingStatusViews}
             updateWorkflowNodes={updateWorkflowNodes} setModal={setModal} setSelection={(next) => openWorkspaceRecord(next.kind, next.id)}
             updateEngagement={updateEngagement} setStore={setStore} selectedGroupSample={selectedGroupSample}
@@ -841,13 +932,17 @@ function DashboardWorkbench() {
           sourceEngagementId: modalTargetEngagement.id }) : null}
         onClose={() => setModal(null)} onSubmit={(values) => {
           updateEngagement(modalTargetEngagement.id, (engagement) => ({ ...engagement,
-            internalName: values.internalName, periodPreset: values.periodPreset, periodStart: values.periodStart,
+            internalName: values.internalName, engagementType: values.engagementType,
+            periodPreset: values.periodPreset, periodStart: values.periodStart,
             periodEnd: values.periodEnd, reportingFramework: values.reportingFramework, owner: values.owner,
             startDate: values.startDate, dueDate: values.dueDate, notes: values.notes,
+            workstreams: values.applyOwnerToWorkstreams ? engagement.workstreams.map((workstream) => ({ ...workstream,
+              owner: values.owner, updatedAt: new Date().toISOString() })) : engagement.workstreams,
             consolidation: engagement.consolidation ? { ...engagement.consolidation,
               enabled: values.consolidationEnabled !== false } : engagement.consolidation }));
-          setModal(null); notify(t(modal.quickField === "schedule" ? "项目排期已更新"
-            : modal.quickField === "owner" ? "负责人已更新" : modal.quickField === "framework" ? "财务报告准则／框架已更新" : "年度项目已更新"));
+          setModal(null); notify(t(values.applyOwnerToWorkstreams ? "负责人及所有业务模块已更新"
+            : modal.quickField === "schedule" ? "项目排期已更新"
+              : modal.quickField === "owner" ? "负责人已更新" : modal.quickField === "framework" ? "财务报告准则／框架已更新" : "年度项目已更新"));
         }} /></Modal>}
     {modal?.type === "merge-entities" && <Modal title={t("合并重复公司")} onClose={() => setModal(null)} wide>
       <MergeEntitiesForm store={store} initialEntityId={modal.entityId} onClose={() => setModal(null)} onSubmit={(sourceId, targetId) => {
@@ -1021,21 +1116,63 @@ function DetailFactAction({ label, children, onClick, actionLabel, icon: Icon = 
 }
 
 function ProjectDetail({ project, rawProject, statuses, parentMembership, activeWorkstreamId, setActiveWorkstreamId,
-  updateWorkflowNodes, setModal, duplicateProject, archiveTarget, restoreTarget, deadlineClock }) {
+  updateWorkflowNodes, setModal, duplicateProject, archiveTarget, restoreTarget, onReorderWorkstreams, deadlineClock }) {
   const { language, t } = useUiLanguage();
+  const draggingWorkstreamRef = React.useRef(null);
+  const [draggingWorkstreamId, setDraggingWorkstreamId] = React.useState(null);
+  const [workstreamDropTarget, setWorkstreamDropTarget] = React.useState(null);
   const stats = projectStats(project);
   const readOnly = Boolean(rawProject.archived);
-  const activeWorkstream = project.workstreams.find((workstream) => workstream.id === activeWorkstreamId)
-    || project.workstreams[0] || null;
+  const activeWorkstream = project.workstreams.find((workstream) => workstream.id === activeWorkstreamId) || null;
   const activeRawWorkstream = rawProject.workstreams.find((workstream) => workstream.id === activeWorkstream?.id) || null;
   const taxSummary = taxDeadlineSummary(rawProject.taxDeadlines, deadlineClock);
   const nextTaxDate = taxSummary.next ? formatDate(taxSummary.next.dueDate, language) : t("没有未完成期限");
   const taxFactValue = taxSummary.next ? `${nextTaxDate} · ${t("{count} 项未完成", { count: taxSummary.openCount })}` : nextTaxDate;
   const periodLabel = reportingPeriodLabel(project, language);
   const primaryName = project.entity || project.name;
-  const secondaryName = project.entity && project.name !== project.entity ? project.name : "";
-  const subtitle = [secondaryName, periodLabel].filter(Boolean).join(" · ")
+  const subtitle = [engagementTypeLabel(rawProject.engagementType, language), periodLabel].filter(Boolean).join(" · ")
     || t(primaryName ? "尚未填写报告期间" : "尚未填写法律实体及报告期间");
+  const finishWorkstreamDrag = () => {
+    draggingWorkstreamRef.current = null;
+    setDraggingWorkstreamId(null);
+    setWorkstreamDropTarget(null);
+  };
+  const beginWorkstreamDrag = (event, workstreamId) => {
+    draggingWorkstreamRef.current = workstreamId;
+    setDraggingWorkstreamId(workstreamId);
+    event.dataTransfer.effectAllowed = "move";
+    event.dataTransfer.setData("application/x-audit-workbench-workstream", workstreamId);
+    event.dataTransfer.setData("text/plain", workstreamId);
+  };
+  const workstreamDropPosition = (event) => {
+    const bounds = event.currentTarget.getBoundingClientRect();
+    if (event.clientY < bounds.top + bounds.height * 0.25) return "before";
+    if (event.clientY > bounds.bottom - bounds.height * 0.25) return "after";
+    return event.clientX < bounds.left + bounds.width / 2 ? "before" : "after";
+  };
+  const dragOverWorkstream = (event, targetId) => {
+    const sourceId = draggingWorkstreamRef.current;
+    if (!sourceId || sourceId === targetId) return;
+    event.preventDefault();
+    event.dataTransfer.dropEffect = "move";
+    setWorkstreamDropTarget({ id: targetId, position: workstreamDropPosition(event) });
+  };
+  const dropWorkstream = (event, targetId) => {
+    const sourceId = draggingWorkstreamRef.current;
+    if (!sourceId || sourceId === targetId) return;
+    event.preventDefault();
+    onReorderWorkstreams?.(rawProject.id, sourceId, targetId, workstreamDropPosition(event));
+    finishWorkstreamDrag();
+  };
+  const reorderWorkstreamWithKeyboard = (event, workstreamId) => {
+    if (!event.altKey || !["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown"].includes(event.key)) return;
+    const moveEarlier = ["ArrowLeft", "ArrowUp"].includes(event.key);
+    const index = rawProject.workstreams.findIndex((workstream) => workstream.id === workstreamId);
+    const target = rawProject.workstreams[index + (moveEarlier ? -1 : 1)];
+    if (!target) return;
+    event.preventDefault();
+    onReorderWorkstreams?.(rawProject.id, workstreamId, target.id, moveEarlier ? "before" : "after");
+  };
   return <div className="workspace-detail-inner">
     {readOnly && <div className="archive-banner"><strong>{t("已归档，只读")}</strong>
       <span>{t("归档记录不能编辑；恢复后才可继续更新。")}</span></div>}
@@ -1080,7 +1217,7 @@ function ProjectDetail({ project, rawProject, statuses, parentMembership, active
           ...(readOnly ? {} : { editDeadlineId: taxSummary.next?.id ?? null }) })}>{taxFactValue}</DetailFactAction></dl>
 
     <section className="workstream-overview"><header className="section-heading"><div><h3>{t("业务模块")}</h3>
-      <p>{t("各模块并行推进，并分别追踪负责人、截止日和完成条件。")}</p></div>
+      <p>{t("点击模块查看节点；再次点击可收起。各模块分别追踪负责人、截止日和完成条件。")}</p></div>
       {!readOnly && <button type="button" className="button secondary icon-only" aria-label={t("添加业务模块")}
         data-tooltip={t("添加业务模块")} onClick={() => setModal({ type: "workstream-add",
           targetKind: "project", targetId: rawProject.id })}><ListPlus aria-hidden="true" /></button>}</header>
@@ -1088,7 +1225,13 @@ function ProjectDetail({ project, rawProject, statuses, parentMembership, active
         workstream={workstream} selected={workstream.id === activeWorkstream?.id}
         openItems={rawProject.outstandingItems.filter((item) => item.workstreamId === workstream.id
           && outstandingIsOpen(item, statuses)).length} readOnly={readOnly}
-        onSelect={() => setActiveWorkstreamId(workstream.id)} onEdit={() => setModal({ type: "workstream-edit",
+        dragging={draggingWorkstreamId === workstream.id}
+        dropPosition={workstreamDropTarget?.id === workstream.id ? workstreamDropTarget.position : undefined}
+        onDragStart={(event) => beginWorkstreamDrag(event, workstream.id)} onDragEnd={finishWorkstreamDrag}
+        onDragOver={(event) => dragOverWorkstream(event, workstream.id)}
+        onDrop={(event) => dropWorkstream(event, workstream.id)}
+        onReorderKeyDown={(event) => reorderWorkstreamWithKeyboard(event, workstream.id)}
+        onSelect={() => setActiveWorkstreamId((current) => current === workstream.id ? null : workstream.id)} onEdit={() => setModal({ type: "workstream-edit",
           targetKind: "project", targetId: rawProject.id, workstreamId: workstream.id })} />)}</div>
         : <button type="button" className="workstream-empty" disabled={readOnly}
           onClick={() => setModal({ type: "workstream-add", targetKind: "project", targetId: rawProject.id })}>
@@ -1100,7 +1243,7 @@ function ProjectDetail({ project, rawProject, statuses, parentMembership, active
       <WorkflowNodes targetKind="project" targetId={rawProject.id} workstreamId={activeRawWorkstream.id}
         nodes={activeWorkstream.nodes} updateWorkflowNodes={updateWorkflowNodes} setModal={setModal} readOnly={readOnly}
         label={t("模块节点")} title={workstreamTypeLabel(activeWorkstream.type, language, activeWorkstream.customName)}
-        description={t("横向查看全部节点；所选节点的完成条件固定显示在下方。")}
+        description={t("点击节点查看完成条件；再次点击可收起详情。")}
         percentage={workstreamStats(activeWorkstream).percentage} />
     </section>}
   </div>;
@@ -1134,10 +1277,10 @@ function GroupDetail({ store, group, statuses, updateWorkflowNodes, setModal, se
         <button type="button" className="button secondary icon-only" aria-label={t("归档集团")}
           data-tooltip={t("归档集团")} onClick={() => archiveTarget("group", group.id)}><Archive aria-hidden="true" /></button></>}</div></header>
     <section className="group-status-strip" aria-label={t("集团状态")}><article><span>{t("组成部分进度")}</span>
-      <div><strong>{stats.componentPercentage}%</strong></div><ProgressBar value={stats.componentPercentage} compact /></article>
+      <ProgressBar value={stats.componentPercentage} compact /></article>
       <article><span>{t("公司合并就绪")}</span><div><strong>{stats.readyCompanies}/{stats.totalCompanies}</strong><small>{t("家公司")}</small></div></article>
-      <article><span>{t("本级合并流程")}</span><div><strong>{group.consolidationEnabled ? `${stats.consolidationPercentage}%` : t("不适用")}</strong></div>
-        {group.consolidationEnabled && <ProgressBar value={stats.consolidationPercentage} compact />}</article>
+      <article><span>{t("本级合并流程")}</span>{group.consolidationEnabled
+        ? <ProgressBar value={stats.consolidationPercentage} compact /> : <div><strong>{t("不适用")}</strong></div>}</article>
       <article><span>{t("未清事项")}</span><div><strong>{openItems}</strong><small>{t("项")}</small></div></article>
       <article className="group-tax-deadline"><span>{t("税务期限")}</span><TaxDeadlineSummaryButton deadlines={groupTaxDeadlines}
         now={deadlineClock} compact onClick={() => setModal({ type: "tax-deadlines", targetKind: "group", targetId: rawGroup.id })} /></article></section>
@@ -1165,7 +1308,6 @@ function GroupDetail({ store, group, statuses, updateWorkflowNodes, setModal, se
         <span aria-hidden="true">→</span><time>{group.dueDate ? formatDate(group.dueDate, language) : t("未设置截止日")}</time></dd></div>
       <div><dt>{t("合并方式")}</dt><dd>{t(group.consolidationEnabled ? "本级需要合并" : "仅作分类")}</dd></div>
       <div><dt>{t("组成部分")}</dt><dd>{engagement?.consolidation?.components?.length || 0}</dd></div></dl>
-      {group.notes && <p className="group-notes">{group.notes}</p>}
       <div className="group-structure-note"><Building2 aria-hidden="true" /><span><strong>{t("控股架构在公司主档管理")}</strong>
         <small>{t("本年度组成部分在“组成部分”页签中指定；当前公司层级不会自动改写历史年度。")}</small></span></div></section>}
   </div>;
@@ -1182,6 +1324,9 @@ function WorkflowNodes({ targetKind, targetId, workstreamId = null, nodes, updat
       if (index >= 0 && target >= 0 && target < next.length) [next[index], next[target]] = [next[target], next[index]];
       return next;
     }),
+    reorderNode: (sourceId, targetId, position) => update((current) => reorderWorkstreams(current, sourceId, targetId, position)),
+    reorderCondition: (nodeId, sourceId, targetId, position) => update((current) => current.map((node) => node.id === nodeId
+      ? { ...node, conditions: reorderWorkstreams(node.conditions, sourceId, targetId, position) } : node)),
     toggle: (nodeId, conditionId) => update((current) => current.map((node) => node.id === nodeId
       ? { ...node, conditions: node.conditions.map((condition) => condition.id === conditionId
         ? { ...condition, done: !condition.done } : condition) } : node)),

@@ -3,11 +3,15 @@ import { hierarchyFixture, openWorkbench, readStoredWorkspace } from "./helpers.
 
 test("moves a standalone company directly into an expanded second-level holding company", async ({ page }) => {
   await openWorkbench(page, hierarchyFixture());
-  await page.getByRole("button", { name: "Expand company" }).first().click();
-  await page.getByRole("button", { name: "Expand company" }).click();
-
   const source = page.locator(".tree-entity-row").filter({ hasText: "Standalone Company Limited" });
   const target = page.locator(".tree-entity-row[data-kind='holding_company']").filter({ hasText: "Regional Holdings" });
+
+  for (let index = 0; index < 4 && !(await target.isVisible()); index += 1) {
+    const expander = page.getByRole("button", { name: "Expand company" }).first();
+    if (!(await expander.count())) break;
+    await expander.click();
+  }
+
   await expect(source).toBeVisible();
   await expect(target).toBeVisible();
   await source.dragTo(target);
