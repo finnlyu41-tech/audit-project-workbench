@@ -6,6 +6,30 @@ The project follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.6.0] - 2026-09-04
+
+### Added
+
+- Storage V11 company masters and independent annual engagements, allowing one legal entity to manage FY2023, FY2024, FY2025 and other periods side by side.
+- Calendar-year, April-to-March and custom fiscal-year presets with exact period generation, next-year suggestions and duplicate-period prevention, including archived engagements.
+- Company-level tax deadlines and current holding-company relationships, with engagement-level frameworks, owners, schedules, workstreams, outstanding items and progress.
+- Blank, template-based or prior-year engagement creation; prior-year copies retain workflow structure and framework while clearing operational dates, owners, completion and outstanding items.
+- Previewed duplicate-company merging and one-time downloadable V10 source recovery before the first migration.
+- Frozen holding-company component snapshots for each annual engagement, explicit period matching and an intentional sync action for later structure changes.
+
+### Changed
+
+- New company now creates only a long-lived company master; annual project settings are created from the company overview.
+- Navigation prioritises legal entity names and nests complete FY or actual-date labels beneath each company.
+- Company and annual-engagement archives have separate lifecycles, and management reports now show one detail row per engagement period.
+- JSON backups and linked local files use the canonical `entities` and `engagements` schema while continuing to load V1–V10 data automatically.
+
+### Fixed
+
+- Companies with no annual engagement remain visible in the active navigation filter.
+- Focused schedule editing no longer requires an unrelated legacy reporting period to be complete.
+- The schedule Today action centres the current-date line correctly inside the scrollable timeline.
+
 ## [0.5.0] - 2026-09-04
 
 ### Added

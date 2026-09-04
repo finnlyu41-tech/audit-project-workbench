@@ -6,7 +6,7 @@ test("exports a portable template package and imports an explicit replacement wi
   await openWorkbench(page, workspaceFixture());
   const before = await readStoredWorkspace(page);
   const originalTemplate = before.samples.find((template) => template.categoryId === "audit");
-  const projectStageBefore = before.projects[0].workstreams[0].nodes[0].title;
+  const projectStageBefore = before.engagements[0].workstreams[0].nodes[0].title;
 
   await page.getByRole("button", { name: "Template library" }).click();
   const library = page.getByRole("dialog", { name: "Template library" });
@@ -20,6 +20,8 @@ test("exports a portable template package and imports an explicit replacement wi
   expect(pkg.kind).toBe("audit-project-workbench-template-package");
   expect(pkg.templates).toHaveLength(1);
   expect(JSON.stringify(pkg)).not.toContain("projects");
+  expect(JSON.stringify(pkg)).not.toContain("entities");
+  expect(JSON.stringify(pkg)).not.toContain("engagements");
   expect(JSON.stringify(pkg)).not.toContain("Example Services Limited");
 
   pkg.templates[0].name = "Browser-tested audit workflow";
@@ -40,7 +42,7 @@ test("exports a portable template package and imports an explicit replacement wi
   const after = await readStoredWorkspace(page);
   expect(after.samples).toHaveLength(before.samples.length);
   expect(after.samples.find((template) => template.id === originalTemplate.id).name).toBe("Browser-tested audit workflow");
-  expect(after.projects[0].workstreams[0].nodes[0].title).toBe(projectStageBefore);
+  expect(after.engagements[0].workstreams[0].nodes[0].title).toBe(projectStageBefore);
 });
 
 test("management reports filter the portfolio, show a current record and invoke the print flow", async ({ page }) => {

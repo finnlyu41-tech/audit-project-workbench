@@ -67,6 +67,10 @@ export function savePersistenceMeta(meta, storage = globalThis.localStorage) {
 }
 
 export function serializeStore(store) {
+  if (Number(store?.version) >= 11 && Array.isArray(store?.entities) && Array.isArray(store?.engagements)) {
+    const { projects: _projects, groups: _groups, ...canonical } = store;
+    return JSON.stringify(canonical);
+  }
   return JSON.stringify(store);
 }
 
@@ -111,10 +115,22 @@ export function supportsFileSystemAccess(windowApi = globalThis.window) {
 }
 
 export function workspaceSummary(store) {
-  const timestamps = [...(store?.projects || []), ...(store?.groups || [])]
+  const records = Number(store?.version) >= 11 && Array.isArray(store?.entities)
+    ? [...store.entities, ...(store.engagements || [])]
+    : [...(store?.projects || []), ...(store?.groups || [])];
+  const timestamps = records
     .map((item) => item?.updatedAt).filter(Boolean).sort();
+  const entities = Array.isArray(store?.entities) ? store.entities.length
+    : (store?.projects?.length || 0) + (store?.groups?.length || 0);
+  const engagements = Array.isArray(store?.engagements) ? store.engagements.length
+    : (store?.projects?.length || 0) + (store?.groups?.length || 0);
+  const holdingCompanies = Array.isArray(store?.entities)
+    ? store.entities.filter((entity) => entity.kind === "holding_company").length : (store?.groups?.length || 0);
   return {
     version: Number(store?.version) || 0,
+    entities,
+    engagements,
+    holdingCompanies,
     projects: Array.isArray(store?.projects) ? store.projects.length : 0,
     groups: Array.isArray(store?.groups) ? store.groups.length : 0,
     updatedAt: timestamps.at(-1) || "",
@@ -151,7 +167,8 @@ export async function fileHandlePermission(handle, request = false) {
 export async function readStoreFromFileHandle(handle, { isValidStore, normalizeStore }) {
   try {
     const file = await handle.getFile();
-    const parsed = JSON.parse(await file.text());
+    const sourcePayload = await file.text();
+    const parsed = JSON.parse(sourcePayload);
     if (!isValidStore(parsed)) throw new PersistenceError("invalid_file");
     const store = normalizeStore(parsed);
     return {
@@ -159,6 +176,8 @@ export async function readStoreFromFileHandle(handle, { isValidStore, normalizeS
       lastModified: Number(file.lastModified) || 0,
       store,
       payload: serializeStore(store),
+      sourcePayload,
+      sourceVersion: Number(parsed.version) || 1,
       summary: workspaceSummary(store),
     };
   } catch (error) {

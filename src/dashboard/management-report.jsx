@@ -1,5 +1,5 @@
 import React from "react";
-import { AlertTriangle, ArrowDown, ArrowUp, ArrowUpDown, BarChart3, Building, Building2, CircleAlert, Layers3, Printer, ReceiptText } from "lucide-react";
+import { AlertTriangle, ArrowDown, ArrowUp, ArrowUpDown, BarChart3, Building, Building2, CalendarRange, CircleAlert, Layers3, Printer, ReceiptText } from "lucide-react";
 import {
   formatDate,
   outstandingStatusLabel,
@@ -17,6 +17,7 @@ function urgencyLabel(value, t) {
 }
 
 function recordTypeLabel(kind, t) {
+  if (kind === "entity") return t("公司主档");
   return t(kind === "group" ? "控股公司" : "公司");
 }
 
@@ -38,6 +39,7 @@ function MetricStrip({ metrics }) {
   const { t } = useUiLanguage();
   const entries = [
     ["活跃公司", metrics.activeCompanies, Building],
+    ["年度项目", metrics.annualEngagements, CalendarRange],
     ["业务模块", `${metrics.completedWorkstreams}/${metrics.totalWorkstreams}`, Layers3],
     ["逾期项目", metrics.overdueDeliveries, AlertTriangle],
     ["需关注税务期限", metrics.taxAttention, ReceiptText],
@@ -58,8 +60,8 @@ function PortfolioFilters({ store, filters, setFilters }) {
     <label><span>{t("负责人")}</span><select value={filters.owner} onChange={update("owner")}>
       <option value="all">{t("全部负责人")}</option>{owners.map((owner) => <option value={owner} key={owner}>{owner}</option>)}</select></label>
     <label><span>{t("控股层级")}</span><select value={filters.holdingCompanyId} onChange={update("holdingCompanyId")}>
-      <option value="all">{t("全部控股层级")}</option>{store.groups.filter((group) => !group.archived).map((group) =>
-        <option value={group.id} key={group.id}>{group.name}</option>)}</select></label>
+      <option value="all">{t("全部控股层级")}</option>{(store.entities || []).filter((entity) => entity.kind === "holding_company" && !entity.archived).map((entity) =>
+        <option value={entity.id} key={entity.id}>{entity.legalName}</option>)}</select></label>
     <label><span>{t("业务模块")}</span><select value={filters.categoryId} onChange={update("categoryId")}>
       <option value="all">{t("全部业务模块")}</option>{store.workstreamCategories.map((category) =>
         <option value={category.id} key={category.id}>{workstreamCategoryLabel(category, language)}</option>)}</select></label>
@@ -171,13 +173,43 @@ function GroupRecordReport({ report, statuses }) {
     <section className="management-report-section"><header><div><h3>{t("组成部分")}</h3><span>{t("进度、就绪状态及截止日")}</span></div></header>
       <div className="management-table-scroll"><table className="management-report-table"><thead><tr><th>{t("公司／控股公司")}</th>
         <th>{t("角色")}</th><th>{t("负责人")}</th><th>{t("进度")}</th><th>{t("合并就绪")}</th><th>{t("截止日")}</th></tr></thead><tbody>
-        {report.members.map((member) => <tr key={`${member.kind}:${member.id}`}><td style={{ "--report-depth": member.depth }}>
-          <strong>{member.name}</strong></td><td>{member.role || "—"}</td><td>{member.owner || "—"}</td><td>{member.progress}%</td>
-          <td>{t(member.ready ? "已就绪" : "未就绪")}</td><td>{formatDate(member.dueDate, language)}</td></tr>)}</tbody></table></div></section>
+        {report.members.map((member) => <tr key={`${member.kind}:${member.id}`} data-unresolved={member.unresolved || undefined}><td style={{ "--report-depth": member.depth }}>
+          <strong>{member.name}</strong>{member.periodLabel && <small>{member.periodLabel}</small>}</td><td>{member.role || "—"}</td><td>{member.owner || "—"}</td><td>{member.progress}%</td>
+          <td>{t(member.unresolved ? "待指定" : member.ready ? "已就绪" : "未就绪")}</td><td>{formatDate(member.dueDate, language)}</td></tr>)}</tbody></table></div></section>
     <section className="management-report-section"><header><div><h3>{t("本级合并节点")}</h3><span>{t("明确条件完成情况")}</span></div></header>
       <div className="record-stage-list">{report.nodes.map((node, index) => <article key={node.id}><span>{index + 1}</span><strong>{node.title}</strong>
         <small>{node.completedConditions}/{node.conditions} · {t(node.status)}</small></article>)}</div></section>
     <RecordRiskTables report={report} statuses={statuses} group />
+  </>;
+}
+
+function EntityRecordReport({ report, statuses }) {
+  const { language, t } = useUiLanguage();
+  return <>
+    <section className="record-report-facts"><div><span>{t("公司类型")}</span><strong>{t(report.entityKind === "holding_company" ? "控股公司" : "公司")}</strong></div>
+      <div><span>{t("默认会计年度")}</span><strong>{t({ calendar: "自然年（1 月至 12 月）", apr_mar: "4 月至次年 3 月", custom: "自定义会计年度" }[report.fiscalYearPreset])}</strong></div>
+      <div><span>{t("年度项目")}</span><strong>{report.projects.length}</strong></div><div><span>{t("未完成税务期限")}</span><strong>{report.taxDeadlines.length}</strong></div></section>
+    <section className="management-report-section"><header><div><h3>{t("历年项目")}</h3><span>{t("报告期间、负责人、排期和状态")}</span></div></header>
+      {report.projects.length ? <div className="management-table-scroll"><table className="management-report-table"><thead><tr>
+        <th>{t("报告期间")}</th><th>{t("负责人")}</th><th>{t("项目排期")}</th><th>{t("状态")}</th></tr></thead><tbody>
+        {report.projects.map((project) => <tr key={project.id}><td><strong>{project.label}</strong><small>{formatDate(project.periodStart, language)} → {formatDate(project.periodEnd, language)}</small></td>
+          <td>{project.owner || "—"}</td><td>{formatDate(project.startDate, language)} → {formatDate(project.dueDate, language)}</td>
+          <td>{t(project.archived ? "归档" : project.complete ? "已完成" : "进行中")}</td></tr>)}</tbody></table></div>
+        : <div className="management-report-empty compact"><strong>{t("这家公司还没有年度项目")}</strong></div>}</section>
+    {report.entityKind === "holding_company" && <section className="management-report-section"><header><div><h3>{t("当前控股架构")}</h3>
+      <span>{t("当前直属成员，不改写历史年度范围")}</span></div></header><div className="record-stage-list">{report.children.map((child, index) => <article key={child.id}>
+        <span>{index + 1}</span><strong>{child.name}</strong><small>{child.role || t(child.kind === "holding_company" ? "控股公司" : "公司")}</small></article>)}</div></section>}
+    <section className="record-risk-tables"><article><header><strong>{t("历年待清事项")}</strong><span>{report.outstanding.length}</span></header>
+      {report.outstanding.length ? <table><thead><tr><th>{t("事项")}</th><th>{t("来源年度")}</th><th>{t("状态")}</th><th>{t("建立时间")}</th></tr></thead><tbody>
+        {report.outstanding.map((entry) => <tr key={`${entry.engagementId}:${entry.item.id}`}><td><strong>{entry.item.title}</strong></td>
+          <td>{entry.periodLabel}</td><td>{outstandingStatusLabel(entry.item.status, statuses, language)}</td>
+          <td>{formatDate(entry.item.createdAt?.slice(0, 10), language)} · {t("{count} 天", { count: entry.ageDays })}</td></tr>)}</tbody></table>
+        : <p>{t("没有未清事项")}</p>}</article></section>
+    <section className="record-risk-tables"><article><header><strong>{t("未完成税务期限")}</strong><span>{report.taxDeadlines.length}</span></header>
+      {report.taxDeadlines.length ? <table><thead><tr><th>{t("期限种类")}</th><th>{t("课税年度")}</th><th>{t("负责人")}</th><th>{t("当前期限")}</th><th>{t("紧急程度")}</th></tr></thead><tbody>
+        {report.taxDeadlines.map((deadline) => <tr key={deadline.id}><td>{taxDeadlineCategoryLabel(deadline, language)}</td><td>{deadline.taxYear || "—"}</td>
+          <td>{deadline.owner || "—"}</td><td>{formatDate(deadline.dueDate, language)}</td><td>{urgencyLabel(deadline.urgency.level, t)}</td></tr>)}</tbody></table>
+        : <p>{t("没有未完成税务期限")}</p>}</article></section>
   </>;
 }
 
@@ -206,7 +238,7 @@ function PrintScope({ filters, store, current }) {
   const urgency = { all: "全部紧急程度", overdue: "已逾期", due_today: "今日到期", due_soon: "即将到期",
     open_outstanding: "有未清事项" }[filters.urgency];
   const holding = filters.holdingCompanyId === "all" ? t("全部控股层级")
-    : store.groups.find((group) => group.id === filters.holdingCompanyId)?.name || "—";
+    : store.entities?.find((entity) => entity.id === filters.holdingCompanyId)?.legalName || "—";
   const category = filters.categoryId === "all" ? t("全部业务模块")
     : workstreamCategoryLabel(store.workstreamCategories.find((item) => item.id === filters.categoryId), language);
   return <section className="print-report-scope"><strong>{t("打印范围")}</strong><span>{t("记录状态")}：{t(status)}</span>
@@ -220,8 +252,8 @@ export function ManagementReport({ store, selection, now = new Date(), onOpen })
   const { t } = useUiLanguage();
   const [view, setView] = React.useState("portfolio");
   const [filters, setFilters] = React.useState(DEFAULT_MANAGEMENT_REPORT_FILTERS);
-  const selectedExists = selection && (selection.kind === "project" ? store.projects : store.groups)
-    .some((item) => item.id === selection.id);
+  const selectedExists = selection && (selection.kind === "entity" ? store.entities
+    : selection.kind === "project" ? store.projects : store.groups).some((item) => item.id === selection.id);
   React.useEffect(() => { if (!selectedExists && view === "record") setView("portfolio"); }, [selectedExists, view]);
   const portfolio = React.useMemo(() => buildPortfolioReport(store, filters, now), [store, filters, now]);
   const record = React.useMemo(() => selectedExists ? buildRecordReport(store, selection.kind, selection.id, now) : null,
@@ -239,9 +271,10 @@ export function ManagementReport({ store, selection, now = new Date(), onOpen })
         onClick={() => setView("record")}>{t("当前记录")}</button></div>
     {!current ? <><PortfolioFilters store={store} filters={filters} setFilters={setFilters} /><MetricStrip metrics={portfolio.metrics} />
       <PortfolioTable report={portfolio} onOpen={onOpen} /><PortfolioRisks report={portfolio} statuses={store.outstandingStatuses} onOpen={onOpen} /></>
-      : <><section className="record-report-status"><span data-complete={current.complete || undefined}>{t(current.complete ? "已完成" : "进行中")}</span>
-        {current.archived && <strong>{t("归档 · 只读")}</strong>}</section>{current.kind === "project"
-        ? <ProjectRecordReport report={current} statuses={store.outstandingStatuses} />
-        : <GroupRecordReport report={current} statuses={store.outstandingStatuses} />}</>}
+      : <>{current.kind !== "entity" && <section className="record-report-status"><span data-complete={current.complete || undefined}>{t(current.complete ? "已完成" : "进行中")}</span>
+        {current.archived && <strong>{t("归档 · 只读")}</strong>}</section>}{current.kind === "entity"
+        ? <EntityRecordReport report={current} statuses={store.outstandingStatuses} /> : current.kind === "project"
+          ? <ProjectRecordReport report={current} statuses={store.outstandingStatuses} />
+          : <GroupRecordReport report={current} statuses={store.outstandingStatuses} />}</>}
   </div>;
 }

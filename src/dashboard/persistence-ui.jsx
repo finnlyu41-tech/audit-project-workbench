@@ -125,8 +125,9 @@ function SummaryCard({ label, summary, timestamp }) {
   const { language, t } = useUiLanguage();
   const time = formatSavedAt(timestamp, language);
   return <article className="workspace-version-card"><strong>{t(label)}</strong>
-    <dl><div><dt>{t("公司")}</dt><dd>{summary.projects}</dd></div>
-      <div><dt>{t("控股公司")}</dt><dd>{summary.groups}</dd></div>
+    <dl><div><dt>{t("公司主档")}</dt><dd>{summary.entities}</dd></div>
+      <div><dt>{t("年度项目")}</dt><dd>{summary.engagements}</dd></div>
+      <div><dt>{t("控股公司")}</dt><dd>{summary.holdingCompanies}</dd></div>
       <div><dt>{t("数据版本")}</dt><dd>V{summary.version}</dd></div></dl>
     {time && <time dateTime={timestamp}>{time}</time>}</article>;
 }

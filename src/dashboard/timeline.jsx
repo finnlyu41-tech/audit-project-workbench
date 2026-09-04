@@ -1,7 +1,7 @@
 import React from "react";
 import { Building, Building2, CalendarClock, CircleAlert, GripVertical, LocateFixed, ReceiptText } from "lucide-react";
 import { formatDate, groupProgress, projectStats, taxDeadlineCategoryLabel, taxDeadlineUrgency,
-  workspaceScheduleOrder } from "./model.js";
+  fiscalPeriodShortLabel, workspaceScheduleOrder } from "./model.js";
 import { useUiLanguage } from "./i18n.jsx";
 
 const DAY_MS = 86400000;
@@ -40,7 +40,41 @@ function matchesFilter(item, complete, filter) {
   return true;
 }
 
-function scheduleRows(store, filter) {
+function scheduleRows(store, filter, language = "en") {
+  if (Array.isArray(store.entities) && Array.isArray(store.engagements)) {
+    const entityById = new Map(store.entities.map((entity) => [entity.id, entity]));
+    const latestByEntity = new Map();
+    store.engagements.filter((engagement) => !engagement.archived).forEach((engagement) => {
+      const current = latestByEntity.get(engagement.entityId);
+      if (!current || (engagement.periodEnd || "") > (current.periodEnd || "")) latestByEntity.set(engagement.entityId, engagement);
+    });
+    const order = new Map(workspaceScheduleOrder(store).map((key, index) => [key, index]));
+    return store.engagements.flatMap((engagement) => {
+      const entity = entityById.get(engagement.entityId);
+      if (!entity) return [];
+      const kind = entity.kind === "holding_company" ? "group" : "project";
+      const view = kind === "group" ? store.groups.find((group) => group.id === engagement.id)
+        : store.projects.find((project) => project.id === engagement.id);
+      const complete = kind === "group" ? Boolean(view && groupProgress(store, engagement.id).ready)
+        : Boolean(view && projectStats(view).complete);
+      const row = {
+        id: engagement.id,
+        kind,
+        name: `${entity.legalName} · ${fiscalPeriodShortLabel(engagement, language)}`,
+        secondaryName: engagement.internalName || "",
+        owner: engagement.owner,
+        startDate: engagement.startDate,
+        dueDate: engagement.dueDate,
+        taxDeadlines: (entity.taxDeadlines || []).filter((deadline) => deadline.state === "open" && deadline.dueDate
+          && (deadline.linkedEngagementId === engagement.id
+            || (!deadline.linkedEngagementId && latestByEntity.get(entity.id)?.id === engagement.id))),
+        archived: Boolean(entity.archived || engagement.archived),
+        complete,
+      };
+      return matchesFilter(row, complete, filter) ? [row] : [];
+    }).sort((left, right) => (order.get(`${left.kind}:${left.id}`) ?? Number.MAX_SAFE_INTEGER)
+      - (order.get(`${right.kind}:${right.id}`) ?? Number.MAX_SAFE_INTEGER) || left.name.localeCompare(right.name));
+  }
   const projects = store.projects.map((project) => ({
     id: project.id,
     kind: "project",
@@ -106,7 +140,7 @@ export function ProjectSchedule({ store, filter, onOpen, onEditSchedule, onOpenT
   const draggingRef = React.useRef(null);
   const [draggingKey, setDraggingKey] = React.useState(null);
   const [dropTarget, setDropTarget] = React.useState(null);
-  const rows = React.useMemo(() => scheduleRows(store, filter), [store, filter]);
+  const rows = React.useMemo(() => scheduleRows(store, filter, language), [store, filter, language]);
   const timeline = React.useMemo(() => makeTimeline(rows), [rows]);
   const width = timeline.weekCount * timeline.weekWidth;
   const scheduledCount = rows.filter((row) => row.startDate && row.dueDate).length;
@@ -158,7 +192,7 @@ export function ProjectSchedule({ store, filter, onOpen, onEditSchedule, onOpenT
     if (!viewport) return;
     const fixedColumnWidth = viewport.querySelector(".schedule-corner")?.getBoundingClientRect().width || 0;
     const visibleTimelineWidth = Math.max(0, viewport.clientWidth - fixedColumnWidth);
-    const requestedLeft = fixedColumnWidth + todayLeft - visibleTimelineWidth / 2;
+    const requestedLeft = todayLeft - visibleTimelineWidth / 2;
     viewport.scrollTo({ left: Math.min(Math.max(0, requestedLeft), viewport.scrollWidth - viewport.clientWidth), behavior: "smooth" });
   };
   const horizontalWheel = (event) => {

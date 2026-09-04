@@ -10,6 +10,7 @@ import {
   canNestGroup,
   collectGroupOutstandingEntries,
   collectGroupTaxDeadlineEntries,
+  componentsForCurrentStructure,
   convertGroupToProject,
   convertProjectToGroup,
   createDefaultGroupSample,
@@ -19,6 +20,10 @@ import {
   deadlineAlerts,
   duplicateSample,
   emptyStore,
+  engagementPeriodExists,
+  engagementsForEntity,
+  fiscalPeriodForYear,
+  fiscalPeriodShortLabel,
   findParentMembership,
   groupProgress,
   localizeGroupSample,
@@ -27,18 +32,26 @@ import {
   localizeWorkflowNodes,
   makeGroup,
   makeGroupMember,
+  makeEngagement,
+  makeEntity,
   makeOutstandingItem,
   makeProject,
   makeTaxDeadline,
   makeWorkstream,
   memberProgressPercentage,
+  mergeEntities,
+  moveEntity,
   moveWorkspaceItem,
   navigationStatusCounts,
   nodeIsComplete,
   normalizeStore,
+  inferPeriodPreset,
+  suggestNextFiscalYear,
+  syncEngagementToCurrentStructure,
   outstandingIsOpen,
   projectIsComplete,
   projectStats,
+  reconcileWorkbenchStore,
   redactSampleCompanies,
   reorderWorkspaceSchedule,
   reportingPeriodLabel,
@@ -342,7 +355,7 @@ test("version 5 data migrates to template categories without changing the select
   assert.equal(migrated.projects[0].workstreams[0].categoryId, "audit");
 });
 
-test("initialising creates a clean version 10 workspace with built-in categories and templates", () => {
+test("initialising creates a clean version 11 workspace with built-in categories and templates", () => {
   const initialised = emptyStore();
 
   assert.equal(initialised.version, STORE_VERSION);
@@ -370,7 +383,7 @@ test("bookkeeping is added during V9 migration with a complete built-in workflow
   assert.equal(migrated.selectedSampleIdsByCategory.bookkeeping, bookkeeping.id);
 });
 
-test("a new V10 company may intentionally start without workstreams and add them later", () => {
+test("a legacy-style company may intentionally start without workstreams and add them later", () => {
   const store = emptyStore();
   const project = makeProject({ ...projectValues, workstreamSelections: [] }, true,
     store.samples, store.workstreamCategories);
@@ -391,7 +404,7 @@ test("choosing a blank starting workflow does not silently apply the category de
   assert.deepEqual(project.workstreams[0].nodes, []);
 });
 
-test("version 8 data migrates to version 10 with empty tax registers and intact relationships", () => {
+test("version 8 data migrates to version 11 with empty tax registers and intact relationships", () => {
   const base = emptyStore();
   const project = makeProject(projectValues, true, base.samples, base.workstreamCategories);
   const group = makeGroup({ name: "Parent Holding", consolidationEnabled: false }, false, base.groupSamples[0]);
@@ -486,7 +499,7 @@ test("rescheduling requires a reason and retains the original date and full revi
   assert.equal(taxDeadlineUrgency(completed, new Date(2026, 10, 1)).level, "inactive");
 });
 
-test("version 9 JSON backup migrates to version 10 while preserving every tax-deadline field and revision", () => {
+test("version 9 JSON backup migrates to V11 while preserving every tax-deadline field and revision", () => {
   const base = emptyStore();
   const project = makeProject({ ...projectValues, workstreamSelections: [{ type: "tax_computation_filing" }] },
     true, base.samples, base.workstreamCategories);
@@ -500,7 +513,7 @@ test("version 9 JSON backup migrates to version 10 while preserving every tax-de
   project.taxDeadlines = [original];
 
   const restored = normalizeStore(JSON.parse(JSON.stringify({ ...base, projects: [project] })));
-  assert.deepEqual(restored.projects[0].taxDeadlines[0], original);
+  assert.deepEqual(restored.projects[0].taxDeadlines[0], { ...original, linkedEngagementId: project.id });
 });
 
 test("unused built-in template categories can be renamed or removed without returning after reload", () => {
@@ -958,4 +971,167 @@ test("tax alerts survive project completion, use the reminder window and never d
   ]);
   assert.deepEqual(taxAlerts.map((alert) => alert.urgency), ["due_today", "due_soon"]);
   assert.equal(taxAlerts.filter((alert) => alert.targetId === completed.id).length, 1);
+});
+
+test("V11 fiscal-year helpers generate exact calendar and April-to-March periods", () => {
+  assert.deepEqual(fiscalPeriodForYear("calendar", 2024), {
+    periodPreset: "calendar", periodStart: "2024-01-01", periodEnd: "2024-12-31",
+  });
+  assert.deepEqual(fiscalPeriodForYear("apr_mar", 2024), {
+    periodPreset: "apr_mar", periodStart: "2024-04-01", periodEnd: "2025-03-31",
+  });
+  assert.equal(inferPeriodPreset("2024-01-01", "2024-12-31"), "calendar");
+  assert.equal(inferPeriodPreset("2024-04-01", "2025-03-31"), "apr_mar");
+  assert.equal(inferPeriodPreset("2024-02-29", "2024-09-30"), "custom");
+  assert.equal(fiscalPeriodShortLabel({ periodPreset: "calendar", periodStart: "2024-01-01", periodEnd: "2024-12-31" }), "FY2024");
+  assert.equal(fiscalPeriodShortLabel({ periodPreset: "apr_mar", periodStart: "2024-04-01", periodEnd: "2025-03-31" }), "FY2024/25");
+});
+
+test("V10 records migrate losslessly into separate V11 entities and engagements without name merging", () => {
+  const base = emptyStore();
+  const first = makeProject({ ...projectValues, name: "FY2023", entity: "Repeat Limited",
+    periodStart: "2023-01-01", periodEnd: "2023-12-31" }, true, base.samples, base.workstreamCategories);
+  const second = makeProject({ ...projectValues, name: "FY2024", entity: "Repeat Limited",
+    periodStart: "2024-04-01", periodEnd: "2025-03-31" }, false, base.samples, base.workstreamCategories);
+  const holding = makeGroup({ name: "Parent Limited", periodStart: "2024-04-01", periodEnd: "2025-03-31",
+    consolidationEnabled: false }, false, base.groupSamples[0]);
+  holding.members.push(makeGroupMember({ kind: "project", refId: second.id, role: "Subsidiary" }, base.groupSamples[0]));
+  const migrated = normalizeStore({ ...base, version: 10, entities: undefined, engagements: undefined,
+    projects: [first, second], groups: [holding] });
+
+  assert.equal(migrated.version, 11);
+  assert.equal(migrated.entities.length, 3);
+  assert.equal(migrated.entities.filter((entity) => entity.legalName === "Repeat Limited").length, 2);
+  assert.equal(migrated.engagements.length, 3);
+  assert.equal(migrated.engagements.find((item) => item.id === first.id).periodPreset, "calendar");
+  assert.equal(migrated.engagements.find((item) => item.id === second.id).periodPreset, "apr_mar");
+  const childEntity = migrated.entities.find((entity) => entity.id === migrated.engagements.find((item) => item.id === second.id).entityId);
+  const parentEntity = migrated.entities.find((entity) => entity.id === migrated.engagements.find((item) => item.id === holding.id).entityId);
+  assert.equal(childEntity.parentEntityId, parentEntity.id);
+  assert.equal(childEntity.relationshipRole, "Subsidiary");
+  assert.equal(migrated.engagements.find((item) => item.id === holding.id).consolidation.components[0].engagementId, second.id);
+});
+
+test("one company supports three annual engagements and rejects an identical period including archived records", () => {
+  const store = emptyStore();
+  const entity = makeEntity({ legalName: "Three Years Limited", fiscalYearPreset: "calendar" });
+  store.entities.push(entity);
+  const first = makeEngagement({ entityId: entity.id, periodStart: "2023-01-01", periodEnd: "2023-12-31",
+    periodPreset: "calendar" }, { entity, store, sourceMode: "blank", workstreamCategories: store.workstreamCategories,
+    outstandingStatuses: store.outstandingStatuses });
+  store.engagements.push(first);
+  const second = makeEngagement({ entityId: entity.id, periodStart: "2024-01-01", periodEnd: "2024-12-31",
+    periodPreset: "calendar" }, { entity, store, sourceMode: "blank", workstreamCategories: store.workstreamCategories,
+    outstandingStatuses: store.outstandingStatuses });
+  store.engagements.push(second);
+  const third = makeEngagement({ entityId: entity.id, periodStart: "2025-01-01", periodEnd: "2025-12-31",
+    periodPreset: "calendar" }, { entity, store, sourceMode: "blank", workstreamCategories: store.workstreamCategories,
+    outstandingStatuses: store.outstandingStatuses });
+  store.engagements.push({ ...third, archived: true });
+
+  assert.equal(engagementsForEntity(store, entity.id).length, 3);
+  assert.equal(suggestNextFiscalYear(entity, store.engagements), 2026);
+  assert.equal(engagementPeriodExists(store, entity.id, "2025-01-01", "2025-12-31"), true);
+  assert.throws(() => makeEngagement({ entityId: entity.id, periodStart: "2025-01-01", periodEnd: "2025-12-31" },
+    { entity, store, sourceMode: "blank", workstreamCategories: store.workstreamCategories,
+      outstandingStatuses: store.outstandingStatuses }), /already exists/u);
+});
+
+test("new-year copy keeps structure and framework while clearing owners dates status and outstanding items", () => {
+  const store = emptyStore();
+  const entity = makeEntity({ legalName: "Carry Forward Limited" });
+  const source = makeEngagement({ entityId: entity.id, periodStart: "2024-01-01", periodEnd: "2024-12-31",
+    reportingFramework: "HKFRS Accounting Standards", workstreamSelections: [{ type: "audit", categoryId: "audit" }] },
+  { entity, store, sourceMode: "template", samples: store.samples, workstreamCategories: store.workstreamCategories,
+    outstandingStatuses: store.outstandingStatuses });
+  source.owner = "Old owner";
+  source.startDate = "2025-01-10";
+  source.dueDate = "2025-03-31";
+  source.workstreams[0].owner = "Old in-charge";
+  source.workstreams[0].dueDate = "2025-03-01";
+  source.workstreams[0].nodes[0].conditions[0].done = true;
+  source.outstandingItems.push(makeOutstandingItem({ title: "Old request" }, store.outstandingStatuses));
+  const copied = makeEngagement({ entityId: entity.id, periodStart: "2025-01-01", periodEnd: "2025-12-31" }, {
+    entity, store, sourceMode: "previous", sourceEngagement: source,
+    workstreamCategories: store.workstreamCategories, outstandingStatuses: store.outstandingStatuses,
+  });
+
+  assert.equal(copied.reportingFramework, "HKFRS Accounting Standards");
+  assert.equal(copied.owner, "");
+  assert.equal(copied.startDate, "");
+  assert.equal(copied.dueDate, "");
+  assert.equal(copied.outstandingItems.length, 0);
+  assert.equal(copied.workstreams[0].owner, "");
+  assert.equal(copied.workstreams[0].dueDate, "");
+  assert.equal(copied.workstreams[0].nodes[0].conditions[0].done, false);
+});
+
+test("holding-company annual components freeze history, match exact periods and update only after explicit sync", () => {
+  let store = emptyStore();
+  const root = makeEntity({ legalName: "Root Holdings", kind: "holding_company", fiscalYearPreset: "calendar" });
+  const middle = makeEntity({ legalName: "Middle Holdings", kind: "holding_company", parentEntityId: root.id,
+    relationshipRole: "Intermediate holding company" });
+  const leaf = makeEntity({ legalName: "Leaf Limited", parentEntityId: middle.id, relationshipRole: "Subsidiary" });
+  store = reconcileWorkbenchStore(store, { ...store, entities: [root, middle, leaf],
+    entityOrder: [root.id, middle.id, leaf.id] });
+  const leaf2025 = makeEngagement({ entityId: leaf.id, periodStart: "2025-01-01", periodEnd: "2025-12-31" },
+    { entity: leaf, store, sourceMode: "blank", workstreamCategories: store.workstreamCategories,
+      outstandingStatuses: store.outstandingStatuses });
+  const middle2025 = makeEngagement({ entityId: middle.id, periodStart: "2025-01-01", periodEnd: "2025-12-31" },
+    { entity: middle, store, sourceMode: "blank", workstreamCategories: store.workstreamCategories,
+      outstandingStatuses: store.outstandingStatuses });
+  store = reconcileWorkbenchStore(store, { ...store, engagements: [leaf2025, { ...middle2025, consolidation: {
+    ...middle2025.consolidation,
+    components: componentsForCurrentStructure({ ...store, engagements: [leaf2025] }, middle.id,
+      "2025-01-01", "2025-12-31", store.groupSamples[0]),
+  } }] });
+  assert.equal(store.engagements.find((item) => item.id === middle2025.id).consolidation.components[0].engagementId, leaf2025.id);
+
+  const beforeMove = structuredClone(store.engagements.find((item) => item.id === middle2025.id).consolidation.components);
+  store = moveEntity(store, leaf.id, root.id);
+  assert.deepEqual(store.engagements.find((item) => item.id === middle2025.id).consolidation.components, beforeMove);
+  store = syncEngagementToCurrentStructure(store, middle2025.id, store.groupSamples[0]);
+  assert.equal(store.engagements.find((item) => item.id === middle2025.id).consolidation.components.length, 0);
+
+  const root2025 = makeEngagement({ entityId: root.id, periodStart: "2025-01-01", periodEnd: "2025-12-31" },
+    { entity: root, store, sourceMode: "blank", workstreamCategories: store.workstreamCategories,
+      outstandingStatuses: store.outstandingStatuses });
+  const rootComponents = componentsForCurrentStructure(store, root.id, "2025-01-01", "2025-12-31", store.groupSamples[0]);
+  assert.equal(rootComponents.find((component) => component.entityId === leaf.id).engagementId, leaf2025.id);
+  assert.equal(rootComponents.find((component) => component.entityId === middle.id).engagementId, middle2025.id);
+});
+
+test("unmatched holding components remain explicit and duplicate-company merge is preview-safe", () => {
+  let store = emptyStore();
+  const holding = makeEntity({ legalName: "Holding", kind: "holding_company" });
+  const source = makeEntity({ legalName: "Duplicate Limited", parentEntityId: holding.id,
+    taxDeadlines: [makeTaxDeadline({ dueDate: "2026-11-01" })] });
+  const target = makeEntity({ legalName: "Duplicate Limited" });
+  store = reconcileWorkbenchStore(store, { ...store, entities: [holding, source, target] });
+  const sourceYear = makeEngagement({ entityId: source.id, periodStart: "2024-01-01", periodEnd: "2024-12-31" },
+    { entity: source, store, sourceMode: "blank", workstreamCategories: store.workstreamCategories,
+      outstandingStatuses: store.outstandingStatuses });
+  store = reconcileWorkbenchStore(store, { ...store, engagements: [sourceYear] });
+  const unmatched = componentsForCurrentStructure(store, holding.id, "2025-01-01", "2025-12-31", store.groupSamples[0]);
+  assert.equal(unmatched[0].engagementId, null);
+  assert.equal(unmatched[0].entitySnapshot.legalName, "Duplicate Limited");
+
+  const merged = mergeEntities(store, source.id, target.id);
+  assert.equal(merged.entities.some((entity) => entity.id === source.id), false);
+  assert.equal(merged.engagements.find((engagement) => engagement.id === sourceYear.id).entityId, target.id);
+  assert.equal(merged.entities.find((entity) => entity.id === target.id).taxDeadlines.length, 1);
+
+  const conflict = makeEngagement({ entityId: source.id, periodStart: "2024-01-01", periodEnd: "2024-12-31" },
+    { entity: source, store: { ...store, engagements: [] }, sourceMode: "blank", workstreamCategories: store.workstreamCategories,
+      outstandingStatuses: store.outstandingStatuses });
+  const targetConflict = { ...conflict, id: "target-conflict", entityId: target.id };
+  assert.throws(() => mergeEntities(reconcileWorkbenchStore(store, { ...store,
+    engagements: [conflict, targetConflict] }), source.id, target.id),
+    /duplicate reporting periods/u);
+});
+
+test("company masters without annual engagements count as active navigation records", () => {
+  const base = emptyStore();
+  const store = reconcileWorkbenchStore(base, { ...base, entities: [makeEntity({ legalName: "Empty Limited" })], engagements: [] });
+  assert.deepEqual(navigationStatusCounts(store), { active: 1, completed: 0, all: 1, archived: 0 });
 });

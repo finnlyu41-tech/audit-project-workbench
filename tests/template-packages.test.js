@@ -65,7 +65,8 @@ test("template exports contain portable workflow content and exclude workspace r
   const text = JSON.stringify(pkg);
   assert.equal(pkg.kind, TEMPLATE_PACKAGE_KIND);
   assert.equal(pkg.templates.length, 2);
-  for (const forbidden of ["projects", "groups", "outstandingStatuses", "taxDeadlines", "workstreams", "SECRET"]) {
+  for (const forbidden of ["entities", "engagements", "entityOrder", "scheduleOrder", "projects", "groups",
+    "outstandingStatuses", "taxDeadlines", "workstreams", "SECRET"]) {
     assert.equal(text.includes(forbidden), false, forbidden);
   }
   assert.deepEqual(parseTemplatePackage(text), pkg);
@@ -75,6 +76,8 @@ test("package validation rejects workspace data, duplicate identities and partia
   const store = emptyStore();
   const pkg = createTemplatePackage(store, { sampleIds: [store.samples[0].id] });
   assert.throws(() => parseTemplatePackage({ ...pkg, projects: [] }), (error) =>
+    error instanceof TemplatePackageError && error.code === "contains_workspace_data");
+  assert.throws(() => parseTemplatePackage({ ...pkg, entities: [] }), (error) =>
     error instanceof TemplatePackageError && error.code === "contains_workspace_data");
   assert.throws(() => parseTemplatePackage({ ...pkg, templates: [...pkg.templates, pkg.templates[0]] }), (error) =>
     error instanceof TemplatePackageError && error.code === "duplicate_template");

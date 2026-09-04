@@ -1,7 +1,7 @@
 import React from "react";
 import { Ban, Check, ExternalLink, History, Pencil, Plus, ReceiptText, Trash2 } from "lucide-react";
 import { TAX_DEADLINE_CATEGORIES, TAX_DEADLINE_STATES, collectGroupTaxDeadlineEntries, formatDate,
-  taxDeadlineCategoryLabel, taxDeadlineStateLabel, taxDeadlineSummary, taxDeadlineUrgency,
+  fiscalPeriodShortLabel, taxDeadlineCategoryLabel, taxDeadlineStateLabel, taxDeadlineSummary, taxDeadlineUrgency,
   workstreamTypeLabel } from "./model.js";
 import { useUiLanguage } from "./i18n.jsx";
 import { handleTabListKeyDown, tabIndexFor } from "./a11y.js";
@@ -15,13 +15,26 @@ function urgencyLabel(urgency, t) {
 }
 
 function sourceRecord(store, sourceType, sourceId) {
+  if (sourceType === "entity") return store.entities?.find((item) => item.id === sourceId);
   return sourceType === "group" ? store.groups.find((item) => item.id === sourceId)
     : store.projects.find((item) => item.id === sourceId);
 }
 
 function directEntries(target, targetKind) {
   return (target?.taxDeadlines || []).map((deadline) => ({ deadline, sourceType: targetKind,
-    sourceId: target.id, sourceName: targetKind === "project" ? target.entity || target.name : target.name, depth: 0 }));
+    sourceId: target.id, sourceName: targetKind === "entity" ? target.legalName
+      : targetKind === "project" ? target.entity || target.name : target.name, depth: 0 }));
+}
+
+function collectEntityTaxEntries(store, entityId, visited = new Set(), depth = 0) {
+  if (visited.has(entityId)) return [];
+  const entity = store.entities?.find((item) => item.id === entityId);
+  if (!entity) return [];
+  const next = new Set(visited).add(entityId);
+  const own = directEntries(entity, "entity").map((entry) => ({ ...entry, depth }));
+  const children = (store.entities || []).filter((child) => child.parentEntityId === entityId && !child.archived)
+    .flatMap((child) => collectEntityTaxEntries(store, child.id, next, depth + 1));
+  return [...own, ...children];
 }
 
 export function TaxDeadlineSummaryButton({ deadlines = [], now = new Date(), onClick, compact = false }) {
@@ -37,7 +50,7 @@ export function TaxDeadlineSummaryButton({ deadlines = [], now = new Date(), onC
   </button>;
 }
 
-function TaxDeadlineForm({ initial, workstreams, onSubmit, onDelete, onCancel }) {
+function TaxDeadlineForm({ initial, engagements = [], initialEngagementId = "", onSubmit, onDelete, onCancel }) {
   const { language, t } = useUiLanguage();
   const [values, setValues] = React.useState(() => ({
     category: initial?.category || "profits_tax_filing",
@@ -47,6 +60,7 @@ function TaxDeadlineForm({ initial, workstreams, onSubmit, onDelete, onCancel })
     dueDate: initial?.dueDate || "",
     reminderDays: initial?.reminderDays ?? 30,
     state: initial?.state || "open",
+    linkedEngagementId: initial?.linkedEngagementId || initialEngagementId || "",
     linkedWorkstreamId: initial?.linkedWorkstreamId || "",
     reference: initial?.reference || "",
     note: initial?.note || "",
@@ -54,11 +68,14 @@ function TaxDeadlineForm({ initial, workstreams, onSubmit, onDelete, onCancel })
   const [revisionReason, setRevisionReason] = React.useState("");
   const update = (field) => (event) => setValues((current) => ({ ...current, [field]: event.target.value }));
   const dateChanged = Boolean(initial?.dueDate && values.dueDate && initial.dueDate !== values.dueDate);
+  const linkedEngagement = engagements.find((engagement) => engagement.id === values.linkedEngagementId);
+  const workstreams = linkedEngagement?.workstreams || [];
   return <form className="tax-deadline-form" onSubmit={(event) => {
     event.preventDefault();
     if (values.category === "custom" && !values.customName.trim()) return;
     if (dateChanged && !revisionReason.trim()) return;
     onSubmit({ ...values, reminderDays: Number(values.reminderDays),
+      linkedEngagementId: values.linkedEngagementId || null,
       linkedWorkstreamId: values.linkedWorkstreamId || null }, revisionReason.trim());
   }}>
     <header><div><span>{t(initial ? "编辑税务期限" : "新增税务期限")}</span>
@@ -82,7 +99,12 @@ function TaxDeadlineForm({ initial, workstreams, onSubmit, onDelete, onCancel })
         value={values.reminderDays} onChange={update("reminderDays")} /></label>
       <label><span>{t("状态")}</span><select value={values.state} onChange={update("state")}>
         {TAX_DEADLINE_STATES.map((state) => <option value={state} key={state}>{taxDeadlineStateLabel(state, language)}</option>)}</select></label>
-      {workstreams.length > 0 && <label><span>{t("关联业务模块")}</span><select value={values.linkedWorkstreamId}
+      {engagements.length > 0 && <label><span>{t("关联年度项目")}</span><select value={values.linkedEngagementId}
+        onChange={(event) => setValues((current) => ({ ...current, linkedEngagementId: event.target.value,
+          linkedWorkstreamId: "" }))}><option value="">{t("不关联年度项目")}</option>
+        {engagements.map((engagement) => <option value={engagement.id} key={engagement.id}>
+          {fiscalPeriodShortLabel(engagement, language)}</option>)}</select></label>}
+      {values.linkedEngagementId && workstreams.length > 0 && <label><span>{t("关联业务模块")}</span><select value={values.linkedWorkstreamId}
         onChange={update("linkedWorkstreamId")}><option value="">{t("不关联模块")}</option>
         {workstreams.map((workstream) => <option value={workstream.id} key={workstream.id}>
           {workstreamTypeLabel(workstream.type, language, workstream.customName)}</option>)}</select></label>}
@@ -108,11 +130,12 @@ function TaxDeadlineForm({ initial, workstreams, onSubmit, onDelete, onCancel })
   </form>;
 }
 
-export function TaxDeadlineManager({ store, targetKind, targetId, focusDeadlineId, initialEditDeadlineId, readOnly = false,
-  onSave, onDelete, onOpenSource }) {
+export function TaxDeadlineManager({ store, targetKind, targetId, focusDeadlineId, initialEditDeadlineId,
+  initialEngagementId = "", readOnly = false, onSave, onDelete, onOpenSource }) {
   const { language, t } = useUiLanguage();
   const target = sourceRecord(store, targetKind, targetId);
-  const [scope, setScope] = React.useState(() => targetKind === "group" ? "group" : "own");
+  const holdingTarget = targetKind === "group" || (targetKind === "entity" && target?.kind === "holding_company");
+  const [scope, setScope] = React.useState(() => holdingTarget ? "group" : "own");
   const [urgencyFilter, setUrgencyFilter] = React.useState("all");
   const [categoryFilter, setCategoryFilter] = React.useState("all");
   const [ownerFilter, setOwnerFilter] = React.useState("all");
@@ -120,10 +143,11 @@ export function TaxDeadlineManager({ store, targetKind, targetId, focusDeadlineI
     ? { sourceType: targetKind, sourceId: targetId, deadlineId: initialEditDeadlineId } : null);
   const focusRef = React.useRef(null);
   const ownEntries = React.useMemo(() => directEntries(target, targetKind), [target, targetKind]);
-  const groupEntries = React.useMemo(() => targetKind === "group"
-    ? collectGroupTaxDeadlineEntries(store, targetId, new Set(), 0, readOnly) : ownEntries,
-  [store, targetId, targetKind, readOnly, ownEntries]);
-  const rawEntries = targetKind === "group" && scope === "group" ? groupEntries : ownEntries;
+  const groupEntries = React.useMemo(() => targetKind === "entity" && holdingTarget
+    ? collectEntityTaxEntries(store, targetId) : targetKind === "group"
+      ? collectGroupTaxDeadlineEntries(store, targetId, new Set(), 0, readOnly) : ownEntries,
+  [store, targetId, targetKind, holdingTarget, readOnly, ownEntries]);
+  const rawEntries = holdingTarget && scope === "group" ? groupEntries : ownEntries;
   const entries = rawEntries.map((entry) => ({ ...entry, urgency: taxDeadlineUrgency(entry.deadline) }));
   const owners = [...new Set(rawEntries.map((entry) => entry.deadline.owner).filter(Boolean))].sort();
   const categories = [...new Set(rawEntries.map((entry) => entry.deadline.category))];
@@ -143,11 +167,13 @@ export function TaxDeadlineManager({ store, targetKind, targetId, focusDeadlineI
   const activeEdit = editing ? sourceRecord(store, editing.sourceType, editing.sourceId)?.taxDeadlines
     ?.find((deadline) => deadline.id === editing.deadlineId) || null : null;
   const editSource = editing ? sourceRecord(store, editing.sourceType, editing.sourceId) : null;
-  const workstreams = editing?.sourceType === "project" ? editSource?.workstreams || [] : [];
+  const editEntityId = editing?.sourceType === "entity" ? editing.sourceId
+    : store.engagements?.find((engagement) => engagement.id === editing?.sourceId)?.entityId;
+  const engagements = (store.engagements || []).filter((engagement) => engagement.entityId === editEntityId);
 
   React.useEffect(() => {
-    setScope(targetKind === "group" ? "group" : "own");
-  }, [targetKind, targetId]);
+    setScope(holdingTarget ? "group" : "own");
+  }, [targetKind, targetId, holdingTarget]);
 
   React.useEffect(() => {
     if (!focusDeadlineId || !focusRef.current) return;
@@ -156,7 +182,7 @@ export function TaxDeadlineManager({ store, targetKind, targetId, focusDeadlineI
 
   if (!target) return null;
   if (editing) return <TaxDeadlineForm key={`${editing.sourceType}-${editing.sourceId}-${editing.deadlineId || "new"}`}
-    initial={activeEdit} workstreams={workstreams} onCancel={() => setEditing(null)}
+    initial={activeEdit} engagements={engagements} initialEngagementId={initialEngagementId} onCancel={() => setEditing(null)}
     onSubmit={(values, reason) => { onSave(editing.sourceType, editing.sourceId, activeEdit, values, reason); setEditing(null); }}
     onDelete={activeEdit && !readOnly ? () => {
       if (!window.confirm(t("删除税务期限“{name}”？此操作会同时删除相关改期记录。",
@@ -171,7 +197,7 @@ export function TaxDeadlineManager({ store, targetKind, targetId, focusDeadlineI
         { open: summary.openCount, attention: summary.attentionCount })}</small></div></div>
       {!readOnly && <button type="button" className="button primary" onClick={() => setEditing({ sourceType: targetKind,
         sourceId: targetId, deadlineId: null })}><Plus aria-hidden="true" />{t("新增期限")}</button>}</header>
-    {targetKind === "group" && <div className="tax-deadline-scope-tabs" role="tablist" aria-label={t("税务期限范围")}
+    {holdingTarget && <div className="tax-deadline-scope-tabs" role="tablist" aria-label={t("税务期限范围")}
       onKeyDown={handleTabListKeyDown}>
       <button type="button" role="tab" aria-selected={scope === "own"} tabIndex={tabIndexFor(scope === "own")}
         onClick={() => setScope("own")}>{t("本公司")}</button>

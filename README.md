@@ -1,6 +1,6 @@
 # APW — Audit Project Workbench
 
-一个以英文为默认界面、面向电脑窗口并以本机数据为主的专业服务项目进度工作台。每家公司是年度委聘的总容器，可并行管理审计、账务处理、报价与收款、税务计算及报税、客户尽职调查和自定义业务模块；会持续变化的待清事项则保持独立。
+一个以英文为默认界面、面向电脑窗口并以本机数据为主的专业服务项目进度工作台。公司主档长期保存法律实体、控股层级、税务期限和默认会计年度；FY2023、FY2024、FY2025 等年度项目则分别保存报告期间、负责人、排期、模块、节点、待清事项和进度。
 
 **[直接打开在线工作台](https://finnlyu41-tech.github.io/audit-project-workbench/)**
 
@@ -8,16 +8,18 @@
 
 ## 主要功能
 
-- Obsidian 式主工作区布局：左侧紧凑树状导航、中间宽工作区、右侧按需待清中心；左右区域均可收起，窄桌面窗口展开待清中心时不会挤压工作区。项目导航提供统一的“新建公司”入口，可拖动公司或控股公司改变归属及层级，并以加减号和连续层级线明确显示控股关系。
+- Obsidian 式主工作区布局：左侧紧凑树状导航、中间宽工作区、右侧按需待清中心；左右区域均可收起，窄桌面窗口展开待清中心时不会挤压工作区。导航以法律实体为主标识，在公司下面展开各年度项目；可拖动公司或控股公司改变当前归属及层级，并以加减号和连续层级线明确显示控股关系。
 - 最左侧采用固定窄工具栏，以统一线性图标收纳项目排期、范本、指南、设置、备份和语言；悬停或键盘聚焦会显示完整功能说明，同时保留无障碍名称。建立公司仍放在项目导航的视觉热区。
 - 内置分章节使用指南，逐项说明入口、操作步骤和完成结果。
-- 每个项目记录法律实体、可自定义财务报告准则／框架，以及可覆盖短期或长期间的报告期开始日和结束日；项目执行另设独立开始日和截止日，避免与财务报告期间混淆。
+- 新建公司只建立长期主档，不混入年度项目设置；公司可暂时没有项目，并可在概览中设置自然年、4 月至次年 3 月或自定义会计年度默认值。
+- 同一公司可建立多个互相独立的年度项目。自然年输入 `2025` 会生成 `2025-01-01 → 2025-12-31`，4 月制输入 `2025/26` 会生成 `2025-04-01 → 2026-03-31`；任何自动日期均可改成自定义完整期间，完全相同的期间不会重复建立。
+- 年度项目记录可自定义财务报告准则／框架、负责人、报告期间、项目开始日及截止日；新年度可以从空白、范本或上一年度结构建立，但不会带入旧负责人、执行日期、完成状态、待清事项或实际税务期限。
 - 项目排期以公司／控股公司和按周横向工期条呈现，支持拖动自定义并保存显示顺序、键盘调整、横向滚动、今天定位及红色虚线、逾期与日期缺失提示；点击名称返回详情，点击日历或工期条可直接编辑开始日和截止日，归档记录则保持只读。
-- 独立税务期限台账支持每家公司或控股公司保存多项报税、缴税、雇主报税表及自定义期限；逐项设置课税年度、负责人、提醒天数、税务模块关联、参考编号和备注，改期时强制记录原因并保留完整历史。
+- 独立税务期限台账保存在公司主档，支持每家公司或控股公司保存多项报税、缴税、雇主报税表及自定义期限；逐项设置课税年度、负责人、提醒天数、年度项目／税务模块关联、参考编号和备注，改期时强制记录原因并保留完整历史。
 - 铃铛提醒同时纳入已逾期、今日到期及进入提醒期的税务期限；排期图以同日可合并计数的菱形标记显示税务日期。已完成项目仍保留税务提醒，归档记录则退出提醒。
-- 公司可不启用任何业务模块而先作为空容器建立，也可并行启用账务处理、审计、税务及其他模块；每个模块各自拥有负责人、截止日、横向节点和客观达成条件。
+- 年度项目可不启用任何业务模块而先作为空白委聘建立，也可并行启用账务处理、审计、税务及其他模块；每个模块各自拥有负责人、截止日、横向节点和客观达成条件。
 - 项目显示“已完成模块数／全部模块数”，只有全部启用模块完成后才算完成，不使用容易误导的混合百分比。
-- 多层控股公司结构：控股公司可包含公司或中间控股公司，每一级可选择独立合并流程或仅作层级分类。
+- 多层控股公司结构：公司主档保存当前归属；每个控股公司年度项目冻结建立当时的直属组成部分快照，可按完整报告期间匹配下属项目，并由使用者明确同步后续架构变化。
 - 控股公司总览以紧凑状态栏显示组成部分进度、公司合并就绪、本级合并流程及未清事项，让公司清单和合并节点优先进入首屏。
 - 公司可按本团队审计、其他审计师或管理账设置不同的合并就绪条件。
 - 公司资料可直接选择或变更所属控股公司；控股公司资料可集中添加、移除及修改公司与中间控股公司。公司与控股公司可在资料编辑页双向转换，原业务模块或合并结构会保留以便日后恢复。
@@ -29,7 +31,8 @@
 - 范本公司名称精确去敏：只替换使用者输入的完整公司名称，不自动猜测。
 - 英文为新使用者的默认界面，并提供完整的简体中文和繁体中文切换；内置内容随语言切换，自定义范本、项目名称和使用者资料保持原文。
 - 在常见桌面宽度和浏览器缩放下优先保持单行信息密度；待清中心以固定右侧抽屉呈现，收起后仍保留可见图标入口，并避免页面横向截断。
-- 归档公司和控股公司与活跃统计及汇总隔离；归档详情只读，只可恢复或永久删除。
+- 公司主档和年度项目分别管理归档生命周期；年度项目可单独归档，公司主档则须先归档旗下所有活跃项目。归档详情只读，永久删除公司时会明确包含旗下年度项目和公司级税务期限。
+- V1–V10 浏览器资料、备份和本地文件会无损迁移为 V11；迁移不会按名称自动合并公司，并会保留一份可下载的迁移前 V10 恢复副本。重复公司可通过预览工具由使用者确认合并。
 - 默认使用本机浏览器自动保存，也可关联持续同步的 `.apw.json` 本地文件；浏览器安全副本、明确的同步状态、重新授权、双向冲突保护、未同步离开提醒、JSON 备份及安全初始化共同防止静默遗失资料。
 
 ## 快速开始
@@ -63,21 +66,23 @@ pnpm check
 
 ## English
 
-Audit Project Workbench (APW) is an English-first, desktop-first and local-first tracker for professional-service engagements. Each company is an annual engagement container with optional parallel workstreams for bookkeeping, audit, quotation and collection, tax computation and filing, customer due diligence, or custom services. Fluid outstanding items remain separate from workflow completion.
+Audit Project Workbench (APW) is an English-first, desktop-first and local-first tracker for professional-service work. A long-lived company master stores the legal entity, current holding structure, tax deadlines and fiscal-year default. Independent FY2023, FY2024, FY2025 and other annual engagements store their own reporting period, owner, schedule, workstreams, outstanding items and progress.
 
 ### Features
 
-- An Obsidian-inspired, centre-first desktop layout with compact tree navigation, a wide company/holding-company workspace and an on-demand outstanding centre. The side panes collapse, and opening outstanding items on a narrower desktop does not resize the workspace. Project navigation contains the single New company entry point, exact-level drag-and-drop reassignment, explicit plus/minus disclosure controls and continuous hierarchy guides.
+- An Obsidian-inspired, centre-first desktop layout with compact tree navigation, a wide company/holding-company workspace and an on-demand outstanding centre. Navigation prioritises each legal entity and expands its annual engagements; current holding assignments support exact-level drag-and-drop, explicit plus/minus disclosure controls and continuous hierarchy guides.
 - Consistent line icons condense project scheduling, deadline alerts, templates, guidance, settings, backup, language and workspace actions; hover or keyboard focus reveals the full explanation while preserving accessible names. Record creation stays in the navigation work area.
 - A built-in, sectioned user guide explaining each entry point, procedure and expected result.
-- Project details capture the legal entity, a customisable financial reporting standard or framework, reporting-period start and end dates, plus separate project start and deadline fields so the financial period is not confused with delivery timing.
+- New company creates a company master only. A company can remain without an engagement and can default to a calendar year, April-to-March year or custom reporting period.
+- One company can carry several independent annual engagements. Calendar year `2025` generates `2025-01-01 → 2025-12-31`; April-to-March `2025/26` generates `2025-04-01 → 2026-03-31`. Generated dates remain editable, and duplicate periods are rejected even when archived.
+- Annual engagements capture a customisable reporting framework, owner, authoritative reporting-period dates and separate project start/deadline dates. A new year can start blank, from a template or from the prior year's structure without copying owners, operating dates, completion, outstanding items or actual tax deadlines.
 - A horizontally scrollable weekly schedule supports saved drag-and-drop ordering and keyboard movement, marks today with a red dashed line, highlights overdue or incomplete dates, and follows the navigation status filter. Choose a name for record details or a calendar/bar to edit start and deadline directly; archived rows remain read-only.
 - A persistent deadline-alert badge counts active overdue company, holding-company and distinct workstream deadlines; its compact list is ordered by days overdue and links directly to the source record. Completed, rescheduled or archived work clears automatically.
-- A separate tax-deadline register stores multiple filing, payment, employer-return or custom deadlines for each company or holding company, with per-item lead time, year of assessment, owner, optional workstream link, reference, notes and mandatory reasons for every saved date change.
+- A company-level tax-deadline register stores multiple filing, payment, employer-return or custom deadlines for each company or holding company, with per-item lead time, year of assessment, owner, optional engagement/workstream link, reference, notes and mandatory reasons for every saved date change.
 - Tax deadlines enter the alert centre when overdue, due today or inside their own reminder window, and appear as same-day-counted diamond markers on the schedule. They remain independent of project completion and disappear only when completed, marked not applicable or archived.
-- A company may start as an empty container with no workstream enabled. Bookkeeping, audit, tax and other optional parallel workstreams retain independent owners, deadlines, horizontal stages and objective completion criteria.
+- An annual engagement may start blank with no workstream enabled. Bookkeeping, audit, tax and other optional parallel workstreams retain independent owners, deadlines, horizontal stages and objective completion criteria.
 - Project completion shown as completed workstreams out of total workstreams; all enabled workstreams must finish before the project completes.
-- Multi-level holding-company structures with companies, intermediate holding companies, optional consolidation workflows and hierarchy-only levels.
+- Multi-level holding structures whose company masters record the current hierarchy. Each holding-company engagement freezes its direct-component snapshot, matches subsidiaries by exact reporting period and changes only after an explicit structure sync.
 - A compact holding-company status strip for component progress, company readiness, consolidation progress and open items, keeping the company matrix and consolidation stages in the first screenful.
 - Companies use readiness defaults for internal audits, other component auditors or management accounts.
 - Company details can change holding-company assignment directly, while holding-company details manage companies and intermediate holding companies in one member roster. A record can convert in either direction between company and holding company while retaining recoverable workflow or consolidation state.
@@ -89,7 +94,8 @@ Audit Project Workbench (APW) is an English-first, desktop-first and local-first
 - Exact-match company-name de-identification within templates.
 - English is the default for new users, with complete Simplified Chinese and Traditional Chinese interfaces available; built-in content follows the interface language while custom content remains unchanged.
 - Responsive desktop rules reflow panes, controls and forms cleanly under narrower windows and browser zoom.
-- Archived records are isolated from active calculations and are read-only until restored; permanent deletion is available only from the archive.
+- Company masters and annual engagements have separate archive lifecycles. An engagement can be archived alone; a company master requires all active engagements to be archived first. Archived records are read-only, and company deletion explicitly includes all annual engagements and company-level tax deadlines.
+- V1–V10 browser data, backups and linked files migrate losslessly to V11 without name-based merging. The first migration retains a downloadable V10 recovery source, while a previewed tool lets the user merge genuine duplicate company masters intentionally.
 - Browser-local autosave by default, with an optional continuously synced `.apw.json` local file, a browser safety copy, explicit save status, permission recovery, two-sided conflict protection, unsynced-leave warnings, JSON backup and protected initialisation.
 
 ### Local development

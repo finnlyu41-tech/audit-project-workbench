@@ -29,9 +29,9 @@ test("primary workspaces and dialogs have no serious accessibility violations", 
   await expectNoSeriousViolations(page);
   await page.keyboard.press("Escape");
 
-  await page.locator(".tree-group-row").filter({ hasText: "Example Holdings Limited" }).click();
+  await page.locator(".tree-entity-row[data-kind='holding_company']").filter({ hasText: "Example Holdings Limited" }).click();
   await expectNoSeriousViolations(page);
-  await page.getByRole("button", { name: /Tax deadlines:/ }).click();
+  await page.getByRole("button", { name: /Tax deadlines/ }).click();
   await expectNoSeriousViolations(page);
 });
 

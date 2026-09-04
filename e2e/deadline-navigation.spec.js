@@ -52,31 +52,31 @@ test("schedule rows can be dragged into a saved order and open focused date sett
   const secondRow = page.locator(".schedule-row-meta").filter({ hasText: "Second Company Limited" });
   await secondRow.locator(".schedule-drag-handle").dragTo(firstRow, { targetPosition: { x: 120, y: 3 } });
 
-  await expect(page.locator(".schedule-row-open strong").first()).toHaveText("Second Company Limited");
+  await expect(page.locator(".schedule-row-open strong").first()).toContainText("Second Company Limited");
   const firstRowHeight = await firstRow.evaluate((element) => element.getBoundingClientRect().height);
   await secondRow.locator(".schedule-drag-handle").dragTo(firstRow,
     { targetPosition: { x: 120, y: firstRowHeight - 2 } });
-  await expect(page.locator(".schedule-row-open strong").first()).toHaveText("Example Services Limited");
+  await expect(page.locator(".schedule-row-open strong").first()).toContainText("Example Services Limited");
   await secondRow.locator(".schedule-drag-handle").focus();
   await page.keyboard.press("Alt+ArrowUp");
-  await expect(page.locator(".schedule-row-open strong").first()).toHaveText("Second Company Limited");
+  await expect(page.locator(".schedule-row-open strong").first()).toContainText("Second Company Limited");
   let stored = await readStoredWorkspace(page);
   expect(stored.scheduleOrder[0]).toBe(`project:${second.id}`);
 
   await page.reload();
   await page.locator(".app-rail-button[aria-label='Project schedule']").click();
-  await expect(page.locator(".schedule-row-open strong").first()).toHaveText("Second Company Limited");
+  await expect(page.locator(".schedule-row-open strong").first()).toContainText("Second Company Limited");
 
-  await page.getByRole("button", { name: "Edit the project schedule for Second Company Limited" }).click();
+  await page.getByRole("button", { name: /Edit the project schedule for Second Company Limited/ }).click();
   const dialog = page.getByRole("dialog", { name: "Project schedule · Second Company Limited" });
   await expect(dialog).toBeVisible();
-  await dialog.getByLabel("Project start").fill("2026-11-03");
-  await dialog.getByLabel("Deadline").fill("2026-12-20");
-  await dialog.getByRole("button", { name: "Save changes" }).click();
+  await dialog.getByLabel("Start").fill("2026-11-03");
+  await dialog.getByLabel("Due date").fill("2026-12-20");
+  await dialog.getByRole("button", { name: "Save engagement schedule" }).click();
 
   await expect(page.locator(".schedule-view")).toBeVisible();
   stored = await readStoredWorkspace(page);
-  const saved = stored.projects.find((project) => project.id === second.id);
+  const saved = stored.engagements.find((project) => project.id === second.id);
   expect(saved.startDate).toBe("2026-11-03");
   expect(saved.dueDate).toBe("2026-12-20");
 });
@@ -91,21 +91,24 @@ test("holding-company and legacy company dates open in focused schedule settings
   await openWorkbench(page, store);
 
   await page.locator(".app-rail-button[aria-label='Project schedule']").click();
-  await page.getByRole("button", { name: "Edit the project schedule for Legacy engagement" }).click();
+  await page.getByRole("button", { name: /Edit the project schedule for Legacy engagement/ }).click();
   let dialog = page.getByRole("dialog", { name: "Project schedule · Legacy engagement" });
-  await dialog.getByLabel("Project start").fill("2026-09-02");
-  await dialog.getByRole("button", { name: "Save changes" }).click();
+  await dialog.getByLabel("Start").fill("2026-09-02");
+  await dialog.getByRole("button", { name: "Save engagement schedule" }).click();
   await expect(dialog).toBeHidden();
 
-  await page.getByRole("button", { name: `Edit the project schedule for ${holding.name}` }).click();
+  await page.getByRole("button", { name: new RegExp(`Edit the project schedule for ${holding.name}`) }).click();
   dialog = page.getByRole("dialog", { name: `Project schedule · ${holding.name}` });
-  await dialog.getByLabel("Deadline").fill("2027-01-15");
-  await dialog.getByRole("button", { name: "Save changes" }).click();
+  await dialog.getByLabel("Due date").fill("2027-01-15");
+  await dialog.getByRole("button", { name: "Save engagement schedule" }).click();
+  await expect(dialog).toBeHidden();
+  await expect.poll(async () => (await readStoredWorkspace(page)).engagements
+    .find((engagement) => engagement.id === holding.id)?.dueDate).toBe("2027-01-15");
 
   const stored = await readStoredWorkspace(page);
-  expect(stored.projects[0].startDate).toBe("2026-09-02");
-  expect(stored.projects[0].entity).toBe("");
-  expect(stored.groups.find((group) => group.id === holding.id).dueDate).toBe("2027-01-15");
+  expect(stored.engagements.find((engagement) => engagement.id === store.projects[0].id).startDate).toBe("2026-09-02");
+  expect(stored.entities.find((entity) => entity.legalName === "Legacy engagement")).toBeTruthy();
+  expect(stored.engagements.find((engagement) => engagement.id === holding.id).dueDate).toBe("2027-01-15");
 });
 
 test("archived schedule graphics open read-only records and never a date editor", async ({ page }) => {
@@ -130,6 +133,6 @@ test("archived schedule graphics open read-only records and never a date editor"
   await expect(page.locator(".archive-banner")).toBeVisible();
   await expect(page.getByRole("dialog", { name: /Project schedule/ })).toHaveCount(0);
   const stored = await readStoredWorkspace(page);
-  expect(stored.projects.concat(stored.groups).map(({ id, startDate, dueDate }) => ({ id, startDate, dueDate })))
+  expect(stored.engagements.map(({ id, startDate, dueDate }) => ({ id, startDate, dueDate })))
     .toEqual(datesBefore);
 });

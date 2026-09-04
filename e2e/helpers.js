@@ -87,6 +87,11 @@ export async function openWorkbench(page, store = emptyStore()) {
   }, { storageKey: STORAGE_KEY, languageKey: LANGUAGE_KEY, initialStore: store });
   await page.goto("./");
   await expect(page.locator(".audit-workbench")).toBeVisible();
+  await expect.poll(() => page.evaluate((storageKey) => {
+    const value = JSON.parse(localStorage.getItem(storageKey) || "null");
+    return Boolean(value?.version === 11 && Array.isArray(value.entities) && Array.isArray(value.engagements)
+      && !("projects" in value) && !("groups" in value));
+  }, STORAGE_KEY)).toBe(true);
 }
 
 export async function readStoredWorkspace(page) {

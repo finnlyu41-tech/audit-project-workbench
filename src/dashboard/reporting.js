@@ -1,6 +1,8 @@
 import {
   collectGroupOutstandingEntries,
   collectGroupTaxDeadlineEntries,
+  entityForEngagement,
+  fiscalPeriodShortLabel,
   findParentMembership,
   groupProgress,
   memberIsReady,
@@ -94,6 +96,20 @@ function reportSource(record, kind) {
 }
 
 function hierarchyPath(store, kind, id) {
+  if (Array.isArray(store?.entities) && Array.isArray(store?.engagements)) {
+    const engagement = store.engagements.find((item) => item.id === id);
+    let entity = engagement ? entityForEngagement(store, engagement) : store.entities.find((item) => item.id === id);
+    const path = [];
+    const visited = new Set();
+    while (entity?.parentEntityId && !visited.has(entity.id)) {
+      visited.add(entity.id);
+      const parent = store.entities.find((item) => item.id === entity.parentEntityId);
+      if (!parent) break;
+      path.unshift({ id: parent.id, name: parent.legalName });
+      entity = parent;
+    }
+    return path;
+  }
   const path = [];
   let currentKind = kind;
   let currentId = id;
@@ -122,6 +138,11 @@ function groupContainsCategory(store, groupId, categoryId, visited = new Set()) 
 
 function insideHoldingCompany(store, kind, id, holdingCompanyId) {
   if (holdingCompanyId === "all") return true;
+  if (Array.isArray(store?.entities) && Array.isArray(store?.engagements)) {
+    const engagement = store.engagements.find((item) => item.id === id);
+    const entity = engagement ? entityForEngagement(store, engagement) : store.entities.find((item) => item.id === id);
+    return entity?.id === holdingCompanyId || hierarchyPath(store, kind, id).some((holding) => holding.id === holdingCompanyId);
+  }
   if (kind === "group" && id === holdingCompanyId) return true;
   return hierarchyPath(store, kind, id).some((group) => group.id === holdingCompanyId);
 }
@@ -142,12 +163,20 @@ function recordRow(store, kind, record, now) {
   const stats = kind === "project" ? projectStats(record) : groupProgress(store, record.id);
   const complete = kind === "project" ? stats.complete : stats.ready;
   const outstanding = directOutstanding(record, store.outstandingStatuses);
-  const tax = directTaxSummary(record, now);
+  const entity = Array.isArray(store?.entities) ? entityForEngagement(store, record.id) : null;
+  const latestActive = entity && store.engagements.filter((engagement) => engagement.entityId === entity.id && !engagement.archived)
+    .sort((left, right) => (right.periodEnd || "").localeCompare(left.periodEnd || ""))[0];
+  const taxRecord = entity ? { taxDeadlines: (entity.taxDeadlines || []).filter((deadline) =>
+    deadline.linkedEngagementId === record.id || (!deadline.linkedEngagementId && latestActive?.id === record.id)) } : record;
+  const tax = directTaxSummary(taxRecord, now);
   const hierarchy = hierarchyPath(store, kind, record.id);
   return {
     kind,
     id: record.id,
-    name: kind === "project" ? record.entity || record.name : record.name,
+    entityId: record.entityId || null,
+    name: Array.isArray(store?.engagements)
+      ? `${kind === "project" ? record.entity || record.name : record.name} · ${fiscalPeriodShortLabel(record, "en")}`
+      : kind === "project" ? record.entity || record.name : record.name,
     secondaryName: kind === "project" && record.entity && record.name !== record.entity ? record.name : "",
     owner: record.owner || "",
     startDate: record.startDate || "",
@@ -207,12 +236,17 @@ export function buildPortfolioReport(store, suppliedFilters = {}, nowValue = new
   const groupIds = new Set(rows.filter((row) => row.kind === "group" && !row.archived).map((row) => row.id));
   const completedWorkstreams = projectRows.reduce((sum, row) => sum + row.completedWorkstreams, 0);
   const totalWorkstreams = projectRows.reduce((sum, row) => sum + row.totalWorkstreams, 0);
-  const taxRisks = [
-    ...store.projects.filter((record) => projectIds.has(record.id)).flatMap((record) => (record.taxDeadlines || []).map((deadline) => ({ record: reportSource(record, "project"),
-      kind: "project", deadline: reportTaxDeadline(deadline) }))),
-    ...store.groups.filter((record) => groupIds.has(record.id)).flatMap((record) => (record.taxDeadlines || []).map((deadline) => ({ record: reportSource(record, "group"),
-      kind: "group", deadline: reportTaxDeadline(deadline) }))),
-  ].map((entry) => ({ ...entry, urgency: taxDeadlineUrgency(entry.deadline, now) }))
+  const selectedEntityIds = new Set(rows.map((row) => row.entityId).filter(Boolean));
+  const taxRisks = (Array.isArray(store.entities) ? store.entities.filter((entity) => selectedEntityIds.has(entity.id))
+    .flatMap((entity) => (entity.taxDeadlines || []).map((deadline) => ({
+      record: { id: entity.id, name: entity.legalName, entity: entity.legalName }, kind: "entity",
+      deadline: reportTaxDeadline(deadline),
+    }))) : [
+      ...store.projects.filter((record) => projectIds.has(record.id)).flatMap((record) => (record.taxDeadlines || []).map((deadline) => ({ record: reportSource(record, "project"),
+        kind: "project", deadline: reportTaxDeadline(deadline) }))),
+      ...store.groups.filter((record) => groupIds.has(record.id)).flatMap((record) => (record.taxDeadlines || []).map((deadline) => ({ record: reportSource(record, "group"),
+        kind: "group", deadline: reportTaxDeadline(deadline) }))),
+    ]).map((entry) => ({ ...entry, urgency: taxDeadlineUrgency(entry.deadline, now) }))
     .filter((entry) => ["overdue", "due_today", "due_soon"].includes(entry.urgency.level))
     .sort((left, right) => left.deadline.dueDate.localeCompare(right.deadline.dueDate));
   const outstandingRisks = [
@@ -226,7 +260,8 @@ export function buildPortfolioReport(store, suppliedFilters = {}, nowValue = new
     generatedAt: now.toISOString(),
     filters,
     metrics: {
-      activeCompanies: projectRows.filter((row) => !row.complete).length,
+      activeCompanies: new Set(rows.filter((row) => !row.archived).map((row) => row.entityId || `${row.kind}:${row.id}`)).size,
+      annualEngagements: rows.filter((row) => !row.archived).length,
       completedWorkstreams,
       totalWorkstreams,
       overdueDeliveries: rows.filter((row) => row.deliveryUrgency === "overdue").length,
@@ -241,6 +276,7 @@ export function buildPortfolioReport(store, suppliedFilters = {}, nowValue = new
 
 function projectRecordReport(store, project, now) {
   const stats = projectStats(project);
+  const entity = project.entityId ? store.entities?.find((item) => item.id === project.entityId) : null;
   return {
     kind: "project",
     id: project.id,
@@ -272,7 +308,7 @@ function projectRecordReport(store, project, now) {
       ...reportOutstanding(item, project),
       ageDays: ageInDays(item.createdAt, now),
     })),
-    taxDeadlines: (project.taxDeadlines || []).filter((deadline) => deadline.state === "open")
+    taxDeadlines: (entity?.taxDeadlines || project.taxDeadlines || []).filter((deadline) => deadline.state === "open")
       .map((deadline) => ({ ...reportTaxDeadline(deadline), urgency: taxDeadlineUrgency(deadline, now) }))
       .sort((left, right) => (left.dueDate || "9999").localeCompare(right.dueDate || "9999")),
   };
@@ -280,6 +316,40 @@ function projectRecordReport(store, project, now) {
 
 function flattenGroupMembers(store, groupId, depth = 0, visited = new Set()) {
   if (visited.has(groupId)) return [];
+  if (Array.isArray(store?.entities) && Array.isArray(store?.engagements)) {
+    const engagement = store.engagements.find((item) => item.id === groupId);
+    if (!engagement?.consolidation) return [];
+    const nextVisited = new Set(visited).add(groupId);
+    return engagement.consolidation.components.flatMap((component) => {
+      const target = store.engagements.find((item) => item.id === component.engagementId);
+      const entity = target ? entityForEngagement(store, target) : store.entities.find((item) => item.id === component.entityId);
+      const kind = (entity?.kind || component.entitySnapshot?.kind) === "holding_company" ? "group" : "project";
+      const conditions = component.readinessConditions || [];
+      const childProgress = kind === "group" && target ? groupProgress(store, target.id) : null;
+      const progress = target ? (kind === "group" ? childProgress.percentage
+        : projectStats(target).workstreams ? ((target.workstreams || []).find((workstream) => workstream.type === "audit")
+          ? workstreamStats(target.workstreams.find((workstream) => workstream.type === "audit")).percentage
+          : (conditions.length ? Math.round((conditions.filter((condition) => condition.done).length / conditions.length) * 100) : 0)) : 0) : 0;
+      const ready = target ? (kind === "group" ? childProgress.ready
+        : conditions.length > 0 && conditions.every((condition) => condition.done)) : false;
+      const row = {
+        kind,
+        id: target?.id || component.id,
+        entityId: entity?.id || component.entityId,
+        name: entity?.legalName || component.entitySnapshot?.legalName || "",
+        periodLabel: target ? fiscalPeriodShortLabel(target, "en") : component.periodSnapshot?.label || "",
+        owner: target?.owner || "",
+        depth,
+        archived: Boolean(target?.archived || entity?.archived),
+        unresolved: !target,
+        role: component.role || "",
+        progress,
+        ready,
+        dueDate: target?.dueDate || "",
+      };
+      return kind === "group" && target ? [row, ...flattenGroupMembers(store, target.id, depth + 1, nextVisited)] : [row];
+    });
+  }
   const group = store.groups.find((item) => item.id === groupId);
   if (!group) return [];
   const nextVisited = new Set(visited).add(groupId);
@@ -338,6 +408,35 @@ function groupRecordReport(store, group, now) {
 
 export function buildRecordReport(store, kind, id, nowValue = new Date()) {
   const now = nowValue instanceof Date ? nowValue : new Date(nowValue);
+  if (kind === "entity") {
+    const entity = store.entities?.find((item) => item.id === id);
+    if (!entity) return null;
+    const projects = (store.engagements || []).filter((engagement) => engagement.entityId === entity.id)
+      .sort((left, right) => (right.periodEnd || "").localeCompare(left.periodEnd || "")).map((engagement) => {
+        const viewKind = entity.kind === "holding_company" ? "group" : "project";
+        const view = viewKind === "group" ? store.groups.find((item) => item.id === engagement.id)
+          : store.projects.find((item) => item.id === engagement.id);
+        const complete = viewKind === "group" ? Boolean(view && groupProgress(store, engagement.id).ready)
+          : Boolean(view && projectStats(view).complete);
+        return { id: engagement.id, kind: viewKind, label: fiscalPeriodShortLabel(engagement, "en"),
+          periodStart: engagement.periodStart, periodEnd: engagement.periodEnd, owner: engagement.owner,
+          startDate: engagement.startDate, dueDate: engagement.dueDate, archived: engagement.archived, complete };
+      });
+    return { kind: "entity", id: entity.id, name: entity.legalName, entityKind: entity.kind,
+      archived: entity.archived, fiscalYearPreset: entity.fiscalYearPreset, projects,
+      children: (store.entities || []).filter((child) => child.parentEntityId === entity.id)
+        .map((child) => ({ id: child.id, name: child.legalName, kind: child.kind, role: child.relationshipRole })),
+      taxDeadlines: (entity.taxDeadlines || []).filter((deadline) => deadline.state === "open")
+        .map((deadline) => ({ ...reportTaxDeadline(deadline), urgency: taxDeadlineUrgency(deadline, now) })),
+      outstanding: (store.engagements || []).filter((engagement) => engagement.entityId === entity.id)
+        .flatMap((engagement) => directOutstanding(engagement, store.outstandingStatuses).map((item) => ({
+          engagementId: engagement.id,
+          periodLabel: fiscalPeriodShortLabel(engagement, "en"),
+          item: reportOutstanding(item, engagement),
+          ageDays: ageInDays(item.createdAt, now),
+        }))),
+    };
+  }
   if (kind === "project") {
     const project = store.projects.find((item) => item.id === id);
     return project ? projectRecordReport(store, project, now) : null;

@@ -1,5 +1,5 @@
 import React from "react";
-import { STORAGE_KEY, isValidStore, normalizeStore } from "./model.js";
+import { STORAGE_KEY, isValidStore, normalizeStore, preserveLegacyRecovery } from "./model.js";
 import {
   PersistenceError,
   classifyWorkspaceVersions,
@@ -187,6 +187,7 @@ export function useWorkbenchPersistence({ store, setStore }) {
 
     fileReadyRef.current = true;
     if (resolution === "file_newer") {
+      preserveLegacyRecovery(snapshot.sourcePayload);
       lastSyncedPayloadRef.current = snapshot.payload;
       await updateLinkedMetaFromPayload(snapshot.payload, handle,
         snapshot.lastModified ? new Date(snapshot.lastModified).toISOString() : new Date().toISOString());
@@ -327,6 +328,7 @@ export function useWorkbenchPersistence({ store, setStore }) {
       lastSyncedPayloadRef.current = candidate.payload;
       applySettings({ mode: "linked_file" });
       setConflict(null);
+      preserveLegacyRecovery(candidate.sourcePayload);
       await updateLinkedMetaFromPayload(candidate.payload, candidate.handle,
         candidate.lastModified ? new Date(candidate.lastModified).toISOString() : new Date().toISOString());
       setStore(candidate.store);

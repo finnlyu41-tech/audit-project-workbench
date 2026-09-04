@@ -19,7 +19,8 @@ const TEMPLATE_KEYS = new Set(["kind", "templateKey", "categoryKey", "workstream
   "tags", "versionNote", "nodes", "readinessTemplates"]);
 const CATEGORY_KEYS = new Set(["key", "builtinType", "name"]);
 const NODE_KEYS = new Set(["title", "description", "conditions"]);
-const FORBIDDEN_TOP_LEVEL_KEYS = ["projects", "groups", "outstandingStatuses", "taxDeadlines", "workstreams"];
+const FORBIDDEN_TOP_LEVEL_KEYS = ["entities", "engagements", "entityOrder", "scheduleOrder", "projects", "groups",
+  "outstandingStatuses", "taxDeadlines", "workstreams"];
 
 export class TemplatePackageError extends Error {
   constructor(code, message) {

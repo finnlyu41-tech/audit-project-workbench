@@ -12,6 +12,8 @@ const taxDeadlines = readFileSync(new URL("../src/dashboard/tax-deadlines.jsx", 
 const persistenceUi = readFileSync(new URL("../src/dashboard/persistence-ui.jsx", import.meta.url), "utf8");
 const persistenceHook = readFileSync(new URL("../src/dashboard/use-workbench-persistence.js", import.meta.url), "utf8");
 const managementReport = readFileSync(new URL("../src/dashboard/management-report.jsx", import.meta.url), "utf8");
+const model = readFileSync(new URL("../src/dashboard/model.js", import.meta.url), "utf8");
+const v11Components = readFileSync(new URL("../src/dashboard/v11-components.jsx", import.meta.url), "utf8");
 
 test("compact outstanding centre remains recoverable at narrow viewport widths", () => {
   assert.match(css, /@media \(max-width: 760px\)[\s\S]*?\.workbench-layout\[data-compact-layout\] > \.outstanding-center-shell\s*{[\s\S]*?position:\s*fixed/);
@@ -123,23 +125,37 @@ test("tax deadlines have a compact register, global filter and schedule markers"
 });
 
 test("annual duplication omits actual tax dates and removing a workstream only unlinks deadlines", () => {
-  assert.match(workbench, /outstandingItems:\s*\[\],\s*taxDeadlines:\s*\[\]/);
+  assert.match(model, /export function makeEngagement[\s\S]*?outstandingItems:\s*\[\],[\s\S]*?consolidation/);
+  assert.match(model, /taxDeadlines:\s*Array\.isArray\(value\.taxDeadlines\)/);
   assert.match(workbench, /taxDeadlines:\s*\(current\.taxDeadlines \|\| \[\]\)\.map/);
   assert.match(workbench, /linkedWorkstreamId:\s*null/);
 });
 
 test("project summary facts open focused settings without exposing the full edit form", () => {
-  for (const quickField of ["owner", "schedule", "framework", "group"]) {
+  for (const quickField of ["owner", "schedule", "framework"]) {
     assert.match(workbench, new RegExp(`quickField: "${quickField}"`));
   }
+  assert.match(workbench, /type: "edit-entity", entityId: rawProject\.entityId/);
   assert.match(workbench, /className="detail-fact-link"/);
   assert.match(workbench, /activeRawWorkstream \? \{ type: "workstream-edit"/);
-  assert.match(components, /data-quick-field={quickField \|\| undefined}/);
-  assert.match(components, /autoFocus={quickField === "owner"}/);
-  assert.match(components, /autoFocus={quickField === "schedule"}/);
-  assert.match(components, /autoFocus={quickField === "framework"}/);
-  assert.match(components, /autoFocus={quickField === "group"}/);
+  assert.match(v11Components, /data-quick-field="schedule"/);
+  assert.match(v11Components, /data-quick-field={quickField}/);
+  assert.match(v11Components, /<input autoFocus type="date"/);
+  assert.match(v11Components, /<input autoFocus list="v11-quick-framework-options"/);
+  assert.match(v11Components, /: <input autoFocus value={values\[field\]}/);
   assert.match(css, /\.detail-fact-link::before\s*{[^}]*inset:\s*0/);
+});
+
+test("V11 company masters and annual engagement forms have compact responsive layouts", () => {
+  assert.match(v11Components, /className="workbench-form company-master-form"/);
+  assert.match(v11Components, /className="period-builder-controls"/);
+  assert.match(v11Components, /className="annual-template-picker"/);
+  assert.match(v11Components, /className="annual-project-rows"/);
+  assert.match(v11Components, /className="holding-component-rows"/);
+  assert.match(css, /\.period-builder-controls\s*{[\s\S]*?grid-template-columns:/);
+  assert.match(css, /\.entity-facts\s*{[\s\S]*?grid-template-columns:\s*repeat\(4,/);
+  assert.match(css, /@container workspace \(max-width: 820px\)[\s\S]*?\.entity-facts\s*{\s*grid-template-columns:\s*repeat\(2,/);
+  assert.match(css, /@media \(max-width: 500px\)[\s\S]*?\.period-builder-controls, \.entity-facts, \.merge-preview/);
 });
 
 test("the tax deadline fact matches the other editable summary cells and opens direct editing", () => {

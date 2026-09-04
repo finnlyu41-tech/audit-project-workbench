@@ -6,12 +6,16 @@ import { Modal, NodeBoard, NodeForm, OutstandingStatusEditor, ProgressBar, Proje
 import { GroupForm, GroupMatrix, GroupMemberAddForm, GroupMemberForm, GroupSampleEditor, GroupSampleLibrary,
   WorkspaceTree } from "./group-components.jsx";
 import { activeOutstandingItems,
-  assignProjectToGroup, canMoveWorkspaceItem, canNestGroup, collectGroupOutstandingEntries, collectGroupTaxDeadlineEntries,
+  assignProjectToGroup, canMoveEntity, canMoveWorkspaceItem, canNestGroup, collectGroupOutstandingEntries, collectGroupTaxDeadlineEntries,
+  componentsForCurrentStructure,
   createDefaultGroupSample, createDefaultSample, duplicateGroupSample,
-  convertGroupToProject, convertProjectToGroup, deadlineAlerts, duplicateSample, emptyStore, findParentMembership, formatDate, groupProgress, isValidStore, loadStore, localizeGroupSample,
+  canonicalStorePayload,
+  convertGroupToProject, convertProjectToGroup, deadlineAlerts, duplicateSample, emptyStore, engagementsForEntity,
+  entityForEngagement, findParentMembership, formatDate, groupProgress, isValidStore, loadStore, localizeGroupSample,
   localizeGroupWorkflowNodes, localizeOutstandingStatuses, localizeReadinessConditions, localizeSample, localizeWorkstream, makeBlankGroupSample,
-  makeBlankSample, makeGroup, makeGroupMember, makeNode, makeOutstandingItem, makeProject, makeTaxDeadline, makeWorkstream, moveWorkspaceItem,
-  navigationStatusCounts, normalizeStore, outstandingIsOpen, projectStats, redactSampleCompanies, reorderWorkspaceSchedule, reportingPeriodLabel, taxDeadlineSummary, uid,
+  makeBlankSample, makeEngagement, makeEntity, makeGroup, makeGroupMember, makeNode, makeOutstandingItem, makeProject, makeTaxDeadline, makeWorkstream,
+  mergeEntities, moveEntity, moveWorkspaceItem,
+  navigationStatusCounts, normalizeStore, outstandingIsOpen, preserveLegacyRecovery, projectStats, reconcileWorkbenchStore, redactSampleCompanies, reorderWorkspaceSchedule, reportingPeriodLabel, syncEngagementToCurrentStructure, taxDeadlineSummary, uid, V10_RECOVERY_KEY,
   workstreamStats, reviseTaxDeadline, workstreamCategoryLabel, workstreamTypeLabel } from "./model.js";
 import { LanguageProvider, useUiLanguage } from "./i18n.jsx";
 import { DeadlineAlertCentre } from "./deadline-alerts.jsx";
@@ -23,6 +27,7 @@ import { useWorkbenchPersistence } from "./use-workbench-persistence.js";
 import { handleTabListKeyDown, tabIndexFor } from "./a11y.js";
 import { ManagementReport } from "./management-report.jsx";
 import { TemplateExportPanel, TemplateImportPreview, TemplateLibraryTools } from "./template-transfer.jsx";
+import { CompanyForm, EngagementForm, EntityOverview, HoldingComponentsPanel, MergeEntitiesForm } from "./v11-components.jsx";
 import { applyTemplatePackage, createTemplatePackage, TEMPLATE_PACKAGE_MAX_BYTES,
   templatePackagePreview } from "./template-packages.js";
 import "./dashboard.css";
@@ -36,7 +41,9 @@ export function DashboardContent() {
 
 function DashboardWorkbench() {
   const { language, setLanguage, t } = useUiLanguage();
-  const [store, setStore] = React.useState(loadStore);
+  const [store, setRawStore] = React.useState(loadStore);
+  const setStore = React.useCallback((action) => setRawStore((current) => reconcileWorkbenchStore(current,
+    typeof action === "function" ? action(current) : action)), []);
   const persistence = useWorkbenchPersistence({ store, setStore });
   const [selection, setSelection] = React.useState(null);
   const [activeWorkstreamId, setActiveWorkstreamId] = React.useState(null);
@@ -96,20 +103,38 @@ function DashboardWorkbench() {
     return () => query.removeEventListener?.("change", updateCompactLayout);
   }, []);
   React.useEffect(() => {
-    const matchesFilter = (item, kind) => {
-      if (filter === "archived") return item.archived;
-      if (item.archived) return false;
-      const complete = kind === "group" ? groupProgress(store, item.id).ready : projectStats(item).complete;
+    const engagementMatchesFilter = (engagement) => {
+      const entity = entityForEngagement(store, engagement);
+      const archived = Boolean(entity?.archived || engagement.archived);
+      if (filter === "archived") return archived;
+      if (archived) return false;
+      const view = entity?.kind === "holding_company" ? store.groups.find((item) => item.id === engagement.id)
+        : store.projects.find((item) => item.id === engagement.id);
+      const complete = entity?.kind === "holding_company" ? Boolean(view && groupProgress(store, engagement.id).ready)
+        : Boolean(view && projectStats(view).complete);
       if (filter === "completed") return complete;
       if (filter === "active") return !complete;
       return true;
     };
-    const selectedItem = selection?.kind === "group" ? store.groups.find((group) => group.id === selection.id)
-      : selection?.kind === "project" ? store.projects.find((project) => project.id === selection.id) : null;
-    if (!selectedItem || !matchesFilter(selectedItem, selection.kind)) {
-      const group = store.groups.find((item) => matchesFilter(item, "group"));
-      const project = store.projects.find((item) => matchesFilter(item, "project"));
-      setSelection(group ? { kind: "group", id: group.id } : project ? { kind: "project", id: project.id } : null);
+    const selectedEngagement = ["project", "group"].includes(selection?.kind)
+      ? store.engagements.find((engagement) => engagement.id === selection.id) : null;
+    const selectedEntity = selection?.kind === "entity" ? store.entities.find((entity) => entity.id === selection.id) : null;
+    const selectedEntityEngagements = selectedEntity ? engagementsForEntity(store, selectedEntity.id) : [];
+    const selectedEntityVisible = selectedEntity && (filter === "all"
+      ? !selectedEntity.archived
+      : filter === "archived"
+        ? selectedEntity.archived || engagementsForEntity(store, selectedEntity.id).some(engagementMatchesFilter)
+        : !selectedEntity.archived && (selectedEntityEngagements.some(engagementMatchesFilter)
+          || (filter === "active" && selectedEntityEngagements.length === 0)));
+    if ((!selectedEngagement || !engagementMatchesFilter(selectedEngagement)) && !selectedEntityVisible) {
+      const engagement = store.engagements.find(engagementMatchesFilter);
+      if (engagement) {
+        const entity = entityForEngagement(store, engagement);
+        setSelection({ kind: entity?.kind === "holding_company" ? "group" : "project", id: engagement.id });
+      } else {
+        const entity = store.entities.find((item) => filter === "archived" ? item.archived : !item.archived);
+        setSelection(entity ? { kind: "entity", id: entity.id } : null);
+      }
     }
   }, [store, selection, filter]);
   React.useEffect(() => {
@@ -164,13 +189,17 @@ function DashboardWorkbench() {
       return;
     }
     setSelection({ kind, id });
-    setModal({ type: kind === "group" ? "edit-group" : "edit-project", targetKind: kind, targetId: id,
+    setModal({ type: "edit-engagement", targetKind: kind, targetId: id,
       quickField: "schedule" });
   }, [openWorkspaceRecord, store.groups, store.projects]);
   const openTaxDeadlineCentre = React.useCallback((kind, id, deadlineId = null) => {
-    openWorkspaceRecord(kind, id);
-    setModal({ type: "tax-deadlines", targetKind: kind, targetId: id, deadlineId });
-  }, [openWorkspaceRecord]);
+    const engagement = kind === "entity" ? null : store.engagements.find((item) => item.id === id);
+    const entityId = kind === "entity" ? id : engagement?.entityId;
+    if (!entityId) return;
+    if (kind === "entity") openWorkspaceRecord("entity", entityId); else openWorkspaceRecord(kind, id);
+    setModal({ type: "tax-deadlines", targetKind: "entity", targetId: entityId, deadlineId,
+      engagementId: engagement?.id || null });
+  }, [openWorkspaceRecord, store.engagements]);
   const openDeadlineAlert = React.useCallback((alert) => {
     if (alert.scope === "tax") {
       setFilter("all");
@@ -185,8 +214,15 @@ function DashboardWorkbench() {
     ? store.projects.find((project) => project.id === selection.id) || null : null;
   const selectedGroupSource = selection?.kind === "group"
     ? store.groups.find((group) => group.id === selection.id) || null : null;
-  const selectedProjectMembership = selectedProjectSource
-    ? findParentMembership(store, "project", selectedProjectSource.id) : null;
+  const selectedEntitySource = selection?.kind === "entity"
+    ? store.entities.find((entity) => entity.id === selection.id) || null : null;
+  const selectedEngagement = ["project", "group"].includes(selection?.kind)
+    ? store.engagements.find((engagement) => engagement.id === selection.id) || null : null;
+  const selectedRecordEntity = selectedEngagement ? entityForEngagement(store, selectedEngagement) : selectedEntitySource;
+  const selectedProjectParentEntity = selectedRecordEntity?.parentEntityId
+    ? store.entities.find((entity) => entity.id === selectedRecordEntity.parentEntityId) : null;
+  const selectedProjectMembership = selectedProjectSource && selectedProjectParentEntity
+    ? { group: { id: selectedProjectParentEntity.id, name: selectedProjectParentEntity.legalName } } : null;
   const selectedProject = selectedProjectSource ? { ...selectedProjectSource,
     workstreams: selectedProjectSource.workstreams.map((workstream) => localizeWorkstream(workstream, language)) } : null;
   const selectedGroup = selectedGroupSource ? { ...selectedGroupSource,
@@ -207,7 +243,7 @@ function DashboardWorkbench() {
   const selectedGroupSample = groupSampleViews.find((sample) => sample.id === store.selectedGroupSampleId)
     || groupSampleViews[0] || null;
   const outstandingStatusViews = localizeOutstandingStatuses(store.outstandingStatuses, language);
-  const allOutstandingItems = [...store.projects, ...store.groups].flatMap((item) => item.outstandingItems || []);
+  const allOutstandingItems = store.engagements.flatMap((item) => item.outstandingItems || []);
   const outstandingStatusUsage = allOutstandingItems.reduce((counts, item) => ({
     ...counts, [item.status]: (counts[item.status] || 0) + 1,
   }), {});
@@ -226,12 +262,25 @@ function DashboardWorkbench() {
     groups: current.groups.map((group) => group.id === groupId
       ? { ...updater(group), updatedAt: new Date().toISOString() } : group),
   })), []);
+  const updateEntity = React.useCallback((entityId, updater) => setStore((current) => ({ ...current,
+    entities: current.entities.map((entity) => entity.id === entityId
+      ? { ...updater(entity), updatedAt: new Date().toISOString() } : entity),
+  })), []);
+  const updateEngagement = React.useCallback((engagementId, updater) => setStore((current) => ({ ...current,
+    engagements: current.engagements.map((engagement) => engagement.id === engagementId
+      ? { ...updater(engagement), updatedAt: new Date().toISOString() } : engagement),
+  })), []);
   const saveTaxDeadline = React.useCallback((kind, targetId, existing, values, revisionReason = "") => {
-    const updateTarget = kind === "group" ? updateGroup : updateProject;
-    updateTarget(targetId, (target) => {
-      const workstreamIds = new Set((target.workstreams || []).map((workstream) => workstream.id));
-      const cleanedValues = { ...values, linkedWorkstreamId: kind === "project" && workstreamIds.has(values.linkedWorkstreamId)
-        ? values.linkedWorkstreamId : null };
+    const engagement = kind === "entity" ? null : store.engagements.find((item) => item.id === targetId);
+    const entityId = kind === "entity" ? targetId : engagement?.entityId;
+    if (!entityId) return;
+    updateEntity(entityId, (target) => {
+      const linkedEngagement = store.engagements.find((item) => item.id === values.linkedEngagementId
+        && item.entityId === entityId);
+      const cleanedValues = { ...values,
+        linkedEngagementId: linkedEngagement?.id || null,
+        linkedWorkstreamId: linkedEngagement?.workstreams.some((workstream) => workstream.id === values.linkedWorkstreamId)
+          ? values.linkedWorkstreamId : null };
       const taxDeadlines = existing
         ? (target.taxDeadlines || []).map((deadline) => deadline.id === existing.id
           ? reviseTaxDeadline(deadline, cleanedValues, revisionReason) : deadline)
@@ -239,14 +288,26 @@ function DashboardWorkbench() {
       return { ...target, taxDeadlines };
     });
     notify(t(existing ? "税务期限已更新" : "税务期限已新增"));
-  }, [t, updateGroup, updateProject]);
+  }, [store.engagements, t, updateEntity]);
   const deleteTaxDeadline = React.useCallback((kind, targetId, deadlineId) => {
-    const updateTarget = kind === "group" ? updateGroup : updateProject;
-    updateTarget(targetId, (target) => ({ ...target,
+    const engagement = kind === "entity" ? null : store.engagements.find((item) => item.id === targetId);
+    const entityId = kind === "entity" ? targetId : engagement?.entityId;
+    if (!entityId) return;
+    updateEntity(entityId, (target) => ({ ...target,
       taxDeadlines: (target.taxDeadlines || []).filter((deadline) => deadline.id !== deadlineId) }));
     notify(t("税务期限已删除"));
-  }, [t, updateGroup, updateProject]);
+  }, [store.engagements, t, updateEntity]);
   const moveNavigationItem = (kind, refId, parentGroupId) => {
+    if (kind === "entity") {
+      if (!canMoveEntity(store, refId, parentGroupId)) { notify(t("无法移动到这个控股公司")); return; }
+      const source = store.entities.find((entity) => entity.id === refId);
+      const target = store.entities.find((entity) => entity.id === parentGroupId);
+      if ((source?.parentEntityId || "") === parentGroupId) return;
+      setStore((current) => moveEntity(current, refId, parentGroupId));
+      notify(target ? t("{name} 已移到“{group}”", { name: source?.legalName || "", group: target.legalName })
+        : t("{name} 已移到顶层", { name: source?.legalName || "" }));
+      return;
+    }
     if (!canMoveWorkspaceItem(store, kind, refId, parentGroupId)) {
       notify(t("无法移动到这个集团")); return;
     }
@@ -273,76 +334,48 @@ function DashboardWorkbench() {
       workstream.id === workstreamId ? { ...workstream, nodes: updater(workstream.nodes), updatedAt: new Date().toISOString() } : workstream) }));
   };
 
-  const createProject = (values, useStarter) => {
-    const project = makeProject(values, useStarter, store.samples, store.workstreamCategories);
-    const parentGroupId = modal?.parentGroupId;
-    setStore((current) => ({ ...current, projects: [project, ...current.projects],
-      scheduleOrder: [`project:${project.id}`, ...(current.scheduleOrder || []).filter((key) => key !== `project:${project.id}`)],
-      groups: parentGroupId ? current.groups.map((group) => group.id === parentGroupId
-        ? { ...group, members: [...group.members, makeGroupMember({ kind: "project", refId: project.id,
-          auditType: "internal_team", role: "" }, selectedGroupSample || createDefaultGroupSample())] } : group) : current.groups }));
-    setSelection({ kind: "project", id: project.id }); setWorkspaceView("detail"); setActiveWorkstreamId(project.workstreams[0]?.id || null);
-    setFilter("active"); setModal(null); notify(t("项目已建立并自动保存"));
+  const createEntity = (values) => {
+    const entity = makeEntity(values);
+    setStore((current) => ({ ...current, entities: [entity, ...current.entities],
+      entityOrder: [entity.id, ...(current.entityOrder || []).filter((id) => id !== entity.id)] }));
+    setSelection({ kind: "entity", id: entity.id }); setWorkspaceView("detail"); setFilter("all"); setModal(null);
+    notify(t("公司主档已建立并自动保存"));
   };
-  const createGroup = (values, useStarter) => {
-    const group = makeGroup(values, Boolean(useStarter && selectedGroupSample), selectedGroupSample || createDefaultGroupSample());
-    const parentGroupId = modal?.parentGroupId;
-    setStore((current) => ({ ...current,
-      scheduleOrder: [`group:${group.id}`, ...(current.scheduleOrder || []).filter((key) => key !== `group:${group.id}`)],
-      groups: [group, ...current.groups.map((item) => item.id === parentGroupId
-      ? { ...item, members: [...item.members, makeGroupMember({ kind: "group", refId: group.id, role: "" },
-        selectedGroupSample || createDefaultGroupSample())] } : item)] }));
-    setSelection({ kind: "group", id: group.id }); setWorkspaceView("detail"); setFilter("active"); setModal(null); notify(t("集团已建立并自动保存"));
-  };
-  const convertSelectedProjectToGroup = () => {
-    if (!selectedProjectSource) return;
-    setStore((current) => convertProjectToGroup(current, selectedProjectSource.id,
-      selectedGroupSample || createDefaultGroupSample(language)));
-    setSelection({ kind: "group", id: selectedProjectSource.id }); setWorkspaceView("detail");
-    setActiveWorkstreamId(null); setModal(null); notify(t("已转换为控股公司"));
-  };
-  const convertSelectedGroupToProject = () => {
-    if (!selectedGroupSource) return;
-    setStore((current) => convertGroupToProject(current, selectedGroupSource.id,
-      selectedGroupSample || createDefaultGroupSample(language)));
-    setSelection({ kind: "project", id: selectedGroupSource.id }); setWorkspaceView("detail");
-    setModal(null); notify(t("已转换为公司"));
+  const createAnnualEngagement = (entity, values, options) => {
+    try {
+      let engagement = makeEngagement(values, { ...options, entity, store, samples: store.samples,
+        workstreamCategories: store.workstreamCategories, outstandingStatuses: store.outstandingStatuses,
+        groupSample: selectedGroupSample || createDefaultGroupSample(language) });
+      if (entity.kind === "holding_company" && engagement.consolidation) engagement = { ...engagement,
+        consolidation: { ...engagement.consolidation,
+          components: componentsForCurrentStructure(store, entity.id, engagement.periodStart, engagement.periodEnd,
+            selectedGroupSample || createDefaultGroupSample(language)) } };
+      const kind = entity.kind === "holding_company" ? "group" : "project";
+      setStore((current) => ({ ...current, engagements: [engagement, ...current.engagements],
+        scheduleOrder: [`${kind}:${engagement.id}`, ...(current.scheduleOrder || []).filter((key) => !key.endsWith(`:${engagement.id}`))] }));
+      setSelection({ kind, id: engagement.id }); setWorkspaceView("detail"); setFilter("active"); setModal(null);
+      setActiveWorkstreamId(engagement.workstreams[0]?.id || null); notify(t("年度项目已建立并自动保存"));
+    } catch (error) { window.alert(t(error.message.includes("already exists")
+      ? "这家公司已经有相同报告期间的项目，包括归档项目。" : "请检查报告期间后再建立项目。")); }
   };
   const duplicateProject = (project) => {
-    const now = new Date().toISOString();
-    const copy = { ...project, id: uid("project"), name: `${project.name}${t("（副本）")}`, archived: false,
-      createdAt: now, updatedAt: now, outstandingItems: [], taxDeadlines: [], workstreams: project.workstreams.map((workstream) => makeWorkstream({
-        type: workstream.type, categoryId: workstream.categoryId, customName: workstream.customName,
-        owner: workstream.owner, dueDate: workstream.dueDate,
-      }, workstream.nodes)) };
-    setStore((current) => ({ ...current, projects: [copy, ...current.projects],
-      scheduleOrder: [`project:${copy.id}`, ...(current.scheduleOrder || []).filter((key) => key !== `project:${copy.id}`)] }));
-    setSelection({ kind: "project", id: copy.id }); setWorkspaceView("detail"); setActiveWorkstreamId(copy.workstreams[0]?.id || null); setFilter("active");
-    notify(t("已复制流程，所有完成状态已重置"));
+    const engagement = store.engagements.find((item) => item.id === project.id);
+    const entity = entityForEngagement(store, engagement);
+    if (entity) setModal({ type: "create-engagement", entityId: entity.id, sourceEngagementId: engagement.id });
   };
   const archiveTarget = (kind, id) => {
-    const target = kind === "project" ? store.projects.find((item) => item.id === id)
-      : store.groups.find((item) => item.id === id);
-    const openTaxDeadlines = (target?.taxDeadlines || []).filter((deadline) => deadline.state === "open").length;
-    if (openTaxDeadlines && !window.confirm(t("这家公司还有 {count} 项未完成税务期限。归档后相关提醒会隐藏，是否继续？",
-      { count: openTaxDeadlines }))) return;
-    (kind === "project" ? updateProject : updateGroup)(id, (item) => ({ ...item, archived: true }));
-    setFilter("archived"); notify(t(kind === "project" ? "项目已归档" : "集团已归档"));
+    updateEngagement(id, (item) => ({ ...item, archived: true }));
+    setFilter("archived"); notify(t("年度项目已归档"));
   };
   const restoreTarget = (kind, id) => {
-    (kind === "project" ? updateProject : updateGroup)(id, (item) => ({ ...item, archived: false }));
-    setFilter("active"); notify(t(kind === "project" ? "项目已恢复" : "集团已恢复"));
+    updateEngagement(id, (item) => ({ ...item, archived: false }));
+    setFilter("active"); notify(t("年度项目已恢复"));
   };
   const permanentlyDeleteTarget = (kind, id) => {
-    setStore((current) => kind === "project" ? { ...current,
-      projects: current.projects.filter((project) => project.id !== id),
-      scheduleOrder: (current.scheduleOrder || []).filter((key) => key !== `project:${id}`),
-      groups: current.groups.map((group) => ({ ...group,
-        members: group.members.filter((member) => !(member.kind === "project" && member.refId === id)) })) }
-      : { ...current, groups: current.groups.filter((group) => group.id !== id).map((group) => ({ ...group,
-        members: group.members.filter((member) => !(member.kind === "group" && member.refId === id)) })),
-        scheduleOrder: (current.scheduleOrder || []).filter((key) => key !== `group:${id}`) });
-    setSelection(null); setModal(null); notify(t(kind === "project" ? "项目已永久删除" : "集团已永久删除"));
+    setStore((current) => ({ ...current, engagements: current.engagements.filter((engagement) => engagement.id !== id),
+      scheduleOrder: (current.scheduleOrder || []).filter((key) => !key.endsWith(`:${id}`)) }));
+    const entity = store.engagements.find((engagement) => engagement.id === id)?.entityId;
+    setSelection(entity ? { kind: "entity", id: entity } : null); setModal(null); notify(t("年度项目已永久删除"));
   };
 
   const addWorkstream = (projectId, values) => {
@@ -446,10 +479,21 @@ function DashboardWorkbench() {
   };
 
   const exportBackup = () => {
-    const blob = new Blob([JSON.stringify(store, null, 2)], { type: "application/json" });
+    const blob = new Blob([JSON.stringify(canonicalStorePayload(store), null, 2)], { type: "application/json" });
     const url = URL.createObjectURL(blob); const anchor = document.createElement("a");
     anchor.href = url; anchor.download = `audit-project-workbench-${new Date().toISOString().slice(0, 10)}.json`; anchor.click();
     URL.revokeObjectURL(url); closeMenu(); notify(t("备份已导出"));
+  };
+  const hasV10Recovery = (() => { try { return Boolean(localStorage.getItem(V10_RECOVERY_KEY)); } catch { return false; } })();
+  const downloadV10Recovery = () => {
+    try {
+      const payload = localStorage.getItem(V10_RECOVERY_KEY);
+      if (!payload) return;
+      const blob = new Blob([`${JSON.stringify(JSON.parse(payload), null, 2)}\n`], { type: "application/json" });
+      const url = URL.createObjectURL(blob); const anchor = document.createElement("a");
+      anchor.href = url; anchor.download = `audit-project-workbench-v10-recovery-${new Date().toISOString().slice(0, 10)}.json`; anchor.click();
+      URL.revokeObjectURL(url); closeMenu(); notify(t("V10 恢复副本已下载"));
+    } catch { window.alert(t("无法读取 V10 恢复副本。")); }
   };
   const templatePackageErrorText = (error) => t({
     file_too_large: "范本包超过 5 MB 上限。",
@@ -487,9 +531,13 @@ function DashboardWorkbench() {
     try {
       const parsed = JSON.parse(await file.text()); if (!isValidStore(parsed)) throw new Error("invalid");
       const confirmKey = persistence.settings.mode === "linked_file"
-        ? "将导入 {projects} 个项目、{groups} 个集团及全部范本，并替换浏览器资料和当前关联文件，是否继续？"
-        : "将导入 {projects} 个项目、{groups} 个集团及全部范本，并替换当前数据，是否继续？";
-      if (!window.confirm(t(confirmKey, { projects: parsed.projects.length, groups: parsed.groups?.length || 0 }))) return;
+        ? "将导入 {entities} 个公司主档、{engagements} 个年度项目及全部范本，并替换浏览器资料和当前关联文件，是否继续？"
+        : "将导入 {entities} 个公司主档、{engagements} 个年度项目及全部范本，并替换当前数据，是否继续？";
+      const engagementCount = Array.isArray(parsed.engagements) ? parsed.engagements.length
+        : (parsed.projects?.length || 0) + (parsed.groups?.length || 0);
+      const entityCount = Array.isArray(parsed.entities) ? parsed.entities.length : engagementCount;
+      if (!window.confirm(t(confirmKey, { entities: entityCount, engagements: engagementCount }))) return;
+      preserveLegacyRecovery(parsed);
       const normalized = normalizeStore(parsed); setStore(normalized); setSelection(null); setWorkspaceView("detail"); setFilter("active"); notify(t("备份已恢复"));
     } catch { window.alert(t("这不是有效的工作台备份文件。")); }
     finally { if (importRef.current) importRef.current.value = ""; closeMenu(); }
@@ -506,13 +554,12 @@ function DashboardWorkbench() {
 
   const modalTargetProject = modal?.targetKind === "project" ? store.projects.find((item) => item.id === modal.targetId) : null;
   const modalTargetGroup = modal?.targetKind === "group" ? store.groups.find((item) => item.id === modal.targetId) : null;
+  const modalTargetEngagement = modal?.targetId ? store.engagements.find((item) => item.id === modal.targetId) || null : null;
+  const modalTargetEntity = modal?.targetKind === "entity"
+    ? store.entities.find((item) => item.id === modal.targetId) || null
+    : entityForEngagement(store, modalTargetEngagement);
   const modalTargetWorkstream = modalTargetProject?.workstreams.find((item) => item.id === modal.workstreamId) || null;
-  const quickProjectTitle = ({ owner: "负责人", schedule: "项目排期", framework: "财务报告准则／框架",
-    group: "所属集团" })[modal?.quickField] || "编辑项目资料";
-  const projectModalTitle = modal?.quickField === "schedule" && modalTargetProject
-    ? `${t("项目排期")} · ${modalTargetProject.entity || modalTargetProject.name}` : t(quickProjectTitle);
-  const groupModalTitle = modal?.quickField === "schedule" && modalTargetGroup
-    ? `${t("项目排期")} · ${modalTargetGroup.name}` : t("编辑集团资料");
+  const quickProjectTitle = ({ owner: "负责人", schedule: "项目排期", framework: "财务报告准则／框架" })[modal?.quickField];
   const modalWorkflowNodes = modal?.targetKind === "group" ? modalTargetGroup?.nodes : modalTargetWorkstream?.nodes;
   const modalNode = modalWorkflowNodes?.find((item) => item.id === modal?.nodeId) || modal?.node || null;
   const availableProjects = store.projects.filter((project) => !project.archived && !findParentMembership(store, "project", project.id));
@@ -585,6 +632,7 @@ function DashboardWorkbench() {
               }}>{t("立即保存")}</button>}
               <button type="button" aria-label={t("恢复备份")} onClick={() => { closeMenu(); importRef.current?.click(); }}>{t("恢复备份")}…</button>
               <button type="button" aria-label={t("导出备份")} onClick={exportBackup}>{t("导出备份")}</button>
+              {hasV10Recovery && <button type="button" aria-label={t("下载 V10 恢复副本")} onClick={downloadV10Recovery}>{t("下载 V10 恢复副本")}</button>}
               <button type="button" className="toolbar-menu-danger" aria-label={t("初始化工作台")}
                 onClick={() => { closeMenu(); setModal({ type: "initialize-workbench" }); }}>
                 {t("初始化工作台")}…</button></div></details>
@@ -609,7 +657,7 @@ function DashboardWorkbench() {
           <div className="project-panel-controls"><div className="project-panel-title"><div>
             <strong>{t("公司列表")}</strong></div><button type="button" className="project-panel-new"
               aria-label={t("新建公司")} data-tooltip={t("新建公司")} data-tooltip-side="left"
-              onClick={() => setModal({ type: "create-company" })}><Plus aria-hidden="true" /><span>{t("新建公司")}</span></button></div>
+              onClick={() => setModal({ type: "create-entity" })}><Plus aria-hidden="true" /><span>{t("新建公司")}</span></button></div>
             <label className="search-field"><Search aria-hidden="true" /><input value={search} onChange={(event) => setSearch(event.target.value)}
               placeholder={t("搜索公司或负责人")} aria-label={t("搜索公司、控股公司或负责人")} /></label>
             <div className="filter-tabs" role="tablist" aria-label={t("项目状态")} onKeyDown={handleTabListKeyDown}>{[["active", "活跃"], ["completed", "已完成"],
@@ -620,11 +668,30 @@ function DashboardWorkbench() {
             statuses={store.outstandingStatuses} onMove={moveNavigationItem} /></>}
       </aside>
       <main className="project-detail" aria-label={t(workspaceView === "schedule" ? "项目排期"
-        : workspaceView === "report" ? "管理层报告" : selectedGroup ? "集团工作区" : "项目工作区")}>
+        : workspaceView === "report" ? "管理层报告" : selectedEntitySource ? "公司概览" : selectedGroup ? "集团工作区" : "项目工作区")}>
         {workspaceView === "schedule" ? <ProjectSchedule store={store} filter={filter} onOpen={openWorkspaceRecord}
           onEditSchedule={openScheduleEditor} onOpenTaxDeadline={openTaxDeadlineCentre} onReorder={reorderSchedule} />
           : workspaceView === "report" ? <ManagementReport store={store} selection={selection} now={deadlineClock}
             onOpen={openWorkspaceRecord} />
+          : selectedEntitySource ? <EntityOverview store={store} entity={selectedEntitySource}
+            onEdit={() => setModal({ type: "edit-entity", entityId: selectedEntitySource.id })}
+            onNewEngagement={() => setModal({ type: "create-engagement", entityId: selectedEntitySource.id })}
+            onOpenEngagement={(engagement, childEntity) => childEntity ? openWorkspaceRecord("entity", childEntity.id)
+              : openWorkspaceRecord(selectedEntitySource.kind === "holding_company" ? "group" : "project", engagement.id)}
+            onEditEngagement={(engagement) => setModal({ type: "edit-engagement", targetKind: selectedEntitySource.kind === "holding_company" ? "group" : "project",
+              targetId: engagement.id })}
+            onTax={() => openTaxDeadlineCentre("entity", selectedEntitySource.id)}
+            onArchive={() => {
+              const active = engagementsForEntity(store, selectedEntitySource.id).filter((engagement) => !engagement.archived);
+              if (active.length) { window.alert(t("归档公司前，请先归档以下 {count} 个活跃项目：{projects}", {
+                count: active.length, projects: active.map((engagement) => reportingPeriodLabel(engagement, language)).join("、") })); return; }
+              const openTax = selectedEntitySource.taxDeadlines.filter((deadline) => deadline.state === "open").length;
+              if (openTax && !window.confirm(t("这家公司还有 {count} 项未完成税务期限。归档后相关提醒会隐藏，是否继续？", { count: openTax }))) return;
+              updateEntity(selectedEntitySource.id, (entity) => ({ ...entity, archived: true })); setFilter("archived"); notify(t("公司已归档"));
+            }}
+            onRestore={() => { updateEntity(selectedEntitySource.id, (entity) => ({ ...entity, archived: false })); setFilter("all"); notify(t("公司已恢复")); }}
+            onDelete={() => setModal({ type: "delete-entity", targetId: selectedEntitySource.id, name: selectedEntitySource.legalName })}
+            onMerge={() => setModal({ type: "merge-entities", entityId: selectedEntitySource.id })} />
           : selectedProject ? <ProjectDetail project={selectedProject} rawProject={selectedProjectSource} statuses={outstandingStatusViews}
           parentMembership={selectedProjectMembership}
           activeWorkstreamId={activeWorkstreamId} setActiveWorkstreamId={setActiveWorkstreamId} updateWorkflowNodes={updateWorkflowNodes}
@@ -632,9 +699,10 @@ function DashboardWorkbench() {
           deadlineClock={deadlineClock} />
           : selectedGroup ? <GroupDetail store={store} group={selectedGroup} statuses={outstandingStatusViews}
             updateWorkflowNodes={updateWorkflowNodes} setModal={setModal} setSelection={(next) => openWorkspaceRecord(next.kind, next.id)}
+            updateEngagement={updateEngagement} setStore={setStore} selectedGroupSample={selectedGroupSample}
             archiveTarget={archiveTarget} restoreTarget={restoreTarget} deadlineClock={deadlineClock} />
-            : <div className="detail-empty"><span className="empty-mark">◎</span><h2>{t("选择一个项目或集团")}</h2>
-              <p>{t("选择后可查看业务模块、集团合并及待清事项。")}</p></div>}
+            : <div className="detail-empty"><span className="empty-mark">◎</span><h2>{t("选择公司或年度项目")}</h2>
+              <p>{t("选择公司查看主档和历年项目；选择年度项目进入业务工作区。")}</p></div>}
       </main>
       <aside className="outstanding-center-shell" aria-label={t("待清中心")}>
         {outstandingPanelCollapsed ? <button type="button" className="outstanding-rail-toggle" aria-expanded="false"
@@ -651,50 +719,71 @@ function DashboardWorkbench() {
             : selectedGroup ? <OutstandingCenter store={store} target={selectedGroupSource} targetKind="group" statuses={outstandingStatusViews}
               updateProject={updateProject} updateGroup={updateGroup} setModal={setModal} setSelection={(next) => openWorkspaceRecord(next.kind, next.id)} notify={notify}
               readOnly={selectedGroupSource.archived} />
-              : <div className="outstanding-center-empty">{t("选择项目或集团后查看待清事项。")}</div>}</>}
+              : selectedEntitySource ? <div className="outstanding-center-empty">{t("公司概览会汇总历年项目；进入某一年度查看该年度待清事项。")}</div>
+                : <div className="outstanding-center-empty">{t("选择项目或集团后查看待清事项。")}</div>}</>}
       </aside>
     </section>
 
     {modal?.type === "deadline-alerts" && <Modal title={t("期限提醒")} onClose={() => setModal(null)} wide>
       <DeadlineAlertCentre alerts={deadlineAlertItems} onOpen={openDeadlineAlert} /></Modal>}
-    {modal?.type === "tax-deadlines" && (modalTargetProject || modalTargetGroup) && <Modal title={t("税务期限")} onClose={() => setModal(null)} large>
+    {modal?.type === "tax-deadlines" && modalTargetEntity && <Modal title={`${t("税务期限")} · ${modalTargetEntity.legalName}`} onClose={() => setModal(null)} large>
       <TaxDeadlineManager store={store} targetKind={modal.targetKind} targetId={modal.targetId}
         focusDeadlineId={modal.deadlineId} initialEditDeadlineId={modal.editDeadlineId}
-        readOnly={Boolean((modalTargetProject || modalTargetGroup)?.archived)}
+        initialEngagementId={modal.engagementId}
+        readOnly={Boolean(modalTargetEntity.archived)}
         onSave={saveTaxDeadline} onDelete={deleteTaxDeadline}
         onOpenSource={(kind, id, deadlineId) => openTaxDeadlineCentre(kind, id, deadlineId)} /></Modal>}
-    {modal?.type === "create-company" && <Modal title={t("新建公司")} onClose={() => setModal(null)} wide>
-      <CompanyCreateForm initialKind={modal.initialKind} samples={sampleViews} workstreamCategories={workstreamCategoryViews}
-        selectedSampleIdsByCategory={store.selectedSampleIdsByCategory} selectedGroupSample={selectedGroupSample}
-        initialWorkstreamSelections={modal.initialWorkstreamSelections} onCreateProject={createProject}
-        onCreateGroup={createGroup} onClose={() => setModal(null)} /></Modal>}
-    {modal?.type === "edit-project" && selectedProjectSource && <Modal title={projectModalTitle} onClose={() => setModal(null)}
-      wide={!modal.quickField}>
-      <ProjectForm initial={selectedProjectSource} allowWorkstreams={false} onClose={() => setModal(null)} submitLabel="保存修改"
-        quickField={modal.quickField}
-        onConvert={() => setModal({ type: "convert-target", targetKind: "project" })}
-        initialMembership={selectedProjectMembership} groupOptions={store.groups.filter((group) => !group.archived
-          || group.id === selectedProjectMembership?.group.id)} onSubmit={(values) => {
-          const { groupAssignment, ...projectValues } = values;
+    {modal?.type === "create-entity" && <Modal title={t("新建公司")} onClose={() => setModal(null)} wide>
+      <CompanyForm store={store} onSubmit={createEntity} onClose={() => setModal(null)} /></Modal>}
+    {modal?.type === "edit-entity" && store.entities.find((entity) => entity.id === modal.entityId) && <Modal title={t("编辑公司主档")}
+      onClose={() => setModal(null)} wide><CompanyForm store={store} initial={store.entities.find((entity) => entity.id === modal.entityId)}
+        onClose={() => setModal(null)} onSubmit={(values) => {
+          const source = store.entities.find((entity) => entity.id === modal.entityId);
+          if (!source) return;
+          if (values.parentEntityId && !canMoveEntity(store, source.id, values.parentEntityId)) {
+            window.alert(t("无法移动到这个控股公司")); return;
+          }
+          const kindChanged = source.kind !== values.kind;
           setStore((current) => {
-            const next = { ...current, projects: current.projects.map((project) => project.id === selectedProjectSource.id
-              ? { ...project, ...projectValues, updatedAt: new Date().toISOString() } : project) };
-            const groupSample = current.groupSamples.find((sample) => sample.id === current.selectedGroupSampleId)
-              || current.groupSamples[0] || createDefaultGroupSample();
-            return groupAssignment ? assignProjectToGroup(next, selectedProjectSource.id, groupAssignment, groupSample) : next;
+            let next = { ...current, entities: current.entities.map((entity) => entity.id === source.id
+              ? { ...entity, ...values, updatedAt: new Date().toISOString() } : entity) };
+            if (kindChanged && values.kind === "holding_company") next = { ...next, engagements: next.engagements.map((engagement) => {
+              if (engagement.entityId !== source.id || engagement.consolidation) return engagement;
+              return { ...engagement, consolidation: { enabled: true,
+                nodes: (selectedGroupSample?.nodes || []).map((node) => makeNode({ title: node.title, description: node.description,
+                  conditions: node.conditions.map((condition) => condition.label) })),
+                components: componentsForCurrentStructure(next, source.id, engagement.periodStart, engagement.periodEnd,
+                  selectedGroupSample || createDefaultGroupSample(language)), structureSyncedAt: new Date().toISOString() } };
+            }) };
+            return next;
           });
-           setModal(null); notify(t(modal.quickField === "schedule" ? "项目排期已更新" : "项目资料及集团归属已更新")); }} /></Modal>}
-    {modal?.type === "edit-group" && selectedGroupSource && <Modal title={groupModalTitle}
+          setSelection({ kind: "entity", id: source.id }); setModal(null); notify(t("公司主档已更新"));
+        }} /></Modal>}
+    {modal?.type === "create-engagement" && store.entities.find((entity) => entity.id === modal.entityId) && <Modal
+      title={`${t("新建年度项目")} · ${store.entities.find((entity) => entity.id === modal.entityId).legalName}`} onClose={() => setModal(null)} large>
+      <EngagementForm store={store} entity={store.entities.find((entity) => entity.id === modal.entityId)}
+        preferredSourceId={modal.sourceEngagementId} onClose={() => setModal(null)}
+        onSubmit={(values, options) => createAnnualEngagement(store.entities.find((entity) => entity.id === modal.entityId), values,
+          modal.sourceEngagementId ? { ...options, sourceMode: "previous",
+            sourceEngagement: store.engagements.find((engagement) => engagement.id === modal.sourceEngagementId) } : options)} /></Modal>}
+    {modal?.type === "edit-engagement" && modalTargetEngagement && modalTargetEntity && <Modal title={`${t(quickProjectTitle || "编辑年度项目")} · ${modalTargetEntity.legalName}`}
       onClose={() => setModal(null)} wide={!modal.quickField}>
-      <GroupForm initial={selectedGroupSource} sampleName={selectedGroupSample?.name || ""} allowTemplate={false}
-        quickField={modal.quickField}
-        onConvert={() => setModal({ type: "convert-target", targetKind: "group" })}
-        memberTargets={{ projects: store.projects, groups: store.groups }} availableProjects={availableProjects}
-        availableGroups={availableGroups} groupSample={selectedGroupSample || createDefaultGroupSample()}
-        onSubmit={(values) => { updateGroup(selectedGroupSource.id, (group) => ({ ...group, ...values,
-          nodes: values.consolidationEnabled ? group.nodes : [] })); setModal(null);
-          notify(t(modal.quickField === "schedule" ? "项目排期已更新" : "集团资料已更新")); }}
-        onClose={() => setModal(null)} /></Modal>}
+      <EngagementForm store={store} entity={modalTargetEntity} initial={modalTargetEngagement} quickField={modal.quickField}
+        onClose={() => setModal(null)} onSubmit={(values) => {
+          updateEngagement(modalTargetEngagement.id, (engagement) => ({ ...engagement,
+            internalName: values.internalName, periodPreset: values.periodPreset, periodStart: values.periodStart,
+            periodEnd: values.periodEnd, reportingFramework: values.reportingFramework, owner: values.owner,
+            startDate: values.startDate, dueDate: values.dueDate, notes: values.notes,
+            consolidation: engagement.consolidation ? { ...engagement.consolidation,
+              enabled: values.consolidationEnabled !== false } : engagement.consolidation }));
+          setModal(null); notify(t(modal.quickField === "schedule" ? "项目排期已更新"
+            : modal.quickField === "owner" ? "负责人已更新" : modal.quickField === "framework" ? "财务报告准则／框架已更新" : "年度项目已更新"));
+        }} /></Modal>}
+    {modal?.type === "merge-entities" && <Modal title={t("合并重复公司")} onClose={() => setModal(null)} wide>
+      <MergeEntitiesForm store={store} initialEntityId={modal.entityId} onClose={() => setModal(null)} onSubmit={(sourceId, targetId) => {
+        try { setStore((current) => mergeEntities(current, sourceId, targetId)); setSelection({ kind: "entity", id: targetId });
+          setModal(null); notify(t("重复公司已合并")); } catch (error) { window.alert(t("公司无法合并，请先处理相同报告期间。")); }
+      }} /></Modal>}
     {modal?.type === "workstream-add" && modalTargetProject && <Modal title={t("添加业务模块")} onClose={() => setModal(null)}>
       <WorkstreamForm availableCategories={workstreamCategoryViews.filter((category) => !category.builtinType
         || category.builtinType === "custom" || !modalTargetProject.workstreams.some((item) => item.type === category.builtinType))}
@@ -744,7 +833,7 @@ function DashboardWorkbench() {
         onSelect={(sampleId) => setStore((current) => ({ ...current, selectedGroupSampleId: sampleId }))}
         onCreate={() => setModal({ type: "group-sample-edit", sample: makeBlankGroupSample(language) })}
         onEdit={(sampleId) => setModal({ type: "group-sample-edit", sampleId })} onDuplicate={(sampleId) => copySample(sampleId, true)}
-        onDelete={(sampleId) => deleteSample(sampleId, true)} onUse={() => setModal({ type: "create-company", initialKind: "group" })} />
+        onDelete={(sampleId) => deleteSample(sampleId, true)} onUse={() => setModal({ type: "create-entity" })} />
         : <SampleLibrary samples={visibleSampleViews.filter((sample) => sample.categoryId === templateType)}
           categoryLabel={workstreamCategoryViews.find((category) => category.id === templateType)?.label}
           selectedSampleId={store.selectedSampleIdsByCategory?.[templateType]}
@@ -754,8 +843,7 @@ function DashboardWorkbench() {
             if (category) setModal({ type: "sample-edit", sample: makeBlankSample(language, category.builtinType || "custom", category.id) }); }}
           onEdit={(sampleId) => setModal({ type: "sample-edit", sampleId })} onDuplicate={copySample} onDelete={deleteSample}
           onManageCategories={() => setModal({ type: "workstream-categories" })}
-          onUse={(sampleId) => setModal({ type: "create-company", initialKind: "project",
-            initialWorkstreamSelections: [{ categoryId: templateType, sampleId }] })} />}
+          onUse={() => setModal({ type: "create-entity" })} />}
     </Modal>}
     {modal?.type === "template-export" && <Modal title={t("导出范本包")} onClose={() => setModal({ type: "template-library" })} wide>
       <TemplateExportPanel samples={sampleViews} groupSamples={groupSampleViews} categories={workstreamCategoryViews}
@@ -811,20 +899,26 @@ function DashboardWorkbench() {
         onLink={(values) => { updateGroup(selectedGroupSource.id, (group) => ({ ...group,
           members: [...group.members, makeGroupMember(values, selectedGroupSample || createDefaultGroupSample())] }));
           setModal(null); notify(t("组成部分已加入集团")); }}
-        onCreateCompany={() => setModal({ type: "create-company", parentGroupId: selectedGroupSource.id })}
+        onCreateCompany={() => setModal({ type: "create-entity" })}
         onClose={() => setModal(null)} /></Modal>}
     {modal?.type === "member-edit" && <MemberEditModal modal={modal} store={store} selectedGroupSample={selectedGroupSample}
       updateGroup={updateGroup} setModal={setModal} notify={notify} t={t} language={language} />}
     {modal?.type === "delete-target" && <Modal title={t("永久删除")} onClose={() => setModal(null)}>
       <DeleteConfirm name={modal.name} kind={modal.targetKind} onClose={() => setModal(null)}
         onDelete={() => permanentlyDeleteTarget(modal.targetKind, modal.targetId)} /></Modal>}
-    {modal?.type === "convert-target" && ((modal.targetKind === "project" && selectedProjectSource)
-      || (modal.targetKind === "group" && selectedGroupSource)) && <Modal title={t(modal.targetKind === "project"
-        ? "转换为控股公司" : "转换为公司")} onClose={() => setModal(null)}>
-      <ConversionConfirm kind={modal.targetKind} name={modal.targetKind === "project"
-        ? selectedProjectSource.entity || selectedProjectSource.name : selectedGroupSource.name}
-        memberCount={selectedGroupSource?.members.length || 0} onClose={() => setModal(null)}
-        onConvert={modal.targetKind === "project" ? convertSelectedProjectToGroup : convertSelectedGroupToProject} /></Modal>}
+    {modal?.type === "delete-entity" && <Modal title={t("永久删除公司")} onClose={() => setModal(null)}>
+      <DeleteConfirm name={modal.name} kind="entity" onClose={() => setModal(null)} onDelete={() => {
+        const engagementIds = new Set(store.engagements.filter((engagement) => engagement.entityId === modal.targetId)
+          .map((engagement) => engagement.id));
+        setStore((current) => ({ ...current,
+          entities: current.entities.filter((entity) => entity.id !== modal.targetId).map((entity) => entity.parentEntityId === modal.targetId
+            ? { ...entity, parentEntityId: null, updatedAt: new Date().toISOString() } : entity),
+          engagements: current.engagements.filter((engagement) => !engagementIds.has(engagement.id)),
+          entityOrder: (current.entityOrder || []).filter((id) => id !== modal.targetId),
+          scheduleOrder: (current.scheduleOrder || []).filter((key) => !engagementIds.has(key.split(":").slice(1).join(":"))),
+        }));
+        setSelection(null); setModal(null); notify(t("公司及其年度项目已永久删除"));
+      }} /></Modal>}
   </article>;
 }
 
@@ -883,27 +977,27 @@ function ProjectDetail({ project, rawProject, statuses, parentMembership, active
         <button type="button" className="button danger-quiet icon-only" aria-label={t("永久删除")}
           data-tooltip={t("永久删除")} onClick={() => setModal({ type: "delete-target", targetKind: "project",
             targetId: rawProject.id, name: rawProject.name })}><Trash2 aria-hidden="true" /></button></> : <>
-        <button type="button" className="button primary icon-only" aria-label={t("编辑公司及集团归属")}
-          data-tooltip={t("编辑公司及集团归属")} onClick={() => setModal({ type: "edit-project" })}><Pencil aria-hidden="true" /></button>
+        <button type="button" className="button primary icon-only" aria-label={t("编辑年度项目")}
+          data-tooltip={t("编辑年度项目")} onClick={() => setModal({ type: "edit-engagement", targetKind: "project", targetId: rawProject.id })}><Pencil aria-hidden="true" /></button>
         <button type="button" className="button secondary icon-only" aria-label={t("复制项目")}
           data-tooltip={t("复制项目")} onClick={() => duplicateProject(rawProject)}><Copy aria-hidden="true" /></button>
         <button type="button" className="button secondary icon-only" aria-label={t("归档项目")}
           data-tooltip={t("归档项目")} onClick={() => archiveTarget("project", rawProject.id)}><Archive aria-hidden="true" /></button></>}</div>
     </header>
     <dl className="detail-facts"><DetailFactAction label={t("负责人")} actionLabel={`${t("编辑项目资料")}：${t("负责人")}`}
-      onClick={!readOnly ? () => setModal({ type: "edit-project", quickField: "owner" }) : null}>
+      onClick={!readOnly ? () => setModal({ type: "edit-engagement", targetKind: "project", targetId: rawProject.id, quickField: "owner" }) : null}>
       {project.owner || t("未设置")}</DetailFactAction>
       <DetailFactAction className="date-range-fact" label={t("项目排期")} icon={CalendarRange}
         actionLabel={`${t("编辑项目资料")}：${t("项目排期")}`}
-        onClick={!readOnly ? () => setModal({ type: "edit-project", quickField: "schedule" }) : null}>
+        onClick={!readOnly ? () => setModal({ type: "edit-engagement", targetKind: "project", targetId: rawProject.id, quickField: "schedule" }) : null}>
         <time>{project.startDate ? formatDate(project.startDate, language) : t("未设置开始日")}</time>
         <span aria-hidden="true">→</span><time>{project.dueDate ? formatDate(project.dueDate, language) : t("未设置截止日")}</time>
       </DetailFactAction>
       <DetailFactAction label={t("财务报告准则／框架")} actionLabel={`${t("编辑项目资料")}：${t("财务报告准则／框架")}`}
-        onClick={!readOnly ? () => setModal({ type: "edit-project", quickField: "framework" }) : null}>
+        onClick={!readOnly ? () => setModal({ type: "edit-engagement", targetKind: "project", targetId: rawProject.id, quickField: "framework" }) : null}>
         {project.reportingFramework ? t(project.reportingFramework) : t("未设置")}</DetailFactAction>
-      <DetailFactAction label={t("所属集团")} actionLabel={`${t("编辑项目资料")}：${t("所属集团")}`}
-        onClick={!readOnly ? () => setModal({ type: "edit-project", quickField: "group" }) : null}>
+      <DetailFactAction label={t("所属控股公司")} actionLabel={t("编辑公司主档")}
+        onClick={!readOnly ? () => setModal({ type: "edit-entity", entityId: rawProject.entityId }) : null}>
         {parentMembership?.group.name || t("独立公司")}</DetailFactAction>
       <DetailFactAction label={t("业务模块")} icon={Settings2} actionLabel={t("业务模块设置")}
         onClick={!readOnly ? () => setModal(activeRawWorkstream ? { type: "workstream-edit", targetKind: "project",
@@ -942,11 +1036,12 @@ function ProjectDetail({ project, rawProject, statuses, parentMembership, active
   </div>;
 }
 
-function GroupDetail({ store, group, statuses, updateWorkflowNodes, setModal, setSelection, archiveTarget, restoreTarget,
-  deadlineClock }) {
+function GroupDetail({ store, group, statuses, updateWorkflowNodes, setModal, setSelection, updateEngagement, setStore,
+  selectedGroupSample, archiveTarget, restoreTarget, deadlineClock }) {
   const { language, t } = useUiLanguage();
   const [tab, setTab] = React.useState("overview");
   const rawGroup = store.groups.find((item) => item.id === group.id);
+  const engagement = store.engagements.find((item) => item.id === group.id);
   const readOnly = Boolean(rawGroup?.archived);
   const stats = groupProgress(store, group.id);
   const openItems = collectGroupOutstandingEntries(store, group.id, new Set(), 0, readOnly)
@@ -964,8 +1059,8 @@ function GroupDetail({ store, group, statuses, updateWorkflowNodes, setModal, se
         <button type="button" className="button danger-quiet icon-only" aria-label={t("永久删除")}
           data-tooltip={t("永久删除")} onClick={() => setModal({ type: "delete-target", targetKind: "group",
             targetId: group.id, name: group.name })}><Trash2 aria-hidden="true" /></button></> : <>
-        <button type="button" className="button primary icon-only" aria-label={t("编辑集团及成员")}
-          data-tooltip={t("编辑集团及成员")} onClick={() => setModal({ type: "edit-group" })}><Pencil aria-hidden="true" /></button>
+        <button type="button" className="button primary icon-only" aria-label={t("编辑年度项目")}
+          data-tooltip={t("编辑年度项目")} onClick={() => setModal({ type: "edit-engagement", targetKind: "group", targetId: rawGroup.id })}><Pencil aria-hidden="true" /></button>
         <button type="button" className="button secondary icon-only" aria-label={t("归档集团")}
           data-tooltip={t("归档集团")} onClick={() => archiveTarget("group", group.id)}><Archive aria-hidden="true" /></button></>}</div></header>
     <section className="group-status-strip" aria-label={t("集团状态")}><article><span>{t("组成部分进度")}</span>
@@ -979,9 +1074,16 @@ function GroupDetail({ store, group, statuses, updateWorkflowNodes, setModal, se
     <div className="group-tabs" role="tablist" aria-label={t("控股公司工作区")} onKeyDown={handleTabListKeyDown}>{[["overview", "组成部分"], ["workflow", "合并节点"], ["settings", "集团资料"]]
       .map(([value, label]) => <button type="button" role="tab" aria-selected={tab === value} key={value}
         tabIndex={tabIndexFor(tab === value)} onClick={() => setTab(value)}>{t(label)}</button>)}</div>
-    {tab === "overview" && <GroupMatrix store={store} group={rawGroup} statuses={statuses} readOnly={readOnly}
-      onOpen={(kind, id) => setSelection({ kind, id })} onConfigure={(sourceGroupId, member) => setModal({ type: "member-edit",
-        sourceGroupId, memberId: member.id })} />}
+    {tab === "overview" && engagement && <HoldingComponentsPanel store={store} engagement={engagement} readOnly={readOnly}
+      onOpen={(kind, id) => setSelection({ kind, id })}
+      onUpdate={(componentId, patch) => updateEngagement(engagement.id, (current) => ({ ...current,
+        consolidation: { ...current.consolidation, components: (current.consolidation?.components || []).map((component) =>
+          component.id === componentId ? { ...component, ...patch } : component) } }))}
+      onSync={() => {
+        if (!window.confirm(t("用当前控股架构更新本年度组成部分？新增和移出的公司会在确认后更新，既有完成条件尽量保留。"))) return;
+        setStore((current) => syncEngagementToCurrentStructure(current, engagement.id,
+          selectedGroupSample || createDefaultGroupSample(language)));
+      }} />}
     {tab === "workflow" && <section className="workflow-panel">
       {group.consolidationEnabled ? <WorkflowNodes targetKind="group" targetId={group.id} nodes={group.nodes}
         updateWorkflowNodes={updateWorkflowNodes} setModal={setModal} readOnly={readOnly} title={t("集团合并节点")}
@@ -992,19 +1094,10 @@ function GroupDetail({ store, group, statuses, updateWorkflowNodes, setModal, se
       <div className="date-range-fact"><dt>{t("项目排期")}</dt><dd><time>{group.startDate ? formatDate(group.startDate, language) : t("未设置开始日")}</time>
         <span aria-hidden="true">→</span><time>{group.dueDate ? formatDate(group.dueDate, language) : t("未设置截止日")}</time></dd></div>
       <div><dt>{t("合并方式")}</dt><dd>{t(group.consolidationEnabled ? "本级需要合并" : "仅作分类")}</dd></div>
-      <div><dt>{t("组成部分")}</dt><dd>{rawGroup.members.length}</dd></div></dl>
+      <div><dt>{t("组成部分")}</dt><dd>{engagement?.consolidation?.components?.length || 0}</dd></div></dl>
       {group.notes && <p className="group-notes">{group.notes}</p>}
-      <header className="section-heading"><div><h3>{t("公司与子集团")}</h3><p>{t("管理集团层级、角色和合并就绪条件。")}</p></div>
-        {!readOnly && <button type="button" className="button primary" onClick={() => setModal({ type: "member-add" })}>{t("添加公司／子集团")}</button>}</header>
-      <div className="settings-member-list">{rawGroup.members.map((member) => {
-        const target = member.kind === "project" ? store.projects.find((item) => item.id === member.refId)
-          : store.groups.find((item) => item.id === member.refId);
-        if (!target) return null;
-        return <button type="button" disabled={readOnly} key={member.id}
-          onClick={() => setModal({ type: "member-edit", sourceGroupId: rawGroup.id, memberId: member.id })}>
-          <span>{member.kind === "project" ? <Building aria-hidden="true" /> : <Building2 aria-hidden="true" />}</span><strong>{target.name}</strong>
-          <small>{member.role || t(member.kind === "project" ? "组成部分" : "子集团")}</small></button>;
-      })}</div></section>}
+      <div className="group-structure-note"><Building2 aria-hidden="true" /><span><strong>{t("控股架构在公司主档管理")}</strong>
+        <small>{t("本年度组成部分在“组成部分”页签中指定；当前公司层级不会自动改写历史年度。")}</small></span></div></section>}
   </div>;
 }
 
@@ -1151,8 +1244,9 @@ function SampleRedactionForm({ language, onSubmit, onClose }) {
 function DeleteConfirm({ name, kind, onDelete, onClose }) {
   const { t } = useUiLanguage();
   return <div className="delete-confirm"><strong>{t("此操作不可撤销")}</strong>
-    <p>{t(kind === "project" ? "项目“{name}”及其业务模块和待清事项将被永久删除，集团引用也会一并移除。"
-      : "集团“{name}”将被永久删除，但不会删除其中的成员项目或子集团。", { name })}</p>
+    <p>{t(kind === "entity" ? "公司“{name}”及其全部年度项目和税务期限将被永久删除；下属公司会移到顶层，历史集团快照仍保留名称。"
+      : kind === "project" ? "项目“{name}”及其业务模块和待清事项将被永久删除，集团引用也会一并移除。"
+        : "集团“{name}”将被永久删除，但不会删除其中的成员项目或子集团。", { name })}</p>
     <footer className="modal-actions"><button type="button" className="button secondary" onClick={onClose}>{t("取消")}</button>
       <button type="button" className="button danger" onClick={onDelete}>{t("确认永久删除")}</button></footer></div>;
 }

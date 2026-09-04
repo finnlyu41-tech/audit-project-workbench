@@ -1,10 +1,10 @@
 import React from "react";
-import { ArrowRightLeft, Building, Building2, Copy, Minus, Pencil, Play, Plus, Trash2 } from "lucide-react";
+import { ArrowRightLeft, Building, Building2, CalendarDays, Copy, Minus, Pencil, Play, Plus, Trash2 } from "lucide-react";
 import { ProgressBar } from "./components.jsx";
 import { handleTabListKeyDown, tabIndexFor } from "./a11y.js";
 import { GROUP_AUDIT_TYPES, GROUP_AUDIT_TYPE_KEYS, canMoveWorkspaceItem, collectGroupOutstandingEntries, formatDate,
   groupProgress, makeGroupMember, memberIsReady, memberProgressPercentage, normalizeTemplateTags, outstandingIsOpen, projectStats,
-  reportingPeriodLabel, uid } from "./model.js";
+  fiscalPeriodShortLabel, reportingPeriodLabel, uid } from "./model.js";
 import { useUiLanguage } from "./i18n.jsx";
 
 export const auditTypeKeys = GROUP_AUDIT_TYPE_KEYS;
@@ -146,7 +146,145 @@ function itemMatchesFilter(item, kind, filter, store) {
   return true;
 }
 
-export function WorkspaceTree({ store, selection, onSelect, onMove, search, filter, statuses }) {
+export function WorkspaceTree(props) {
+  if (Array.isArray(props.store?.entities) && Array.isArray(props.store?.engagements)) {
+    return <EntityWorkspaceTree {...props} />;
+  }
+  return <LegacyWorkspaceTree {...props} />;
+}
+
+function EntityWorkspaceTree({ store, selection, onSelect, onMove, search, filter, statuses }) {
+  const { language, t } = useUiLanguage();
+  const [expanded, setExpanded] = React.useState(() => new Set());
+  const [draggingId, setDraggingId] = React.useState(null);
+  const [dropTarget, setDropTarget] = React.useState(null);
+  const draggingRef = React.useRef(null);
+  const entityById = new Map(store.entities.map((entity) => [entity.id, entity]));
+  const entityOrder = new Map((store.entityOrder || []).map((id, index) => [id, index]));
+  const query = search.trim().toLocaleLowerCase();
+  const entityEngagements = (entityId) => store.engagements.filter((engagement) => engagement.entityId === entityId)
+    .sort((left, right) => (right.periodEnd || "").localeCompare(left.periodEnd || "")
+      || (right.createdAt || "").localeCompare(left.createdAt || ""));
+  const engagementComplete = (engagement, entity) => {
+    if (entity.kind === "holding_company") return groupProgress(store, engagement.id).ready;
+    const project = store.projects.find((item) => item.id === engagement.id);
+    return project ? projectStats(project).complete : false;
+  };
+  const engagementMatches = (engagement, entity) => {
+    const archived = Boolean(entity.archived || engagement.archived);
+    if (filter === "archived" ? !archived : archived) return false;
+    const complete = engagementComplete(engagement, entity);
+    if (filter === "active" && complete) return false;
+    if (filter === "completed" && !complete) return false;
+    if (query && ![entity.legalName, engagement.internalName, engagement.owner,
+      fiscalPeriodShortLabel(engagement, language), reportingPeriodLabel(engagement, language)]
+      .some((value) => String(value || "").toLocaleLowerCase().includes(query))) return false;
+    return true;
+  };
+  const entityVisible = (entity, visited = new Set()) => {
+    if (visited.has(entity.id)) return false;
+    const archivedMode = filter === "archived";
+    const ownArchiveMatch = archivedMode ? entity.archived : !entity.archived;
+    const engagements = entityEngagements(entity.id).filter((engagement) => engagementMatches(engagement, entity));
+    const ownText = !query || [entity.legalName, entity.relationshipRole].some((value) =>
+      String(value || "").toLocaleLowerCase().includes(query));
+    const zeroEngagementVisible = ["active", "all"].includes(filter) && ownArchiveMatch
+      && !entityEngagements(entity.id).length && ownText;
+    const children = store.entities.filter((child) => child.parentEntityId === entity.id);
+    const childVisible = children.some((child) => entityVisible(child, new Set(visited).add(entity.id)));
+    return engagements.length > 0 || zeroEngagementVisible || (ownArchiveMatch && ownText && query) || childVisible;
+  };
+  const sortedEntities = (items) => [...items].sort((left, right) =>
+    (entityOrder.get(left.id) ?? Number.MAX_SAFE_INTEGER) - (entityOrder.get(right.id) ?? Number.MAX_SAFE_INTEGER)
+      || left.legalName.localeCompare(right.legalName));
+  const isOpen = (entityId) => query || expanded.has(entityId);
+  const toggle = (entityId) => setExpanded((current) => {
+    const next = new Set(current);
+    if (next.has(entityId)) next.delete(entityId); else next.add(entityId);
+    return next;
+  });
+  const beginDrag = (event, entityId) => {
+    draggingRef.current = entityId; setDraggingId(entityId);
+    event.dataTransfer.effectAllowed = "move";
+    event.dataTransfer.setData("application/x-audit-workbench-entity", entityId);
+    event.dataTransfer.setData("text/plain", entityId);
+  };
+  const finishDrag = () => { draggingRef.current = null; setDraggingId(null); setDropTarget(null); };
+  const canDrop = (parentEntityId) => {
+    const sourceId = draggingRef.current || draggingId;
+    if (!sourceId) return false;
+    if (!parentEntityId) return true;
+    const parent = entityById.get(parentEntityId);
+    if (!parent || parent.kind !== "holding_company" || parent.archived || parent.id === sourceId) return false;
+    let cursor = parent;
+    while (cursor?.parentEntityId) {
+      if (cursor.parentEntityId === sourceId) return false;
+      cursor = entityById.get(cursor.parentEntityId);
+    }
+    return true;
+  };
+  const dragOver = (event, parentEntityId) => {
+    if (!canDrop(parentEntityId)) return;
+    event.preventDefault(); event.stopPropagation(); event.dataTransfer.dropEffect = "move";
+    setDropTarget(parentEntityId || "root");
+  };
+  const drop = (event, parentEntityId) => {
+    const sourceId = draggingRef.current || draggingId;
+    if (!sourceId || !canDrop(parentEntityId)) return;
+    event.preventDefault(); event.stopPropagation();
+    onMove?.("entity", sourceId, parentEntityId || "");
+    if (parentEntityId) setExpanded((current) => new Set(current).add(parentEntityId));
+    finishDrag();
+  };
+  const renderEngagement = (engagement, entity, depth) => {
+    if (!engagementMatches(engagement, entity)) return null;
+    const complete = engagementComplete(engagement, entity);
+    const outstanding = (engagement.outstandingItems || []).filter((item) => outstandingIsOpen(item, statuses)).length;
+    const kind = entity.kind === "holding_company" ? "group" : "project";
+    return <button type="button" className="tree-row tree-engagement-row" style={{ "--tree-depth": depth }} key={engagement.id}
+      data-selected={selection?.kind === kind && selection.id === engagement.id || undefined}
+      onClick={() => onSelect({ kind, id: engagement.id, entityId: entity.id })}>
+      <span className="tree-kind-mark"><CalendarDays aria-hidden="true" /></span><span className="tree-copy">
+        <strong>{fiscalPeriodShortLabel(engagement, language) || t("未设置报告期间")}</strong>
+        <small>{[engagement.internalName, engagement.owner].filter(Boolean).join(" · ") || t(complete ? "已完成" : "进行中")}</small></span>
+      {outstanding > 0 && <em>{outstanding}</em>}<span className="tree-progress">{complete ? "✓" : entity.kind === "company"
+        ? `${projectStats(store.projects.find((item) => item.id === engagement.id) || { workstreams: [] }).percentage}%` : `${groupProgress(store, engagement.id).percentage}%`}</span>
+    </button>;
+  };
+  const renderEntity = (entity, depth, visited = new Set()) => {
+    if (!entityVisible(entity, visited) || visited.has(entity.id)) return null;
+    const nextVisited = new Set(visited).add(entity.id);
+    const engagements = entityEngagements(entity.id).map((engagement) => renderEngagement(engagement, entity, depth + 1)).filter(Boolean);
+    const children = sortedEntities(store.entities.filter((child) => child.parentEntityId === entity.id))
+      .map((child) => renderEntity(child, depth + 1, nextVisited)).filter(Boolean);
+    const hasChildren = engagements.length > 0 || children.length > 0;
+    const open = hasChildren && isOpen(entity.id);
+    const activeEngagements = entityEngagements(entity.id).filter((engagement) => !engagement.archived).length;
+    return <div className="tree-branch tree-entity-branch" key={entity.id}><div className="tree-group-line" style={{ "--tree-depth": depth }}>
+      {hasChildren ? <button type="button" className="tree-expander" aria-expanded={open}
+        aria-label={t(open ? "收起公司" : "展开公司")} onClick={() => toggle(entity.id)}>{open ? <Minus aria-hidden="true" /> : <Plus aria-hidden="true" />}</button>
+        : <span className="tree-expander-spacer" />}
+      <button type="button" className="tree-row tree-entity-row" data-kind={entity.kind}
+        data-selected={selection?.kind === "entity" && selection.id === entity.id || undefined}
+        data-dragging={draggingId === entity.id || undefined} data-drop-target={dropTarget === entity.id || undefined}
+        draggable={filter !== "archived" && !entity.archived} onDragStart={(event) => beginDrag(event, entity.id)} onDragEnd={finishDrag}
+        onDragEnter={(event) => dragOver(event, entity.id)} onDragOver={(event) => dragOver(event, entity.id)} onDrop={(event) => drop(event, entity.id)}
+        onClick={() => onSelect({ kind: "entity", id: entity.id })}>
+        <span className="tree-kind-mark">{entity.kind === "holding_company" ? <Building2 aria-hidden="true" /> : <Building aria-hidden="true" />}</span>
+        <span className="tree-copy"><strong>{entity.legalName}</strong><small>{entity.relationshipRole || t(entity.kind === "holding_company" ? "控股公司" : "公司主档")}</small></span>
+        <span className="tree-progress">{activeEngagements}</span></button></div>{open && <div className="tree-children">{engagements}{children}</div>}</div>;
+  };
+  const roots = sortedEntities(store.entities.filter((entity) => !entity.parentEntityId || !entityById.has(entity.parentEntityId)));
+  const rendered = roots.map((entity) => renderEntity(entity, 0)).filter(Boolean);
+  return <div className="workspace-tree" data-dragging={Boolean(draggingId) || undefined}
+    onDragEnter={(event) => dragOver(event, "")} onDragOver={(event) => dragOver(event, "")} onDrop={(event) => drop(event, "")}>
+    {rendered.length ? rendered : <div className="list-empty"><strong>{t(store.entities.length ? "没有符合筛选的项目" : "还没有公司")}</strong>
+      <span>{t(store.entities.length ? "更改状态筛选或搜索内容。" : "使用上方加号先建立公司主档。")}</span></div>}
+    {draggingId && <div className="tree-root-drop" data-active={dropTarget === "root" || undefined}>{t("拖到这里移出控股公司")}</div>}
+  </div>;
+}
+
+function LegacyWorkspaceTree({ store, selection, onSelect, onMove, search, filter, statuses }) {
   const { language, t } = useUiLanguage();
   const [expanded, setExpanded] = React.useState(() => new Set());
   const [dragging, setDragging] = React.useState(null);
