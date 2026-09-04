@@ -179,6 +179,7 @@ function recordRow(store, kind, record, now) {
     periodPreset: record.periodPreset || "custom",
     periodStart: record.periodStart || "",
     periodEnd: record.periodEnd || "",
+    reportingPeriods: record.reportingPeriods || [],
     engagementType: record.engagementType || "",
     secondaryName: kind === "project" && record.entity && record.name !== record.entity ? record.name : "",
     owner: record.owner || "",
@@ -289,6 +290,7 @@ function projectRecordReport(store, project, now) {
     owner: project.owner,
     periodStart: project.periodStart,
     periodEnd: project.periodEnd,
+    reportingPeriods: project.reportingPeriods || [],
     period: project.period,
     reportingFramework: project.reportingFramework,
     startDate: project.startDate,
@@ -302,8 +304,6 @@ function projectRecordReport(store, project, now) {
         id: workstream.id,
         type: workstream.type,
         customName: workstream.customName || "",
-        owner: workstream.owner || "",
-        dueDate: workstream.dueDate || "",
         stats: workstreamResult,
         currentStage: currentStage ? { id: currentStage.id, title: currentStage.title } : null,
       };
@@ -386,6 +386,7 @@ function groupRecordReport(store, group, now) {
     owner: group.owner,
     periodStart: group.periodStart,
     periodEnd: group.periodEnd,
+    reportingPeriods: group.reportingPeriods || [],
     period: group.period,
     startDate: group.startDate,
     dueDate: group.dueDate,
@@ -424,7 +425,8 @@ export function buildRecordReport(store, kind, id, nowValue = new Date()) {
           : Boolean(view && projectStats(view).complete);
         return { id: engagement.id, kind: viewKind, label: yearEndOrPeriodLabel(engagement, "en"),
           engagementType: engagement.engagementType || "",
-          periodStart: engagement.periodStart, periodEnd: engagement.periodEnd, owner: engagement.owner,
+          periodStart: engagement.periodStart, periodEnd: engagement.periodEnd,
+          reportingPeriods: engagement.reportingPeriods || [], owner: engagement.owner,
           startDate: engagement.startDate, dueDate: engagement.dueDate, archived: engagement.archived, complete };
       });
     return { kind: "entity", id: entity.id, name: entity.legalName, entityType: entity.entityType,

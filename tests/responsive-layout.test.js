@@ -14,6 +14,7 @@ const persistenceHook = readFileSync(new URL("../src/dashboard/use-workbench-per
 const managementReport = readFileSync(new URL("../src/dashboard/management-report.jsx", import.meta.url), "utf8");
 const model = readFileSync(new URL("../src/dashboard/model.js", import.meta.url), "utf8");
 const v11Components = readFileSync(new URL("../src/dashboard/v11-components.jsx", import.meta.url), "utf8");
+const dateRangePicker = readFileSync(new URL("../src/dashboard/date-range-picker.jsx", import.meta.url), "utf8");
 
 test("compact outstanding centre remains recoverable at narrow viewport widths", () => {
   assert.match(css, /@media \(max-width: 760px\)[\s\S]*?\.workbench-layout\[data-compact-layout\] > \.outstanding-center-shell\s*{[\s\S]*?position:\s*fixed/);
@@ -89,14 +90,21 @@ test("consolidation readiness and structure conversion use aligned compact contr
   assert.match(groupComponents, /转换为公司/);
 });
 
-test("project schedule uses separate start and deadline fields and a horizontally scrollable weekly canvas", () => {
+test("project schedule uses a two-click date range picker and day, week or month canvas", () => {
   assert.match(workbench, /<CalendarRange aria-hidden="true"/);
-  assert.match(components, /value={values\.startDate}[\s\S]*?value={values\.dueDate}/);
-  assert.match(groupComponents, /value={values\.startDate}[\s\S]*?value={values\.dueDate}/);
+  assert.match(v11Components, /<DateRangePicker[\s\S]*?startDate={values\.startDate}[\s\S]*?dueDate={values\.dueDate}/);
+  assert.match(dateRangePicker, /if \(!anchorDate\)[\s\S]*?setAnchorDate\(dateValue\)[\s\S]*?orderedRange\(anchorDate, dateValue\)/);
   assert.match(timeline, /className="schedule-grid"/);
-  assert.match(timeline, /timeline\.weeks\.map/);
+  assert.match(timeline, /SCHEDULE_PRECISIONS = \["day", "week", "month"\]/);
+  assert.match(timeline, /timeline\.ticks\.map/);
+  assert.match(timeline, /className="schedule-precision"/);
+  assert.match(timeline, /项目类型 · 负责人/);
+  assert.match(timeline, /className="schedule-project-type">{projectTypeOwner}<\/small>/);
+  assert.doesNotMatch(timeline, /schedule-delivery-period/);
+  assert.match(timeline, /className="schedule-bar"[\s\S]*?title={`\$\{formatDate\(row\.startDate/);
   assert.match(css, /\.schedule-scroll\s*{[\s\S]*?overflow:\s*auto/);
   assert.match(css, /\.schedule-row-meta\s*{[\s\S]*?position:\s*sticky/);
+  assert.match(css, /var\(--time-grid-width\)/);
 });
 
 test("project schedule rows support direct date editing and persistent drag ordering", () => {
@@ -127,6 +135,9 @@ test("workstream cards reorder directly and contain long text inside each card",
   assert.match(css, /\.workstream-card\s*{[^}]*overflow:\s*hidden/);
   assert.match(css, /\.workstream-card-top strong, \.workstream-card-top small\s*{[^}]*overflow-wrap:\s*anywhere/);
   assert.match(css, /\.workstream-card-meta\s*{[^}]*flex-wrap:\s*wrap/);
+  assert.doesNotMatch(components, /workstream\.owner \|\| t\("未设置负责人"\)/);
+  assert.doesNotMatch(components, /dueTone\(workstream\)/);
+  assert.doesNotMatch(components, /stats\.completedNodes/);
 });
 
 test("workstreams and stages disclose one level at a time while stages and criteria remain draggable", () => {
@@ -157,6 +168,8 @@ test("annual engagements expose a customisable type throughout navigation and re
   assert.match(v11Components, /value={values\.engagementType}/);
   assert.match(v11Components, /可选择预设类型，也可以直接输入并保存自定义类型/);
   assert.match(groupComponents, /engagementTypeLabel\(engagement\.engagementType, language\)/);
+  assert.match(groupComponents, /<strong className="flat-engagement-type">{typeLabel}<\/strong>[\s\S]*?flat-engagement-period[\s\S]*?flat-engagement-company/);
+  assert.match(groupComponents, /<strong className="tree-engagement-type">{typeLabel}<\/strong>[\s\S]*?tree-engagement-period/);
   assert.match(managementReport, /className="management-company-cell" rowSpan={group\.rows\.length}/);
   assert.match(managementReport, /className="management-period-cell"/);
   assert.match(managementReport, /engagementTypeLabel\(row\.engagementType, language\)/);
@@ -168,10 +181,27 @@ test("screen typography keeps supporting interface text readable", () => {
   assert.match(css, /\.schedule-corner strong, \.schedule-row-open strong\s*{\s*font-size:\s*14px/);
 });
 
-test("owner quick edit can apply the same person to every workstream", () => {
-  assert.match(v11Components, /className="check-option apply-owner-option"/);
-  assert.match(v11Components, /applyOwnerToWorkstreams:\s*quickField === "owner"/);
-  assert.match(workbench, /engagement\.workstreams\.map\(\(workstream\) => \(\{ \.\.\.workstream,[\s\S]*?owner:\s*values\.owner/);
+test("workstream settings omit owner and deadline because both belong to the annual engagement", () => {
+  const workstreamForm = components.match(/export function WorkstreamForm[\s\S]*?export function WorkstreamCard/)?.[0] || "";
+  assert.doesNotMatch(v11Components, /applyOwnerToWorkstreams/);
+  assert.doesNotMatch(workstreamForm, /模块截止日|values\.dueDate/);
+  assert.doesNotMatch(workstreamForm, /负责人|values\.owner/);
+  assert.doesNotMatch(managementReport, /workstream\.owner|workstream\.dueDate/);
+  assert.doesNotMatch(deadlineAlerts, /scope === "workstream"/);
+});
+
+test("cleared outstanding items remain discoverable through explicit visibility tabs", () => {
+  assert.match(workbench, /visibilityFilter/);
+  assert.match(workbench, /\["open", "closed", "all"\]/);
+  assert.match(workbench, /已清／归档/);
+  assert.match(css, /\.outstanding-visibility-tabs button\[aria-pressed="true"\]/);
+});
+
+test("print styles use one unnamed page context without named-page transitions", () => {
+  assert.match(css, /@media print\s*{[\s\S]*?@page\s*{/);
+  assert.doesNotMatch(css, /@page apw-report/);
+  assert.doesNotMatch(css, /\.management-report\s*{[^}]*page:\s*apw-report/);
+  assert.match(css, /\.workspace-history-controls/);
 });
 
 test("overdue deadlines use a compact global badge and open a navigable alert list", () => {
@@ -189,6 +219,8 @@ test("tax deadlines have a compact register, global filter and schedule markers"
   assert.match(workbench, /<TaxDeadlineManager store={store}/);
   assert.match(deadlineAlerts, /\["tax", "税务", taxCount\]/);
   assert.match(timeline, /className="schedule-tax-marker"/);
+  assert.match(timeline, /className="schedule-tax-marker"[\s\S]*?title={`\$\{formatDate/);
+  assert.doesNotMatch(timeline, /className="schedule-tax-marker"[\s\S]{0,700}?data-tooltip=/);
   assert.match(timeline, /deadlines\.length > 1 && <strong>{deadlines\.length}<\/strong>/);
   assert.match(taxDeadlines, /collectGroupTaxDeadlineEntries/);
   assert.match(taxDeadlines, /value={values\.reminderDays}/);
@@ -214,7 +246,7 @@ test("project summary facts open focused settings without exposing the full edit
   assert.match(workbench, /activeRawWorkstream \? \{ type: "workstream-edit"/);
   assert.match(v11Components, /data-quick-field="schedule"/);
   assert.match(v11Components, /data-quick-field={quickField}/);
-  assert.match(v11Components, /<input autoFocus type="date"/);
+  assert.match(v11Components, /<DateRangePicker autoFocus/);
   assert.match(v11Components, /<input autoFocus list="v11-quick-framework-options"/);
   assert.match(v11Components, /: <input autoFocus value={values\[field\]}/);
   assert.match(css, /\.detail-fact-link::before\s*{[^}]*inset:\s*0/);
@@ -236,6 +268,21 @@ test("V11 company masters and annual engagement forms have compact responsive la
   assert.match(v11Components, /formalReportingPeriodLabel\(latestEngagement, language\)/);
 });
 
+test("company creation supports a saved holding-company batch and engagements support multiple reporting periods", () => {
+  assert.match(v11Components, /t\("集团批量"\)/);
+  assert.match(v11Components, /batchCompanies\.map/);
+  assert.match(v11Components, /className="group-batch-list"/);
+  assert.match(workbench, /const \{ batchCompanies = \[\], \.\.\.entityValues \} = values/);
+  assert.match(workbench, /parentEntityId: entity\.id/);
+  assert.match(v11Components, /className="reporting-period-list"/);
+  assert.match(v11Components, /t\("添加报告年度"\)/);
+  assert.match(v11Components, /reportingPeriods: sortedPeriods/);
+  assert.match(workbench, /modal\?\.type === "create-entity"[\s\S]{0,200}<Modal[\s\S]{0,200}\blarge>/);
+  assert.match(workbench, /modal\?\.type === "edit-engagement"[\s\S]{0,240}large={!modal\.quickField}/);
+  assert.match(css, /\.group-batch-list > article/);
+  assert.match(css, /\.reporting-period-list > article/);
+});
+
 test("the tax deadline fact matches the other editable summary cells and opens direct editing", () => {
   assert.match(workbench, /<DetailFactAction className="tax-deadline-fact"/);
   assert.match(workbench, /editDeadlineId: taxSummary\.next\?\.id \?\? null/);
@@ -245,11 +292,11 @@ test("the tax deadline fact matches the other editable summary cells and opens d
   assert.doesNotMatch(css, /\.tax-deadline-fact dd\s*{\s*overflow:\s*visible/);
 });
 
-test("management reports keep sortable detail and real paged-media numbering", () => {
+test("management reports keep sortable detail and one continuous paged-media context", () => {
   assert.match(workbench, /<ManagementReport store={store}/);
   assert.match(managementReport, /function SortableHeading/);
   assert.match(managementReport, /<PrintScope filters={filters}/);
-  assert.match(css, /@page apw-report-en\s*{[\s\S]*?@bottom-right\s*{[\s\S]*?counter\(page\)[\s\S]*?counter\(pages\)/);
-  assert.match(css, /html\[lang="zh-Hans"\] \.management-report\s*{\s*page:\s*apw-report-zh-hans/);
+  assert.match(css, /@page\s*{[\s\S]*?@bottom-right\s*{[\s\S]*?counter\(page\)[\s\S]*?counter\(pages\)/);
+  assert.doesNotMatch(css, /@page apw-report|page:\s*apw-report/);
   assert.doesNotMatch(css, /\.print-report-footer\s*{[\s\S]*?position:\s*fixed/);
 });

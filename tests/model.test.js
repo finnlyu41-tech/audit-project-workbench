@@ -22,6 +22,8 @@ import {
   emptyStore,
   engagementTypeLabel,
   engagementPeriodExists,
+  engagementReportingPeriods,
+  engagementReportingPeriodsMatch,
   engagementsForEntity,
   fiscalPeriodForYear,
   fiscalPeriodFromIncorporation,
@@ -927,7 +929,7 @@ test("navigation status counts include companies and holding companies", () => {
   assert.deepEqual(counts, { active: 2, completed: 1, all: 3, archived: 1 });
 });
 
-test("deadline alerts include active overdue records and distinct workstream deadlines only", () => {
+test("deadline alerts include active overdue projects but ignore legacy workstream dates", () => {
   const overdueProject = makeProject({ ...projectValues, name: "Overdue", entity: "Overdue Limited",
     owner: "Alex", dueDate: "2026-08-20" }, true);
   overdueProject.workstreams[0].dueDate = "2026-08-25";
@@ -945,11 +947,10 @@ test("deadline alerts include active overdue records and distinct workstream dea
   assert.deepEqual(alerts.map((alert) => alert.id), [
     `group:${group.id}`,
     `project:${overdueProject.id}`,
-    `workstream:${overdueProject.id}:${overdueProject.workstreams[0].id}`,
   ]);
-  assert.deepEqual(alerts.map((alert) => alert.daysOverdue), [33, 14, 9]);
+  assert.deepEqual(alerts.map((alert) => alert.daysOverdue), [33, 14]);
   assert.equal(alerts[1].recordName, "Overdue Limited");
-  assert.equal(alerts[2].owner, "Alex");
+  assert.equal(alerts[1].owner, "Alex");
 });
 
 test("tax alerts survive project completion, use the reminder window and never duplicate holding roll-ups", () => {
@@ -1114,6 +1115,57 @@ test("one company supports three annual engagements and rejects an identical per
   assert.throws(() => makeEngagement({ entityId: entity.id, periodStart: "2025-01-01", periodEnd: "2025-12-31" },
     { entity, store, sourceMode: "blank", workstreamCategories: store.workstreamCategories,
       outstandingStatuses: store.outstandingStatuses }), /already exists/u);
+});
+
+test("one engagement can combine multiple reporting years while legacy engagements remain one-period records", () => {
+  const store = emptyStore();
+  const entity = makeEntity({ legalName: "Combined Billing Limited", fiscalYearPreset: "calendar" });
+  store.entities.push(entity);
+  const combined = makeEngagement({ entityId: entity.id, engagementType: "Audit", reportingPeriods: [
+    { periodPreset: "calendar", periodStart: "2023-01-01", periodEnd: "2023-12-31" },
+    { periodPreset: "calendar", periodStart: "2024-01-01", periodEnd: "2024-12-31" },
+    { periodPreset: "calendar", periodStart: "2025-01-01", periodEnd: "2025-12-31" },
+  ] }, { entity, store, sourceMode: "blank", workstreamCategories: store.workstreamCategories,
+    outstandingStatuses: store.outstandingStatuses });
+  store.engagements.push(combined);
+
+  assert.equal(engagementReportingPeriods(combined).length, 3);
+  assert.equal(combined.periodStart, "2023-01-01");
+  assert.equal(combined.periodEnd, "2025-12-31");
+  assert.equal(fiscalPeriodShortLabel(combined), "FY2023 · FY2024 · FY2025");
+  assert.equal(yearEndOrPeriodLabel(combined, "en"),
+    "YE December 31, 2023 · YE December 31, 2024 · YE December 31, 2025");
+  assert.equal(suggestNextFiscalYear(entity, store.engagements), 2026);
+  assert.equal(engagementPeriodExists(store, entity.id, "2024-01-01", "2024-12-31"), true);
+
+  const holding = makeEntity({ legalName: "Combined Billing Holdings", kind: "holding_company" });
+  entity.parentEntityId = holding.id;
+  store.entities.unshift(holding);
+  const [component] = componentsForCurrentStructure(store, holding.id, combined.periodStart, combined.periodEnd,
+    store.groupSamples[0], combined.reportingPeriods);
+  assert.equal(component.engagementId, combined.id);
+  assert.equal(component.periodSnapshot.reportingPeriods.length, 3);
+  assert.equal(component.periodSnapshot.label, "FY2023 · FY2024 · FY2025");
+
+  const legacy = normalizeStore({ ...store, projects: undefined, groups: undefined,
+    engagements: [{ ...combined, reportingPeriods: undefined,
+      periodStart: "2026-01-01", periodEnd: "2026-12-31" }] });
+  assert.equal(legacy.engagements[0].reportingPeriods.length, 1);
+  assert.equal(engagementReportingPeriodsMatch(legacy.engagements[0], {
+    reportingPeriods: [{ periodStart: "2026-01-01", periodEnd: "2026-12-31" }],
+  }), true);
+
+  assert.throws(() => makeEngagement({ entityId: entity.id, reportingPeriods: [
+    { periodStart: "2026-01-01", periodEnd: "2026-12-31" },
+    { periodStart: "2026-01-01", periodEnd: "2026-12-31" },
+  ] }, { entity, store: { ...store, engagements: [] }, sourceMode: "blank",
+    workstreamCategories: store.workstreamCategories, outstandingStatuses: store.outstandingStatuses }),
+  /Duplicate reporting periods/u);
+  assert.throws(() => makeEngagement({ entityId: entity.id, reportingPeriods: [
+    { periodStart: "2024-01-01", periodEnd: "2024-12-31" },
+    { periodStart: "2026-01-01", periodEnd: "2026-12-31" },
+  ] }, { entity, store, sourceMode: "blank", workstreamCategories: store.workstreamCategories,
+    outstandingStatuses: store.outstandingStatuses }), /already exists/u);
 });
 
 test("new-year copy keeps structure and framework while clearing owners dates status and outstanding items", () => {

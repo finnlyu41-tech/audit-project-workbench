@@ -242,8 +242,6 @@ export function WorkstreamForm({ initial, availableCategories = createDefaultWor
     type: firstType,
     categoryId: firstCategory.id,
     customName: initial?.customName || (firstType === "custom" && firstCategory.id !== "custom" ? firstCategory.name : ""),
-    owner: initial?.owner || "",
-    dueDate: initial?.dueDate || "",
     sampleId: initial ? "" : (selectedSampleIdsByCategory[firstCategory.id]
       || samples.find((sample) => sample.categoryId === firstCategory.id)?.id || ""),
   }));
@@ -266,8 +264,6 @@ export function WorkstreamForm({ initial, availableCategories = createDefaultWor
     </select></label>
     {values.type === "custom" && values.categoryId === "custom" && <label><span>{t("自定义模块名称 *")}</span><input autoFocus required value={values.customName}
       onChange={update("customName")} placeholder={t("例如：公司秘书服务")} /></label>}
-    <div className="form-grid"><label><span>{t("负责人")}</span><input value={values.owner} onChange={update("owner")} /></label>
-      <label><span>{t("模块截止日")}</span><input type="date" value={values.dueDate} onChange={update("dueDate")} /></label></div>
     {!initial && <label><span>{t("业务范本")}</span><select value={values.sampleId} onChange={update("sampleId")}>
       <option value="">{t("空白流程")}</option>{typeSamples.map((sample) => <option value={sample.id} key={sample.id}>{sample.name}</option>)}</select></label>}
     <footer className="modal-actions">{onRemove && <button type="button" className="button danger-quiet" onClick={onRemove}>{t("移除模块")}</button>}
@@ -286,10 +282,8 @@ export function WorkstreamCard({ workstream, selected, openItems = 0, onSelect, 
     onDragOver={onDragOver} onDrop={onDrop}>
     <button type="button" className="workstream-card-select" aria-pressed={selected} onClick={onSelect}>
     <span className="workstream-card-top"><ProgressBar value={stats.percentage} compact />
-      <span><strong>{label}</strong><small>{workstream.owner || t("未设置负责人")}</small></span></span>
-    <span className="workstream-card-meta"><small>{t("{done}/{total} 个节点", { done: stats.completedNodes, total: stats.nodes })}</small>
-      <small>{openItems ? t("{count} 项未清", { count: openItems }) : t("无未清事项")}</small>
-      <time data-tone={dueTone(workstream)}>{formatDate(workstream.dueDate, language)}</time></span></button>
+      <span><strong>{label}</strong></span></span>
+    {openItems > 0 && <span className="workstream-card-meta"><small>{t("{count} 项未清", { count: openItems })}</small></span>}</button>
     {!readOnly && <div className="workstream-card-actions">
       <button type="button" className="workstream-drag-handle icon-only" draggable="true"
         aria-label={t("拖动调整“{name}”的业务模块顺序；按 Alt 加方向键也可移动", { name: label })}
@@ -487,7 +481,7 @@ export function UserGuide() {
     ] },
     { id: "projects", title: "公司与年度项目", summary: "一个公司主档可以承载多个互相独立的报告期间和委聘。", topics: [
       { title: "寻找公司和年度项目", steps: ["在公司列表的搜索框输入法律实体、年度、项目类型或负责人。", "使用“进行中”“已完成”“全部”及“归档”筛选所需记录。",
-        "选择“公司”查看层级并打开主档；选择“项目”平铺搜索年度项目，点击年结或报告期间进入工作区。", "公司列表可一键展开或收起全部公司，控股层级仍以加减号和层级线显示。"], result: "公司名称保持为导航主标识，年度项目不会被内部名称混淆。" },
+        "选择“公司”查看层级并打开主档；选择“项目”平铺搜索年度项目，点击项目类型进入工作区。", "公司列表可一键展开或收起全部公司，控股层级仍以加减号和层级线显示。"], result: "项目类型作为年度项目的主标识；年结、公司和负责人作为辅助信息。" },
       { title: "修改会计年度和报告期间", steps: ["在公司概览编辑默认会计年度；修改默认值不会改变已经建立的项目。", "在年度项目设置中修改报告开始日或结束日。",
         "手动改变自动生成的日期后，该项目会改为自定义期间；完整起止日期始终是权威数据。", "归档项目也参与重复期间检查。"], result: "短年度和非完整年度可以准确记录，不会被强制按整年处理。" },
       { title: "建立连续年度项目", steps: ["从公司概览选择“新建年度项目”；系统会建议现有最新期间之后的下一年度。", "默认可复制上一年度的流程结构，也可从范本或空白项目开始。",
@@ -505,13 +499,13 @@ export function UserGuide() {
       { title: "合并重复公司主档", steps: ["在公司概览选择“合并重复公司”。", "选择要并入的公司和要保留的公司，并检查年度项目和税务期限数量。",
         "如两家公司存在完全相同的报告期间，先处理冲突后才能合并。", "确认后年度项目和税务期限会移入保留的公司，系统不会只凭名称自动合并。"], result: "迁移后的相似名称记录由使用者确认，不会误合并不同法律实体。" },
       { title: "添加和设置业务模块", steps: ["建立年度项目时，可以从范本选择任意模块，也可以全部留空。", "需要账务服务时可启用内置“账务处理”模块；审计、税务及其他模块仍各自独立。",
-        "年度项目建立后，可在工作区选择“添加业务模块”，设置类别、负责人、截止日和范本。", "选择模块卡片查看其节点；选择卡片右上角的“设置”修改负责人或截止日。"], result: "模块之间并行推进，一个模块的操作不会自动推进其他模块。" },
+        "年度项目建立后，可在工作区选择“添加业务模块”，设置类别和起始范本。", "选择模块卡片查看其节点；选择卡片右上角的“设置”可移除模块。"], result: "负责人和项目日期统一由年度项目管理，模块只保留流程与进度。" },
       { title: "移除业务模块", steps: ["选择业务模块卡片内的“设置”。", "选择“移除模块”并确认。",
         "原本属于该模块的待清事项会保留，并自动改为项目级事项；已关联的税务期限只会解除模块关联。"], result: "最后一个模块也可以移除；年度项目会保留为空项目，之后仍可重新添加模块。" },
       { title: "判断项目完成", steps: ["每个业务模块会显示已完成节点及自身进度。", "只有模块内所有节点的全部达成条件完成，该模块才算完成。",
         "只有项目内全部启用模块完成，项目才会进入“已完成”筛选。"], result: "项目导航显示完成模块数，不使用容易误导的混合百分比。" },
     ] },
-    { id: "tax", title: "税务期限", summary: "把法定税务期限与内部项目和业务模块截止日分开管理。", topics: [
+    { id: "tax", title: "税务期限", summary: "把法定税务期限与内部项目排期分开管理。", topics: [
       { title: "建立税务期限", steps: ["打开公司，在资料摘要选择“税务期限”。", "选择“新增期限”，填写期限种类、课税年度、当前期限、负责人和提前提醒天数。",
         "预设种类不适用时选择“使用自定义种类”，直接输入期限名称。", "需要时关联税务业务模块，并记录税务局参考编号、来源或备注。"], result: "同一家公司可以同时追踪报税、缴税及其他自定义税务期限。" },
       { title: "查看期限提醒和排期", steps: ["税务期限默认提前三十天进入左侧铃铛的期限提醒；每项期限都可以调整提前天数。",
@@ -537,7 +531,7 @@ export function UserGuide() {
     { id: "outstanding", title: "待清中心", summary: "待清事项独立于流程进度，可随审计过程持续变化。", topics: [
       { title: "添加待清事项", steps: ["在右侧待清中心选择“添加待清”。", "填写事项、状态和说明，并选择它属于项目级还是指定业务模块。",
         "保存后，事项会立即出现在右侧清单；集团页面会汇总下级公司事项并保留来源。"], result: "待清事项不会改变节点或业务模块进度。" },
-      { title: "更新和筛选待清事项", steps: ["使用上方两个筛选器按层级／模块及状态缩小范围。", "直接在事项卡片内切换状态，或选择“编辑”修改内容和归属。",
+      { title: "更新和筛选待清事项", steps: ["使用“未清／已清／全部”切换找回已清或归档事项，再按层级、模块及具体状态缩小范围。", "直接在事项卡片内切换状态，或选择“编辑”修改内容和归属。",
         "选择“删除”移除不再需要的事项；选择事项来源名称可以跳转到对应项目或集团。"], result: "右侧清单可作为持续更新的阻塞事项工作队列。" },
       { title: "自定义状态和颜色", steps: ["选择“状态与颜色”。", "新增、改名或排序状态，选择颜色，并指定该状态是否代表已经清理。",
         "正在被历史记录使用的状态不会被误删；需要先把相关事项改到其他状态。"], result: "状态名称、顺序、颜色和未清计算会同时更新。" },

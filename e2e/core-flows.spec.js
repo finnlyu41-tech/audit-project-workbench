@@ -42,6 +42,29 @@ test("creates a company, saves it in the browser and restores focus when a dialo
   await expect(page.getByText("This company has no annual engagements yet")).toBeVisible();
 });
 
+test("group batch mode creates a holding master and multiple member companies in one window", async ({ page }) => {
+  await openWorkbench(page, emptyStore());
+  await page.getByRole("button", { name: "New company" }).click();
+  const dialog = page.getByRole("dialog", { name: "New company" });
+  await dialog.getByRole("button", { name: "Holding company batch" }).click();
+  await dialog.getByLabel("Legal entity *").fill("Fleet Holdings Limited");
+  await dialog.getByLabel("Company name *").fill("Vessel One Limited");
+  await dialog.getByLabel("Entity type (optional)").nth(1).fill("Limited company");
+  await dialog.getByRole("button", { name: "Add company" }).click();
+  await dialog.getByLabel("Company name *").nth(1).fill("Vessel Two Limited");
+  await dialog.getByLabel("Default financial year").nth(2).selectOption("apr_mar");
+  await dialog.getByRole("button", { name: "Create holding company and companies" }).click();
+
+  await expect(page.getByRole("heading", { name: "Fleet Holdings Limited" })).toBeVisible();
+  const stored = await readStoredWorkspace(page);
+  expect(stored.entities).toHaveLength(3);
+  const parent = stored.entities.find((entity) => entity.legalName === "Fleet Holdings Limited");
+  expect(parent.kind).toBe("holding_company");
+  expect(stored.entities.filter((entity) => entity.parentEntityId === parent.id)
+    .map((entity) => entity.legalName)).toEqual(["Vessel One Limited", "Vessel Two Limited"]);
+  expect(stored.entities.find((entity) => entity.legalName === "Vessel Two Limited").fiscalYearPreset).toBe("apr_mar");
+});
+
 test("a first DOI engagement uses the company's next year end and shows the formal period", async ({ page }) => {
   await openWorkbench(page, emptyStore());
   await page.getByRole("button", { name: "New company" }).click();
@@ -100,11 +123,39 @@ test("one company creates three independent annual engagements with generated fi
   await expect(duplicateDialog.getByRole("alert")).toContainText("already has an engagement");
 });
 
+test("one engagement can add and save three reporting years with one shared workflow", async ({ page }) => {
+  await openWorkbench(page, emptyStore());
+  await page.getByRole("button", { name: "New company" }).click();
+  const companyDialog = page.getByRole("dialog", { name: "New company" });
+  await companyDialog.getByLabel("Legal entity *").fill("Combined Years Limited");
+  await companyDialog.getByRole("button", { name: "Create company" }).click();
+
+  await page.getByRole("button", { name: "New annual engagement", exact: true }).click();
+  const engagementDialog = page.getByRole("dialog", { name: /New annual engagement/ });
+  await engagementDialog.getByRole("button", { name: "Add reporting period" }).click();
+  await engagementDialog.getByRole("button", { name: "Add reporting period" }).click();
+  const years = engagementDialog.getByLabel("Year", { exact: true });
+  await expect(years).toHaveCount(3);
+  for (const [index, year] of [2023, 2024, 2025].entries()) await years.nth(index).fill(String(year));
+  await engagementDialog.getByRole("button", { name: "Blank engagement" }).click();
+  await engagementDialog.getByRole("button", { name: "Create annual engagement" }).click();
+
+  const stored = await readStoredWorkspace(page);
+  expect(stored.engagements).toHaveLength(1);
+  expect(stored.engagements[0].reportingPeriods.map((period) => [period.periodStart, period.periodEnd])).toEqual([
+    ["2023-01-01", "2023-12-31"],
+    ["2024-01-01", "2024-12-31"],
+    ["2025-01-01", "2025-12-31"],
+  ]);
+  await expect(page.locator(".tree-engagement-row .tree-engagement-period")).toContainText(
+    "YE December 31, 2023 · YE December 31, 2024 · YE December 31, 2025");
+});
+
 test("editing an engagement can start the next annual engagement directly", async ({ page }) => {
   await openWorkbench(page, workspaceFixture());
   await page.getByRole("button", { name: "Edit annual engagement" }).click();
   let dialog = page.getByRole("dialog", { name: /Edit annual engagement/ });
-  await dialog.getByRole("button", { name: "Create another year" }).click();
+  await dialog.getByRole("button", { name: "Create separate engagement" }).click();
   dialog = page.getByRole("dialog", { name: /New annual engagement/ });
   await expect(dialog).toBeVisible();
   await expect(dialog.getByLabel("Year", { exact: true })).toHaveValue("2027");
@@ -179,19 +230,21 @@ test("workstream stages and completion criteria can be expanded, collapsed and d
   await expect(page.locator(".condition-row").first()).toContainText("Independence confirmed");
 });
 
-test("owner quick edit can apply one owner to every workstream", async ({ page }) => {
+test("owner quick edit updates only the annual engagement", async ({ page }) => {
   await openWorkbench(page, workspaceFixture());
+  const before = await readStoredWorkspace(page);
+  const originalWorkstreamOwners = before.engagements[0].workstreams.map((workstream) => workstream.owner);
   await page.locator(".detail-facts > .detail-fact").first().getByRole("button").click();
   const dialog = page.getByRole("dialog", { name: /Owner/ });
   await dialog.getByLabel("Owner", { exact: true }).fill("Morgan Lee");
-  await dialog.getByRole("checkbox", { name: /Apply to all workstreams/ }).check();
+  await expect(dialog.getByRole("checkbox", { name: /Apply to all workstreams/ })).toHaveCount(0);
   await dialog.getByRole("button", { name: "Save" }).click();
   const stored = await readStoredWorkspace(page);
   expect(stored.engagements[0].owner).toBe("Morgan Lee");
-  expect(stored.engagements[0].workstreams.every((workstream) => workstream.owner === "Morgan Lee")).toBe(true);
+  expect(stored.engagements[0].workstreams.map((workstream) => workstream.owner)).toEqual(originalWorkstreamOwners);
 });
 
-test("a custom engagement type is saved and visible below the year in navigation", async ({ page }) => {
+test("a custom engagement type is saved and becomes the primary company-tree project label", async ({ page }) => {
   await openWorkbench(page, workspaceFixture());
   await page.getByRole("button", { name: "Edit annual engagement" }).click();
   const dialog = page.getByRole("dialog", { name: /Edit annual engagement/ });
@@ -199,7 +252,10 @@ test("a custom engagement type is saved and visible below the year in navigation
   await expect(dialog.getByLabel("Project notes")).toHaveCount(0);
   await dialog.getByLabel("Engagement type").fill("Marine bookkeeping");
   await dialog.getByRole("button", { name: "Save engagement" }).click();
-  await expect(page.locator(".tree-engagement-row")).toContainText("Marine bookkeeping");
+  await expect(page.locator(".tree-engagement-row .tree-engagement-type")).toHaveText("Marine bookkeeping");
+  await expect(page.locator(".tree-engagement-row .tree-engagement-period")).toContainText("YE December 31, 2026");
+  await expect(page.getByRole("heading", { name: "Marine bookkeeping", exact: true })).toBeVisible();
+  await expect(page.locator(".detail-title > p")).toContainText("Example Services Limited");
   expect((await readStoredWorkspace(page)).engagements[0].engagementType).toBe("Marine bookkeeping");
 });
 
@@ -210,13 +266,14 @@ test("switches between company hierarchy and a flat searchable project list", as
   await expect(viewTabs.getByRole("tab", { name: "Projects" })).toHaveAttribute("aria-selected", "true");
   const projectRow = page.locator(".flat-engagement-row");
   await expect(projectRow).toHaveCount(1);
-  await expect(projectRow).toContainText("Example Services Limited");
-  await expect(projectRow).toContainText("YE December 31, 2026");
-  await expect(projectRow).toContainText("Audit");
+  await expect(projectRow.locator(".flat-engagement-type")).toHaveText("Audit");
+  await expect(projectRow.locator(".flat-engagement-period")).toHaveText("YE December 31, 2026");
+  await expect(projectRow.locator(".flat-engagement-company")).toContainText("Example Services Limited");
   await page.getByRole("textbox", { name: "Search projects, companies or owners" }).fill("Alex Chan");
   await expect(projectRow).toHaveCount(1);
   await projectRow.click();
-  await expect(page.getByRole("heading", { name: "Example Services Limited" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Audit", exact: true })).toBeVisible();
+  await expect(page.locator(".detail-title > p")).toContainText("Example Services Limited");
   await expect.poll(() => page.evaluate(() => localStorage.getItem("audit-progress-workbench:navigation-view"))).toBe("projects");
 });
 
@@ -264,6 +321,11 @@ test("progress, outstanding items and tax deadlines remain independent", async (
   await outstandingDialog.getByRole("button", { name: "Save outstanding item" }).click();
   await expect(page.getByText("Signed representation letter missing")).toBeVisible();
   await expect(auditCard.locator(".workstream-card-top [role='progressbar']")).toHaveAttribute("aria-valuenow", auditProgress);
+  const outstandingItem = page.locator(".outstanding-item").filter({ hasText: "Signed representation letter missing" });
+  await outstandingItem.locator("select").selectOption("resolved");
+  await expect(outstandingItem).toHaveCount(0);
+  await page.getByRole("button", { name: /Cleared \/ archived/ }).click();
+  await expect(page.locator(".outstanding-item").filter({ hasText: "Signed representation letter missing" })).toBeVisible();
 
   await page.locator(".tax-deadline-fact").getByRole("button", { name: "Add tax deadline" }).click();
   const deadlineDialog = page.getByRole("dialog", { name: "Tax deadlines" });
@@ -363,7 +425,8 @@ test("exports, initialises and restores a V11 backup without losing records", as
   const chooser = await chooserPromise;
   page.once("dialog", (dialog) => dialog.accept());
   await chooser.setFiles(backupPath);
-  await expect(page.getByRole("heading", { name: "Example Services Limited" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Audit", exact: true })).toBeVisible();
+  await expect(page.locator(".detail-title > p")).toContainText("Example Services Limited");
   const restored = await readStoredWorkspace(page);
   expect(restored.version).toBe(11);
   expect(restored.entities).toHaveLength(1);

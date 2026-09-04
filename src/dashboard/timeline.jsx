@@ -1,11 +1,13 @@
 import React from "react";
 import { Building, Building2, CalendarClock, CircleAlert, GripVertical, LocateFixed, ReceiptText } from "lucide-react";
-import { engagementTypeLabel, formatDate, groupProgress, projectStats, taxDeadlineCategoryLabel, taxDeadlineUrgency,
+import { engagementLatestPeriodEnd, engagementTypeLabel, formatDate, groupProgress, projectStats, taxDeadlineCategoryLabel, taxDeadlineUrgency,
   workspaceScheduleOrder, yearEndOrPeriodLabel } from "./model.js";
 import { useUiLanguage } from "./i18n.jsx";
 
 const DAY_MS = 86400000;
 const SCHEDULE_META_WIDTH_KEY = "audit-progress-workbench:schedule-meta-width";
+const SCHEDULE_PRECISION_KEY = "audit-progress-workbench:schedule-precision";
+const SCHEDULE_PRECISIONS = ["day", "week", "month"];
 const DEFAULT_META_WIDTH = 310;
 const MIN_META_WIDTH = 250;
 const MAX_META_WIDTH = 560;
@@ -22,6 +24,18 @@ function savedMetaWidth() {
 function saveMetaWidth(value) {
   try { window.localStorage.setItem(SCHEDULE_META_WIDTH_KEY, String(clampMetaWidth(value))); }
   catch { /* Layout preferences can safely fall back to the default width. */ }
+}
+
+function savedPrecision() {
+  try {
+    const value = window.localStorage.getItem(SCHEDULE_PRECISION_KEY);
+    return SCHEDULE_PRECISIONS.includes(value) ? value : "week";
+  } catch { return "week"; }
+}
+
+function savePrecision(value) {
+  try { window.localStorage.setItem(SCHEDULE_PRECISION_KEY, value); }
+  catch { /* Layout preferences can safely fall back to the weekly view. */ }
 }
 
 function parseDate(value) {
@@ -50,6 +64,22 @@ function addDays(value, days) {
   return date;
 }
 
+function startOfMonth(value) {
+  return new Date(value.getFullYear(), value.getMonth(), 1);
+}
+
+function endOfMonth(value) {
+  return new Date(value.getFullYear(), value.getMonth() + 1, 0);
+}
+
+function addMonths(value, months) {
+  return new Date(value.getFullYear(), value.getMonth() + months, 1);
+}
+
+function calendarDayNumber(value) {
+  return Date.UTC(value.getFullYear(), value.getMonth(), value.getDate()) / DAY_MS;
+}
+
 function matchesFilter(item, complete, filter) {
   if (filter === "archived") return item.archived;
   if (item.archived) return false;
@@ -64,7 +94,9 @@ function scheduleRows(store, filter, language = "en") {
     const latestByEntity = new Map();
     store.engagements.filter((engagement) => !engagement.archived).forEach((engagement) => {
       const current = latestByEntity.get(engagement.entityId);
-      if (!current || (engagement.periodEnd || "") > (current.periodEnd || "")) latestByEntity.set(engagement.entityId, engagement);
+      if (!current || engagementLatestPeriodEnd(engagement) > engagementLatestPeriodEnd(current)) {
+        latestByEntity.set(engagement.entityId, engagement);
+      }
     });
     const order = new Map(workspaceScheduleOrder(store).map((key, index) => [key, index]));
     return store.engagements.flatMap((engagement) => {
@@ -126,32 +158,68 @@ function scheduleRows(store, filter, language = "en") {
       || left.name.localeCompare(right.name));
 }
 
-function makeTimeline(rows) {
+function rangeSegments(rangeStart, rangeEnd, unit, pixelsPerDay) {
+  const segments = [];
+  const endExclusive = addDays(rangeEnd, 1);
+  let cursor = new Date(rangeStart);
+  while (cursor < endExclusive) {
+    const nextBoundary = unit === "year" ? new Date(cursor.getFullYear() + 1, 0, 1)
+      : new Date(cursor.getFullYear(), cursor.getMonth() + 1, 1);
+    const next = nextBoundary < endExclusive ? nextBoundary : endExclusive;
+    segments.push({ key: `${unit}-${cursor.getFullYear()}-${cursor.getMonth()}`,
+      date: new Date(cursor), width: (calendarDayNumber(next) - calendarDayNumber(cursor)) * pixelsPerDay });
+    cursor = next;
+  }
+  return segments;
+}
+
+function makeTimeline(rows, precision = "week") {
   const today = new Date();
   today.setHours(0, 0, 0, 0);
   const suppliedDates = rows.flatMap((row) => [parseDate(row.startDate), parseDate(row.dueDate),
     ...(row.taxDeadlines || []).map((deadline) => parseDate(deadline.dueDate))]).filter(Boolean);
   const earliest = suppliedDates.length ? new Date(Math.min(today.getTime(), ...suppliedDates.map((date) => date.getTime()))) : addDays(today, -28);
   const latest = suppliedDates.length ? new Date(Math.max(today.getTime(), ...suppliedDates.map((date) => date.getTime()))) : addDays(today, 84);
-  let rangeStart = startOfWeek(addDays(earliest, -7));
-  let rangeEnd = endOfWeek(addDays(latest, 7));
-  const minimumEnd = endOfWeek(addDays(rangeStart, 83));
-  if (rangeEnd < minimumEnd) rangeEnd = minimumEnd;
-  const weekCount = Math.ceil((rangeEnd.getTime() - rangeStart.getTime() + DAY_MS) / (DAY_MS * 7));
-  const weekWidth = weekCount > 78 ? 28 : weekCount > 56 ? 34 : 42;
-  const weeks = Array.from({ length: weekCount }, (_, index) => addDays(rangeStart, index * 7));
-  const monthGroups = [];
-  weeks.forEach((week) => {
-    const key = `${week.getFullYear()}-${week.getMonth()}`;
-    const latestGroup = monthGroups.at(-1);
-    if (latestGroup?.key === key) latestGroup.weeks += 1;
-    else monthGroups.push({ key, date: week, weeks: 1 });
-  });
-  return { today, rangeStart, rangeEnd, weekCount, weekWidth, weeks, monthGroups };
+  let rangeStart;
+  let rangeEnd;
+  let pixelsPerDay;
+  if (precision === "day") {
+    rangeStart = startOfWeek(addDays(earliest, -3));
+    rangeEnd = endOfWeek(addDays(latest, 3));
+    const minimumEnd = endOfWeek(addDays(rangeStart, 41));
+    if (rangeEnd < minimumEnd) rangeEnd = minimumEnd;
+    pixelsPerDay = 36;
+  } else if (precision === "month") {
+    rangeStart = startOfMonth(addMonths(earliest, -1));
+    rangeEnd = endOfMonth(addMonths(latest, 1));
+    const minimumEnd = endOfMonth(addMonths(rangeStart, 11));
+    if (rangeEnd < minimumEnd) rangeEnd = minimumEnd;
+    const monthCount = (rangeEnd.getFullYear() - rangeStart.getFullYear()) * 12
+      + rangeEnd.getMonth() - rangeStart.getMonth() + 1;
+    const monthWidth = monthCount > 72 ? 70 : monthCount > 48 ? 82 : 98;
+    pixelsPerDay = monthWidth / 30.4375;
+  } else {
+    rangeStart = startOfWeek(addDays(earliest, -7));
+    rangeEnd = endOfWeek(addDays(latest, 7));
+    const minimumEnd = endOfWeek(addDays(rangeStart, 83));
+    if (rangeEnd < minimumEnd) rangeEnd = minimumEnd;
+    const weekCount = Math.ceil((calendarDayNumber(addDays(rangeEnd, 1)) - calendarDayNumber(rangeStart)) / 7);
+    const weekWidth = weekCount > 78 ? 28 : weekCount > 56 ? 34 : 42;
+    pixelsPerDay = weekWidth / 7;
+  }
+  const dayCount = calendarDayNumber(addDays(rangeEnd, 1)) - calendarDayNumber(rangeStart);
+  const ticks = precision === "day"
+    ? Array.from({ length: dayCount }, (_, index) => ({ date: addDays(rangeStart, index), width: pixelsPerDay }))
+    : precision === "month" ? rangeSegments(rangeStart, rangeEnd, "month", pixelsPerDay)
+      : Array.from({ length: Math.ceil(dayCount / 7) }, (_, index) => ({ date: addDays(rangeStart, index * 7), width: pixelsPerDay * 7 }));
+  const majorGroups = rangeSegments(rangeStart, rangeEnd, precision === "month" ? "year" : "month", pixelsPerDay);
+  return { today, precision, rangeStart, rangeEnd, pixelsPerDay, ticks, majorGroups,
+    width: dayCount * pixelsPerDay, gridWidth: precision === "day" ? pixelsPerDay
+      : precision === "month" ? 30.4375 * pixelsPerDay : 7 * pixelsPerDay };
 }
 
 function dayOffset(date, rangeStart) {
-  return (date.getTime() - rangeStart.getTime()) / DAY_MS;
+  return calendarDayNumber(date) - calendarDayNumber(rangeStart);
 }
 
 export function ProjectSchedule({ store, filter, onOpen, onEditSchedule, onOpenTaxDeadline, onReorder }) {
@@ -162,16 +230,24 @@ export function ProjectSchedule({ store, filter, onOpen, onEditSchedule, onOpenT
   const [draggingKey, setDraggingKey] = React.useState(null);
   const [dropTarget, setDropTarget] = React.useState(null);
   const [metaWidth, setMetaWidth] = React.useState(savedMetaWidth);
+  const [precision, setPrecision] = React.useState(savedPrecision);
   const [resizingMeta, setResizingMeta] = React.useState(false);
   const rows = React.useMemo(() => scheduleRows(store, filter, language), [store, filter, language]);
-  const timeline = React.useMemo(() => makeTimeline(rows), [rows]);
-  const width = timeline.weekCount * timeline.weekWidth;
+  const timeline = React.useMemo(() => makeTimeline(rows, precision), [rows, precision]);
+  const width = timeline.width;
   const scheduledCount = rows.filter((row) => row.startDate && row.dueDate).length;
   const incompleteCount = rows.length - scheduledCount;
-  const todayLeft = (dayOffset(timeline.today, timeline.rangeStart) / 7) * timeline.weekWidth;
+  const todayLeft = (dayOffset(timeline.today, timeline.rangeStart) + .5) * timeline.pixelsPerDay;
   const locale = language === "en" ? "en-GB" : "zh-HK";
   const weekFormatter = new Intl.DateTimeFormat(locale, { month: "short", day: "numeric" });
   const monthFormatter = new Intl.DateTimeFormat(locale, { year: "numeric", month: "long" });
+  const shortMonthFormatter = new Intl.DateTimeFormat(locale, { month: "short" });
+  const yearFormatter = new Intl.DateTimeFormat(locale, { year: "numeric" });
+  const dayFormatter = new Intl.DateTimeFormat(locale, { day: "numeric" });
+  const changePrecision = (value) => {
+    setPrecision(value);
+    savePrecision(value);
+  };
   const finishDrag = () => {
     draggingRef.current = null;
     setDraggingKey(null);
@@ -291,6 +367,10 @@ export function ProjectSchedule({ store, filter, onOpen, onEditSchedule, onOpenT
       <div className="schedule-heading-actions"><div className="schedule-summary">
         <span>{t("{count} 项已排期", { count: scheduledCount })}</span>
         <span data-alert={incompleteCount > 0 || undefined}>{t("{count} 项日期待补", { count: incompleteCount })}</span></div>
+        <div className="schedule-precision" role="group" aria-label={t("时间精度")}>
+          {SCHEDULE_PRECISIONS.map((value) => <button type="button" key={value} aria-pressed={precision === value}
+            onClick={() => changePrecision(value)}>{t(value === "day" ? "天" : value === "month" ? "月" : "周")}</button>)}
+        </div>
         <button type="button" className="button secondary" onClick={scrollToToday}><LocateFixed aria-hidden="true" />{t("今天")}</button></div>
     </header>
     <div className="schedule-legend" aria-label={t("排期图例")}><span><i data-tone="active" />{t("进行中")}</span>
@@ -299,9 +379,9 @@ export function ProjectSchedule({ store, filter, onOpen, onEditSchedule, onOpenT
       <span><CircleAlert aria-hidden="true" />{t("日期不完整")}</span></div>
     {rows.length ? <div className="schedule-scroll" ref={scrollRef} tabIndex="0" onWheel={horizontalWheel}
       aria-label={t("可横向滚动的项目排期")}>
-      <div className="schedule-grid" data-resizing={resizingMeta || undefined}
-        style={{ "--timeline-width": `${width}px`, "--week-width": `${timeline.weekWidth}px`, "--schedule-meta-width": `${metaWidth}px` }}>
-        <div className="schedule-corner"><strong>{t("公司／控股公司")}</strong><span>{t("负责人 · 开始日 → 截止日")}</span>
+      <div className="schedule-grid" data-resizing={resizingMeta || undefined} data-precision={precision}
+        style={{ "--timeline-width": `${width}px`, "--time-grid-width": `${timeline.gridWidth}px`, "--schedule-meta-width": `${metaWidth}px` }}>
+        <div className="schedule-corner"><strong>{t("公司／控股公司")}</strong><span>{t("项目类型 · 负责人")}</span>
           <button type="button" className="schedule-column-resizer" role="separator" aria-orientation="vertical"
             aria-label={t("拖动调整公司栏宽度")} aria-valuemin={MIN_META_WIDTH} aria-valuemax={MAX_META_WIDTH}
             aria-valuenow={metaWidth} aria-keyshortcuts="ArrowLeft ArrowRight Home End"
@@ -310,10 +390,13 @@ export function ProjectSchedule({ store, filter, onOpen, onEditSchedule, onOpenT
             onPointerCancel={finishMetaResize} onKeyDown={resizeMetaWithKeyboard} onDoubleClick={resetMetaWidth} />
         </div>
         <div className="schedule-calendar-header" style={{ width }}>
-          <div className="schedule-months">{timeline.monthGroups.map((month) => <span key={month.key}
-            style={{ width: month.weeks * timeline.weekWidth }}>{monthFormatter.format(month.date)}</span>)}</div>
-          <div className="schedule-weeks">{timeline.weeks.map((week, index) => <span key={week.toISOString()}
-            data-compact={timeline.weekWidth < 34 || undefined}>{(timeline.weekWidth < 34 && index % 2) ? "" : weekFormatter.format(week)}</span>)}</div>
+          <div className="schedule-months">{timeline.majorGroups.map((group) => <span key={group.key}
+            style={{ width: group.width }}>{precision === "month" ? yearFormatter.format(group.date) : monthFormatter.format(group.date)}</span>)}</div>
+          <div className="schedule-weeks">{timeline.ticks.map((tick, index) => <span key={tick.date.toISOString()}
+            style={{ width: tick.width, flexBasis: tick.width }}
+            data-compact={tick.width < 34 || undefined}>{precision === "day" ? dayFormatter.format(tick.date)
+              : precision === "month" ? shortMonthFormatter.format(tick.date)
+                : (tick.width < 34 && index % 2) ? "" : weekFormatter.format(tick.date)}</span>)}</div>
           {todayLeft >= 0 && todayLeft <= width && <span className="schedule-today-header" style={{ left: todayLeft }}
             aria-hidden="true"><b>{t("今天")}</b></span>}
         </div>
@@ -327,13 +410,19 @@ export function ProjectSchedule({ store, filter, onOpen, onEditSchedule, onOpenT
           const invalid = Boolean(start && due && due < start);
           const overdue = Boolean(due && due < timeline.today && !row.complete && !row.archived);
           const tone = row.archived ? "archived" : row.complete ? "complete" : overdue ? "overdue" : "active";
-          const barLeft = start ? (dayOffset(start, timeline.rangeStart) / 7) * timeline.weekWidth : null;
-          const dueLeft = due ? (dayOffset(due, timeline.rangeStart) / 7) * timeline.weekWidth : null;
+          const barLeft = start ? dayOffset(start, timeline.rangeStart) * timeline.pixelsPerDay : null;
+          const dueLeft = due ? (dayOffset(due, timeline.rangeStart) + .5) * timeline.pixelsPerDay : null;
           const durationDays = start && due && !invalid ? Math.max(1, dayOffset(due, start) + 1) : 0;
-          const barWidth = durationDays ? Math.max(8, (durationDays / 7) * timeline.weekWidth) : 0;
+          const barWidth = durationDays ? Math.max(8, durationDays * timeline.pixelsPerDay) : 0;
           const durationWeeks = durationDays ? Math.max(1, Math.ceil(durationDays / 7)) : 0;
+          const durationMonths = durationDays ? Math.max(1, Math.ceil(durationDays / 30.4375)) : 0;
+          const durationLabel = precision === "day" ? t("{count} 天", { count: durationDays })
+            : precision === "month" ? t("{count} 个月", { count: durationMonths })
+              : t("{count} 周", { count: durationWeeks });
           const taxMarkers = Object.values((row.taxDeadlines || []).reduce((groups, deadline) => ({ ...groups,
             [deadline.dueDate]: [...(groups[deadline.dueDate] || []), deadline] }), {}));
+          const projectTypeOwner = [row.engagementType ? engagementTypeLabel(row.engagementType, language) : "",
+            row.owner || t("未设置负责人")].filter(Boolean).join(" · ");
           const openSchedule = () => row.archived || !onEditSchedule
             ? onOpen(row.kind, row.id) : onEditSchedule(row.kind, row.id);
           return <React.Fragment key={rowKey}>
@@ -350,10 +439,9 @@ export function ProjectSchedule({ store, filter, onOpen, onEditSchedule, onOpenT
               <button type="button" className="schedule-row-open" onClick={() => onOpen(row.kind, row.id)}>
                 <i data-kind={row.kind}>{row.kind === "group" ? <Building2 aria-hidden="true" /> : <Building aria-hidden="true" />}</i>
                 <span><strong>{row.name}</strong>{row.periodLabel && <small className="schedule-reporting-period">{row.periodLabel}</small>}
-                  {row.engagementType && <small className="schedule-project-type">{engagementTypeLabel(row.engagementType, language)}</small>}
+                  {projectTypeOwner && <small className="schedule-project-type">{projectTypeOwner}</small>}
                   {row.secondaryName && <small>{row.secondaryName}</small>}
-                  <small className="schedule-delivery-period">{row.owner || t("未设置负责人")} · {row.startDate ? formatDate(row.startDate, language) : t("未设置开始日")}
-                    <b aria-hidden="true">→</b>{row.dueDate ? formatDate(row.dueDate, language) : t("未设置截止日")}</small></span>
+                </span>
               </button>
               {!row.archived && <button type="button" className="schedule-row-edit"
                 aria-label={t("编辑“{name}”的项目排期", { name: rowAccessibleName })}
@@ -366,8 +454,8 @@ export function ProjectSchedule({ store, filter, onOpen, onEditSchedule, onOpenT
               {start && due && !invalid && <button type="button" className="schedule-bar" style={{ left: barLeft, width: barWidth }}
                 data-tone={tone} onClick={openSchedule}
                 aria-label={t("{name}：{start} 至 {deadline}", { name: row.name, start: formatDate(row.startDate, language), deadline: formatDate(row.dueDate, language) })}
-                data-tooltip={t("{start} 至 {deadline} · {weeks} 周", { start: formatDate(row.startDate, language), deadline: formatDate(row.dueDate, language), weeks: durationWeeks })}>
-                {barWidth >= 52 && <span>{durationWeeks}{t("周")}</span>}</button>}
+                title={`${formatDate(row.startDate, language)} → ${formatDate(row.dueDate, language)} · ${durationLabel}`}>
+                {barWidth >= 52 && <span>{durationLabel}</span>}</button>}
               {!invalid && start && !due && <button type="button" className="schedule-milestone" data-kind="start"
                 style={{ left: barLeft }} onClick={openSchedule} data-tooltip={t("只有开始日，尚未设置截止日")}
                 aria-label={t("{name}：只有开始日，尚未设置截止日", { name: row.name })}><CalendarClock aria-hidden="true" /></button>}
@@ -383,7 +471,7 @@ export function ProjectSchedule({ store, filter, onOpen, onEditSchedule, onOpenT
               {taxMarkers.map((deadlines) => {
                 const markerDate = parseDate(deadlines[0].dueDate);
                 if (!markerDate) return null;
-                const markerLeft = (dayOffset(markerDate, timeline.rangeStart) / 7) * timeline.weekWidth;
+                const markerLeft = (dayOffset(markerDate, timeline.rangeStart) + .5) * timeline.pixelsPerDay;
                 const urgency = deadlines.some((deadline) => taxDeadlineUrgency(deadline, timeline.today).level === "overdue") ? "overdue"
                   : deadlines.some((deadline) => taxDeadlineUrgency(deadline, timeline.today).level === "due_today") ? "due_today"
                     : deadlines.some((deadline) => taxDeadlineUrgency(deadline, timeline.today).level === "due_soon") ? "due_soon" : "upcoming";
@@ -393,7 +481,7 @@ export function ProjectSchedule({ store, filter, onOpen, onEditSchedule, onOpenT
                   onClick={() => onOpenTaxDeadline?.(row.kind, row.id, deadlines.length === 1 ? deadlines[0].id : null)}
                   aria-label={t("{name} 在 {date} 有 {count} 项税务期限", { name: row.name,
                     date: formatDate(deadlines[0].dueDate, language), count: deadlines.length })}
-                  data-tooltip={`${formatDate(deadlines[0].dueDate, language)} · ${names}`}>
+                  title={`${formatDate(deadlines[0].dueDate, language)} · ${names}`}>
                   <ReceiptText aria-hidden="true" />{deadlines.length > 1 && <strong>{deadlines.length}</strong>}</button>;
               })}
             </div>

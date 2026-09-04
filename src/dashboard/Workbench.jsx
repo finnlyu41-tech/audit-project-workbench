@@ -268,7 +268,7 @@ function DashboardWorkbench() {
       return;
     }
     openWorkspaceRecord(alert.targetKind, alert.targetId);
-    setActiveWorkstreamId(alert.scope === "workstream" ? alert.workstream?.id || null : null);
+    setActiveWorkstreamId(null);
     setModal(null);
   }, [openTaxDeadlineCentre, openWorkspaceRecord]);
   const selectedProjectSource = selection?.kind === "project"
@@ -402,11 +402,16 @@ function DashboardWorkbench() {
   };
 
   const createEntity = (values) => {
-    const entity = makeEntity(values);
-    setStore((current) => ({ ...current, entities: [entity, ...current.entities],
-      entityOrder: [entity.id, ...(current.entityOrder || []).filter((id) => id !== entity.id)] }));
+    const { batchCompanies = [], ...entityValues } = values;
+    const entity = makeEntity(entityValues);
+    const members = batchCompanies.map((company) => makeEntity({ ...company,
+      parentEntityId: entity.id, relationshipRole: company.relationshipRole || "子公司" }));
+    const createdIds = [entity.id, ...members.map((member) => member.id)];
+    setStore((current) => ({ ...current, entities: [entity, ...members, ...current.entities],
+      entityOrder: [...createdIds, ...(current.entityOrder || []).filter((id) => !createdIds.includes(id))] }));
     setSelection({ kind: "entity", id: entity.id }); setWorkspaceView("detail"); setFilter("all"); setModal(null);
-    notify(t("公司主档已建立并自动保存"));
+    notify(t(members.length ? "集团及 {count} 家公司已建立并自动保存" : "公司主档已建立并自动保存",
+      { count: members.length }));
   };
   const createAnnualEngagement = (entity, values, options) => {
     try {
@@ -416,7 +421,7 @@ function DashboardWorkbench() {
       if (entity.kind === "holding_company" && engagement.consolidation) engagement = { ...engagement,
         consolidation: { ...engagement.consolidation,
           components: componentsForCurrentStructure(store, entity.id, engagement.periodStart, engagement.periodEnd,
-            selectedGroupSample || createDefaultGroupSample(language)) } };
+            selectedGroupSample || createDefaultGroupSample(language), engagement.reportingPeriods) } };
       const kind = entity.kind === "holding_company" ? "group" : "project";
       setStore((current) => ({ ...current, engagements: [engagement, ...current.engagements],
         scheduleOrder: [`${kind}:${engagement.id}`, ...(current.scheduleOrder || []).filter((key) => !key.endsWith(`:${engagement.id}`))] }));
@@ -453,8 +458,8 @@ function DashboardWorkbench() {
   };
   const updateWorkstream = (projectId, workstreamId, values) => {
     updateProject(projectId, (project) => ({ ...project, workstreams: project.workstreams.map((workstream) =>
-      workstream.id === workstreamId ? { ...workstream, customName: values.customName, owner: values.owner,
-        dueDate: values.dueDate, updatedAt: new Date().toISOString() } : workstream) }));
+      workstream.id === workstreamId ? { ...workstream, customName: values.customName,
+        updatedAt: new Date().toISOString() } : workstream) }));
     setModal(null); notify(t("业务模块已更新"));
   };
   const removeWorkstream = (projectId, workstreamId) => {
@@ -906,7 +911,7 @@ function DashboardWorkbench() {
         readOnly={Boolean(modalTargetEntity.archived)}
         onSave={saveTaxDeadline} onDelete={deleteTaxDeadline}
         onOpenSource={(kind, id, deadlineId) => openTaxDeadlineCentre(kind, id, deadlineId)} /></Modal>}
-    {modal?.type === "create-entity" && <Modal title={t("新建公司")} onClose={() => setModal(null)} wide>
+    {modal?.type === "create-entity" && <Modal title={t("新建公司")} onClose={() => setModal(null)} large>
       <CompanyForm store={store} onSubmit={createEntity} onClose={() => setModal(null)} /></Modal>}
     {modal?.type === "edit-entity" && store.entities.find((entity) => entity.id === modal.entityId) && <Modal title={t("编辑公司主档")}
       onClose={() => setModal(null)} wide><CompanyForm store={store} initial={store.entities.find((entity) => entity.id === modal.entityId)}
@@ -926,7 +931,8 @@ function DashboardWorkbench() {
                 nodes: (selectedGroupSample?.nodes || []).map((node) => makeNode({ title: node.title, description: node.description,
                   conditions: node.conditions.map((condition) => condition.label) })),
                 components: componentsForCurrentStructure(next, source.id, engagement.periodStart, engagement.periodEnd,
-                  selectedGroupSample || createDefaultGroupSample(language)), structureSyncedAt: new Date().toISOString() } };
+                  selectedGroupSample || createDefaultGroupSample(language), engagement.reportingPeriods),
+                structureSyncedAt: new Date().toISOString() } };
             }) };
             return next;
           });
@@ -940,7 +946,7 @@ function DashboardWorkbench() {
           modal.sourceEngagementId ? { ...options, sourceMode: "previous",
             sourceEngagement: store.engagements.find((engagement) => engagement.id === modal.sourceEngagementId) } : options)} /></Modal>}
     {modal?.type === "edit-engagement" && modalTargetEngagement && modalTargetEntity && <Modal title={`${t(quickProjectTitle || "编辑年度项目")} · ${modalTargetEntity.legalName}`}
-      onClose={() => setModal(null)} wide={!modal.quickField}>
+      onClose={() => setModal(null)} large={!modal.quickField}>
       <EngagementForm store={store} entity={modalTargetEntity} initial={modalTargetEngagement} quickField={modal.quickField}
         onCreateAnotherYear={!modal.quickField ? () => setModal({ type: "create-engagement", entityId: modalTargetEntity.id,
           sourceEngagementId: modalTargetEngagement.id }) : null}
@@ -948,14 +954,12 @@ function DashboardWorkbench() {
           updateEngagement(modalTargetEngagement.id, (engagement) => ({ ...engagement,
             internalName: values.internalName, engagementType: values.engagementType,
             periodPreset: values.periodPreset, periodStart: values.periodStart,
-            periodEnd: values.periodEnd, reportingFramework: values.reportingFramework, owner: values.owner,
+            periodEnd: values.periodEnd, reportingPeriods: values.reportingPeriods,
+            reportingFramework: values.reportingFramework, owner: values.owner,
             startDate: values.startDate, dueDate: values.dueDate, notes: values.notes,
-            workstreams: values.applyOwnerToWorkstreams ? engagement.workstreams.map((workstream) => ({ ...workstream,
-              owner: values.owner, updatedAt: new Date().toISOString() })) : engagement.workstreams,
             consolidation: engagement.consolidation ? { ...engagement.consolidation,
               enabled: values.consolidationEnabled !== false } : engagement.consolidation }));
-          setModal(null); notify(t(values.applyOwnerToWorkstreams ? "负责人及所有业务模块已更新"
-            : modal.quickField === "schedule" ? "项目排期已更新"
+          setModal(null); notify(t(modal.quickField === "schedule" ? "项目排期已更新"
               : modal.quickField === "owner" ? "负责人已更新" : modal.quickField === "framework" ? "财务报告准则／框架已更新" : "年度项目已更新"));
         }} /></Modal>}
     {modal?.type === "merge-entities" && <Modal title={t("合并重复公司")} onClose={() => setModal(null)} wide>
@@ -1143,9 +1147,10 @@ function ProjectDetail({ project, rawProject, statuses, parentMembership, active
   const nextTaxDate = taxSummary.next ? formatDate(taxSummary.next.dueDate, language) : t("没有未完成期限");
   const taxFactValue = taxSummary.next ? `${nextTaxDate} · ${t("{count} 项未完成", { count: taxSummary.openCount })}` : nextTaxDate;
   const periodLabel = reportingPeriodLabel(project, language);
-  const primaryName = project.entity || project.name;
-  const subtitle = [engagementTypeLabel(rawProject.engagementType, language), periodLabel].filter(Boolean).join(" · ")
-    || t(primaryName ? "尚未填写报告期间" : "尚未填写法律实体及报告期间");
+  const companyName = project.entity || project.name;
+  const primaryName = engagementTypeLabel(rawProject.engagementType, language) || t("项目类型未设置");
+  const subtitle = [companyName, periodLabel].filter(Boolean).join(" · ")
+    || t("尚未填写法律实体及报告期间");
   const finishWorkstreamDrag = () => {
     draggingWorkstreamRef.current = null;
     setDraggingWorkstreamId(null);
@@ -1231,7 +1236,7 @@ function ProjectDetail({ project, rawProject, statuses, parentMembership, active
           ...(readOnly ? {} : { editDeadlineId: taxSummary.next?.id ?? null }) })}>{taxFactValue}</DetailFactAction></dl>
 
     <section className="workstream-overview"><header className="section-heading"><div><h3>{t("业务模块")}</h3>
-      <p>{t("点击模块查看节点；再次点击可收起。各模块分别追踪负责人、截止日和完成条件。")}</p></div>
+      <p>{t("点击模块查看节点；再次点击可收起。模块只保留流程、完成条件和进度。")}</p></div>
       {!readOnly && <button type="button" className="button secondary icon-only" aria-label={t("添加业务模块")}
         data-tooltip={t("添加业务模块")} onClick={() => setModal({ type: "workstream-add",
           targetKind: "project", targetId: rawProject.id })}><ListPlus aria-hidden="true" /></button>}</header>
@@ -1275,12 +1280,15 @@ function GroupDetail({ store, group, statuses, updateWorkflowNodes, setModal, se
     .filter((entry) => outstandingIsOpen(entry.item, statuses)).length;
   const groupTaxDeadlines = collectGroupTaxDeadlineEntries(store, group.id, new Set(), 0, readOnly)
     .map((entry) => entry.deadline);
+  const primaryName = engagementTypeLabel(engagement?.engagementType, language) || t("项目类型未设置");
+  const subtitle = [group.name, reportingPeriodLabel(group, language)].filter(Boolean).join(" · ")
+    || t("尚未填写集团资料");
   if (!rawGroup) return null;
   return <div className="workspace-detail-inner">
     {readOnly && <div className="archive-banner"><strong>{t("已归档，只读")}</strong>
       <span>{t("归档记录不能编辑；恢复后才可继续更新。")}</span></div>}
-    <header className="detail-header"><div className="detail-title"><div><span className="workspace-label">{t("集团工作区")}</span><h2>{group.name}</h2></div>
-      <p>{reportingPeriodLabel(group, language) || t("尚未填写集团资料")}</p></div><div className="detail-actions">{readOnly ? <>
+    <header className="detail-header"><div className="detail-title"><div><span className="workspace-label">{t("集团工作区")}</span><h2>{primaryName}</h2></div>
+      <p>{subtitle}</p></div><div className="detail-actions">{readOnly ? <>
         <button type="button" className="button secondary icon-only" aria-label={t("恢复")} data-tooltip={t("恢复")}
           onClick={() => restoreTarget("group", group.id)}><ArchiveRestore aria-hidden="true" /></button>
         <button type="button" className="button danger-quiet icon-only" aria-label={t("永久删除")}
@@ -1365,7 +1373,8 @@ function WorkflowNodes({ targetKind, targetId, workstreamId = null, nodes, updat
 function OutstandingCenter({ store, target, targetKind, statuses, updateProject, updateGroup, setModal, setSelection,
   notify, readOnly = false, activeWorkstreamId = null }) {
   const { language, t } = useUiLanguage();
-  const [statusFilter, setStatusFilter] = React.useState("open");
+  const [visibilityFilter, setVisibilityFilter] = React.useState("open");
+  const [statusFilter, setStatusFilter] = React.useState("all");
   const [moduleFilter, setModuleFilter] = React.useState("all");
   const rawEntries = targetKind === "group"
     ? collectGroupOutstandingEntries(store, target.id, new Set(), 0, readOnly)
@@ -1383,9 +1392,15 @@ function OutstandingCenter({ store, target, targetKind, statuses, updateProject,
   const entries = rawEntries.map(decorate);
   const moduleOptions = [...new Map(entries.map((entry) => [entry.moduleKey,
     targetKind === "group" ? `${entry.sourceName} · ${entry.moduleLabel}` : entry.moduleLabel])).entries()];
+  const visibilityCounts = entries.reduce((counts, entry) => {
+    const open = outstandingIsOpen(entry.item, store.outstandingStatuses);
+    return { all: counts.all + 1, open: counts.open + (open ? 1 : 0), closed: counts.closed + (open ? 0 : 1) };
+  }, { all: 0, open: 0, closed: 0 });
   const visible = entries.filter((entry) => {
     if (moduleFilter !== "all" && entry.moduleKey !== moduleFilter) return false;
-    if (statusFilter === "open") return outstandingIsOpen(entry.item, store.outstandingStatuses);
+    const open = outstandingIsOpen(entry.item, store.outstandingStatuses);
+    if (visibilityFilter === "open" && !open) return false;
+    if (visibilityFilter === "closed" && open) return false;
     return statusFilter === "all" || entry.item.status === statusFilter;
   });
   const statusById = (id) => statuses.find((status) => status.id === id) || statuses[0];
@@ -1398,10 +1413,16 @@ function OutstandingCenter({ store, target, targetKind, statuses, updateProject,
     updateSource(entry, (items) => items.filter((item) => item.id !== entry.item.id)); notify(t("待清事项已删除"));
   };
   return <div className="outstanding-center"><div className="outstanding-center-tools">
+    <div className="outstanding-visibility-tabs" role="group" aria-label={t("待清事项显示范围")}>
+      {["open", "closed", "all"].map((value) => <button type="button" key={value}
+        aria-pressed={visibilityFilter === value} onClick={() => { setVisibilityFilter(value); setStatusFilter("all"); }}>
+        <span>{t(value === "open" ? "未清" : value === "closed" ? "已清／归档" : "全部")}</span>
+        <strong>{visibilityCounts[value]}</strong></button>)}
+    </div>
     <div><select value={moduleFilter} onChange={(event) => setModuleFilter(event.target.value)} aria-label={t("按业务模块筛选")}>
       <option value="all">{t("全部层级与模块")}</option>{moduleOptions.map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select>
       <select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)} aria-label={t("按待清状态筛选")}>
-        <option value="open">{t("全部未清")}</option><option value="all">{t("全部状态")}</option>
+        <option value="all">{t("全部状态")}</option>
         {statuses.map((status) => <option value={status.id} key={status.id}>{status.label}</option>)}</select></div>
     {!readOnly && <div className="outstanding-center-actions"><button type="button" className="icon-only" aria-label={t("状态与颜色")}
       data-tooltip={t("状态与颜色")} onClick={() => setModal({ type: "outstanding-statuses" })}><Palette aria-hidden="true" /></button>

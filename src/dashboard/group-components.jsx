@@ -172,13 +172,14 @@ function EntityEngagementWorkspaceList({ store, selection, onSelect, search, fil
       : Boolean(view && projectStats(view).complete);
     const archived = Boolean(entity.archived || engagement.archived);
     const periodLabel = yearEndOrPeriodLabel(engagement, language) || t("未设置报告期间");
+    const typeLabel = engagementTypeLabel(engagement.engagementType, language) || t("项目类型未设置");
     const searchable = [entity.legalName, engagement.engagementType, engagement.internalName, engagement.owner,
       periodLabel, reportingPeriodLabel(engagement, language)];
     if (filter === "archived" ? !archived : archived) return null;
     if (filter === "active" && complete) return null;
     if (filter === "completed" && !complete) return null;
     if (query && !searchable.some((value) => String(value || "").toLocaleLowerCase().includes(query))) return null;
-    return { engagement, entity, kind, progress, complete, periodLabel,
+    return { engagement, entity, kind, progress, complete, periodLabel, typeLabel,
       outstanding: (engagement.outstandingItems || []).filter((item) => outstandingIsOpen(item, statuses)).length };
   }).filter(Boolean).sort((left, right) => {
     const leftKey = `${left.kind}:${left.engagement.id}`;
@@ -189,14 +190,15 @@ function EntityEngagementWorkspaceList({ store, selection, onSelect, search, fil
       || left.entity.legalName.localeCompare(right.entity.legalName);
   });
   return <div className="workspace-tree flat-engagement-list">
-    {rows.length ? rows.map(({ engagement, entity, kind, progress, complete, periodLabel, outstanding }) =>
+    {rows.length ? rows.map(({ engagement, entity, kind, progress, complete, periodLabel, typeLabel, outstanding }) =>
       <button type="button" className="tree-row flat-engagement-row" key={engagement.id}
         data-selected={selection?.kind === kind && selection.id === engagement.id || undefined}
         onClick={() => onSelect({ kind, id: engagement.id, entityId: entity.id })}>
         <span className="tree-kind-mark"><CalendarDays aria-hidden="true" /></span>
-        <span className="tree-copy"><strong>{entity.legalName}</strong><small className="flat-engagement-period">{periodLabel}</small>
-          <small>{[engagementTypeLabel(engagement.engagementType, language), engagement.owner]
-            .filter(Boolean).join(" · ") || t(complete ? "已完成" : "进行中")}</small></span>
+        <span className="tree-copy"><strong className="flat-engagement-type">{typeLabel}</strong>
+          <small className="flat-engagement-period">{periodLabel}</small>
+          <small className="flat-engagement-company">{[entity.legalName, engagement.owner]
+            .filter(Boolean).join(" · ")}</small></span>
         {outstanding > 0 && <em>{outstanding}</em>}<span className="tree-progress">{complete ? "✓" : `${progress}%`}</span>
       </button>) : <div className="list-empty"><strong>{t(store.engagements.length ? "没有符合筛选的年度项目" : "还没有年度项目")}</strong>
       <span>{t(store.engagements.length ? "更改状态筛选或搜索内容。" : "先在公司主档中建立年度项目。")}</span></div>}
@@ -306,13 +308,14 @@ function EntityWorkspaceTree({ store, selection, onSelect, onMove, search, filte
     const complete = engagementComplete(engagement, entity);
     const outstanding = (engagement.outstandingItems || []).filter((item) => outstandingIsOpen(item, statuses)).length;
     const kind = entity.kind === "holding_company" ? "group" : "project";
+    const typeLabel = engagementTypeLabel(engagement.engagementType, language) || t("项目类型未设置");
+    const periodLabel = yearEndOrPeriodLabel(engagement, language) || t("未设置报告期间");
     return <button type="button" className="tree-row tree-engagement-row" style={{ "--tree-depth": depth }} key={engagement.id}
       data-selected={selection?.kind === kind && selection.id === engagement.id || undefined}
       onClick={() => onSelect({ kind, id: engagement.id, entityId: entity.id })}>
-      <span className="tree-kind-mark"><CalendarDays aria-hidden="true" /></span><span className="tree-copy">
-        <strong>{yearEndOrPeriodLabel(engagement, language) || t("未设置报告期间")}</strong>
-        <small>{[engagementTypeLabel(engagement.engagementType, language), engagement.owner]
-          .filter(Boolean).join(" · ") || t(complete ? "已完成" : "进行中")}</small></span>
+        <span className="tree-kind-mark"><CalendarDays aria-hidden="true" /></span><span className="tree-copy">
+        <strong className="tree-engagement-type">{typeLabel}</strong>
+        <small className="tree-engagement-period">{[periodLabel, engagement.owner].filter(Boolean).join(" · ")}</small></span>
       {outstanding > 0 && <em>{outstanding}</em>}<span className="tree-progress">{complete ? "✓" : entity.kind === "company"
         ? `${projectStats(store.projects.find((item) => item.id === engagement.id) || { workstreams: [] }).percentage}%` : `${groupProgress(store, engagement.id).percentage}%`}</span>
     </button>;

@@ -277,12 +277,12 @@
 .delete-link { color: var(--secondary); }
 .delete-link:hover { color: var(--wb-danger); }
 
-.workbench-modal-backdrop { position: fixed; z-index: 100; inset: 0; display: grid; place-items: center; padding: 20px;
+.workbench-modal-backdrop { position: fixed; z-index: 100; inset: 0; display: grid; place-items: center; padding: 12px;
   background: rgb(16 24 18 / 44%); backdrop-filter: blur(4px); }
-.workbench-modal { display: flex; width: min(560px, 100%); max-height: min(760px, calc(100vh - 40px)); overflow: hidden; flex-direction: column;
+.workbench-modal { display: flex; width: min(560px, 100%); max-height: min(860px, calc(100vh - 24px)); overflow: hidden; flex-direction: column;
   border: 1px solid var(--border); border-radius: 16px; background: var(--surface-raised); box-shadow: 0 24px 70px rgb(0 0 0 / 24%); }
 .workbench-modal[data-wide] { width: min(780px, 100%); }
-.workbench-modal[data-large] { width: min(1040px, 100%); overflow: hidden; }
+.workbench-modal[data-large] { width: min(1120px, 100%); overflow: hidden; }
 .workbench-modal > header { display: flex; flex: 0 0 auto; align-items: center; justify-content: space-between; gap: 16px; padding: 18px 22px; border-bottom: 1px solid var(--border); }
 .workbench-modal-body { min-height: 0; overflow-y: auto; overscroll-behavior: contain; scrollbar-gutter: stable; }
 .workbench-modal h2 { margin: 0; font-size: 18px; }
@@ -313,6 +313,32 @@
 .project-date-groups legend { padding: 0 5px; color: var(--wb-accent-dark); font-size: 10px; font-weight: 750; }
 .project-date-groups fieldset > div { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
 .project-date-groups label { gap: 4px; }
+.project-date-groups fieldset > .schedule-range-picker { position: relative; display: grid; grid-template-columns: minmax(0, 1fr); gap: 7px; }
+.schedule-range-fields { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr) 36px; align-items: end; gap: 8px; }
+.schedule-range-arrow { display: grid; min-height: 36px; place-items: center; color: var(--secondary); font-size: 14px; }
+.audit-workbench .schedule-range-open { width: 36px; min-width: 36px; height: 36px; min-height: 36px; padding: 0; }
+.schedule-range-open svg { width: 16px; height: 16px; }
+.schedule-range-help { color: var(--secondary); font-size: 9px; line-height: 1.4; }
+.schedule-range-calendar { display: grid; gap: 8px; padding: 10px; border: 1px solid var(--border-strong); border-radius: 10px;
+  background: var(--surface-raised); box-shadow: var(--shadow-sm); }
+.schedule-range-calendar > header { display: grid; grid-template-columns: 30px minmax(0, 1fr) 30px; align-items: center; gap: 7px; }
+.schedule-range-calendar > header strong { text-align: center; }
+.schedule-range-calendar > header .icon-only { width: 30px; min-width: 30px; height: 30px; min-height: 30px; padding: 0; }
+.schedule-range-calendar > p { margin: 0; color: var(--secondary); font-size: 10px; text-align: center; }
+.schedule-range-weekdays, .schedule-range-days { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); }
+.schedule-range-weekdays span { padding: 4px; color: var(--secondary); font-size: 9px; font-weight: 650; text-align: center; }
+.schedule-range-days button { min-width: 0; min-height: 34px; padding: 0; border: 0; border-radius: 0; cursor: pointer;
+  background: transparent; color: var(--text); font-size: 11px; }
+.schedule-range-days button:hover, .schedule-range-days button:focus-visible { position: relative; z-index: 1; outline: 2px solid var(--wb-accent);
+  outline-offset: -2px; background: var(--control-hover); }
+.schedule-range-days button[data-outside] { color: color-mix(in srgb, var(--secondary) 55%, transparent); }
+.schedule-range-days button[data-in-range] { background: var(--wb-accent-soft); }
+.schedule-range-days button[data-range-start], .schedule-range-days button[data-range-end] { border-radius: 7px; background: var(--wb-accent); color: white; font-weight: 750; }
+.schedule-range-calendar > footer { display: flex; min-width: 0; align-items: center; justify-content: space-between; gap: 10px; padding-top: 3px; }
+.schedule-range-calendar > footer .text-button { display: inline-flex; align-items: center; gap: 4px; padding: 4px 6px; border: 0;
+  cursor: pointer; background: transparent; color: var(--secondary); font-size: 9px; }
+.schedule-range-calendar > footer .text-button svg { width: 13px; height: 13px; }
+.schedule-range-calendar > footer span { min-width: 0; overflow: hidden; color: var(--secondary); font-size: 9px; text-overflow: ellipsis; white-space: nowrap; }
 .workbench-form .check-option { grid-template-columns: auto minmax(0, 1fr); align-items: start; padding: 13px;
   border: 1px solid var(--border); border-radius: 10px; background: var(--surface); cursor: pointer; }
 .check-option input { width: 17px; height: 17px; margin-top: 1px; accent-color: var(--wb-accent); }
@@ -676,6 +702,13 @@
 .outstanding-center { display: flex; min-height: 0; flex: 1; flex-direction: column; }
 .outstanding-center-tools { display: grid; gap: 8px; padding: 10px; border-bottom: 1px solid var(--border); }
 .outstanding-center-tools > div { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; }
+.outstanding-center-tools > .outstanding-visibility-tabs { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.outstanding-visibility-tabs button { display: flex; min-width: 0; align-items: center; justify-content: center; gap: 5px; }
+.outstanding-visibility-tabs button[aria-pressed="true"] { border-color: color-mix(in srgb, var(--wb-accent) 58%, var(--border));
+  background: var(--wb-accent-soft); color: var(--wb-accent-dark); }
+.outstanding-visibility-tabs button span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.outstanding-visibility-tabs button strong { min-width: 17px; padding: 1px 4px; border-radius: 999px; background: var(--control);
+  font-size: 8px; font-variant-numeric: tabular-nums; }
 .outstanding-center-tools > .outstanding-center-actions { display: flex; justify-content: flex-end; }
 .outstanding-center-tools select { width: 100%; min-width: 0; padding: 7px 8px; border: 1px solid var(--border); border-radius: 8px;
   background: var(--surface-raised); color: var(--text); font-size: 9px; }
@@ -940,7 +973,9 @@
 .flat-engagement-list { gap: 4px; }
 .flat-engagement-row { grid-template-columns: 26px minmax(0, 1fr) auto 38px; align-items: start; padding-block: 10px; }
 .flat-engagement-row .tree-kind-mark { margin-top: 1px; background: var(--wb-accent-soft); color: var(--wb-accent-dark); }
-.flat-engagement-period { color: var(--wb-accent-dark) !important; font-weight: 700; }
+.flat-engagement-type { color: var(--text); font-weight: 750; }
+.flat-engagement-period, .tree-engagement-period { color: var(--wb-accent-dark) !important; font-weight: 700; }
+.flat-engagement-company { color: var(--secondary); }
 .tree-branch { min-width: 0; }
 .tree-group-line { position: relative; display: grid; min-width: 0; grid-template-columns: 18px minmax(0, 1fr); align-items: center;
   gap: 3px; margin-left: calc(var(--tree-depth) * 15px); border-radius: 9px; }
@@ -1555,6 +1590,10 @@
 .schedule-heading-actions { display: flex; flex: 0 0 auto; align-items: center; gap: 10px; }
 .schedule-heading-actions .button { display: inline-flex; min-height: 30px; align-items: center; gap: 5px; padding: 5px 9px; font-size: 10px; }
 .schedule-heading-actions .button svg { width: 14px; height: 14px; }
+.schedule-precision { display: grid; grid-template-columns: repeat(3, auto); padding: 2px; border-radius: 8px; background: var(--control); }
+.schedule-precision button { min-width: 30px; min-height: 26px; padding: 3px 7px; border: 0; border-radius: 6px; cursor: pointer;
+  background: transparent; color: var(--secondary); font-size: 9px; font-weight: 700; }
+.schedule-precision button[aria-pressed="true"] { background: var(--surface-raised); box-shadow: var(--shadow-sm); color: var(--wb-accent-dark); }
 .schedule-summary { display: flex; align-items: center; gap: 6px; }
 .schedule-summary span { padding: 3px 7px; border-radius: 999px; background: var(--control); color: var(--secondary);
   font-size: 9px; font-weight: 650; white-space: nowrap; }
@@ -1591,7 +1630,7 @@
 .schedule-months span, .schedule-weeks span { display: grid; min-width: 0; place-items: center; border-right: 1px solid var(--border);
   color: var(--secondary); font-size: 8px; font-weight: 650; white-space: nowrap; }
 .schedule-months span { overflow: hidden; color: var(--text); font-size: 9px; text-overflow: ellipsis; }
-.schedule-weeks span { width: var(--week-width); flex: 0 0 var(--week-width); }
+.schedule-weeks span { flex: 0 0 auto; }
 .schedule-today-header { position: absolute; z-index: 6; top: 0; bottom: 0; width: 0; border-left: 1px dashed #bb4939; pointer-events: none; }
 .schedule-today-header b { position: absolute; top: 3px; left: 3px; padding: 1px 4px; border-radius: 5px;
   background: #f8e5e3; color: #9d3f33; font-size: 7px; font-weight: 750; white-space: nowrap; }
@@ -1622,7 +1661,6 @@
 .schedule-row-open small { color: var(--secondary); font-size: 8px; font-weight: 500; line-height: 1.25; }
 .schedule-row-open .schedule-reporting-period { color: var(--wb-accent-dark); font-weight: 700; }
 .schedule-row-open .schedule-project-type { color: var(--text); font-weight: 650; }
-.schedule-delivery-period { overflow-wrap: anywhere; }
 .schedule-row-open small b { margin: 0 4px; color: var(--secondary); font-weight: 500; }
 .schedule-row-meta[data-dragging] { opacity: .46; }
 .schedule-row-meta[data-drop-position="before"], .schedule-lane[data-drop-position="before"] {
@@ -1631,8 +1669,8 @@
   box-shadow: inset 0 -2px var(--wb-accent); }
 .schedule-lane { position: relative; min-height: 76px; overflow: hidden; border-bottom: 1px solid var(--border);
   background-color: var(--surface-raised);
-  background-image: repeating-linear-gradient(to right, transparent 0, transparent calc(var(--week-width) - 1px),
-    color-mix(in srgb, var(--border) 72%, transparent) calc(var(--week-width) - 1px), color-mix(in srgb, var(--border) 72%, transparent) var(--week-width)); }
+  background-image: repeating-linear-gradient(to right, transparent 0, transparent calc(var(--time-grid-width) - 1px),
+    color-mix(in srgb, var(--border) 72%, transparent) calc(var(--time-grid-width) - 1px), color-mix(in srgb, var(--border) 72%, transparent) var(--time-grid-width)); }
 .schedule-row-meta:last-of-type, .schedule-lane:last-child { border-bottom: 0; }
 .schedule-bar { position: absolute; z-index: 2; top: 50%; display: grid; height: 18px; min-width: 8px; overflow: hidden;
   place-items: center; padding: 0 4px; border: 0; border-radius: 5px; cursor: pointer; background: var(--wb-accent);
@@ -1834,6 +1872,7 @@
   .schedule-heading p { display: none; }
   .schedule-grid { grid-template-columns: var(--schedule-meta-width, 255px) var(--timeline-width); }
   .schedule-summary span:first-child { display: none; }
+  .schedule-heading-actions { gap: 5px; }
 }
 
 @media (max-width: 900px) {
@@ -1847,6 +1886,7 @@
   .schedule-heading { align-items: flex-start; }
   .schedule-heading-actions { gap: 5px; }
   .schedule-summary { display: none; }
+  .schedule-precision button { min-width: 27px; padding-inline: 5px; }
   .schedule-grid { grid-template-columns: 220px var(--timeline-width); }
   .deadline-alert-row { grid-template-columns: 28px minmax(0, 1fr) auto; gap: 8px; padding-inline: 11px; }
   .deadline-alert-row > svg { display: none; }
@@ -1935,6 +1975,25 @@
 /* V11 keeps long-lived company masters separate from annual engagements. */
 .company-master-form, .annual-engagement-form, .merge-entities-form { gap: 11px; }
 .company-holding-toggle { padding-block: 9px !important; }
+.company-creation-mode { width: min(320px, 100%); }
+.group-batch-builder { display: grid; min-width: 0; gap: 9px; padding: 10px 11px; border: 1px solid var(--border);
+  border-radius: 10px; background: var(--surface); }
+.group-batch-builder > header { display: flex; min-width: 0; align-items: center; justify-content: space-between; gap: 10px; }
+.group-batch-builder > header > div { display: grid; min-width: 0; gap: 2px; }
+.group-batch-builder > header strong { font-size: 11px; }
+.group-batch-builder > header span { color: var(--secondary); font-size: 9px; line-height: 1.4; }
+.group-batch-builder > header .button { min-height: 30px; flex: 0 0 auto; padding: 5px 8px; font-size: 9px; }
+.group-batch-list { display: grid; gap: 7px; }
+.group-batch-list > article { display: grid; min-width: 0; grid-template-columns: 24px minmax(145px, 1.25fr)
+  minmax(120px, .85fr) minmax(145px, 1fr) minmax(110px, .75fr) 30px; align-items: end; gap: 7px;
+  padding: 8px; border: 1px solid var(--border); border-radius: 9px; background: var(--surface-raised); }
+.group-batch-number { display: grid; width: 24px; height: 31px; place-items: center; color: var(--wb-accent-dark);
+  font-size: 9px; font-weight: 750; }
+.group-batch-list label { min-width: 0; gap: 4px; }
+.group-batch-list label > span:first-child { color: var(--secondary); font-size: 8px; }
+.group-batch-list :is(input, select) { height: 31px; padding: 5px 7px; font-size: 9px; }
+.group-batch-list .icon-button { width: 30px; height: 31px; }
+.group-batch-list .icon-button:disabled { opacity: .35; cursor: not-allowed; }
 .company-master-lead, .engagement-company-lock { display: flex; min-width: 0; align-items: center; gap: 10px; padding: 10px 11px;
   border: 1px solid var(--border); border-radius: 10px; background: var(--surface); }
 .company-master-lead > svg, .engagement-company-lock > i { width: 30px; height: 30px; flex: 0 0 auto; padding: 7px;
@@ -1948,17 +2007,27 @@
   border-radius: 10px; background: var(--surface); }
 .period-builder > header, .engagement-source > header { display: flex; min-width: 0; align-items: center; justify-content: space-between; gap: 12px; }
 .period-builder > header > div, .engagement-source > header { min-width: 0; }
-.period-builder > header > div { display: flex; min-width: 0; align-items: baseline; gap: 8px; }
+.period-builder > header > div { display: flex; min-width: 0; flex-wrap: wrap; align-items: baseline; gap: 3px 8px; }
 .period-builder > header strong, .engagement-source > header strong { flex: 0 0 auto; font-size: 11px; }
-.period-builder > header span, .engagement-source > header span { overflow: hidden; color: var(--secondary); font-size: 9px;
+.period-builder > header span { color: var(--secondary); font-size: 9px; line-height: 1.4; white-space: normal; }
+.engagement-source > header span { overflow: hidden; color: var(--secondary); font-size: 9px;
   text-overflow: ellipsis; white-space: nowrap; }
-.period-builder > header em { flex: 0 0 auto; padding: 3px 7px; border-radius: 999px; background: var(--control);
+.period-builder > header em, .period-builder > em { width: max-content; max-width: 100%; padding: 3px 7px; border-radius: 999px; background: var(--control);
   color: var(--secondary); font-size: 8px; font-style: normal; white-space: nowrap; }
+.period-builder-actions { display: flex !important; flex: 0 0 auto; align-items: center !important; gap: 5px !important; }
 .period-create-another { display: inline-flex; min-height: 28px; flex: 0 0 auto; align-items: center; gap: 5px; padding: 4px 8px;
   border: 1px solid var(--border); border-radius: 7px; cursor: pointer; background: var(--surface-raised); color: var(--wb-accent-dark);
   font-size: 8px; font-weight: 700; white-space: nowrap; }
 .period-create-another:hover { border-color: var(--wb-accent); background: var(--wb-accent-soft); }
 .period-create-another svg { width: 13px; height: 13px; }
+.reporting-period-list { display: grid; min-width: 0; gap: 7px; }
+.reporting-period-list > article { display: grid; min-width: 0; gap: 7px; padding: 8px; border: 1px solid var(--border);
+  border-radius: 9px; background: var(--surface-raised); }
+.reporting-period-heading { display: flex; min-width: 0; align-items: center; justify-content: space-between; gap: 8px; }
+.reporting-period-heading > span { color: var(--wb-accent-dark); font-size: 9px; font-weight: 750; }
+.reporting-period-heading .icon-button { width: 26px; height: 26px; }
+.reporting-period-heading .icon-button svg { width: 13px; height: 13px; }
+.reporting-period-heading .icon-button:disabled { opacity: .3; cursor: not-allowed; }
 .period-builder-controls { display: grid; min-width: 0; grid-template-columns: minmax(145px, 1.1fr) minmax(88px, .55fr)
   repeat(2, minmax(142px, 1fr)); gap: 7px; }
 .period-builder-controls label, .engagement-source > label { display: grid; min-width: 0; gap: 4px; }
@@ -2084,6 +2153,7 @@
 .tree-engagement-row { width: calc(100% - 24px); margin: 3px 0 3px 24px; border-style: dashed; }
 .tree-engagement-row .tree-kind-mark { width: 22px; height: 22px; border-radius: 6px; background: var(--control); color: var(--secondary); }
 .tree-engagement-row .tree-kind-mark svg { width: 12px; height: 12px; }
+.tree-engagement-type { line-height: 1.25; }
 .tree-entity-branch > .tree-children > .tree-engagement-row::before { position: absolute; top: 19px; left: -7px; width: 16px;
   height: 1px; background: var(--tree-line); content: ""; }
 .tree-entity-branch > .tree-children::before { left: var(--tree-line-offset); }
@@ -2124,6 +2194,8 @@
 
 @container workspace (max-width: 820px) {
   .period-builder-controls { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .group-batch-list > article { grid-template-columns: 24px repeat(2, minmax(0, 1fr)) 30px; }
+  .group-batch-list > article > label:nth-of-type(n + 3) { grid-column: span 1; }
   .entity-facts { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .entity-facts > :is(button, div) { border-bottom: 1px solid var(--border); }
   .entity-facts > :nth-child(2n) { border-right: 0; }
@@ -2137,6 +2209,9 @@
   .period-builder > header, .entity-overview-header, .annual-project-list > header, .holding-components-panel > header,
   .entity-overview-footer { align-items: stretch; flex-direction: column; }
   .period-builder > header > div { align-items: flex-start; flex-direction: column; gap: 2px; }
+  .period-builder-actions { align-items: stretch !important; flex-direction: column; }
+  .group-batch-builder > header { align-items: stretch; flex-direction: column; }
+  .group-batch-builder > header .button { align-self: flex-start; }
   .period-builder > header span, .entity-overview-footer span { white-space: normal; }
   .entity-overview-actions { justify-content: flex-end; }
   .annual-project-open { grid-template-columns: minmax(120px, 1fr) 80px 70px 14px; }
@@ -2148,6 +2223,9 @@
 
 @media (max-width: 500px) {
   .period-builder-controls, .entity-facts, .merge-preview { grid-template-columns: minmax(0, 1fr); }
+  .group-batch-list > article { grid-template-columns: 24px minmax(0, 1fr) 30px; }
+  .group-batch-list > article > label { grid-column: 2; }
+  .group-batch-list > article > .icon-button { grid-column: 3; grid-row: 1; }
   .entity-facts > :is(button, div), .merge-preview > div { border-right: 0; border-bottom: 1px solid var(--border); }
   .entity-facts > :last-child, .merge-preview > div:last-child { border-bottom: 0; }
   .annual-template-picker > div { grid-template-columns: minmax(0, 1fr); }
@@ -2334,7 +2412,8 @@
   .annual-project-open strong, .entity-outstanding-summary button strong, .entity-children button strong,
   .component-identity strong, .management-report-section h3, .management-risk-grid button strong,
   .record-workstream-grid strong, .record-stage-list strong { font-size: 14px; }
-  .flat-engagement-period, .annual-period > strong { font-size: 14px !important; }
+  .flat-engagement-type, .tree-engagement-type { font-size: 15px !important; }
+  .flat-engagement-period, .tree-engagement-period, .annual-period > strong { font-size: 13px !important; }
   .tree-progress, .tree-row em, .workspace-tree-bulk-actions button { font-size: 12px; }
   .entity-overview-title span, .management-report-heading > div:first-child > span,
   .management-report-filters label > span, .management-metric-strip span,
@@ -2343,6 +2422,13 @@
   .entity-children header p, .holding-components-panel header p, .management-report-heading p { font-size: 13px; }
   .entity-overview-actions .button, .annual-project-list > header .button,
   .holding-components-panel > header .button, .entity-overview-footer .button { font-size: 13px; }
+  .group-batch-builder > header strong, .period-builder > header strong,
+  .engagement-source > header strong, .reporting-period-heading > span,
+  .period-preview strong { font-size: 14px; }
+  .group-batch-builder > header span, .period-builder > header span,
+  .engagement-source > header span, .period-preview span { font-size: 13px; }
+  .group-batch-number { font-size: 13px; }
+  .period-builder > header em, .period-builder > em { font-size: 12px; }
   .annual-project-list h3, .entity-outstanding-summary h3, .entity-children h3,
   .holding-components-panel h3 { font-size: 16px; }
   .schedule-heading p, .schedule-corner span, .schedule-months span,
@@ -2353,45 +2439,41 @@
   .management-report-table th, .record-risk-tables th { font-size: 12px; }
   .management-risk-grid > article > header strong, .record-risk-tables > article > header strong,
   .record-report-facts strong { font-size: 14px; }
+  .workbench-modal { font-size: 16px; }
+  .workbench-modal h2 { font-size: 22px; }
+  .workbench-modal .workbench-form :is(button, input, textarea, select) { font-size: 15px; }
+  .workbench-modal .workbench-form :is(label > span, dt) { font-size: 14px !important; }
+  .workbench-modal .form-help { font-size: 13px; }
+  .company-master-lead strong, .engagement-company-lock strong { font-size: 15px; }
+  .company-master-lead span, .engagement-company-lock small { font-size: 13px; }
 }
 
 @media print {
-  @page apw-report-en {
+  @page {
     margin: 12mm 12mm 17mm;
     @bottom-left { color: #6b746d; content: "APW · Audit Project Workbench"; font-size: 7pt; }
-    @bottom-right { color: #6b746d; content: "Page " counter(page) " / " counter(pages); font-size: 7pt; }
-  }
-  @page apw-report-zh-hans {
-    margin: 12mm 12mm 17mm;
-    @bottom-left { color: #6b746d; content: "APW · 审计项目工作台"; font-size: 7pt; }
-    @bottom-right { color: #6b746d; content: "第 " counter(page) " / " counter(pages) " 页"; font-size: 7pt; }
-  }
-  @page apw-report-zh-hant {
-    margin: 12mm 12mm 17mm;
-    @bottom-left { color: #6b746d; content: "APW · 審計項目工作台"; font-size: 7pt; }
-    @bottom-right { color: #6b746d; content: "第 " counter(page) " / " counter(pages) " 頁"; font-size: 7pt; }
+    @bottom-right { color: #6b746d; content: counter(page) " / " counter(pages); font-size: 7pt; }
   }
   :root { color-scheme: light; }
   html, body, #root { height: auto !important; overflow: visible !important; background: white !important; }
   body { color: #18231b !important; print-color-adjust: exact; -webkit-print-color-adjust: exact; }
   .audit-workbench { display: block !important; width: auto !important; height: auto !important; min-height: 0 !important; padding: 0 !important; }
-  .app-rail, .project-panel, .outstanding-center-shell, .save-toast { display: none !important; }
+  .app-rail, .project-panel, .outstanding-center-shell, .workspace-history-controls, .save-toast { display: none !important; }
   .workbench-layout, .workbench-layout[data-sidebar-collapsed], .workbench-layout[data-outstanding-collapsed],
   .workbench-layout[data-sidebar-collapsed][data-outstanding-collapsed] { display: block !important; width: auto !important; height: auto !important;
     min-height: 0 !important; overflow: visible !important; border: 0 !important; box-shadow: none !important; }
   .project-detail { width: auto !important; height: auto !important; overflow: visible !important; padding: 0 !important; }
-  .management-report { gap: 7px; padding: 0; }
-  html[lang="en"] .management-report { page: apw-report-en; }
-  html[lang="zh-Hans"] .management-report { page: apw-report-zh-hans; }
-  html[lang="zh-Hant"] .management-report { page: apw-report-zh-hant; }
+  .management-report { gap: 7px; padding: 0; page: auto; break-before: auto; break-after: auto; }
   .management-report-tabs, .management-report-filters, .report-print-button { display: none !important; }
   .print-report-scope { display: flex; flex-wrap: wrap; gap: 3px 12px; padding: 6px 8px; border: 1px solid #d9dfda;
     border-radius: 6px; color: #556059; font-size: 7pt; }
   .print-report-scope strong { width: 100%; color: #18231b; font-size: 7.5pt; }
   .management-report-heading { padding-bottom: 7px; }
   .management-report-heading h2 { font-size: 18pt; }
-  .management-report-section, .management-metric-strip, .management-risk-grid > article, .record-risk-tables > article,
+  .management-metric-strip, .management-risk-grid > article, .record-risk-tables > article,
   .record-report-facts, .record-workstream-grid article, .record-stage-list article { break-inside: avoid; box-shadow: none !important; }
+  .management-report-section { break-inside: auto; box-shadow: none !important; }
+  .management-report-section > header, .management-report-table thead, .management-report-table tr { break-inside: avoid; }
   .management-table-scroll, .management-risk-grid > article > div { max-height: none !important; overflow: visible !important; }
   .management-report-table { min-width: 0; font-size: 7pt; }
   .management-report-table th { position: static; }

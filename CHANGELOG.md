@@ -6,6 +6,26 @@ The project follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.6.4] - 2026-09-04
+
+### Added
+
+- An engagement can contain multiple reporting years when the work and billing are managed together; all included periods share one engagement type, owner, schedule, workflow, outstanding list and progress state while remaining explicit in navigation, reports and backups.
+- Holding company batch creation establishes one holding-company master and multiple member-company masters, including each member's custom entity type, fiscal-year default and relationship role, in one saved operation.
+
+### Changed
+
+- Project navigation and project workspaces now lead with the engagement type, followed by the explicit year end or reporting period; the flat Projects view keeps the company and owner as supporting context.
+- Schedule identity rows place the owner immediately after the engagement type and reveal project start and deadline dates only from the timeline bar.
+- Project schedules use one two-click range calendar and the timeline can switch between saved day, week and month precision.
+- Workstreams now inherit context from their annual engagement instead of exposing separate owner and deadline fields; compact cards use the progress ring without repeating stage counts.
+- The outstanding centre has explicit Open, Cleared / archived and All views, so cleared items remain discoverable and can be reopened.
+
+### Fixed
+
+- Tax-deadline markers on the schedule use a horizontal browser tooltip instead of rotating and clipping the date label inside the timeline row.
+- Management-report printing uses one continuous page context, avoiding blank first and last pages.
+
 ## [0.6.3] - 2026-09-04
 
 ### Added

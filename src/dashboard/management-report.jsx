@@ -175,7 +175,6 @@ function ProjectRecordReport({ report, statuses }) {
     <section className="management-report-section"><header><div><h3>{t("业务模块")}</h3><span>{t("并行进度与当前节点")}</span></div></header>
       {report.workstreams.length ? <div className="record-workstream-grid">{report.workstreams.map((workstream) => <article key={workstream.id}><header><strong>
         {workstreamTypeLabel(workstream.type, language, workstream.customName)}</strong><span>{workstream.stats.percentage}%</span></header>
-        <p>{workstream.owner || t("未设置负责人")} · {formatDate(workstream.dueDate, language)}</p>
         <footer><span>{t("{done}/{total} 个节点", { done: workstream.stats.completedNodes, total: workstream.stats.nodes })}</span>
           <strong>{workstream.currentStage?.title || t("全部节点已完成")}</strong></footer></article>)}</div>
         : <div className="management-report-empty compact"><strong>{t("尚未启用业务模块")}</strong></div>}</section>
@@ -213,7 +212,8 @@ function EntityRecordReport({ report, statuses }) {
     <section className="management-report-section"><header><div><h3>{t("历年项目")}</h3><span>{t("报告期间、负责人、排期和状态")}</span></div></header>
       {report.projects.length ? <div className="management-table-scroll"><table className="management-report-table"><thead><tr>
         <th>{t("报告期间")}</th><th>{t("项目类型")}</th><th>{t("负责人")}</th><th>{t("项目排期")}</th><th>{t("状态")}</th></tr></thead><tbody>
-        {report.projects.map((project) => <tr key={project.id}><td><strong>{project.label}</strong><small>{formatDate(project.periodStart, language)} → {formatDate(project.periodEnd, language)}</small></td>
+        {report.projects.map((project) => <tr key={project.id}><td><strong>{project.label}</strong>
+          <small>{reportingPeriodLabel(project, language)}</small></td>
           <td>{engagementTypeLabel(project.engagementType, language) || t("项目类型未设置")}</td>
           <td>{project.owner || "—"}</td><td>{formatDate(project.startDate, language)} → {formatDate(project.dueDate, language)}</td>
           <td>{t(project.archived ? "归档" : project.complete ? "已完成" : "进行中")}</td></tr>)}</tbody></table></div>

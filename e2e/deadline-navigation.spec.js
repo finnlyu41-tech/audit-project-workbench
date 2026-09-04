@@ -25,6 +25,11 @@ test("deadline alerts navigate to the source and the schedule aggregates same-da
   await expect(schedule).toBeVisible();
   await expect(page.locator(".schedule-today-header")).toBeVisible();
   await expect(page.locator(".schedule-today-line")).toHaveCount(2);
+  await page.getByRole("button", { name: "Day", exact: true }).click();
+  await expect(page.locator(".schedule-grid")).toHaveAttribute("data-precision", "day");
+  await page.getByRole("button", { name: "Month", exact: true }).click();
+  await expect(page.locator(".schedule-grid")).toHaveAttribute("data-precision", "month");
+  await page.getByRole("button", { name: "Week", exact: true }).click();
   await schedule.evaluate((element) => { element.scrollLeft = 0; });
   await page.getByRole("button", { name: "Today" }).click();
   await expect.poll(() => schedule.evaluate((element) => element.scrollLeft)).toBeGreaterThan(0);
@@ -35,6 +40,8 @@ test("deadline alerts navigate to the source and the schedule aggregates same-da
   const marker = page.locator(".schedule-tax-marker").filter({ has: page.locator("strong", { hasText: "2" }) });
   await expect(marker).toHaveCount(1);
   await expect(marker.locator("strong")).toHaveText("2");
+  await expect(marker).toHaveAttribute("title", /2026/);
+  await expect(marker).not.toHaveAttribute("data-tooltip");
   await marker.click();
   await expect(page.getByRole("dialog", { name: "Tax deadlines" })).toBeVisible();
 });
@@ -50,6 +57,10 @@ test("schedule rows can be dragged into a saved order and open focused date sett
   await page.locator(".app-rail-button[aria-label='Project schedule']").click();
   const firstRow = page.locator(".schedule-row-meta").filter({ hasText: "Example Services Limited" });
   const secondRow = page.locator(".schedule-row-meta").filter({ hasText: "Second Company Limited" });
+  await expect(secondRow.locator(".schedule-project-type")).toContainText(second.owner);
+  await expect(secondRow.locator(".schedule-delivery-period")).toHaveCount(0);
+  await expect(page.getByRole("button", { name: /Second Company Limited: 1 Nov 2026 to 15 Dec 2026/ }))
+    .toHaveAttribute("title", /1 Nov 2026 → 15 Dec 2026/);
   await secondRow.locator(".schedule-drag-handle").dragTo(firstRow, { targetPosition: { x: 120, y: 3 } });
 
   await expect(page.locator(".schedule-row-open strong").first()).toContainText("Second Company Limited");
@@ -70,15 +81,19 @@ test("schedule rows can be dragged into a saved order and open focused date sett
   await page.getByRole("button", { name: /Edit the project schedule for Second Company Limited/ }).click();
   const dialog = page.getByRole("dialog", { name: "Project schedule · Second Company Limited" });
   await expect(dialog).toBeVisible();
-  await dialog.getByLabel("Start").fill("2026-11-03");
-  await dialog.getByLabel("Due date").fill("2026-12-20");
+  await dialog.getByRole("button", { name: "Choose project date range" }).click();
+  const calendar = dialog.getByRole("dialog", { name: "Project date range" });
+  await calendar.getByRole("gridcell", { name: "Tuesday, 3 November 2026" }).click();
+  await expect(calendar.getByText(/Start date selected/)).toBeVisible();
+  await calendar.getByRole("gridcell", { name: "Friday, 20 November 2026" }).click();
+  await expect(calendar).toHaveCount(0);
   await dialog.getByRole("button", { name: "Save engagement schedule" }).click();
 
   await expect(page.locator(".schedule-view")).toBeVisible();
   stored = await readStoredWorkspace(page);
   const saved = stored.engagements.find((project) => project.id === second.id);
   expect(saved.startDate).toBe("2026-11-03");
-  expect(saved.dueDate).toBe("2026-12-20");
+  expect(saved.dueDate).toBe("2026-11-20");
 });
 
 test("holding-company and legacy company dates open in focused schedule settings", async ({ page }) => {
@@ -99,7 +114,7 @@ test("holding-company and legacy company dates open in focused schedule settings
 
   await page.getByRole("button", { name: new RegExp(`Edit the project schedule for ${holding.name}`) }).click();
   dialog = page.getByRole("dialog", { name: `Project schedule · ${holding.name}` });
-  await dialog.getByLabel("Due date").fill("2027-01-15");
+  await dialog.getByLabel("Deadline", { exact: true }).fill("2027-01-15");
   await dialog.getByRole("button", { name: "Save engagement schedule" }).click();
   await expect(dialog).toBeHidden();
   await expect.poll(async () => (await readStoredWorkspace(page)).engagements

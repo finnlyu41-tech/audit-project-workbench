@@ -1093,6 +1093,60 @@ export function inferPeriodPreset(periodStart, periodEnd) {
   return "custom";
 }
 
+function rawReportingPeriods(engagement = {}) {
+  const source = engagement && typeof engagement === "object" ? engagement : {};
+  if (Array.isArray(source.reportingPeriods) && source.reportingPeriods.length) {
+    return source.reportingPeriods;
+  }
+  if (source.periodStart || source.periodEnd) return [{
+    periodPreset: source.periodPreset,
+    periodStart: source.periodStart || "",
+    periodEnd: source.periodEnd || "",
+  }];
+  return [];
+}
+
+export function engagementReportingPeriods(engagement = {}) {
+  return rawReportingPeriods(engagement).map((period, index) => {
+    const periodStart = typeof period?.periodStart === "string" ? period.periodStart : "";
+    const periodEnd = typeof period?.periodEnd === "string" ? period.periodEnd : "";
+    return {
+      id: typeof period?.id === "string" && period.id ? period.id : `reporting-period-${index}-${periodStart}-${periodEnd}`,
+      periodPreset: normalizeEngagementPeriodPreset(period?.periodPreset,
+        inferPeriodPreset(periodStart, periodEnd)),
+      periodStart,
+      periodEnd,
+    };
+  }).filter((period) => period.periodStart || period.periodEnd)
+    .sort((left, right) => left.periodStart.localeCompare(right.periodStart)
+      || left.periodEnd.localeCompare(right.periodEnd));
+}
+
+function normalizeReportingPeriods(engagement = {}) {
+  const seen = new Set();
+  return engagementReportingPeriods(engagement).filter((period) => {
+    const key = `${period.periodStart}|${period.periodEnd}`;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  }).map((period) => ({ ...period,
+    id: period.id.startsWith("reporting-period-") ? uid("reporting-period") : period.id }));
+}
+
+function reportingPeriodKey(period = {}) {
+  return `${period.periodStart || ""}|${period.periodEnd || ""}`;
+}
+
+export function engagementReportingPeriodsMatch(left, right) {
+  const leftKeys = engagementReportingPeriods(left).map(reportingPeriodKey);
+  const rightKeys = engagementReportingPeriods(right).map(reportingPeriodKey);
+  return leftKeys.length === rightKeys.length && leftKeys.every((key, index) => key === rightKeys[index]);
+}
+
+export function engagementLatestPeriodEnd(engagement = {}) {
+  return engagementReportingPeriods(engagement).at(-1)?.periodEnd || engagement?.periodEnd || "";
+}
+
 export function fiscalPeriodForYear(preset, baseYear) {
   const normalizedPreset = normalizeFiscalYearPreset(preset, "custom");
   const year = Number(baseYear);
@@ -1125,11 +1179,12 @@ export function fiscalPeriodFromIncorporation(entity = {}) {
 }
 
 export function periodBaseYear(engagement) {
-  if (!validIsoDate(engagement?.periodStart)) return null;
-  return Number(engagement.periodStart.slice(0, 4));
+  const periodStart = engagementReportingPeriods(engagement)[0]?.periodStart || engagement?.periodStart;
+  if (!validIsoDate(periodStart)) return null;
+  return Number(periodStart.slice(0, 4));
 }
 
-export function fiscalPeriodShortLabel(engagement, language = "en") {
+function singleFiscalPeriodShortLabel(engagement, language = "en") {
   const preset = normalizeFiscalYearPreset(engagement?.periodPreset,
     inferPeriodPreset(engagement?.periodStart, engagement?.periodEnd));
   const year = periodBaseYear(engagement);
@@ -1143,24 +1198,32 @@ export function fiscalPeriodShortLabel(engagement, language = "en") {
     period: engagement?.legacyPeriod || engagement?.period || "" }, language);
 }
 
+export function fiscalPeriodShortLabel(engagement, language = "en") {
+  const periods = engagementReportingPeriods(engagement);
+  if (periods.length > 1) return periods.map((period) => singleFiscalPeriodShortLabel(period, language)).join(" · ");
+  return singleFiscalPeriodShortLabel(periods[0] || engagement, language);
+}
+
 export function engagementPeriodExists(store, entityId, periodStart, periodEnd, excludeEngagementId = "") {
   if (!entityId || !periodStart || !periodEnd) return false;
   return (store?.engagements || []).some((engagement) => engagement.entityId === entityId
-    && engagement.id !== excludeEngagementId && engagement.periodStart === periodStart && engagement.periodEnd === periodEnd);
+    && engagement.id !== excludeEngagementId && engagementReportingPeriods(engagement)
+      .some((period) => period.periodStart === periodStart && period.periodEnd === periodEnd));
 }
 
 export function suggestNextFiscalYear(entity, engagements = []) {
   const preset = normalizeFiscalYearPreset(entity?.fiscalYearPreset, "calendar");
   if (preset === "custom") return null;
-  const years = engagements.filter((engagement) => engagement.entityId === entity?.id).map((engagement) => {
-    if (inferPeriodPreset(engagement.periodStart, engagement.periodEnd) === preset) {
-      const baseYear = periodBaseYear(engagement);
+  const years = engagements.filter((engagement) => engagement.entityId === entity?.id)
+    .flatMap((engagement) => engagementReportingPeriods(engagement)).map((period) => {
+    if (inferPeriodPreset(period.periodStart, period.periodEnd) === preset) {
+      const baseYear = periodBaseYear(period);
       return Number.isInteger(baseYear) ? baseYear + 1 : null;
     }
-    if (engagement.periodPreset !== "doi_year_end" || !validIsoDate(engagement.periodEnd)) return null;
-    const endYear = Number(engagement.periodEnd.slice(0, 4));
-    if (preset === "calendar" && engagement.periodEnd.endsWith("-12-31")) return endYear + 1;
-    if (preset === "apr_mar" && engagement.periodEnd.endsWith("-03-31")) return endYear;
+    if (period.periodPreset !== "doi_year_end" || !validIsoDate(period.periodEnd)) return null;
+    const endYear = Number(period.periodEnd.slice(0, 4));
+    if (preset === "calendar" && period.periodEnd.endsWith("-12-31")) return endYear + 1;
+    if (preset === "apr_mar" && period.periodEnd.endsWith("-03-31")) return endYear;
     return null;
   }).filter(Number.isInteger);
   const currentYear = new Date().getFullYear();
@@ -1219,6 +1282,8 @@ function normalizeConsolidationComponent(value = {}, entityById = new Map(), eng
       engagementId: value.periodSnapshot?.engagementId || targetEngagement?.id || value.engagementId || "",
       periodStart: value.periodSnapshot?.periodStart || targetEngagement?.periodStart || "",
       periodEnd: value.periodSnapshot?.periodEnd || targetEngagement?.periodEnd || "",
+      reportingPeriods: engagementReportingPeriods(value.periodSnapshot?.reportingPeriods?.length
+        ? value.periodSnapshot : (targetEngagement || value.periodSnapshot || {})),
       label: value.periodSnapshot?.label || fiscalPeriodShortLabel(targetEngagement || value.periodSnapshot || {}, "en"),
     },
   };
@@ -1249,9 +1314,11 @@ function normalizeEngagementRecord(value = {}, context = {}) {
       const normalized = makeOutstandingItem(item, context.outstandingStatuses);
       return { ...normalized, workstreamId: workstreamIds.has(normalized.workstreamId) ? normalized.workstreamId : null };
     }) : [];
-  const periodStart = typeof value.periodStart === "string" ? value.periodStart : "";
-  const periodEnd = typeof value.periodEnd === "string" ? value.periodEnd : "";
-  const inferredPreset = inferPeriodPreset(periodStart, periodEnd);
+  const reportingPeriods = normalizeReportingPeriods(value);
+  const periodStart = reportingPeriods[0]?.periodStart || (typeof value.periodStart === "string" ? value.periodStart : "");
+  const periodEnd = reportingPeriods.at(-1)?.periodEnd || (typeof value.periodEnd === "string" ? value.periodEnd : "");
+  const inferredPreset = reportingPeriods.length === 1
+    ? reportingPeriods[0].periodPreset : inferPeriodPreset(periodStart, periodEnd);
   const explicitEngagementType = typeof (value.engagementType ?? value.projectType) === "string"
     ? String(value.engagementType ?? value.projectType).trim() : "";
   const inferredWorkstreamType = workstreams.some((workstream) => workstream.type === "audit") ? "Audit"
@@ -1264,6 +1331,7 @@ function normalizeEngagementRecord(value = {}, context = {}) {
     periodPreset: normalizeEngagementPeriodPreset(value.periodPreset, inferredPreset),
     periodStart,
     periodEnd,
+    reportingPeriods,
     legacyPeriod: typeof value.legacyPeriod === "string" ? value.legacyPeriod
       : (typeof value.period === "string" ? value.period : ""),
     engagementType: explicitEngagementType || (value.consolidation ? "Group consolidation" : inferredWorkstreamType),
@@ -1349,6 +1417,7 @@ function addRuntimeViews(store) {
       periodPreset: engagement.periodPreset,
       periodStart: engagement.periodStart,
       periodEnd: engagement.periodEnd,
+      reportingPeriods: engagement.reportingPeriods,
       startDate: engagement.startDate,
       dueDate: engagement.dueDate,
       owner: engagement.owner,
@@ -1477,6 +1546,7 @@ function legacyMemberToComponent(member, engagementById, entityById) {
     readinessConditions: member.readinessConditions || [],
     entitySnapshot: { id: entity.id, legalName: entity.legalName, entityType: entity.entityType, kind: entity.kind },
     periodSnapshot: { engagementId: target.id, periodStart: target.periodStart, periodEnd: target.periodEnd,
+      reportingPeriods: engagementReportingPeriods(target),
       label: fiscalPeriodShortLabel(target, "en") },
   };
 }
@@ -1623,6 +1693,7 @@ function syncCanonicalFromLegacyViews(previous, candidate) {
           auditType: member.auditType, readinessConditions: member.readinessConditions,
           entitySnapshot: { id: targetEntity.id, legalName: targetEntity.legalName, kind: targetEntity.kind },
           periodSnapshot: { engagementId: target.id, periodStart: target.periodStart, periodEnd: target.periodEnd,
+            reportingPeriods: engagementReportingPeriods(target),
             label: fiscalPeriodShortLabel(target, "en") },
         } : null;
       }).filter(Boolean),
@@ -1632,7 +1703,8 @@ function syncCanonicalFromLegacyViews(previous, candidate) {
       internalName: record.name && record.name !== (record.entity || record.name) ? record.name : "",
       engagementType: record.engagementType || record.projectType || previousEngagement?.engagementType,
       periodPreset: record.periodPreset || inferPeriodPreset(record.periodStart, record.periodEnd),
-      periodStart: record.periodStart, periodEnd: record.periodEnd, legacyPeriod: record.period,
+      periodStart: record.periodStart, periodEnd: record.periodEnd,
+      reportingPeriods: record.reportingPeriods || previousEngagement?.reportingPeriods, legacyPeriod: record.period,
       reportingFramework: record.reportingFramework, owner: record.owner, startDate: record.startDate,
       dueDate: record.dueDate, notes: record.notes, archived: record.archived,
       workstreams, outstandingItems: record.outstandingItems, consolidation,
@@ -1698,7 +1770,8 @@ export function entityForEngagement(store, engagementOrId) {
 export function engagementsForEntity(store, entityId, { includeArchived = true } = {}) {
   return (store?.engagements || []).filter((engagement) => engagement.entityId === entityId
     && (includeArchived || !engagement.archived)).sort((left, right) =>
-    (right.periodEnd || "").localeCompare(left.periodEnd || "") || (right.createdAt || "").localeCompare(left.createdAt || ""));
+    engagementLatestPeriodEnd(right).localeCompare(engagementLatestPeriodEnd(left))
+      || (right.createdAt || "").localeCompare(left.createdAt || ""));
 }
 
 export function currentEntityChildren(store, parentEntityId) {
@@ -1754,14 +1827,20 @@ export function makeEngagement(values = {}, options = {}) {
       workstreamSelections: values.workstreamSelections || [] }, true, options.samples || [], options.workstreamCategories || []);
     workstreams = project.workstreams;
   }
-  const periodStart = values.periodStart || "";
-  const periodEnd = values.periodEnd || "";
-  if (!validIsoDate(periodStart) || !validIsoDate(periodEnd) || periodEnd < periodStart) {
+  const reportingPeriods = engagementReportingPeriods(values);
+  if (!reportingPeriods.length || reportingPeriods.some((period) => !validIsoDate(period.periodStart)
+    || !validIsoDate(period.periodEnd) || period.periodEnd < period.periodStart)) {
     throw new Error("A complete valid reporting period is required.");
   }
+  const periodKeys = reportingPeriods.map(reportingPeriodKey);
+  if (new Set(periodKeys).size !== periodKeys.length) throw new Error("Duplicate reporting periods are not allowed.");
+  const periodStart = reportingPeriods[0].periodStart;
+  const periodEnd = reportingPeriods.at(-1).periodEnd;
   const entity = options.entity;
-  if (options.store && engagementPeriodExists(options.store, values.entityId || entity?.id, periodStart, periodEnd,
-    values.id || "")) throw new Error("An engagement already exists for this reporting period.");
+  if (options.store && reportingPeriods.some((period) => engagementPeriodExists(options.store,
+    values.entityId || entity?.id, period.periodStart, period.periodEnd, values.id || ""))) {
+    throw new Error("An engagement already exists for this reporting period.");
+  }
   const consolidation = entity?.kind === "holding_company" ? {
     enabled: values.consolidationEnabled !== false,
     nodes: sourceMode === "previous" && source?.consolidation
@@ -1780,6 +1859,7 @@ export function makeEngagement(values = {}, options = {}) {
     periodPreset: values.periodPreset || inferPeriodPreset(periodStart, periodEnd),
     periodStart,
     periodEnd,
+    reportingPeriods,
     legacyPeriod: values.legacyPeriod || "",
     reportingFramework: values.reportingFramework ?? source?.reportingFramework ?? "",
     owner: values.owner || "",
@@ -1798,11 +1878,14 @@ export function makeEngagement(values = {}, options = {}) {
   });
 }
 
-export function componentsForCurrentStructure(store, holdingEntityId, periodStart, periodEnd, groupSample = createDefaultGroupSample()) {
+export function componentsForCurrentStructure(store, holdingEntityId, periodStart, periodEnd,
+  groupSample = createDefaultGroupSample(), reportingPeriods = null) {
   const children = currentEntityChildren(store, holdingEntityId);
+  const targetPeriods = Array.isArray(reportingPeriods) && reportingPeriods.length
+    ? { reportingPeriods } : { periodStart, periodEnd };
   return children.map((entity) => {
     const matches = (store.engagements || []).filter((engagement) => engagement.entityId === entity.id
-      && engagement.periodStart === periodStart && engagement.periodEnd === periodEnd);
+      && engagementReportingPeriodsMatch(engagement, targetPeriods));
     const engagement = matches.length === 1 ? matches[0] : null;
     const auditType = "internal_team";
     return normalizeConsolidationComponent({
@@ -1813,7 +1896,9 @@ export function componentsForCurrentStructure(store, holdingEntityId, periodStar
       })),
       entitySnapshot: { id: entity.id, legalName: entity.legalName, entityType: entity.entityType, kind: entity.kind },
       periodSnapshot: { engagementId: engagement?.id || "", periodStart: engagement?.periodStart || periodStart,
-        periodEnd: engagement?.periodEnd || periodEnd, label: engagement ? fiscalPeriodShortLabel(engagement, "en") : "" },
+        periodEnd: engagement?.periodEnd || periodEnd,
+        reportingPeriods: engagement ? engagementReportingPeriods(engagement) : engagementReportingPeriods(targetPeriods),
+        label: engagement ? fiscalPeriodShortLabel(engagement, "en") : "" },
     }, new Map(store.entities.map((item) => [item.id, item])),
     new Map(store.engagements.map((item) => [item.id, item])), groupSample);
   });
@@ -1824,7 +1909,8 @@ export function syncEngagementToCurrentStructure(store, engagementId, groupSampl
   const entity = entityForEngagement(store, engagement);
   if (!engagement || entity?.kind !== "holding_company") return store;
   const previousByEntity = new Map((engagement.consolidation?.components || []).map((component) => [component.entityId, component]));
-  const current = componentsForCurrentStructure(store, entity.id, engagement.periodStart, engagement.periodEnd, groupSample)
+  const current = componentsForCurrentStructure(store, entity.id, engagement.periodStart, engagement.periodEnd, groupSample,
+    engagement.reportingPeriods)
     .map((component) => {
       const previous = previousByEntity.get(component.entityId);
       return previous ? { ...component, id: previous.id, role: previous.role || component.role,
@@ -1846,8 +1932,9 @@ export function mergeEntities(store, sourceEntityId, targetEntityId) {
   if (!source || !target) throw new Error("Entity not found.");
   const sourceEngagements = engagementsForEntity(store, sourceEntityId);
   const targetEngagements = engagementsForEntity(store, targetEntityId);
-  if (sourceEngagements.some((engagement) => targetEngagements.some((candidate) =>
-    candidate.periodStart === engagement.periodStart && candidate.periodEnd === engagement.periodEnd))) {
+  if (sourceEngagements.some((engagement) => engagementReportingPeriods(engagement).some((period) =>
+    targetEngagements.some((candidate) => engagementReportingPeriods(candidate).some((targetPeriod) =>
+      reportingPeriodKey(targetPeriod) === reportingPeriodKey(period)))))) {
     throw new Error("The entities have duplicate reporting periods.");
   }
   const now = new Date().toISOString();
@@ -2237,12 +2324,12 @@ export function deadlineAlerts(store, now = new Date()) {
   const current = now instanceof Date ? new Date(now) : new Date(now);
   if (Number.isNaN(current.getTime())) return [];
   const today = Date.UTC(current.getFullYear(), current.getMonth(), current.getDate());
-  const makeAlert = ({ id, targetKind, targetId, scope, recordName, owner, dueDate, workstream = null }) => {
+  const makeAlert = ({ id, targetKind, targetId, scope, recordName, owner, dueDate }) => {
     if (!dueDate) return null;
     const due = Date.parse(`${dueDate}T00:00:00Z`);
     if (Number.isNaN(due) || due >= today) return null;
     return { id, targetKind, targetId, scope, recordName, owner: owner || "", dueDate,
-      daysOverdue: Math.floor((today - due) / 86400000), workstream };
+      daysOverdue: Math.floor((today - due) / 86400000) };
   };
   const alerts = [];
 
@@ -2263,15 +2350,6 @@ export function deadlineAlerts(store, now = new Date()) {
             owner: engagement.owner, dueDate: engagement.dueDate });
           if (alert) alerts.push(alert);
         }
-        if (targetKind === "project") (engagement.workstreams || []).filter((workstream) => !workstreamStats(workstream).complete
-          && workstream.dueDate !== engagement.dueDate).forEach((workstream) => {
-          const alert = makeAlert({ id: `workstream:${engagement.id}:${workstream.id}`, targetKind, targetId: engagement.id,
-            scope: "workstream", recordName: `${entity.legalName} · ${yearEndOrPeriodLabel(engagement, "en")}`,
-            owner: workstream.owner || engagement.owner, dueDate: workstream.dueDate,
-            workstream: { id: workstream.id, type: workstream.type, categoryId: workstream.categoryId,
-              customName: workstream.customName || "" } });
-          if (alert) alerts.push(alert);
-        });
       });
     store.entities.filter((entity) => !entity.archived).forEach((entity) => {
       (entity.taxDeadlines || []).forEach((deadline) => {
@@ -2296,14 +2374,6 @@ export function deadlineAlerts(store, now = new Date()) {
         scope: "project", recordName, owner: project.owner, dueDate: project.dueDate });
       if (alert) alerts.push(alert);
     }
-    (project.workstreams || []).filter((workstream) => !workstreamStats(workstream).complete
-      && workstream.dueDate !== project.dueDate).forEach((workstream) => {
-      const alert = makeAlert({ id: `workstream:${project.id}:${workstream.id}`, targetKind: "project", targetId: project.id,
-        scope: "workstream", recordName, owner: workstream.owner || project.owner, dueDate: workstream.dueDate,
-        workstream: { id: workstream.id, type: workstream.type, categoryId: workstream.categoryId,
-          customName: workstream.customName || "" } });
-      if (alert) alerts.push(alert);
-    });
     (project.taxDeadlines || []).forEach((deadline) => {
       const urgency = taxDeadlineUrgency(deadline, now);
       if (!["overdue", "due_today", "due_soon"].includes(urgency.level)) return;
@@ -2667,7 +2737,7 @@ function formatFormalDate(value, language = "en") {
   }).format(date);
 }
 
-export function formalReportingPeriodLabel(engagement, language = "en") {
+function formalSingleReportingPeriodLabel(engagement, language = "en") {
   const start = engagement?.periodStart || "";
   const end = engagement?.periodEnd || "";
   if (!start && !end) return language === "en" ? "No annual engagement"
@@ -2687,22 +2757,36 @@ export function formalReportingPeriodLabel(engagement, language = "en") {
   return formattedEnd || formattedStart;
 }
 
+export function formalReportingPeriodLabel(engagement, language = "en") {
+  const periods = engagementReportingPeriods(engagement);
+  if (periods.length > 1) return periods.map((period) => formalSingleReportingPeriodLabel(period, language)).join(" · ");
+  return formalSingleReportingPeriodLabel(periods[0] || engagement, language);
+}
+
 export function yearEndOrPeriodLabel(engagement, language = "en") {
-  const label = formalReportingPeriodLabel(engagement, language);
-  if (!["calendar", "apr_mar"].includes(inferPeriodPreset(engagement?.periodStart, engagement?.periodEnd))) return label;
-  if (language === "en") return `YE ${label}`;
-  return language === "zh-Hant" ? `年結：${label}` : `年结：${label}`;
+  const periods = engagementReportingPeriods(engagement);
+  const labelFor = (period) => {
+    const label = formalSingleReportingPeriodLabel(period, language);
+    if (!["calendar", "apr_mar"].includes(inferPeriodPreset(period?.periodStart, period?.periodEnd))) return label;
+    if (language === "en") return `YE ${label}`;
+    return language === "zh-Hant" ? `年結：${label}` : `年结：${label}`;
+  };
+  if (periods.length) return periods.map(labelFor).join(" · ");
+  return labelFor(engagement);
 }
 
 export function reportingPeriodLabel(item, language = "zh") {
-  const start = item?.periodStart;
-  const end = item?.periodEnd;
+  const periods = engagementReportingPeriods(item);
+  if (periods.length > 1) return periods.map((period) => reportingPeriodLabel(period, language)).join(" · ");
+  const current = periods[0] || item;
+  const start = current?.periodStart;
+  const end = current?.periodEnd;
   if (start && end) return `${formatDate(start, language)} – ${formatDate(end, language)}`;
   if (start) return language === "en" ? `From ${formatDate(start, language)}`
     : language === "zh-Hant" ? `自 ${formatDate(start, language)} 起` : `自 ${formatDate(start, language)} 起`;
   if (end) return language === "en" ? `To ${formatDate(end, language)}`
     : language === "zh-Hant" ? `截至 ${formatDate(end, language)}` : `截至 ${formatDate(end, language)}`;
-  return typeof item?.period === "string" ? item.period : "";
+  return typeof current?.period === "string" ? current.period : "";
 }
 
 export function dueTone(project) {
