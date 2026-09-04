@@ -186,8 +186,9 @@ function GroupRecordReport({ report, statuses }) {
 function EntityRecordReport({ report, statuses }) {
   const { language, t } = useUiLanguage();
   return <>
-    <section className="record-report-facts"><div><span>{t("公司类型")}</span><strong>{t(report.entityKind === "holding_company" ? "控股公司" : "公司")}</strong></div>
-      <div><span>{t("默认会计年度")}</span><strong>{t({ calendar: "自然年（1 月至 12 月）", apr_mar: "4 月至次年 3 月", custom: "自定义会计年度" }[report.fiscalYearPreset])}</strong></div>
+    <section className="record-report-facts"><div><span>{t("主体类型")}</span><strong>{report.entityType || t("未设置")}</strong></div>
+      <div><span>{t("默认会计年度")}</span><strong>{t({ calendar: "1 月 1 日 → 12 月 31 日",
+        apr_mar: "4 月 1 日 → 次年 3 月 31 日", custom: "每个项目自定义日期" }[report.fiscalYearPreset])}</strong></div>
       <div><span>{t("年度项目")}</span><strong>{report.projects.length}</strong></div><div><span>{t("未完成税务期限")}</span><strong>{report.taxDeadlines.length}</strong></div></section>
     <section className="management-report-section"><header><div><h3>{t("历年项目")}</h3><span>{t("报告期间、负责人、排期和状态")}</span></div></header>
       {report.projects.length ? <div className="management-table-scroll"><table className="management-report-table"><thead><tr>

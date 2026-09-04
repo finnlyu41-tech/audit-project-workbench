@@ -73,7 +73,7 @@ export function Modal({ title, onClose, children, wide = false, large = false })
       onMouseDown={(event) => event.stopPropagation()}>
       <header><h2 id={titleId}>{title}</h2><button type="button" className="icon-button icon-only" onClick={onClose} data-modal-close
         aria-label={t("关闭")} data-tooltip={t("关闭")} data-tooltip-side="left"><X aria-hidden="true" /></button></header>
-      {children}
+      <div className="workbench-modal-body">{children}</div>
     </section>
   </div>;
 }

@@ -1,5 +1,5 @@
 import React from "react";
-import { Archive, ArchiveRestore, BarChart3, BellRing, BookOpen, Building, Building2, CalendarRange, Copy, DatabaseBackup, Languages, LibraryBig, ListPlus, Palette,
+import { Archive, ArchiveRestore, ArrowLeft, ArrowRight, BarChart3, BellRing, BookOpen, Building, Building2, CalendarRange, Copy, DatabaseBackup, Languages, LibraryBig, ListPlus, Palette,
   PanelRightClose, PanelRightOpen, PanelsTopLeft, Pencil, Plus, ReceiptText, Search, Settings, Settings2, Trash2 } from "lucide-react";
 import { Modal, NodeBoard, NodeForm, OutstandingStatusEditor, ProgressBar, ProjectForm, SampleEditor,
   SampleLibrary, UserGuide, WorkstreamCard, WorkstreamCategoryEditor, WorkstreamForm } from "./components.jsx";
@@ -39,6 +39,26 @@ export function DashboardContent() {
   return <LanguageProvider><DashboardWorkbench /></LanguageProvider>;
 }
 
+function revealOverflowText(event) {
+  const origin = event.target;
+  if (!(origin instanceof Element)) return;
+  const target = origin.closest("input, textarea, select, button, dd, dt, strong, small, p, span");
+  if (!target || !event.currentTarget.contains(target) || target.closest("[data-tooltip]")
+    || (target.hasAttribute("title") && !target.dataset.generatedOverflowTitle)) return;
+  const text = target instanceof HTMLSelectElement ? target.selectedOptions[0]?.textContent
+    : target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement ? target.value : target.textContent;
+  const label = String(text || "").replace(/\s+/gu, " ").trim();
+  const overflows = target instanceof HTMLSelectElement
+    || target.scrollWidth > target.clientWidth + 1 || target.scrollHeight > target.clientHeight + 1;
+  if (label && overflows) {
+    target.title = label;
+    target.dataset.generatedOverflowTitle = "true";
+  } else if (target.dataset.generatedOverflowTitle) {
+    target.removeAttribute("title");
+    delete target.dataset.generatedOverflowTitle;
+  }
+}
+
 function DashboardWorkbench() {
   const { language, setLanguage, t } = useUiLanguage();
   const [store, setRawStore] = React.useState(loadStore);
@@ -72,6 +92,8 @@ function DashboardWorkbench() {
   const toolbarMenuRefs = React.useRef([]);
   const deadlineNoticeShownRef = React.useRef(false);
   const shownConflictRef = React.useRef(null);
+  const navigationHistoryRef = React.useRef({ entries: [], index: -1, restoring: false });
+  const [, setNavigationHistoryRevision] = React.useState(0);
   const deadlineAlertItems = React.useMemo(() => deadlineAlerts(store, deadlineClock), [store, deadlineClock]);
   const closeMenu = React.useCallback(() => toolbarMenuRefs.current.forEach((menu) => {
     if (menu) menu.open = false;
@@ -137,6 +159,18 @@ function DashboardWorkbench() {
       }
     }
   }, [store, selection, filter]);
+  React.useEffect(() => {
+    if (!selection && store.entities.length) return;
+    const history = navigationHistoryRef.current;
+    if (history.restoring) { history.restoring = false; return; }
+    const entry = { workspaceView, selection: selection ? { kind: selection.kind, id: selection.id } : null };
+    const current = history.entries[history.index];
+    if (current?.workspaceView === entry.workspaceView && current?.selection?.kind === entry.selection?.kind
+      && current?.selection?.id === entry.selection?.id) return;
+    history.entries = [...history.entries.slice(0, history.index + 1), entry].slice(-50);
+    history.index = history.entries.length - 1;
+    setNavigationHistoryRevision((value) => value + 1);
+  }, [workspaceView, selection?.kind, selection?.id, store.entities.length]);
   React.useEffect(() => {
     if (selection?.kind !== "project") { setActiveWorkstreamId(null); return; }
     const project = store.projects.find((item) => item.id === selection.id);
@@ -572,8 +606,36 @@ function DashboardWorkbench() {
   const outstandingPanelCollapsed = compactLayout ? !compactOutstandingOpen : outstandingCollapsed;
   const expandOutstandingPanel = () => compactLayout ? setCompactOutstandingOpen(true) : setOutstandingCollapsed(false);
   const collapseOutstandingPanel = () => compactLayout ? setCompactOutstandingOpen(false) : setOutstandingCollapsed(true);
+  const navigationEntryExists = (entry) => {
+    if (!entry) return false;
+    if (entry.workspaceView !== "detail") return true;
+    if (!entry.selection) return store.entities.length === 0;
+    if (entry.selection.kind === "entity") return store.entities.some((entity) => entity.id === entry.selection.id);
+    return store.engagements.some((engagement) => engagement.id === entry.selection.id);
+  };
+  const nextHistoryIndex = (direction) => {
+    const history = navigationHistoryRef.current;
+    for (let index = history.index + direction; index >= 0 && index < history.entries.length; index += direction) {
+      if (navigationEntryExists(history.entries[index])) return index;
+    }
+    return -1;
+  };
+  const goThroughHistory = (direction) => {
+    const history = navigationHistoryRef.current;
+    const index = nextHistoryIndex(direction);
+    if (index < 0) return;
+    const entry = history.entries[index];
+    history.index = index;
+    history.restoring = true;
+    setSelection(entry.selection ? { ...entry.selection } : null);
+    setWorkspaceView(entry.workspaceView);
+    setModal(null);
+    setNavigationHistoryRevision((value) => value + 1);
+  };
+  const backHistoryIndex = nextHistoryIndex(-1);
+  const forwardHistoryIndex = nextHistoryIndex(1);
 
-  return <article className="audit-workbench">
+  return <article className="audit-workbench" onMouseOver={revealOverflowText} onFocusCapture={revealOverflowText}>
     {message && <div className="save-toast" role="status">{message}</div>}
     <h1 className="visually-hidden">{t("审计项目工作台")}</h1>
     <aside className="app-rail" aria-label={t("工作台操作")}>
@@ -669,6 +731,12 @@ function DashboardWorkbench() {
       </aside>
       <main className="project-detail" aria-label={t(workspaceView === "schedule" ? "项目排期"
         : workspaceView === "report" ? "管理层报告" : selectedEntitySource ? "公司概览" : selectedGroup ? "集团工作区" : "项目工作区")}>
+        <nav className="workspace-history-controls" aria-label={t("查看历史")}>
+          <button type="button" disabled={backHistoryIndex < 0} onClick={() => goThroughHistory(-1)}
+            aria-label={t("返回上一个界面")} data-tooltip={t("返回上一个界面")}><ArrowLeft aria-hidden="true" /></button>
+          <button type="button" disabled={forwardHistoryIndex < 0} onClick={() => goThroughHistory(1)}
+            aria-label={t("前进到下一个界面")} data-tooltip={t("前进到下一个界面")}><ArrowRight aria-hidden="true" /></button>
+        </nav>
         {workspaceView === "schedule" ? <ProjectSchedule store={store} filter={filter} onOpen={openWorkspaceRecord}
           onEditSchedule={openScheduleEditor} onOpenTaxDeadline={openTaxDeadlineCentre} onReorder={reorderSchedule} />
           : workspaceView === "report" ? <ManagementReport store={store} selection={selection} now={deadlineClock}
@@ -769,6 +837,8 @@ function DashboardWorkbench() {
     {modal?.type === "edit-engagement" && modalTargetEngagement && modalTargetEntity && <Modal title={`${t(quickProjectTitle || "编辑年度项目")} · ${modalTargetEntity.legalName}`}
       onClose={() => setModal(null)} wide={!modal.quickField}>
       <EngagementForm store={store} entity={modalTargetEntity} initial={modalTargetEngagement} quickField={modal.quickField}
+        onCreateAnotherYear={!modal.quickField ? () => setModal({ type: "create-engagement", entityId: modalTargetEntity.id,
+          sourceEngagementId: modalTargetEngagement.id }) : null}
         onClose={() => setModal(null)} onSubmit={(values) => {
           updateEngagement(modalTargetEngagement.id, (engagement) => ({ ...engagement,
             internalName: values.internalName, periodPreset: values.periodPreset, periodStart: values.periodStart,

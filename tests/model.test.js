@@ -23,8 +23,10 @@ import {
   engagementPeriodExists,
   engagementsForEntity,
   fiscalPeriodForYear,
+  fiscalPeriodFromIncorporation,
   fiscalPeriodShortLabel,
   findParentMembership,
+  formalReportingPeriodLabel,
   groupProgress,
   localizeGroupSample,
   localizeOutstandingStatuses,
@@ -223,7 +225,7 @@ test("known built-in workflow text localises inside older or partially customise
   const englishNodes = localizeWorkflowNodes(legacyNodes, "en");
 
   assert.equal(englishNodes[0].title, "Engagement setup");
-  assert.equal(englishNodes[0].conditions.length, 3);
+  assert.equal(englishNodes[0].conditions.length, 1);
   assert.doesNotMatch(JSON.stringify(englishNodes), /[\u3400-\u9fff]/u);
   assert.equal(legacyNodes[0].title, "项目设置");
 });
@@ -985,6 +987,49 @@ test("V11 fiscal-year helpers generate exact calendar and April-to-March periods
   assert.equal(inferPeriodPreset("2024-02-29", "2024-09-30"), "custom");
   assert.equal(fiscalPeriodShortLabel({ periodPreset: "calendar", periodStart: "2024-01-01", periodEnd: "2024-12-31" }), "FY2024");
   assert.equal(fiscalPeriodShortLabel({ periodPreset: "apr_mar", periodStart: "2024-04-01", periodEnd: "2025-03-31" }), "FY2024/25");
+});
+
+test("DOI reporting periods end at the first applicable company year end", () => {
+  assert.deepEqual(fiscalPeriodFromIncorporation({ incorporationDate: "2025-07-10", fiscalYearPreset: "calendar" }), {
+    periodPreset: "doi_year_end", periodStart: "2025-07-10", periodEnd: "2025-12-31",
+  });
+  assert.deepEqual(fiscalPeriodFromIncorporation({ incorporationDate: "2025-02-10", fiscalYearPreset: "apr_mar" }), {
+    periodPreset: "doi_year_end", periodStart: "2025-02-10", periodEnd: "2025-03-31",
+  });
+  assert.deepEqual(fiscalPeriodFromIncorporation({ incorporationDate: "2025-04-01", fiscalYearPreset: "apr_mar" }), {
+    periodPreset: "doi_year_end", periodStart: "2025-04-01", periodEnd: "2026-03-31",
+  });
+  assert.deepEqual(fiscalPeriodFromIncorporation({ incorporationDate: "2025-04-01", fiscalYearPreset: "custom" }), {
+    periodPreset: "doi_year_end", periodStart: "2025-04-01", periodEnd: "",
+  });
+  assert.equal(suggestNextFiscalYear({ id: "calendar-entity", fiscalYearPreset: "calendar" }, [{
+    entityId: "calendar-entity", periodPreset: "doi_year_end", periodStart: "2026-04-18", periodEnd: "2026-12-31",
+  }]), 2027);
+  assert.equal(suggestNextFiscalYear({ id: "march-entity", fiscalYearPreset: "apr_mar" }, [{
+    entityId: "march-entity", periodPreset: "doi_year_end", periodStart: "2025-02-10", periodEnd: "2025-03-31",
+  }]), 2025);
+});
+
+test("formal period labels show a year-end date for full years and DOI wording for first periods", () => {
+  assert.equal(formalReportingPeriodLabel({ periodPreset: "calendar", periodStart: "2025-01-01", periodEnd: "2025-12-31" }, "en"),
+    "December 31, 2025");
+  assert.equal(formalReportingPeriodLabel({ periodPreset: "doi_year_end", periodStart: "2025-04-01", periodEnd: "2025-12-31" }, "en"),
+    "For the period from April 1, 2025 (DOI) to December 31, 2025");
+  assert.equal(formalReportingPeriodLabel({ periodPreset: "doi_year_end", periodStart: "2025-04-01", periodEnd: "2025-12-31" }, "zh-Hant"),
+    "期間：2025年4月1日（DOI）至2025年12月31日");
+  assert.equal(formalReportingPeriodLabel({ periodPreset: "custom", periodStart: "2025-07-01", periodEnd: "2025-12-31" }, "en"),
+    "For the period from July 1, 2025 to December 31, 2025");
+});
+
+test("built-in workflows use a small number of milestone completion gates", () => {
+  const audit = createDefaultSample("en");
+  const group = createDefaultGroupSample("en");
+  for (const node of [...audit.nodes, ...group.nodes]) {
+    assert.ok(node.conditions.length >= 1 && node.conditions.length <= 2, `${node.title} should have one or two milestone gates`);
+  }
+  for (const conditions of Object.values(group.readinessTemplates)) {
+    assert.ok(conditions.length >= 1 && conditions.length <= 2);
+  }
 });
 
 test("V10 records migrate losslessly into separate V11 entities and engagements without name merging", () => {

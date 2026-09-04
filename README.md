@@ -11,8 +11,8 @@
 - Obsidian 式主工作区布局：左侧紧凑树状导航、中间宽工作区、右侧按需待清中心；左右区域均可收起，窄桌面窗口展开待清中心时不会挤压工作区。导航以法律实体为主标识，在公司下面展开各年度项目；可拖动公司或控股公司改变当前归属及层级，并以加减号和连续层级线明确显示控股关系。
 - 最左侧采用固定窄工具栏，以统一线性图标收纳项目排期、范本、指南、设置、备份和语言；悬停或键盘聚焦会显示完整功能说明，同时保留无障碍名称。建立公司仍放在项目导航的视觉热区。
 - 内置分章节使用指南，逐项说明入口、操作步骤和完成结果。
-- 新建公司只建立长期主档，不混入年度项目设置；公司可暂时没有项目，并可在概览中设置自然年、4 月至次年 3 月或自定义会计年度默认值。
-- 同一公司可建立多个互相独立的年度项目。自然年输入 `2025` 会生成 `2025-01-01 → 2025-12-31`，4 月制输入 `2025/26` 会生成 `2025-04-01 → 2026-03-31`；任何自动日期均可改成自定义完整期间，完全相同的期间不会重复建立。
+- 新建公司只建立长期主档，不混入年度项目设置；主体类型可直接输入有限公司、个人独资、合伙企业或其他形式，且与是否启用控股公司架构分开。控股归属角色只在选定母公司后显示。
+- 同一公司可建立多个互相独立的年度项目。自然年输入 `2025` 会生成 `2025-01-01 → 2025-12-31`，4 月制输入 `2025/26` 会生成 `2025-04-01 → 2026-03-31`；首个项目可从成立／开始日期（DOI）延伸至相应年结日。任何自动日期均可修改，完全相同的期间不会重复建立。
 - 年度项目记录可自定义财务报告准则／框架、负责人、报告期间、项目开始日及截止日；新年度可以从空白、范本或上一年度结构建立，但不会带入旧负责人、执行日期、完成状态、待清事项或实际税务期限。
 - 项目排期以公司／控股公司和按周横向工期条呈现，支持拖动自定义并保存显示顺序、键盘调整、横向滚动、今天定位及红色虚线、逾期与日期缺失提示；点击名称返回详情，点击日历或工期条可直接编辑开始日和截止日，归档记录则保持只读。
 - 独立税务期限台账保存在公司主档，支持每家公司或控股公司保存多项报税、缴税、雇主报税表及自定义期限；逐项设置课税年度、负责人、提醒天数、年度项目／税务模块关联、参考编号和备注，改期时强制记录原因并保留完整历史。
@@ -24,13 +24,13 @@
 - 公司可按本团队审计、其他审计师或管理账设置不同的合并就绪条件。
 - 公司资料可直接选择或变更所属控股公司；控股公司资料可集中添加、移除及修改公司与中间控股公司。公司与控股公司可在资料编辑页双向转换，原业务模块或合并结构会保留以便日后恢复。
 - 控股公司的待清事项与下级公司事项集中汇总，同时保留来源和跳转入口。
-- 节点横向排列；所选节点的达成条件固定显示在下方，不会把相邻节点推离视野。
+- 节点横向排列；所选节点的达成条件固定显示在下方，不会把相邻节点推离视野。内置流程每个节点只保留一至两个重要里程碑条件，自定义范本不受改写。
 - 独立待清中心不影响节点进度；状态可新增、改名、排序、定义“已清”语义并自定义颜色，事项可归属项目级或指定业务模块。
 - 范本库按业务模块分类，每类可保存多个范本；范本及其中节点可编辑、排序和删除，另有控股公司范本保存合并节点和审计类别默认就绪条件。范本可加标签和版本备注，并以经过结构验证、不会携带公司或税务资料的 `.apw-template.json` 范本包选择导出、预览导入、另存副本或明确覆盖。
 - 中央管理层报告提供项目组合、单一公司及控股公司视图，可按状态、负责人、控股层级、项目日期、业务模块及期限紧急程度筛选，显示可排序明细与风险清单，并以专用打印样式保存为 PDF；报告不包含待清备注或税务参考编号。
 - 范本公司名称精确去敏：只替换使用者输入的完整公司名称，不自动猜测。
 - 英文为新使用者的默认界面，并提供完整的简体中文和繁体中文切换；内置内容随语言切换，自定义范本、项目名称和使用者资料保持原文。
-- 在常见桌面宽度和浏览器缩放下优先保持单行信息密度；待清中心以固定右侧抽屉呈现，收起后仍保留可见图标入口，并避免页面横向截断。
+- 在常见桌面宽度和浏览器缩放下优先保持单行信息密度；必要时卡片文字完整换行，极窄位置可悬停或键盘聚焦查看完整值。长表单在弹窗内独立滚动；工作区提供返回／前进视图历史，编辑年度项目时可直接建立下一年度。
 - 公司主档和年度项目分别管理归档生命周期；年度项目可单独归档，公司主档则须先归档旗下所有活跃项目。归档详情只读，永久删除公司时会明确包含旗下年度项目和公司级税务期限。
 - V1–V10 浏览器资料、备份和本地文件会无损迁移为 V11；迁移不会按名称自动合并公司，并会保留一份可下载的迁移前 V10 恢复副本。重复公司可通过预览工具由使用者确认合并。
 - 默认使用本机浏览器自动保存，也可关联持续同步的 `.apw.json` 本地文件；浏览器安全副本、明确的同步状态、重新授权、双向冲突保护、未同步离开提醒、JSON 备份及安全初始化共同防止静默遗失资料。
@@ -73,8 +73,8 @@ Audit Project Workbench (APW) is an English-first, desktop-first and local-first
 - An Obsidian-inspired, centre-first desktop layout with compact tree navigation, a wide company/holding-company workspace and an on-demand outstanding centre. Navigation prioritises each legal entity and expands its annual engagements; current holding assignments support exact-level drag-and-drop, explicit plus/minus disclosure controls and continuous hierarchy guides.
 - Consistent line icons condense project scheduling, deadline alerts, templates, guidance, settings, backup, language and workspace actions; hover or keyboard focus reveals the full explanation while preserving accessible names. Record creation stays in the navigation work area.
 - A built-in, sectioned user guide explaining each entry point, procedure and expected result.
-- New company creates a company master only. A company can remain without an engagement and can default to a calendar year, April-to-March year or custom reporting period.
-- One company can carry several independent annual engagements. Calendar year `2025` generates `2025-01-01 → 2025-12-31`; April-to-March `2025/26` generates `2025-04-01 → 2026-03-31`. Generated dates remain editable, and duplicate periods are rejected even when archived.
+- New company creates a company master only. Its free-text entity type (limited company, sole proprietorship, partnership, individual or another form) is independent from the holding-company structure control; relationship fields appear only after a parent is selected.
+- One company can carry several independent annual engagements. Calendar year `2025` generates `2025-01-01 → 2025-12-31`; April-to-March `2025/26` generates `2025-04-01 → 2026-03-31`. A first period can run from the incorporation/commencement date (DOI) to the applicable year end. Generated dates remain editable, and duplicate periods are rejected even when archived.
 - Annual engagements capture a customisable reporting framework, owner, authoritative reporting-period dates and separate project start/deadline dates. A new year can start blank, from a template or from the prior year's structure without copying owners, operating dates, completion, outstanding items or actual tax deadlines.
 - A horizontally scrollable weekly schedule supports saved drag-and-drop ordering and keyboard movement, marks today with a red dashed line, highlights overdue or incomplete dates, and follows the navigation status filter. Choose a name for record details or a calendar/bar to edit start and deadline directly; archived rows remain read-only.
 - A persistent deadline-alert badge counts active overdue company, holding-company and distinct workstream deadlines; its compact list is ordered by days overdue and links directly to the source record. Completed, rescheduled or archived work clears automatically.
@@ -87,13 +87,13 @@ Audit Project Workbench (APW) is an English-first, desktop-first and local-first
 - Companies use readiness defaults for internal audits, other component auditors or management accounts.
 - Company details can change holding-company assignment directly, while holding-company details manage companies and intermediate holding companies in one member roster. A record can convert in either direction between company and holding company while retaining recoverable workflow or consolidation state.
 - Holding-company outstanding items roll up subsidiary and intermediate holding-company items while preserving their source and navigation.
-- Horizontal stages with a stable detail panel below, so opening one stage never displaces its neighbours.
+- Horizontal stages with a stable detail panel below, so opening one stage never displaces its neighbours. Built-in stages use only one or two material milestone gates; user-authored templates remain untouched.
 - A separate outstanding centre that never changes stage progress, with custom labels, ordering, cleared-state semantics and colours; items can be project-level or linked to a workstream.
 - Multiple templates per workstream category, user-defined category names and ordering, plus separate holding-company templates for consolidation stages and readiness defaults. Tags, version notes and validated `.apw-template.json` packages support selective export, import preview, safe copies and explicit replacement without carrying company, owner, outstanding-item or tax data.
 - Centre-canvas management reports cover the portfolio, one company or one holding company, with composable filters, sortable detail, risk lists and print-to-PDF styling. Outstanding notes and tax references are deliberately excluded.
 - Exact-match company-name de-identification within templates.
 - English is the default for new users, with complete Simplified Chinese and Traditional Chinese interfaces available; built-in content follows the interface language while custom content remains unchanged.
-- Responsive desktop rules reflow panes, controls and forms cleanly under narrower windows and browser zoom.
+- Responsive desktop rules reflow panes, controls and forms cleanly under narrower windows and browser zoom. Important boxed text wraps in full where practical, remaining overflow exposes the complete value on hover/focus, long dialogs scroll internally, and compact view-history controls revisit prior screens. Annual-engagement editing can open the next-year form directly.
 - Company masters and annual engagements have separate archive lifecycles. An engagement can be archived alone; a company master requires all active engagements to be archived first. Archived records are read-only, and company deletion explicitly includes all annual engagements and company-level tax deadlines.
 - V1–V10 browser data, backups and linked files migrate losslessly to V11 without name-based merging. The first migration retains a downloadable V10 recovery source, while a previewed tool lets the user merge genuine duplicate company masters intentionally.
 - Browser-local autosave by default, with an optional continuously synced `.apw.json` local file, a browser safety copy, explicit save status, permission recovery, two-sided conflict protection, unsynced-leave warnings, JSON backup and protected initialisation.

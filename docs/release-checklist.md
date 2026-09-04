@@ -19,6 +19,9 @@ Complete this short check in current desktop Chrome and Edge before a release th
 - Modify both the browser copy and linked file, then confirm the conflict dialog preserves the replaced version as a recovery download.
 - Verify the native leave warning appears only while linked-file data is unsynchronised and the preference is enabled.
 - Export a V10 backup and load it into V11. Confirm the one-time recovery download, one entity plus one engagement per legacy record, hierarchy, workstreams, outstanding items, tax-deadline revision history and template metadata.
+- Create a sole proprietorship or other custom entity type, confirm holding-company controls remain independent, and verify relationship-role fields appear only after selecting a parent.
+- Create first periods from DOI under both calendar and April-to-March defaults. Confirm the overview shows the exact year-end for a full year and `For the period from … (DOI) to …` for the first period.
+- At a short viewport height, verify annual-engagement forms scroll to every field and action. Check back/forward view history, direct next-year creation, wrapped card text and overflow hover/focus labels.
 - Create one company with calendar-year FY2023, FY2024 and FY2025 engagements; confirm each period and progress remain independent, a duplicate period is rejected even after archiving, and a prior-year copy clears operational state.
 - Create an April-to-March company and confirm FY2025/26 generates `2025-04-01` through `2026-03-31`; edit either date and confirm only that engagement becomes custom.
 - Change a holding hierarchy after creating an annual consolidation engagement. Confirm the historical component scope remains frozen until explicit sync and unmatched reporting periods remain visible.

@@ -50,3 +50,19 @@ for (const width of [1024, 1280, 1440, 1920]) {
     expect(dialogBox.x + dialogBox.width).toBeLessThanOrEqual(width);
   });
 }
+
+test("long annual engagement forms scroll inside the dialog while the header remains available", async ({ page }) => {
+  await page.setViewportSize({ width: 1024, height: 560 });
+  await openWorkbench(page, workspaceFixture());
+  await page.getByRole("button", { name: "Edit annual engagement" }).click();
+  const dialog = page.getByRole("dialog", { name: /Edit annual engagement/ });
+  const body = dialog.locator(".workbench-modal-body");
+  const before = await dialog.locator(":scope > header").boundingBox();
+  const dimensions = await body.evaluate((element) => ({ clientHeight: element.clientHeight, scrollHeight: element.scrollHeight }));
+  expect(dimensions.scrollHeight).toBeGreaterThan(dimensions.clientHeight);
+  await body.evaluate((element) => { element.scrollTop = element.scrollHeight; });
+  await expect(dialog.getByRole("button", { name: "Save engagement" })).toBeVisible();
+  const after = await dialog.locator(":scope > header").boundingBox();
+  expect(after.y).toBeCloseTo(before.y, 0);
+  expect(await body.evaluate((element) => element.scrollTop)).toBeGreaterThan(0);
+});

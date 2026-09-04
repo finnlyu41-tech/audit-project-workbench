@@ -1,9 +1,10 @@
 import React from "react";
-import { Archive, ArchiveRestore, Building, Building2, CalendarPlus, ChevronRight, CircleAlert,
+import { Archive, ArchiveRestore, Building, Building2, CalendarDays, CalendarPlus, ChevronRight, CircleAlert,
   Edit3, FolderTree, GitMerge, Plus, ReceiptText, Settings2, Trash2 } from "lucide-react";
 import { ProgressBar } from "./components.jsx";
 import { engagementPeriodExists, engagementsForEntity, fiscalPeriodForYear, fiscalPeriodShortLabel,
-  formatDate, groupProgress, inferPeriodPreset, outstandingIsOpen, outstandingStatusLabel, projectStats, suggestNextFiscalYear, taxDeadlineSummary,
+  fiscalPeriodFromIncorporation, formalReportingPeriodLabel, formatDate, groupProgress, inferPeriodPreset,
+  outstandingIsOpen, outstandingStatusLabel, projectStats, suggestNextFiscalYear, taxDeadlineSummary,
   workstreamCategoryLabel } from "./model.js";
 import { useUiLanguage } from "./i18n.jsx";
 
@@ -15,13 +16,16 @@ const FRAMEWORKS = [
 ];
 
 function presetLabel(value, t) {
-  return t({ calendar: "自然年（1 月至 12 月）", apr_mar: "4 月至次年 3 月", custom: "自定义会计年度" }[value] || "自定义会计年度");
+  return t({ calendar: "1 月 1 日 → 12 月 31 日", apr_mar: "4 月 1 日 → 次年 3 月 31 日",
+    custom: "每个项目自定义日期", doi_year_end: "成立日（DOI）→ 年结日" }[value] || "每个项目自定义日期");
 }
 
 export function CompanyForm({ store, initial = null, onSubmit, onClose }) {
   const { t } = useUiLanguage();
   const [values, setValues] = React.useState(() => ({
     legalName: initial?.legalName || "",
+    entityType: initial?.entityType || "",
+    incorporationDate: initial?.incorporationDate || "",
     kind: initial?.kind || "company",
     parentEntityId: initial?.parentEntityId || "",
     relationshipRole: initial?.relationshipRole || "",
@@ -29,28 +33,40 @@ export function CompanyForm({ store, initial = null, onSubmit, onClose }) {
     notes: initial?.notes || "",
   }));
   const update = (field) => (event) => setValues((current) => ({ ...current, [field]: event.target.value }));
+  const updateParent = (event) => setValues((current) => ({ ...current, parentEntityId: event.target.value,
+    relationshipRole: event.target.value ? current.relationshipRole : "" }));
   const children = initial ? store.entities.filter((entity) => entity.parentEntityId === initial.id) : [];
   const parentOptions = store.entities.filter((entity) => entity.kind === "holding_company" && !entity.archived
     && entity.id !== initial?.id);
   return <form className="workbench-form company-master-form" onSubmit={(event) => {
     event.preventDefault();
     if (!values.legalName.trim()) return;
-    onSubmit({ ...values, legalName: values.legalName.trim(), parentEntityId: values.parentEntityId || null,
-      relationshipRole: values.relationshipRole.trim(), notes: values.notes.trim() });
+    onSubmit({ ...values, legalName: values.legalName.trim(), entityType: values.entityType.trim(),
+      parentEntityId: values.parentEntityId || null,
+      relationshipRole: values.parentEntityId ? values.relationshipRole.trim() : "", notes: values.notes.trim() });
   }}>
     <div className="company-master-lead"><FolderTree aria-hidden="true" /><div><strong>{t(initial ? "编辑公司主档" : "建立公司主档")}</strong>
       <span>{t("公司主档保存长期资料；报告期间、项目排期和业务模块在年度项目中设置。")}</span></div></div>
-    <div className="form-grid" data-columns="2"><label className="span-two"><span>{t("法律实体 *")}</span>
+    <div className="form-grid" data-columns="2"><label><span>{t("法律实体 *")}</span>
       <input autoFocus required value={values.legalName} onChange={update("legalName")} placeholder={t("公司完整名称")} /></label>
-      <label><span>{t("公司类型")}</span><select value={values.kind} onChange={update("kind")}>
-        <option value="company">{t("公司")}</option><option value="holding_company">{t("控股公司")}</option></select></label>
+      <label><span>{t("主体类型（可选）")}</span><input list="v11-entity-type-options" value={values.entityType}
+        onChange={update("entityType")} placeholder={t("例如：有限公司、个人独资、合伙企业或直接输入")} />
+        <datalist id="v11-entity-type-options">{["有限公司", "个人独资", "合伙企业", "个人"].map((type) =>
+          <option key={type} value={t(type)} />)}</datalist></label>
       <label><span>{t("默认会计年度")}</span><select value={values.fiscalYearPreset} onChange={update("fiscalYearPreset")}>
         {["calendar", "apr_mar", "custom"].map((preset) => <option value={preset} key={preset}>{presetLabel(preset, t)}</option>)}</select></label>
-      <label><span>{t("所属控股公司")}</span><select value={values.parentEntityId} onChange={update("parentEntityId")}>
-        <option value="">{t("独立公司（不属于控股公司）")}</option>
+      <label><span>{t("成立／开始日期（DOI，可选）")}</span><input type="date" value={values.incorporationDate}
+        onChange={update("incorporationDate")} /><small className="form-help">{t("用于首个项目的 DOI → 年结日期间。")}</small></label>
+      <label><span>{t("所属控股公司")}</span><select value={values.parentEntityId} onChange={updateParent}>
+        <option value="">{t("独立主体（不属于控股公司）")}</option>
         {parentOptions.map((entity) => <option key={entity.id} value={entity.id}>{entity.legalName}</option>)}</select></label>
-      <label><span>{t("集团角色")}</span><input value={values.relationshipRole} onChange={update("relationshipRole")}
-        placeholder={t("例如：母公司、子公司或联营公司")} /></label></div>
+      {values.parentEntityId && <label className="span-two"><span>{t("控股公司归属角色")}</span>
+        <input value={values.relationshipRole} onChange={update("relationshipRole")}
+          placeholder={t("例如：子公司、联营公司或中间控股公司")} /></label>}</div>
+    <label className="check-option company-holding-toggle"><input type="checkbox" role="switch"
+      checked={values.kind === "holding_company"} onChange={(event) => setValues((current) => ({ ...current,
+        kind: event.target.checked ? "holding_company" : "company" }))} />
+      <span><strong>{t("启用控股公司架构")}</strong><small>{t("允许在此主体下建立公司层级和合并年度项目。")}</small></span></label>
     {values.kind === "company" && children.length > 0 && <div className="inline-warning"><CircleAlert aria-hidden="true" />
       <span>{t("这家控股公司仍有 {count} 家直属成员。转换为普通公司前请先移动这些成员。", { count: children.length })}</span></div>}
     <label><span>{t("公司备注")}</span><textarea rows="3" value={values.notes} onChange={update("notes")}
@@ -69,7 +85,8 @@ function initialSelections(categories, selectedIds) {
   }));
 }
 
-export function EngagementForm({ store, entity, initial = null, preferredSourceId = "", quickField = null, onSubmit, onClose }) {
+export function EngagementForm({ store, entity, initial = null, preferredSourceId = "", quickField = null,
+  onCreateAnotherYear = null, onSubmit, onClose }) {
   const { language, t } = useUiLanguage();
   const existing = engagementsForEntity(store, entity.id);
   const suggestedYear = initial ? Number(initial.periodStart?.slice(0, 4)) || new Date().getFullYear()
@@ -99,6 +116,11 @@ export function EngagementForm({ store, entity, initial = null, preferredSourceI
   const update = (field) => (event) => setValues((current) => ({ ...current, [field]: event.target.value }));
   const changePreset = (event) => {
     const periodPreset = event.target.value;
+    if (periodPreset === "doi_year_end") {
+      const dates = fiscalPeriodFromIncorporation(entity);
+      setValues((current) => ({ ...current, periodPreset, periodStart: dates.periodStart, periodEnd: dates.periodEnd }));
+      return;
+    }
     const dates = fiscalPeriodForYear(periodPreset, values.baseYear);
     setValues((current) => ({ ...current, periodPreset,
       periodStart: periodPreset === "custom" ? current.periodStart : dates.periodStart,
@@ -111,7 +133,9 @@ export function EngagementForm({ store, entity, initial = null, preferredSourceI
       periodStart: dates.periodStart || current.periodStart, periodEnd: dates.periodEnd || current.periodEnd }));
   };
   const changeDate = (field) => (event) => setValues((current) => ({ ...current, [field]: event.target.value,
-    periodPreset: event.target.value === current[field] ? current.periodPreset : "custom" }));
+    periodPreset: current.periodPreset === "doi_year_end" && field === "periodEnd"
+      && current.periodStart === entity.incorporationDate ? "doi_year_end"
+      : event.target.value === current[field] ? current.periodPreset : "custom" }));
   const toggleCategory = (category) => setSelections((current) => current.some((selection) => selection.categoryId === category.id)
     ? current.filter((selection) => selection.categoryId !== category.id)
     : [...current, { categoryId: category.id, type: category.builtinType || "custom", customName: category.name || "",
@@ -162,10 +186,13 @@ export function EngagementForm({ store, entity, initial = null, preferredSourceI
       <span><small>{t("法律实体")}</small><strong>{entity.legalName}</strong></span></div>
     <section className="period-builder"><header><div><strong>{t("报告期间")}</strong>
       <span>{t("完整起止日期是项目的权威期间。")}</span></div>
-      {!initial && <em>{t("公司默认：{preset}", { preset: presetLabel(entity.fiscalYearPreset, t) })}</em>}</header>
+      {!initial ? <em>{t("公司默认：{preset}", { preset: presetLabel(entity.fiscalYearPreset, t) })}</em>
+        : onCreateAnotherYear && <button type="button" className="period-create-another" onClick={onCreateAnotherYear}>
+          <CalendarPlus aria-hidden="true" />{t("新建另一年度")}</button>}</header>
       <div className="period-builder-controls"><label><span>{t("期间方式")}</span><select value={values.periodPreset} onChange={changePreset}>
-        {["calendar", "apr_mar", "custom"].map((preset) => <option value={preset} key={preset}>{presetLabel(preset, t)}</option>)}</select></label>
-        {values.periodPreset !== "custom" && <label><span>{t(values.periodPreset === "apr_mar" ? "起始年度" : "年度")}</span>
+        {["calendar", "apr_mar", ...(entity.incorporationDate || initialPreset === "doi_year_end" ? ["doi_year_end"] : []), "custom"]
+          .map((preset) => <option value={preset} key={preset}>{presetLabel(preset, t)}</option>)}</select></label>
+        {!["custom", "doi_year_end"].includes(values.periodPreset) && <label><span>{t(values.periodPreset === "apr_mar" ? "起始年度" : "年度")}</span>
           <input type="number" min="1900" max="2200" value={values.baseYear} onChange={changeYear} /></label>}
         <label><span>{t("报告开始日 *")}</span><input type="date" required value={values.periodStart}
           max={values.periodEnd || undefined} onChange={changeDate("periodStart")} /></label>
@@ -219,6 +246,8 @@ export function EntityOverview({ store, entity, onEdit, onNewEngagement, onOpenE
   const { language, t } = useUiLanguage();
   const engagements = engagementsForEntity(store, entity.id);
   const active = engagements.filter((engagement) => !engagement.archived);
+  const latestEngagement = active[0] || engagements[0] || null;
+  const latestPeriodLabel = formalReportingPeriodLabel(latestEngagement, language);
   const parent = store.entities.find((item) => item.id === entity.parentEntityId);
   const children = store.entities.filter((item) => item.parentEntityId === entity.id);
   const taxSummary = taxDeadlineSummary(entity.taxDeadlines || []);
@@ -229,7 +258,8 @@ export function EntityOverview({ store, entity, onEdit, onNewEngagement, onOpenE
   return <section className="entity-overview">
     <header className="entity-overview-header"><div className="entity-overview-title"><i>{entity.kind === "holding_company"
       ? <Building2 aria-hidden="true" /> : <Building aria-hidden="true" />}</i><div><span>{t("公司主档")}</span>
-      <h2>{entity.legalName}</h2><p>{t(entity.kind === "holding_company" ? "控股公司" : "公司")}</p></div></div>
+      <h2>{entity.legalName}</h2><p>{entity.entityType || t("主体类型未设置")}{entity.kind === "holding_company"
+        ? ` · ${t("控股公司架构")}` : ""}</p></div></div>
       <div className="entity-overview-actions">{!entity.archived && <button type="button" className="button primary" onClick={onNewEngagement}>
         <Plus aria-hidden="true" />{t("新建项目")}</button>}<button type="button" className="icon-only" onClick={onEdit}
           aria-label={t("编辑公司主档")} data-tooltip={t("编辑公司主档")}><Edit3 aria-hidden="true" /></button>
@@ -239,8 +269,10 @@ export function EntityOverview({ store, entity, onEdit, onNewEngagement, onOpenE
             data-tooltip={t("永久删除公司")}><Trash2 aria-hidden="true" /></button></>
           : <button type="button" className="icon-only" onClick={onArchive} aria-label={t("归档公司")}
             data-tooltip={t("归档公司")}><Archive aria-hidden="true" /></button>}</div></header>
-    <div className="entity-facts"><button type="button" onClick={onEdit}><span>{t("默认会计年度")}</span><strong>{presetLabel(entity.fiscalYearPreset, t)}</strong>
-      <Settings2 aria-hidden="true" /></button><button type="button" onClick={onEdit}><span>{t("所属控股公司")}</span>
+    <div className="entity-facts"><button type="button" onClick={() => latestEngagement ? onEditEngagement(latestEngagement) : onNewEngagement()}
+      aria-label={`${t("最新年结／报告期间")}：${latestPeriodLabel}`} title={latestPeriodLabel}>
+      <span>{t("最新年结／报告期间")}</span><strong>{latestPeriodLabel}</strong><CalendarDays aria-hidden="true" /></button>
+      <button type="button" onClick={onEdit}><span>{t("所属控股公司")}</span>
         <strong>{parent?.legalName || t("独立公司")}</strong><Settings2 aria-hidden="true" /></button>
       <button type="button" onClick={onTax} data-urgency={taxSummary.urgency}><span>{t("税务期限")}</span>
         <strong>{taxSummary.next ? `${formatDate(taxSummary.next.dueDate, language)} · ${taxSummary.openCount}` : t("没有未完成期限")}</strong>

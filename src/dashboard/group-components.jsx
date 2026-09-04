@@ -186,7 +186,7 @@ function EntityWorkspaceTree({ store, selection, onSelect, onMove, search, filte
     const archivedMode = filter === "archived";
     const ownArchiveMatch = archivedMode ? entity.archived : !entity.archived;
     const engagements = entityEngagements(entity.id).filter((engagement) => engagementMatches(engagement, entity));
-    const ownText = !query || [entity.legalName, entity.relationshipRole].some((value) =>
+    const ownText = !query || [entity.legalName, entity.entityType, entity.relationshipRole].some((value) =>
       String(value || "").toLocaleLowerCase().includes(query));
     const zeroEngagementVisible = ["active", "all"].includes(filter) && ownArchiveMatch
       && !entityEngagements(entity.id).length && ownText;
@@ -271,7 +271,8 @@ function EntityWorkspaceTree({ store, selection, onSelect, onMove, search, filte
         onDragEnter={(event) => dragOver(event, entity.id)} onDragOver={(event) => dragOver(event, entity.id)} onDrop={(event) => drop(event, entity.id)}
         onClick={() => onSelect({ kind: "entity", id: entity.id })}>
         <span className="tree-kind-mark">{entity.kind === "holding_company" ? <Building2 aria-hidden="true" /> : <Building aria-hidden="true" />}</span>
-        <span className="tree-copy"><strong>{entity.legalName}</strong><small>{entity.relationshipRole || t(entity.kind === "holding_company" ? "控股公司" : "公司主档")}</small></span>
+        <span className="tree-copy"><strong>{entity.legalName}</strong><small>{entity.relationshipRole || entity.entityType
+          || t(entity.kind === "holding_company" ? "控股公司" : "公司主档")}</small></span>
         <span className="tree-progress">{activeEngagements}</span></button></div>{open && <div className="tree-children">{engagements}{children}</div>}</div>;
   };
   const roots = sortedEntities(store.entities.filter((entity) => !entity.parentEntityId || !entityById.has(entity.parentEntityId)));

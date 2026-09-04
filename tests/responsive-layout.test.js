@@ -156,6 +156,10 @@ test("V11 company masters and annual engagement forms have compact responsive la
   assert.match(css, /\.entity-facts\s*{[\s\S]*?grid-template-columns:\s*repeat\(4,/);
   assert.match(css, /@container workspace \(max-width: 820px\)[\s\S]*?\.entity-facts\s*{\s*grid-template-columns:\s*repeat\(2,/);
   assert.match(css, /@media \(max-width: 500px\)[\s\S]*?\.period-builder-controls, \.entity-facts, \.merge-preview/);
+  assert.match(workbench, /className="workspace-history-controls"/);
+  assert.match(css, /\.workbench-modal-body\s*{[^}]*overflow-y:\s*auto/);
+  assert.match(css, /\.entity-facts strong\s*{[^}]*overflow-wrap:\s*anywhere;[^}]*white-space:\s*normal/);
+  assert.match(v11Components, /formalReportingPeriodLabel\(latestEngagement, language\)/);
 });
 
 test("the tax deadline fact matches the other editable summary cells and opens direct editing", () => {

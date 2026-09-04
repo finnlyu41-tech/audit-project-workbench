@@ -6,6 +6,26 @@ The project follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.6.1] - 2026-09-04
+
+### Added
+
+- Free-text entity types for limited companies, sole proprietorships, partnerships, individuals and other legal forms, independently from the holding-company structure control.
+- Optional incorporation or commencement dates and a first-period `DOI → year end` method that calculates the next applicable calendar or April-to-March year end while keeping both dates editable.
+- Compact back and forward view-history controls, plus a direct “Create another year” action from annual-engagement editing.
+- Formal company-overview period wording: full financial years show their exact year-end date, while first periods show `For the period from … (DOI) to …`.
+
+### Changed
+
+- Built-in workflow completion criteria now use one or two material milestone gates per stage instead of many granular checklist items. Custom templates remain unchanged.
+- Company and engagement cards wrap important text where space allows; remaining overflow receives the full value on hover or keyboard focus.
+- Financial-year options use explicit dates, and holding-company relationship fields appear only after a parent holding company is selected.
+
+### Fixed
+
+- Long annual-engagement forms scroll inside the viewport while the dialog title remains available and the action row remains reachable.
+- Clearing a parent holding company now also clears its obsolete relationship role.
+
 ## [0.6.0] - 2026-09-04
 
 ### Added

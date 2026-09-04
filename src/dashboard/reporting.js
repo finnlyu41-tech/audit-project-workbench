@@ -422,7 +422,8 @@ export function buildRecordReport(store, kind, id, nowValue = new Date()) {
           periodStart: engagement.periodStart, periodEnd: engagement.periodEnd, owner: engagement.owner,
           startDate: engagement.startDate, dueDate: engagement.dueDate, archived: engagement.archived, complete };
       });
-    return { kind: "entity", id: entity.id, name: entity.legalName, entityKind: entity.kind,
+    return { kind: "entity", id: entity.id, name: entity.legalName, entityType: entity.entityType,
+      entityKind: entity.kind,
       archived: entity.archived, fiscalYearPreset: entity.fiscalYearPreset, projects,
       children: (store.entities || []).filter((child) => child.parentEntityId === entity.id)
         .map((child) => ({ id: child.id, name: child.legalName, kind: child.kind, role: child.relationshipRole })),

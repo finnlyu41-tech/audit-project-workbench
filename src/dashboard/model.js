@@ -5,6 +5,7 @@ export const V10_RECOVERY_KEY = "audit-progress-workbench:v10-recovery";
 export const STORE_VERSION = 11;
 export const LEGACY_STORE_VERSION = 10;
 export const FISCAL_YEAR_PRESETS = ["calendar", "apr_mar", "custom"];
+export const ENGAGEMENT_PERIOD_PRESETS = [...FISCAL_YEAR_PRESETS, "doi_year_end"];
 export const CORE_SAMPLE_KEY = "core-audit";
 export const CORE_GROUP_SAMPLE_KEY = "core-group";
 
@@ -48,42 +49,42 @@ export const GROUP_AUDIT_TYPE_KEYS = {
 };
 
 export const groupStarterNodes = [
-  ["集团范围与架构", "确认集团边界、组成部分及合并责任。", ["集团架构已确认", "合并范围已确认", "组成部分重要性已确定"]],
-  ["组成部分审计指示", "发出并追踪各组成部分的审计或报送要求。", ["组成部分指示已发出", "负责人及截止日已确认"]],
-  ["公司试算表及报告包", "确认纳入合并的公司资料已经齐备。", ["所有必需公司已具备合并条件", "报告包及最终试算表已收齐"]],
-  ["集团往来核对", "清理集团内往来、交易及未对账差异。", ["集团往来余额已匹配", "重大差异已解释或处理"]],
-  ["抵销及合并调整", "追踪抵销分录和其他合并层调整。", ["抵销事项已识别", "合并调整已复核", "调整状态已更新"]],
-  ["合并财务报表", "完成合并数字、披露及列报复核。", ["合并报表初稿已准备", "合并数字已核对", "披露及列报已复核"]],
-  ["集团签署与归档", "完成集团层复核、签署和最终归档。", ["集团复核点已清理", "集团签署文件已完成", "最终集团文件已归档"]],
+  ["集团范围与架构", "确认集团边界、组成部分、重要性及合并责任。", ["集团架构及合并范围已批准"]],
+  ["组成部分审计指示", "发出并追踪各组成部分的审计或报送要求。", ["组成部分指示及交付责任已确认"]],
+  ["公司试算表及报告包", "确认纳入合并的公司资料已经齐备。", ["所有重大组成部分的最终报告包已收齐"]],
+  ["集团往来核对", "清理集团内往来、交易及未对账差异。", ["重大集团往来差异已处理"]],
+  ["抵销及合并调整", "追踪抵销分录和其他合并层调整。", ["重大抵销及合并调整已批准"]],
+  ["合并财务报表", "完成合并数字、披露及列报复核。", ["合并财务报表已完成复核"]],
+  ["集团签署与归档", "完成集团层复核、签署和最终归档。", ["集团签署及最终归档已完成"]],
 ];
 
 export const groupStarterNodesEnglish = [
   ["Group scope and structure", "Confirm the group boundary, components and consolidation responsibilities.",
-    ["Group structure confirmed", "Consolidation scope confirmed", "Component significance determined"]],
+    ["Group structure and consolidation scope approved"]],
   ["Component instructions", "Issue and track audit or reporting requirements for each component.",
-    ["Component instructions issued", "Owners and deadlines confirmed"]],
+    ["Component instructions and delivery responsibilities confirmed"]],
   ["Company TBs and reporting packs", "Confirm that company information required for consolidation is ready.",
-    ["All required companies are consolidation-ready", "Reporting packs and final TBs received"]],
+    ["Final reporting packs received for all significant components"]],
   ["Intercompany reconciliation", "Clear intercompany balances, transactions and unreconciled differences.",
-    ["Intercompany balances matched", "Material differences explained or resolved"]],
+    ["Material intercompany differences resolved"]],
   ["Eliminations and consolidation adjustments", "Track eliminations and other group-level adjustments.",
-    ["Elimination items identified", "Consolidation adjustments reviewed", "Adjustment statuses updated"]],
+    ["Material eliminations and consolidation adjustments approved"]],
   ["Consolidated financial statements", "Complete the review of consolidated figures, disclosures and presentation.",
-    ["Draft consolidated financial statements prepared", "Consolidated figures agreed", "Disclosures and presentation reviewed"]],
+    ["Consolidated financial statements review completed"]],
   ["Group signing and archive", "Complete group review, signing and final archiving.",
-    ["Group review points cleared", "Group signing documents completed", "Final group file archived"]],
+    ["Group signing and final archive completed"]],
 ];
 
 export const groupReadinessTemplates = {
-  internal_team: ["最终试算表已确认", "审计调整已处理", "公司报告包已完成", "重大未决事项已向集团汇报"],
-  component_auditor: ["组成部分审计师已确认指示", "组成部分报告包已收到", "审计师结论及交付文件已收到", "重大事项已沟通"],
-  management_accounts: ["管理账或最终试算表已收到", "科目映射及余额核对已完成", "所需管理层支持文件已收到"],
+  internal_team: ["最终试算表及调整已确认", "公司报告包已完成且重大未决事项已汇报"],
+  component_auditor: ["组成部分审计师交付要求已确认", "组成部分报告包及重大事项沟通已完成"],
+  management_accounts: ["管理账或最终试算表已确认", "科目映射、余额及重大支持已完成核对"],
 };
 
 export const groupReadinessTemplatesEnglish = {
-  internal_team: ["Final TB confirmed", "Audit adjustments processed", "Company reporting pack completed", "Significant open matters reported to the group"],
-  component_auditor: ["Component auditor acknowledged instructions", "Component reporting pack received", "Auditor conclusions and deliverables received", "Significant matters communicated"],
-  management_accounts: ["Management accounts or final TB received", "Account mapping and balance reconciliation completed", "Required management support received"],
+  internal_team: ["Final trial balance and adjustments confirmed", "Company reporting pack completed and significant open matters reported"],
+  component_auditor: ["Component-auditor deliverables confirmed", "Component reporting pack and significant-matter communication completed"],
+  management_accounts: ["Management accounts or final trial balance confirmed", "Account mapping, balances and significant support reconciled"],
 };
 
 export const defaultOutstandingStatusDefinitions = [
@@ -96,90 +97,90 @@ export const defaultOutstandingStatusDefinitions = [
 export const outstandingStatusOptions = defaultOutstandingStatusDefinitions.map(({ id, label }) => [id, label]);
 
 export const starterNodes = [
-  ["项目设置", "先锁定项目范围和权威资料。", ["法律实体已确认", "报告期间已确认", "报告框架已确认", "试算表及总账权威版本已确认"]],
-  ["客户提供资料", "追踪客户资料的发出、接收和未完成事项。", ["资料清单已发出", "关键资料已收到", "未清资料清单已复核"]],
-  ["试算表及总账衔接", "确认审计基础数据完整、平衡并与总账衔接。", ["试算表已收到", "总账已收到", "试算表与总账衔接检查已完成"]],
-  ["审计执行", "完成主要工作底稿并处理审计调整。", ["主要工作底稿已完成", "调整事项已处理"]],
-  ["财务报表", "完成报表数字和披露复核。", ["财务报表初稿已准备", "报表数字已核对", "报表复核点已清理"]],
-  ["签署与归档", "完成签署文件和最终文件整理。", ["签署文件已准备", "已签文件已收回", "最终文件已归档"]],
+  ["项目设置", "锁定项目范围、报告期间、适用框架及权威资料。", ["项目范围及报告基础已批准", "权威试算表及总账版本已锁定"]],
+  ["客户提供资料", "追踪关键资料的发出、接收和重大缺口。", ["关键审计资料已收到", "重大资料缺口已列入待清事项"]],
+  ["试算表及总账衔接", "确认审计基础数据完整、平衡并与总账衔接。", ["审计基础数据已完成衔接并确认"]],
+  ["审计执行", "完成主要工作底稿并处理重大调整及未决事项。", ["主要审计工作已完成", "重大调整及未决事项已处理"]],
+  ["财务报表", "完成报表数字、披露及列报复核。", ["财务报表已完成复核"]],
+  ["签署与归档", "完成签署及最终文件整理。", ["签署已完成", "最终审计档案已归档"]],
 ];
 
 export const starterNodesEnglish = [
-  ["Engagement setup", "Confirm the engagement scope and authoritative sources.",
-    ["Legal entity confirmed", "Reporting period confirmed", "Reporting framework confirmed", "Authoritative trial balance and general ledger versions confirmed"]],
-  ["PBC documents", "Track client requests, receipts and unresolved document gaps.",
-    ["PBC request list issued", "Key documents received", "Outstanding request list reviewed"]],
+  ["Engagement setup", "Lock the engagement scope, reporting period, applicable framework and authoritative sources.",
+    ["Engagement scope and reporting basis approved", "Authoritative trial balance and general ledger versions locked"]],
+  ["PBC documents", "Track key client requests, receipts and material document gaps.",
+    ["Key audit information received", "Material information gaps logged as outstanding items"]],
   ["Trial balance and general ledger", "Confirm that the audit data is complete, balanced and reconciled to the general ledger.",
-    ["Trial balance received", "General ledger received", "Trial balance-to-ledger reconciliation completed"]],
-  ["Audit execution", "Complete the main workpapers and process audit adjustments.",
-    ["Main workpapers completed", "Audit adjustments processed"]],
-  ["Financial statements", "Complete the financial statement figures and disclosure review.",
-    ["Draft financial statements prepared", "Financial statement figures agreed", "Financial statement review points cleared"]],
-  ["Signing and archive", "Complete signing documents and final file assembly.",
-    ["Signing documents prepared", "Signed documents received", "Final file archived"]],
+    ["Audit source data reconciled and confirmed"]],
+  ["Audit execution", "Complete the main workpapers and resolve material adjustments and open matters.",
+    ["Main audit work completed", "Material adjustments and open matters resolved"]],
+  ["Financial statements", "Complete the financial statement figures, disclosures and presentation review.",
+    ["Financial statements review completed"]],
+  ["Signing and archive", "Complete signing and final file assembly.",
+    ["Signing completed", "Final audit file archived"]],
 ];
 
 export const quoteCollectionStarterNodes = [
-  ["报价", "确认服务范围、收费及报价版本。", ["服务范围及收费已确认", "报价已发送客户"]],
-  ["接受委聘", "记录客户接受报价及委聘安排。", ["客户已接受报价", "委聘文件已签署或接受方式已记录"]],
-  ["开票", "完成账单资料及发票发出。", ["开票资料已确认", "发票已发出"]],
-  ["收款", "追踪款项直至收款或经批准结案。", ["收款状态已更新", "款项已收妥或未收款结案已获批准"]],
+  ["报价", "确认服务范围、收费及报价版本。", ["报价已批准并发送客户"]],
+  ["接受委聘", "记录客户接受报价及委聘安排。", ["委聘已获接受并留有记录"]],
+  ["开票", "完成账单资料及发票发出。", ["发票已发出"]],
+  ["收款", "追踪款项直至收款或经批准结案。", ["款项已收妥或结案已获批准"]],
 ];
 
 export const quoteCollectionStarterNodesEnglish = [
-  ["Quotation", "Confirm the service scope, fee and quotation version.", ["Service scope and fee confirmed", "Quotation sent to the client"]],
-  ["Engagement acceptance", "Record the client's acceptance and engagement arrangements.", ["Client accepted the quotation", "Engagement document signed or acceptance method recorded"]],
-  ["Billing", "Complete billing details and issue the invoice.", ["Billing details confirmed", "Invoice issued"]],
-  ["Collection", "Track payment until received or an approved close-out.", ["Collection status updated", "Payment received or non-collection close-out approved"]],
+  ["Quotation", "Confirm the service scope, fee and quotation version.", ["Quotation approved and sent to the client"]],
+  ["Engagement acceptance", "Record the client's acceptance and engagement arrangements.", ["Engagement accepted and documented"]],
+  ["Billing", "Complete billing details and issue the invoice.", ["Invoice issued"]],
+  ["Collection", "Track payment until received or an approved close-out.", ["Payment received or close-out approved"]],
 ];
 
 export const bookkeepingStarterNodes = [
-  ["账套与期初设置", "确认服务范围、会计期间、科目表及期初余额。", ["会计期间及服务范围已确认", "科目表已设置", "期初余额已核对"]],
-  ["原始凭证收集", "收集并整理记账所需的发票、收据、银行及薪酬资料。", ["本期原始凭证已收齐", "银行及支付资料已收齐", "缺失资料已列入待清事项"]],
-  ["交易记录与分类", "按适用准则和公司政策记录并分类本期交易。", ["收入及支出已入账", "资产、负债及权益交易已入账", "会计科目及税务编码已复核"]],
-  ["对账与复核", "完成银行及主要控制账户对账，并处理异常项目。", ["银行账户已对账", "应收、应付及其他控制账户已核对", "异常项目已处理或列入待清事项"]],
-  ["期间结账与交付", "完成结账分录、试算表及约定的管理报告。", ["结账分录已记录", "试算表已复核", "约定报表或账务资料已交付"]],
+  ["账套与期初设置", "确认服务范围、会计期间、科目表及期初余额。", ["账套及期初余额已确认"]],
+  ["原始凭证收集", "收集并整理记账所需的发票、收据、银行及薪酬资料。", ["关键原始资料已收齐", "重大缺失资料已列入待清事项"]],
+  ["交易记录与分类", "按适用准则和公司政策记录并分类本期交易。", ["本期交易已完成入账及复核"]],
+  ["对账与复核", "完成银行及主要控制账户对账，并处理异常项目。", ["主要账户已完成对账", "重大异常已处理或列入待清事项"]],
+  ["期间结账与交付", "完成结账分录、试算表及约定的管理报告。", ["期间结账及试算表复核已完成", "约定账务成果已交付"]],
 ];
 
 export const bookkeepingStarterNodesEnglish = [
   ["Ledger and opening setup", "Confirm the service scope, accounting period, chart of accounts and opening balances.",
-    ["Accounting period and service scope confirmed", "Chart of accounts configured", "Opening balances reconciled"]],
+    ["Ledger setup and opening balances confirmed"]],
   ["Source document collection", "Collect and organise invoices, receipts, bank records and payroll information needed for bookkeeping.",
-    ["Current-period source documents received", "Bank and payment records received", "Missing information logged as outstanding items"]],
+    ["Key source documents received", "Material information gaps logged as outstanding items"]],
   ["Transaction recording and coding", "Record and classify current-period transactions under the applicable framework and company policies.",
-    ["Income and expenditure recorded", "Asset, liability and equity transactions recorded", "Account and tax coding reviewed"]],
+    ["Current-period transactions recorded and reviewed"]],
   ["Reconciliation and review", "Reconcile bank and key control accounts and resolve exceptions.",
-    ["Bank accounts reconciled", "Receivables, payables and other control accounts reconciled", "Exceptions resolved or logged as outstanding items"]],
+    ["Key accounts reconciled", "Material exceptions resolved or logged as outstanding items"]],
   ["Period close and delivery", "Complete closing entries, the trial balance and agreed management reports.",
-    ["Closing entries recorded", "Trial balance reviewed", "Agreed reports or accounting records delivered"]],
+    ["Period close and trial balance review completed", "Agreed accounting deliverables issued"]],
 ];
 
 export const taxStarterNodes = [
-  ["税务资料准备", "收集并确认税务计算及报税所需资料。", ["税务资料已收齐", "账目与税务期间已确认"]],
-  ["税务计算", "完成税务调整、计算及内部复核。", ["税务计算初稿已完成", "主要税务调整已复核"]],
-  ["客户批准及签署", "向客户发出文件并取得所需批准或签署。", ["客户意见已处理", "所需批准或签署已取得"]],
-  ["提交及回执", "完成报税提交并保存提交证明。", ["报税表及附件已提交", "提交回执或记录已保存"]],
+  ["税务资料准备", "收集并确认税务计算及报税所需资料。", ["税务计算基础资料已确认齐备"]],
+  ["税务计算", "完成税务调整、计算及内部复核。", ["税务计算及重大调整已完成复核"]],
+  ["客户批准及签署", "向客户发出文件并取得所需批准或签署。", ["客户批准及所需签署已取得"]],
+  ["提交及回执", "完成报税提交并保存提交证明。", ["报税已提交且回执已保存"]],
 ];
 
 export const taxStarterNodesEnglish = [
-  ["Tax information", "Collect and confirm information required for the tax computation and filing.", ["Tax information received", "Accounts and tax period confirmed"]],
-  ["Tax computation", "Complete tax adjustments, the computation and internal review.", ["Draft tax computation completed", "Key tax adjustments reviewed"]],
-  ["Client approval and signing", "Send documents to the client and obtain required approval or signatures.", ["Client comments resolved", "Required approval or signatures obtained"]],
-  ["Filing and acknowledgement", "Submit the filing and retain submission evidence.", ["Return and attachments submitted", "Submission acknowledgement or record saved"]],
+  ["Tax information", "Collect and confirm information required for the tax computation and filing.", ["Tax computation source information confirmed complete"]],
+  ["Tax computation", "Complete tax adjustments, the computation and internal review.", ["Tax computation and material adjustments reviewed"]],
+  ["Client approval and signing", "Send documents to the client and obtain required approval or signatures.", ["Client approval and required signatures obtained"]],
+  ["Filing and acknowledgement", "Submit the filing and retain submission evidence.", ["Filing submitted and acknowledgement retained"]],
 ];
 
 export const cddStarterNodes = [
-  ["身份资料", "确认客户及相关人士的身份资料。", ["客户身份资料已取得", "授权代表资料已确认"]],
-  ["所有权与控制人", "记录最终实益拥有人及控制结构。", ["所有权结构已记录", "最终实益拥有人及控制人已确认"]],
-  ["风险评估", "完成客户风险评估及所需跟进。", ["风险评级已完成", "高风险事项及额外程序已记录"]],
-  ["批准及复核日期", "完成内部批准并设定下次复核。", ["客户尽职调查已获内部批准", "下次复核日期已记录"]],
+  ["身份资料", "确认客户及相关人士的身份资料。", ["客户及授权代表身份已核实"]],
+  ["所有权与控制人", "记录最终实益拥有人及控制结构。", ["最终实益拥有人及控制结构已确认"]],
+  ["风险评估", "完成客户风险评估及所需跟进。", ["风险评估及所需加强措施已完成"]],
+  ["批准及复核日期", "完成内部批准并设定下次复核。", ["客户尽职调查已批准且复核日期已设定"]],
 ];
 
 export const cddStarterNodesEnglish = [
-  ["Identity information", "Confirm identity information for the client and relevant persons.", ["Client identity information obtained", "Authorised representative information confirmed"]],
-  ["Ownership and control", "Record ultimate beneficial owners and the control structure.", ["Ownership structure recorded", "Ultimate beneficial owners and controllers confirmed"]],
-  ["Risk assessment", "Complete the client risk assessment and required follow-up.", ["Risk rating completed", "High-risk matters and additional procedures recorded"]],
-  ["Approval and review date", "Complete internal approval and set the next review date.", ["Customer due diligence internally approved", "Next review date recorded"]],
+  ["Identity information", "Confirm identity information for the client and relevant persons.", ["Client and authorised-representative identities verified"]],
+  ["Ownership and control", "Record ultimate beneficial owners and the control structure.", ["Ultimate beneficial owners and control structure confirmed"]],
+  ["Risk assessment", "Complete the client risk assessment and required follow-up.", ["Risk assessment and required enhanced measures completed"]],
+  ["Approval and review date", "Complete internal approval and set the next review date.", ["Customer due diligence approved and next review date set"]],
 ];
 
 const workflowDefinitions = {
@@ -1056,6 +1057,11 @@ export function normalizeFiscalYearPreset(value, fallback = "calendar") {
     : (FISCAL_YEAR_PRESETS.includes(fallback) ? fallback : "calendar");
 }
 
+export function normalizeEngagementPeriodPreset(value, fallback = "custom") {
+  return ENGAGEMENT_PERIOD_PRESETS.includes(value) ? value
+    : (ENGAGEMENT_PERIOD_PRESETS.includes(fallback) ? fallback : "custom");
+}
+
 export function inferPeriodPreset(periodStart, periodEnd) {
   if (!validIsoDate(periodStart) || !validIsoDate(periodEnd)) return "custom";
   const startYear = Number(periodStart.slice(0, 4));
@@ -1080,6 +1086,19 @@ export function fiscalPeriodForYear(preset, baseYear) {
     periodStart: `${year}-01-01`,
     periodEnd: `${year}-12-31`,
   };
+}
+
+export function fiscalPeriodFromIncorporation(entity = {}) {
+  const periodStart = typeof entity.incorporationDate === "string" ? entity.incorporationDate : "";
+  if (!validIsoDate(periodStart)) return { periodPreset: "doi_year_end", periodStart: "", periodEnd: "" };
+  const preset = normalizeFiscalYearPreset(entity.fiscalYearPreset, "custom");
+  const year = Number(periodStart.slice(0, 4));
+  if (preset === "calendar") return { periodPreset: "doi_year_end", periodStart, periodEnd: `${year}-12-31` };
+  if (preset === "apr_mar") {
+    const endYear = periodStart.slice(5) <= "03-31" ? year : year + 1;
+    return { periodPreset: "doi_year_end", periodStart, periodEnd: `${endYear}-03-31` };
+  }
+  return { periodPreset: "doi_year_end", periodStart, periodEnd: "" };
 }
 
 export function periodBaseYear(engagement) {
@@ -1110,22 +1129,36 @@ export function engagementPeriodExists(store, entityId, periodStart, periodEnd, 
 export function suggestNextFiscalYear(entity, engagements = []) {
   const preset = normalizeFiscalYearPreset(entity?.fiscalYearPreset, "calendar");
   if (preset === "custom") return null;
-  const years = engagements.filter((engagement) => engagement.entityId === entity?.id
-    && inferPeriodPreset(engagement.periodStart, engagement.periodEnd) === preset)
-    .map(periodBaseYear).filter(Number.isInteger);
+  const years = engagements.filter((engagement) => engagement.entityId === entity?.id).map((engagement) => {
+    if (inferPeriodPreset(engagement.periodStart, engagement.periodEnd) === preset) {
+      const baseYear = periodBaseYear(engagement);
+      return Number.isInteger(baseYear) ? baseYear + 1 : null;
+    }
+    if (engagement.periodPreset !== "doi_year_end" || !validIsoDate(engagement.periodEnd)) return null;
+    const endYear = Number(engagement.periodEnd.slice(0, 4));
+    if (preset === "calendar" && engagement.periodEnd.endsWith("-12-31")) return endYear + 1;
+    if (preset === "apr_mar" && engagement.periodEnd.endsWith("-03-31")) return endYear;
+    return null;
+  }).filter(Number.isInteger);
   const currentYear = new Date().getFullYear();
-  return years.length ? Math.max(...years) + 1 : currentYear;
+  return years.length ? Math.max(...years) : currentYear;
 }
 
 function normalizeEntityRecord(value = {}) {
   const now = new Date().toISOString();
+  const parentEntityId = typeof value.parentEntityId === "string" && value.parentEntityId ? value.parentEntityId : null;
   return {
     id: value.id || uid("entity"),
     legalName: typeof value.legalName === "string" && value.legalName.trim()
       ? value.legalName.trim() : "未命名公司",
+    entityType: typeof value.entityType === "string" ? value.entityType.trim()
+      : (typeof value.legalForm === "string" ? value.legalForm.trim() : ""),
+    incorporationDate: typeof value.incorporationDate === "string" && validIsoDate(value.incorporationDate)
+      ? value.incorporationDate : (typeof value.dateOfIncorporation === "string" && validIsoDate(value.dateOfIncorporation)
+        ? value.dateOfIncorporation : ""),
     kind: value.kind === "holding_company" ? "holding_company" : "company",
-    parentEntityId: typeof value.parentEntityId === "string" && value.parentEntityId ? value.parentEntityId : null,
-    relationshipRole: typeof value.relationshipRole === "string" ? value.relationshipRole.trim() : "",
+    parentEntityId,
+    relationshipRole: parentEntityId && typeof value.relationshipRole === "string" ? value.relationshipRole.trim() : "",
     fiscalYearPreset: normalizeFiscalYearPreset(value.fiscalYearPreset, "calendar"),
     taxDeadlines: Array.isArray(value.taxDeadlines) ? value.taxDeadlines.map(makeTaxDeadline) : [],
     notes: typeof value.notes === "string" ? value.notes : "",
@@ -1156,6 +1189,7 @@ function normalizeConsolidationComponent(value = {}, entityById = new Map(), eng
     entitySnapshot: {
       id: value.entitySnapshot?.id || entity?.id || entityId || "",
       legalName: value.entitySnapshot?.legalName || entity?.legalName || value.sourceName || "",
+      entityType: value.entitySnapshot?.entityType || entity?.entityType || "",
       kind: value.entitySnapshot?.kind || entity?.kind || "company",
     },
     periodSnapshot: {
@@ -1200,7 +1234,7 @@ function normalizeEngagementRecord(value = {}, context = {}) {
     entityId: typeof value.entityId === "string" ? value.entityId : "",
     internalName: typeof value.internalName === "string" ? value.internalName.trim()
       : (typeof value.name === "string" ? value.name.trim() : ""),
-    periodPreset: normalizeFiscalYearPreset(value.periodPreset, inferredPreset),
+    periodPreset: normalizeEngagementPeriodPreset(value.periodPreset, inferredPreset),
     periodStart,
     periodEnd,
     legacyPeriod: typeof value.legacyPeriod === "string" ? value.legacyPeriod
@@ -1239,7 +1273,7 @@ function normalizeEntityHierarchy(entities) {
     const parent = byId.get(entity.parentEntityId);
     if (!parent || parent.kind !== "holding_company" || parent.id === entity.id
       || holdingEntityContains(entities, entity.id, parent.id)) {
-      return entity.parentEntityId ? { ...entity, parentEntityId: null } : entity;
+      return entity.parentEntityId ? { ...entity, parentEntityId: null, relationshipRole: "" } : entity;
     }
     return entity;
   });
@@ -1280,6 +1314,7 @@ function addRuntimeViews(store) {
       entityId: entity.id,
       name: engagement.internalName || entity.legalName,
       entity: entity.legalName,
+      entityType: entity.entityType,
       reportingFramework: engagement.reportingFramework,
       period: engagement.legacyPeriod || "",
       periodPreset: engagement.periodPreset,
@@ -1411,7 +1446,7 @@ function legacyMemberToComponent(member, engagementById, entityById) {
     role: member.role || "",
     auditType: GROUP_AUDIT_TYPES.includes(member.auditType) ? member.auditType : "internal_team",
     readinessConditions: member.readinessConditions || [],
-    entitySnapshot: { id: entity.id, legalName: entity.legalName, kind: entity.kind },
+    entitySnapshot: { id: entity.id, legalName: entity.legalName, entityType: entity.entityType, kind: entity.kind },
     periodSnapshot: { engagementId: target.id, periodStart: target.periodStart, periodEnd: target.periodEnd,
       label: fiscalPeriodShortLabel(target, "en") },
   };
@@ -1428,6 +1463,8 @@ function migrateLegacyStore(value) {
     const entityId = `entity-${project.id}`;
     entityIdByLegacy.set(`project:${project.id}`, entityId);
     entities.push(normalizeEntityRecord({ id: entityId, legalName: project.entity || project.name,
+      entityType: project.entityType || project.legalForm,
+      incorporationDate: project.incorporationDate || project.dateOfIncorporation,
       kind: "company", fiscalYearPreset: inferPeriodPreset(project.periodStart, project.periodEnd),
       taxDeadlines: (project.taxDeadlines || []).map((deadline) => ({ ...deadline,
         linkedEngagementId: deadline.linkedWorkstreamId ? project.id : null })), archived: project.archived,
@@ -1448,7 +1485,9 @@ function migrateLegacyStore(value) {
   legacy.groups.forEach((group) => {
     const entityId = `entity-${group.id}`;
     entityIdByLegacy.set(`group:${group.id}`, entityId);
-    entities.push(normalizeEntityRecord({ id: entityId, legalName: group.name, kind: "holding_company",
+    entities.push(normalizeEntityRecord({ id: entityId, legalName: group.name,
+      entityType: group.entityType || group.legalForm,
+      incorporationDate: group.incorporationDate || group.dateOfIncorporation, kind: "holding_company",
       fiscalYearPreset: inferPeriodPreset(group.periodStart, group.periodEnd), taxDeadlines: group.taxDeadlines,
       archived: group.archived, createdAt: group.createdAt, updatedAt: group.updatedAt }));
     engagements.push(normalizeEngagementRecord({ id: group.id, entityId, internalName: "",
@@ -1522,6 +1561,8 @@ function syncCanonicalFromLegacyViews(previous, candidate) {
     if (!entityById.has(entityId)) {
       entityId = uid("entity");
       const entity = normalizeEntityRecord({ id: entityId, legalName: record.entity || record.name,
+        entityType: record.entityType || record.legalForm,
+        incorporationDate: record.incorporationDate || record.dateOfIncorporation,
         kind, fiscalYearPreset: inferPeriodPreset(record.periodStart, record.periodEnd), createdAt: record.createdAt });
       entities.push(entity);
       entityById.set(entity.id, entity);
@@ -1648,7 +1689,8 @@ export function moveEntity(store, entityId, parentEntityId = "", relationshipRol
   return normalizeCanonicalStore({ ...store, entities: store.entities.map((entity) => entity.id === entityId ? {
     ...entity,
     parentEntityId: parentEntityId || null,
-    relationshipRole: relationshipRole === undefined ? entity.relationshipRole : String(relationshipRole || "").trim(),
+    relationshipRole: !parentEntityId ? "" : relationshipRole === undefined
+      ? entity.relationshipRole : String(relationshipRole || "").trim(),
     updatedAt: now,
   } : entity) });
 }
@@ -1736,7 +1778,7 @@ export function componentsForCurrentStructure(store, holdingEntityId, periodStar
       readinessConditions: (groupSample?.readinessTemplates?.[auditType] || []).map((condition) => ({
         id: uid("readiness-condition"), label: condition.label, done: false,
       })),
-      entitySnapshot: { id: entity.id, legalName: entity.legalName, kind: entity.kind },
+      entitySnapshot: { id: entity.id, legalName: entity.legalName, entityType: entity.entityType, kind: entity.kind },
       periodSnapshot: { engagementId: engagement?.id || "", periodStart: engagement?.periodStart || periodStart,
         periodEnd: engagement?.periodEnd || periodEnd, label: engagement ? fiscalPeriodShortLabel(engagement, "en") : "" },
     }, new Map(store.entities.map((item) => [item.id, item])),
@@ -1781,6 +1823,7 @@ export function mergeEntities(store, sourceEntityId, targetEntityId) {
     ? { ...deadline, id: uid("tax-deadline") } : deadline);
   const entities = store.entities.filter((entity) => entity.id !== sourceEntityId).map((entity) => {
     if (entity.id === targetEntityId) return { ...entity,
+      entityType: entity.entityType || source.entityType,
       taxDeadlines: [...entity.taxDeadlines, ...sourceTax], updatedAt: now };
     if (entity.parentEntityId === sourceEntityId) return { ...entity, parentEntityId: targetEntityId, updatedAt: now };
     return entity;
@@ -1791,7 +1834,8 @@ export function mergeEntities(store, sourceEntityId, targetEntityId) {
       consolidation: engagement.consolidation ? { ...engagement.consolidation,
         components: engagement.consolidation.components.map((component) => component.entityId === sourceEntityId
           ? { ...component, entityId: targetEntityId,
-            entitySnapshot: { ...component.entitySnapshot, id: targetEntityId, legalName: target.legalName, kind: target.kind } }
+            entitySnapshot: { ...component.entitySnapshot, id: targetEntityId, legalName: target.legalName,
+              entityType: target.entityType, kind: target.kind } }
           : component) } : null,
     });
   return normalizeCanonicalStore({ ...store, entities, engagements,
@@ -2532,6 +2576,41 @@ export function formatDate(value, language = "zh") {
   if (Number.isNaN(date.getTime())) return value;
   return new Intl.DateTimeFormat(language === "en" ? "en-GB" : "zh-HK",
     { year: "numeric", month: "short", day: "numeric" }).format(date);
+}
+
+function formatFormalDate(value, language = "en") {
+  if (!validIsoDate(value)) return value || "";
+  if (language !== "en") {
+    const [year, month, day] = value.split("-").map(Number);
+    return `${year}年${month}月${day}日`;
+  }
+  const date = new Date(`${value}T00:00:00Z`);
+  return new Intl.DateTimeFormat("en-US", {
+    year: "numeric",
+    month: "long",
+    day: "numeric",
+    timeZone: "UTC",
+  }).format(date);
+}
+
+export function formalReportingPeriodLabel(engagement, language = "en") {
+  const start = engagement?.periodStart || "";
+  const end = engagement?.periodEnd || "";
+  if (!start && !end) return language === "en" ? "No annual engagement"
+    : language === "zh-Hant" ? "尚無年度項目" : "尚无年度项目";
+  const formattedStart = formatFormalDate(start, language);
+  const formattedEnd = formatFormalDate(end, language);
+  if (engagement?.periodPreset === "doi_year_end" && start && end) {
+    if (language === "en") return `For the period from ${formattedStart} (DOI) to ${formattedEnd}`;
+    return language === "zh-Hant" ? `期間：${formattedStart}（DOI）至${formattedEnd}`
+      : `期间：${formattedStart}（DOI）至${formattedEnd}`;
+  }
+  if (["calendar", "apr_mar"].includes(inferPeriodPreset(start, end))) return formattedEnd;
+  if (start && end) {
+    if (language === "en") return `For the period from ${formattedStart} to ${formattedEnd}`;
+    return language === "zh-Hant" ? `期間：${formattedStart}至${formattedEnd}` : `期间：${formattedStart}至${formattedEnd}`;
+  }
+  return formattedEnd || formattedStart;
 }
 
 export function reportingPeriodLabel(item, language = "zh") {
