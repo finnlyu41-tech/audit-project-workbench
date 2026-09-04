@@ -141,8 +141,8 @@ test("simplified view compacts navigation and schedule while retaining core proj
   await page.getByRole("tab", { name: "Projects", exact: true }).click();
   await expect(page.locator(".flat-engagement-type")).toHaveText("Audit");
   await expect(page.locator(".flat-engagement-company")).toContainText("Example Services Limited");
-  await expect(page.locator(".flat-engagement-company")).toContainText("December 31, 2026");
-  await expect(page.locator(".flat-engagement-period")).toHaveCount(0);
+  await expect(page.locator(".flat-engagement-company")).not.toContainText("December 31, 2026");
+  await expect(page.locator(".flat-engagement-period")).toHaveText("YE December 31, 2026");
 
   await page.locator(".app-rail-button[aria-label='Project schedule']").click();
   const compactRow = page.locator(".schedule-row-meta");

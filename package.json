@@ -1,6 +1,6 @@
 {
   "name": "audit-project-workbench",
-  "version": "0.6.5",
+  "version": "0.6.6",
   "description": "A desktop-first, local-first workbench for company masters and multi-year engagements.",
   "type": "module",
   "license": "MIT",

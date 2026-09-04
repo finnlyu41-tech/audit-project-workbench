@@ -170,8 +170,11 @@ test("one engagement can add and save three reporting years with one shared work
     ["2024-01-01", "2024-12-31"],
     ["2025-01-01", "2025-12-31"],
   ]);
-  await expect(page.locator(".tree-engagement-row .tree-engagement-period")).toContainText(
-    "YE December 31, 2023 · YE December 31, 2024 · YE December 31, 2025");
+  const periodSummary = page.locator(".tree-engagement-row .navigation-period-summary");
+  await expect(periodSummary.locator(".navigation-period-heading")).toHaveText("Year-end dates");
+  await expect(periodSummary.locator(".navigation-period-value")).toHaveText([
+    "December 31, 2023", "December 31, 2024", "December 31, 2025",
+  ]);
 });
 
 test("editing an engagement can start the next annual engagement directly", async ({ page }) => {

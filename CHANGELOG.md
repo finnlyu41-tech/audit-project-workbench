@@ -6,6 +6,17 @@ The project follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.6.6] - 2026-09-04
+
+### Changed
+
+- Multi-period engagements show one year-end heading followed by distinct full-date labels that stay on one line when space permits and wrap cleanly in narrower navigation panels.
+- Company and project navigation use the same structured reporting-period presentation, including simplified view.
+
+### Fixed
+
+- Project progress stays aligned with the project title instead of interrupting a wrapped list of year-end dates.
+
 ## [0.6.5] - 2026-09-04
 
 ### Added
