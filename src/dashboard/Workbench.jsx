@@ -1,6 +1,6 @@
 import React from "react";
-import { Archive, ArchiveRestore, ArrowLeft, ArrowRight, BarChart3, BellRing, BookOpen, Building, Building2, CalendarRange, Copy, DatabaseBackup, Languages, LibraryBig, ListPlus, Palette,
-  PanelRightClose, PanelRightOpen, PanelsTopLeft, Pencil, Plus, ReceiptText, Search, Settings, Settings2, Trash2 } from "lucide-react";
+import { Archive, ArchiveRestore, ArrowLeft, ArrowRight, BarChart3, BellRing, BookOpen, Building, Building2, CalendarRange, Copy, DatabaseBackup, Eye, EyeOff, House, Languages, LibraryBig, ListPlus, Palette,
+  ListFilter, PanelRightClose, PanelRightOpen, PanelsTopLeft, Pencil, Plus, ReceiptText, Search, Settings, Settings2, Trash2, X } from "lucide-react";
 import { Modal, NodeBoard, NodeForm, OutstandingStatusEditor, ProgressBar, ProjectForm, SampleEditor,
   SampleLibrary, UserGuide, WorkstreamCard, WorkstreamCategoryEditor, WorkstreamForm } from "./components.jsx";
 import { GroupForm, GroupMatrix, GroupMemberAddForm, GroupMemberForm, GroupSampleEditor, GroupSampleLibrary,
@@ -11,7 +11,7 @@ import { activeOutstandingItems,
   createDefaultGroupSample, createDefaultSample, duplicateGroupSample,
   canonicalStorePayload,
   convertGroupToProject, convertProjectToGroup, deadlineAlerts, duplicateSample, emptyStore, engagementsForEntity,
-  engagementTypeLabel, entityForEngagement, findParentMembership, formatDate, groupProgress, isValidStore, loadStore, localizeGroupSample,
+  engagementMatchesNavigationFilters, engagementReportingYears, engagementTypeLabel, engagementTypeValues, engagementTypesLabel, entityForEngagement, findParentMembership, formatDate, groupProgress, isValidStore, loadStore, localizeGroupSample,
   localizeGroupWorkflowNodes, localizeOutstandingStatuses, localizeReadinessConditions, localizeSample, localizeWorkstream, makeBlankGroupSample,
   makeBlankSample, makeEngagement, makeEntity, makeGroup, makeGroupMember, makeNode, makeOutstandingItem, makeProject, makeTaxDeadline, makeWorkstream,
   mergeEntities, moveEntity, moveWorkspaceItem,
@@ -26,6 +26,7 @@ import { OpenWorkspaceFileConfirm, PersistenceConflictDialog, PersistenceSetting
 import { useWorkbenchPersistence } from "./use-workbench-persistence.js";
 import { handleTabListKeyDown, tabIndexFor } from "./a11y.js";
 import { ManagementReport } from "./management-report.jsx";
+import { HomeOverview } from "./home-overview.jsx";
 import { TemplateExportPanel, TemplateImportPreview, TemplateLibraryTools } from "./template-transfer.jsx";
 import { CompanyForm, EngagementForm, EntityOverview, HoldingComponentsPanel, MergeEntitiesForm } from "./v11-components.jsx";
 import { applyTemplatePackage, createTemplatePackage, TEMPLATE_PACKAGE_MAX_BYTES,
@@ -36,9 +37,11 @@ const SIDEBAR_PREFERENCE_KEY = "audit-progress-workbench:sidebar-collapsed";
 const OUTSTANDING_PREFERENCE_KEY = "audit-progress-workbench:outstanding-collapsed";
 const NAVIGATION_WIDTH_KEY = "audit-progress-workbench:navigation-width";
 const NAVIGATION_VIEW_KEY = "audit-progress-workbench:navigation-view";
+const SIMPLIFIED_VIEW_KEY = "audit-progress-workbench:simplified-view";
 const DEFAULT_NAVIGATION_WIDTH = 320;
 const MIN_NAVIGATION_WIDTH = 220;
 const MAX_NAVIGATION_WIDTH = 520;
+const EMPTY_GROUP_SAMPLE = Object.freeze({ id: "", name: "", nodes: [], readinessTemplates: {} });
 
 function clampNavigationWidth(value) {
   return Math.min(MAX_NAVIGATION_WIDTH, Math.max(MIN_NAVIGATION_WIDTH,
@@ -53,6 +56,13 @@ function loadNavigationWidth() {
 function saveNavigationWidth(value) {
   try { localStorage.setItem(NAVIGATION_WIDTH_KEY, String(clampNavigationWidth(value))); }
   catch { /* Layout preferences can safely fall back to the default width. */ }
+}
+
+function loadInitialWorkspaceView() {
+  try {
+    const view = new URLSearchParams(window.location.search).get("view");
+    return ["detail", "schedule", "report"].includes(view) ? view : "home";
+  } catch { return "home"; }
 }
 
 export function DashboardContent() {
@@ -89,14 +99,20 @@ function DashboardWorkbench() {
   const [activeWorkstreamId, setActiveWorkstreamId] = React.useState(null);
   const [search, setSearch] = React.useState("");
   const [filter, setFilter] = React.useState("active");
+  const [navigationFiltersOpen, setNavigationFiltersOpen] = React.useState(false);
+  const [navigationFilters, setNavigationFilters] = React.useState({ owner: "", engagementType: "", reportingYear: "" });
   const [navigationView, setNavigationView] = React.useState(() => {
     try { return localStorage.getItem(NAVIGATION_VIEW_KEY) === "projects" ? "projects" : "companies"; }
     catch { return "companies"; }
   });
+  const [simplifiedView, setSimplifiedView] = React.useState(() => {
+    try { return localStorage.getItem(SIMPLIFIED_VIEW_KEY) === "true"; }
+    catch { return false; }
+  });
   const [templateType, setTemplateType] = React.useState("audit");
   const [templateTag, setTemplateTag] = React.useState("all");
   const [templateSort, setTemplateSort] = React.useState("updated");
-  const [workspaceView, setWorkspaceView] = React.useState("detail");
+  const [workspaceView, setWorkspaceView] = React.useState(loadInitialWorkspaceView);
   const [modal, setModal] = React.useState(null);
   const [message, setMessage] = React.useState("");
   const [deadlineClock, setDeadlineClock] = React.useState(() => new Date());
@@ -145,6 +161,9 @@ function DashboardWorkbench() {
     try { localStorage.setItem(NAVIGATION_VIEW_KEY, navigationView); } catch { /* optional */ }
   }, [navigationView]);
   React.useEffect(() => {
+    try { localStorage.setItem(SIMPLIFIED_VIEW_KEY, String(simplifiedView)); } catch { /* optional */ }
+  }, [simplifiedView]);
+  React.useEffect(() => {
     const query = window.matchMedia("(max-width: 1399px)");
     const updateCompactLayout = (event) => {
       setCompactLayout(event.matches);
@@ -155,7 +174,9 @@ function DashboardWorkbench() {
     return () => query.removeEventListener?.("change", updateCompactLayout);
   }, []);
   React.useEffect(() => {
+    const advancedFiltersActive = Object.values(navigationFilters).some(Boolean);
     const engagementMatchesFilter = (engagement) => {
+      if (!engagementMatchesNavigationFilters(engagement, navigationFilters)) return false;
       const entity = entityForEngagement(store, engagement);
       const archived = Boolean(entity?.archived || engagement.archived);
       if (filter === "archived") return archived;
@@ -172,23 +193,26 @@ function DashboardWorkbench() {
       ? store.engagements.find((engagement) => engagement.id === selection.id) : null;
     const selectedEntity = selection?.kind === "entity" ? store.entities.find((entity) => entity.id === selection.id) : null;
     const selectedEntityEngagements = selectedEntity ? engagementsForEntity(store, selectedEntity.id) : [];
-    const selectedEntityVisible = selectedEntity && (filter === "all"
+    const selectedEntityMatchesAdvanced = !advancedFiltersActive
+      || selectedEntityEngagements.some((engagement) => engagementMatchesNavigationFilters(engagement, navigationFilters));
+    const selectedEntityVisible = selectedEntity && selectedEntityMatchesAdvanced && (filter === "all"
       ? !selectedEntity.archived
       : filter === "archived"
-        ? selectedEntity.archived || engagementsForEntity(store, selectedEntity.id).some(engagementMatchesFilter)
+        ? selectedEntity.archived || selectedEntityEngagements.some(engagementMatchesFilter)
         : !selectedEntity.archived && (selectedEntityEngagements.some(engagementMatchesFilter)
-          || (filter === "active" && selectedEntityEngagements.length === 0)));
+          || (!advancedFiltersActive && filter === "active" && selectedEntityEngagements.length === 0)));
     if ((!selectedEngagement || !engagementMatchesFilter(selectedEngagement)) && !selectedEntityVisible) {
       const engagement = store.engagements.find(engagementMatchesFilter);
       if (engagement) {
         const entity = entityForEngagement(store, engagement);
         setSelection({ kind: entity?.kind === "holding_company" ? "group" : "project", id: engagement.id });
       } else {
-        const entity = store.entities.find((item) => filter === "archived" ? item.archived : !item.archived);
+        const entity = !advancedFiltersActive
+          ? store.entities.find((item) => filter === "archived" ? item.archived : !item.archived) : null;
         setSelection(entity ? { kind: "entity", id: entity.id } : null);
       }
     }
-  }, [store, selection, filter]);
+  }, [store, selection, filter, navigationFilters]);
   React.useEffect(() => {
     if (!selection && store.entities.length) return;
     const history = navigationHistoryRef.current;
@@ -313,6 +337,18 @@ function DashboardWorkbench() {
     workstreams: store.projects.reduce((count, project) => count
       + project.workstreams.filter((workstream) => workstream.categoryId === category.id).length, 0),
   }]));
+  const navigationOwnerOptions = [...new Set(store.engagements.map((engagement) => String(engagement.owner || "").trim())
+    .filter(Boolean))].sort((left, right) => left.localeCompare(right));
+  const navigationTypeOptions = [...new Set(store.engagements.flatMap(engagementTypeValues)
+    .filter(Boolean))].map((value) => ({ value, label: engagementTypeLabel(value, language) || value }))
+    .sort((left, right) => left.label.localeCompare(right.label));
+  const navigationYearOptions = [...new Set(store.engagements.flatMap(engagementReportingYears))]
+    .sort((left, right) => right.localeCompare(left));
+  const activeNavigationFilterCount = Object.values(navigationFilters).filter(Boolean).length;
+  const updateNavigationFilter = (field) => (event) => setNavigationFilters((current) => ({
+    ...current, [field]: event.target.value,
+  }));
+  const clearNavigationFilters = () => setNavigationFilters({ owner: "", engagementType: "", reportingYear: "" });
   const navigationCounts = navigationView === "projects"
     ? engagementNavigationStatusCounts(store) : navigationStatusCounts(store);
 
@@ -380,7 +416,7 @@ function DashboardWorkbench() {
     const target = store.groups.find((item) => item.id === parentGroupId);
     setStore((current) => {
       const groupSample = current.groupSamples.find((sample) => sample.id === current.selectedGroupSampleId)
-        || current.groupSamples[0] || createDefaultGroupSample();
+        || current.groupSamples[0] || EMPTY_GROUP_SAMPLE;
       return moveWorkspaceItem(current, kind, refId, parentGroupId, groupSample);
     });
     notify(target ? t("{name} 已移到“{group}”", { name: source?.name || "", group: target.name })
@@ -417,11 +453,11 @@ function DashboardWorkbench() {
     try {
       let engagement = makeEngagement(values, { ...options, entity, store, samples: store.samples,
         workstreamCategories: store.workstreamCategories, outstandingStatuses: store.outstandingStatuses,
-        groupSample: selectedGroupSample || createDefaultGroupSample(language) });
+        groupSample: selectedGroupSample || EMPTY_GROUP_SAMPLE });
       if (entity.kind === "holding_company" && engagement.consolidation) engagement = { ...engagement,
         consolidation: { ...engagement.consolidation,
           components: componentsForCurrentStructure(store, entity.id, engagement.periodStart, engagement.periodEnd,
-            selectedGroupSample || createDefaultGroupSample(language), engagement.reportingPeriods) } };
+            selectedGroupSample || EMPTY_GROUP_SAMPLE, engagement.reportingPeriods) } };
       const kind = entity.kind === "holding_company" ? "group" : "project";
       setStore((current) => ({ ...current, engagements: [engagement, ...current.engagements],
         scheduleOrder: [`${kind}:${engagement.id}`, ...(current.scheduleOrder || []).filter((key) => !key.endsWith(`:${engagement.id}`))] }));
@@ -437,7 +473,7 @@ function DashboardWorkbench() {
   };
   const archiveTarget = (kind, id) => {
     updateEngagement(id, (item) => ({ ...item, archived: true }));
-    setFilter("archived"); notify(t("年度项目已归档"));
+    notify(t("年度项目已归档"));
   };
   const restoreTarget = (kind, id) => {
     updateEngagement(id, (item) => ({ ...item, archived: false }));
@@ -518,10 +554,10 @@ function DashboardWorkbench() {
   const deleteSample = (sampleId, groupType = false) => {
     if (groupType) {
       const source = store.groupSamples.find((sample) => sample.id === sampleId); if (!source) return;
-      if (store.groupSamples.length <= 1) { window.alert(t("至少保留一个集团范本。")); return; }
       if (!window.confirm(t("删除集团范本“{name}”？", { name: source.name }))) return;
       setStore((current) => { const next = current.groupSamples.filter((sample) => sample.id !== sampleId); return { ...current,
-        groupSamples: next, selectedGroupSampleId: current.selectedGroupSampleId === sampleId ? next[0]?.id : current.selectedGroupSampleId }; });
+        groupSamples: next, selectedGroupSampleId: current.selectedGroupSampleId === sampleId
+          ? next[0]?.id || null : current.selectedGroupSampleId }; });
       notify(t("集团范本已删除")); return;
     }
     const source = store.samples.find((sample) => sample.id === sampleId); if (!source) return;
@@ -610,13 +646,13 @@ function DashboardWorkbench() {
       const entityCount = Array.isArray(parsed.entities) ? parsed.entities.length : engagementCount;
       if (!window.confirm(t(confirmKey, { entities: entityCount, engagements: engagementCount }))) return;
       preserveLegacyRecovery(parsed);
-      const normalized = normalizeStore(parsed); setStore(normalized); setSelection(null); setWorkspaceView("detail"); setFilter("active"); notify(t("备份已恢复"));
+      const normalized = normalizeStore(parsed); setStore(normalized); setSelection(null); setWorkspaceView("home"); setFilter("active"); notify(t("备份已恢复"));
     } catch { window.alert(t("这不是有效的工作台备份文件。")); }
     finally { if (importRef.current) importRef.current.value = ""; closeMenu(); }
   };
   const initializeWorkbench = async () => {
     if (persistence.settings.mode === "linked_file") await persistence.disconnect();
-    setStore(emptyStore()); setSelection(null); setWorkspaceView("detail"); setActiveWorkstreamId(null); setFilter("active"); setSearch("");
+    setStore(emptyStore()); setSelection(null); setWorkspaceView("home"); setActiveWorkstreamId(null); setFilter("active"); setSearch("");
     setTemplateType("audit"); setModal(null); notify(t("工作台已初始化"));
   };
   const openExistingWorkspaceFile = async () => {
@@ -743,6 +779,10 @@ function DashboardWorkbench() {
         <PanelsTopLeft aria-hidden="true" /></button>
       <nav className="app-rail-actions" aria-label={t("工作台操作")} ref={toolbarRef}>
         <div className="app-rail-primary">
+          <button type="button" className="app-rail-button" data-active={workspaceView === "home" || undefined}
+            aria-label={t("首页")} data-tooltip={t("首页")} data-tooltip-side="right"
+            onClick={() => { closeMenu(); setModal(null); setWorkspaceView("home"); }}>
+            <House aria-hidden="true" /></button>
           <button type="button" className="app-rail-button" data-active={workspaceView === "schedule" || undefined}
             aria-label={t("项目排期")} data-tooltip={t("项目排期")} data-tooltip-side="right"
             onClick={() => { closeMenu(); setWorkspaceView("schedule"); }}>
@@ -811,27 +851,51 @@ function DashboardWorkbench() {
 
     <section className="workbench-layout" data-sidebar-collapsed={sidebarCollapsed || undefined}
       data-compact-layout={compactLayout || undefined} data-outstanding-collapsed={outstandingPanelCollapsed || undefined}
-      data-resizing-navigation={resizingNavigation || undefined}
+      data-resizing-navigation={resizingNavigation || undefined} data-simplified-view={simplifiedView || undefined}
       style={{ "--project-panel-width": `${navigationWidth}px` }}>
       <aside className="project-panel" aria-label={t("项目导航")}>
         {!sidebarCollapsed && <>
           <div className="project-panel-controls"><div className="project-panel-title"><div>
-            <strong>{t(navigationView === "projects" ? "项目列表" : "公司列表")}</strong></div><button type="button" className="project-panel-new"
+            <strong>{t(navigationView === "projects" ? "项目列表" : "公司列表")}</strong></div><div className="project-panel-actions">
+              <button type="button" className="navigation-density-toggle" aria-pressed={simplifiedView}
+                aria-label={t("简化视图")} data-tooltip={t(simplifiedView ? "显示导航和排期详情" : "隐藏导航和排期详情")}
+                onClick={() => setSimplifiedView((current) => !current)}>
+                {simplifiedView ? <Eye aria-hidden="true" /> : <EyeOff aria-hidden="true" />}<span>{t("简化")}</span></button>
+              <button type="button" className="project-panel-new"
               aria-label={t("新建公司")} data-tooltip={t("新建公司")} data-tooltip-side="left"
-              onClick={() => setModal({ type: "create-entity" })}><Plus aria-hidden="true" /><span>{t("新建公司")}</span></button></div>
+              onClick={() => setModal({ type: "create-entity" })}><Plus aria-hidden="true" /><span>{t("新建公司")}</span></button></div></div>
             <div className="navigation-view-tabs" role="tablist" aria-label={t("公司与项目视图")} onKeyDown={handleTabListKeyDown}>
               {["companies", "projects"].map((value) => <button type="button" role="tab" key={value}
                 aria-selected={navigationView === value} tabIndex={tabIndexFor(navigationView === value)}
                 onClick={() => setNavigationView(value)}>{t(value === "companies" ? "公司" : "项目")}</button>)}</div>
-            <label className="search-field"><Search aria-hidden="true" /><input value={search} onChange={(event) => setSearch(event.target.value)}
+            <div className="navigation-search-row"><label className="search-field"><Search aria-hidden="true" /><input value={search}
+              onChange={(event) => setSearch(event.target.value)}
               placeholder={t(navigationView === "projects" ? "搜索项目、公司或负责人" : "搜索公司或负责人")}
               aria-label={t(navigationView === "projects" ? "搜索项目、公司或负责人" : "搜索公司、控股公司或负责人")} /></label>
+              <button type="button" className="navigation-filter-toggle" aria-expanded={navigationFiltersOpen}
+                aria-controls="navigation-filter-panel" aria-label={t(navigationFiltersOpen ? "收起导航筛选" : "打开导航筛选")}
+                data-active={activeNavigationFilterCount > 0 || undefined}
+                onClick={() => setNavigationFiltersOpen((current) => !current)}><ListFilter aria-hidden="true" />
+                {activeNavigationFilterCount > 0 && <strong>{activeNavigationFilterCount}</strong>}</button></div>
+            {navigationFiltersOpen && <section className="navigation-filter-panel" id="navigation-filter-panel"
+              aria-label={t("导航筛选")}><label><span>{t("负责人")}</span><select value={navigationFilters.owner}
+                aria-label={t("负责人筛选")} onChange={updateNavigationFilter("owner")}><option value="">{t("全部负责人")}</option>
+                {navigationOwnerOptions.map((owner) => <option value={owner} key={owner}>{owner}</option>)}</select></label>
+              <label><span>{t("项目类型")}</span><select value={navigationFilters.engagementType}
+                aria-label={t("项目类型筛选")} onChange={updateNavigationFilter("engagementType")}><option value="">{t("全部项目类型")}</option>
+                {navigationTypeOptions.map((option) => <option value={option.value} key={option.value}>{option.label}</option>)}</select></label>
+              <label><span>{t("报告年度")}</span><select value={navigationFilters.reportingYear}
+                aria-label={t("报告年度筛选")} onChange={updateNavigationFilter("reportingYear")}><option value="">{t("全部报告年度")}</option>
+                {navigationYearOptions.map((year) => <option value={year} key={year}>{year}</option>)}</select></label>
+              <button type="button" className="navigation-filter-clear" disabled={!activeNavigationFilterCount}
+                onClick={clearNavigationFilters}><X aria-hidden="true" />{t("清除筛选")}</button></section>}
             <div className="filter-tabs" role="tablist" aria-label={t("项目状态")} onKeyDown={handleTabListKeyDown}>{[["active", "活跃"], ["completed", "已完成"],
               ["all", "全部"], ["archived", "归档"]].map(([value, label]) => <button type="button" role="tab" key={value}
                 aria-selected={filter === value} tabIndex={tabIndexFor(filter === value)} onClick={() => setFilter(value)}><span>{t(label)}</span>
                 <strong>{navigationCounts[value]}</strong></button>)}</div></div>
           <WorkspaceTree store={store} selection={selection} onSelect={(next) => openWorkspaceRecord(next.kind, next.id)} search={search} filter={filter}
-            statuses={store.outstandingStatuses} onMove={moveNavigationItem} viewMode={navigationView} /></>}
+            navigationFilters={navigationFilters} statuses={store.outstandingStatuses} onMove={moveNavigationItem}
+            viewMode={navigationView} simplifiedView={simplifiedView} /></>}
         {!sidebarCollapsed && <button type="button" className="project-panel-resizer" role="separator" aria-orientation="vertical"
           aria-label={t("拖动调整公司导航宽度")} aria-valuemin={MIN_NAVIGATION_WIDTH} aria-valuemax={MAX_NAVIGATION_WIDTH}
           aria-valuenow={navigationWidth} aria-keyshortcuts="ArrowLeft ArrowRight Home End"
@@ -839,7 +903,7 @@ function DashboardWorkbench() {
           onPointerDown={beginNavigationResize} onPointerMove={resizeNavigation} onPointerUp={finishNavigationResize}
           onPointerCancel={finishNavigationResize} onKeyDown={resizeNavigationWithKeyboard} onDoubleClick={resetNavigationWidth} />}
       </aside>
-      <main className="project-detail" aria-label={t(workspaceView === "schedule" ? "项目排期"
+      <main className="project-detail" aria-label={t(workspaceView === "home" ? "首页" : workspaceView === "schedule" ? "项目排期"
         : workspaceView === "report" ? "管理层报告" : selectedEntitySource ? "公司概览" : selectedGroup ? "集团工作区" : "项目工作区")}>
         <nav className="workspace-history-controls" aria-label={t("查看历史")}>
           <button type="button" disabled={backHistoryIndex < 0} onClick={() => goThroughHistory(-1)}
@@ -847,8 +911,15 @@ function DashboardWorkbench() {
           <button type="button" disabled={forwardHistoryIndex < 0} onClick={() => goThroughHistory(1)}
             aria-label={t("前进到下一个界面")} data-tooltip={t("前进到下一个界面")}><ArrowRight aria-hidden="true" /></button>
         </nav>
-        {workspaceView === "schedule" ? <ProjectSchedule store={store} filter={filter} onOpen={openWorkspaceRecord}
-          onEditSchedule={openScheduleEditor} onOpenTaxDeadline={openTaxDeadlineCentre} onReorder={reorderSchedule} />
+        {workspaceView === "home" ? <HomeOverview store={store} now={deadlineClock} onOpen={openWorkspaceRecord}
+          onOpenDeadline={openDeadlineAlert} onShowDeadlines={() => setModal({ type: "deadline-alerts" })}
+          onNewCompany={() => setModal({ type: "create-entity" })}
+          onNewEngagement={(entityId) => setModal({ type: "create-engagement", entityId })}
+          onShowProjects={(status = "all") => { setSidebarCollapsed(false); setNavigationView("projects"); setFilter(status); }}
+          onShowSchedule={() => setWorkspaceView("schedule")} />
+          : workspaceView === "schedule" ? <ProjectSchedule store={store} filter={filter} onOpen={openWorkspaceRecord}
+          onEditSchedule={openScheduleEditor} onOpenTaxDeadline={openTaxDeadlineCentre} onReorder={reorderSchedule}
+          simplifiedView={simplifiedView} onToggleSimplifiedView={() => setSimplifiedView((current) => !current)} />
           : workspaceView === "report" ? <ManagementReport store={store} selection={selection} now={deadlineClock}
             onOpen={openWorkspaceRecord} />
           : selectedEntitySource ? <EntityOverview store={store} entity={selectedEntitySource}
@@ -865,7 +936,7 @@ function DashboardWorkbench() {
                 count: active.length, projects: active.map((engagement) => reportingPeriodLabel(engagement, language)).join("、") })); return; }
               const openTax = selectedEntitySource.taxDeadlines.filter((deadline) => deadline.state === "open").length;
               if (openTax && !window.confirm(t("这家公司还有 {count} 项未完成税务期限。归档后相关提醒会隐藏，是否继续？", { count: openTax }))) return;
-              updateEntity(selectedEntitySource.id, (entity) => ({ ...entity, archived: true })); setFilter("archived"); notify(t("公司已归档"));
+              updateEntity(selectedEntitySource.id, (entity) => ({ ...entity, archived: true })); notify(t("公司已归档"));
             }}
             onRestore={() => { updateEntity(selectedEntitySource.id, (entity) => ({ ...entity, archived: false })); setFilter("all"); notify(t("公司已恢复")); }}
             onDelete={() => setModal({ type: "delete-entity", targetId: selectedEntitySource.id, name: selectedEntitySource.legalName })}
@@ -891,7 +962,8 @@ function DashboardWorkbench() {
             <button type="button" className="icon-only" aria-label={t("收起待清中心")}
               data-tooltip={t("收起待清中心")} data-tooltip-side="left" onClick={collapseOutstandingPanel}>
               <PanelRightClose aria-hidden="true" /></button></header>
-          {selectedProject ? <OutstandingCenter store={store} target={selectedProjectSource} targetKind="project" statuses={outstandingStatusViews}
+          {workspaceView === "home" ? <div className="outstanding-center-empty">{t("首页已经汇总所有活跃项目的优先事项；打开项目后可处理该项目的待清事项。")}</div>
+            : selectedProject ? <OutstandingCenter store={store} target={selectedProjectSource} targetKind="project" statuses={outstandingStatusViews}
             updateProject={updateProject} updateGroup={updateGroup} setModal={setModal} setSelection={(next) => openWorkspaceRecord(next.kind, next.id)} notify={notify}
             readOnly={selectedProjectSource.archived} activeWorkstreamId={activeWorkstreamId} />
             : selectedGroup ? <OutstandingCenter store={store} target={selectedGroupSource} targetKind="group" statuses={outstandingStatusViews}
@@ -931,7 +1003,7 @@ function DashboardWorkbench() {
                 nodes: (selectedGroupSample?.nodes || []).map((node) => makeNode({ title: node.title, description: node.description,
                   conditions: node.conditions.map((condition) => condition.label) })),
                 components: componentsForCurrentStructure(next, source.id, engagement.periodStart, engagement.periodEnd,
-                  selectedGroupSample || createDefaultGroupSample(language), engagement.reportingPeriods),
+                  selectedGroupSample || EMPTY_GROUP_SAMPLE, engagement.reportingPeriods),
                 structureSyncedAt: new Date().toISOString() } };
             }) };
             return next;
@@ -952,7 +1024,7 @@ function DashboardWorkbench() {
           sourceEngagementId: modalTargetEngagement.id }) : null}
         onClose={() => setModal(null)} onSubmit={(values) => {
           updateEngagement(modalTargetEngagement.id, (engagement) => ({ ...engagement,
-            internalName: values.internalName, engagementType: values.engagementType,
+            internalName: values.internalName, engagementTypes: values.engagementTypes, engagementType: values.engagementType,
             periodPreset: values.periodPreset, periodStart: values.periodStart,
             periodEnd: values.periodEnd, reportingPeriods: values.reportingPeriods,
             reportingFramework: values.reportingFramework, owner: values.owner,
@@ -1080,7 +1152,7 @@ function DashboardWorkbench() {
     {modal?.type === "member-add" && selectedGroupSource && <Modal title={t("加入公司或子集团")} onClose={() => setModal(null)}>
       <GroupMemberAddForm availableProjects={availableProjects} availableGroups={availableGroups}
         onLink={(values) => { updateGroup(selectedGroupSource.id, (group) => ({ ...group,
-          members: [...group.members, makeGroupMember(values, selectedGroupSample || createDefaultGroupSample())] }));
+          members: [...group.members, makeGroupMember(values, selectedGroupSample || EMPTY_GROUP_SAMPLE)] }));
           setModal(null); notify(t("组成部分已加入集团")); }}
         onCreateCompany={() => setModal({ type: "create-entity" })}
         onClose={() => setModal(null)} /></Modal>}
@@ -1148,7 +1220,7 @@ function ProjectDetail({ project, rawProject, statuses, parentMembership, active
   const taxFactValue = taxSummary.next ? `${nextTaxDate} · ${t("{count} 项未完成", { count: taxSummary.openCount })}` : nextTaxDate;
   const periodLabel = reportingPeriodLabel(project, language);
   const companyName = project.entity || project.name;
-  const primaryName = engagementTypeLabel(rawProject.engagementType, language) || t("项目类型未设置");
+  const primaryName = engagementTypesLabel(rawProject, language) || t("项目类型未设置");
   const subtitle = [companyName, periodLabel].filter(Boolean).join(" · ")
     || t("尚未填写法律实体及报告期间");
   const finishWorkstreamDrag = () => {
@@ -1225,10 +1297,7 @@ function ProjectDetail({ project, rawProject, statuses, parentMembership, active
       <DetailFactAction label={t("所属控股公司")} actionLabel={t("编辑公司主档")}
         onClick={!readOnly ? () => setModal({ type: "edit-entity", entityId: rawProject.entityId }) : null}>
         {parentMembership?.group.name || t("独立公司")}</DetailFactAction>
-      <DetailFactAction label={t("业务模块")} icon={Settings2} actionLabel={t("业务模块设置")}
-        onClick={!readOnly ? () => setModal(activeRawWorkstream ? { type: "workstream-edit", targetKind: "project",
-          targetId: rawProject.id, workstreamId: activeRawWorkstream.id } : { type: "workstream-add", targetKind: "project",
-          targetId: rawProject.id }) : null}>
+      <DetailFactAction label={t("业务模块")}>
         {t("已完成 {done}/{total}", { done: stats.completedWorkstreams, total: stats.workstreams })}</DetailFactAction>
       <DetailFactAction className="tax-deadline-fact" label={t("税务期限")} icon={readOnly ? ReceiptText : Pencil}
         urgency={taxSummary.urgency} actionLabel={readOnly ? t("税务期限") : t(taxSummary.next ? "编辑税务期限" : "新增税务期限")}
@@ -1237,9 +1306,13 @@ function ProjectDetail({ project, rawProject, statuses, parentMembership, active
 
     <section className="workstream-overview"><header className="section-heading"><div><h3>{t("业务模块")}</h3>
       <p>{t("点击模块查看节点；再次点击可收起。模块只保留流程、完成条件和进度。")}</p></div>
-      {!readOnly && <button type="button" className="button secondary icon-only" aria-label={t("添加业务模块")}
-        data-tooltip={t("添加业务模块")} onClick={() => setModal({ type: "workstream-add",
-          targetKind: "project", targetId: rawProject.id })}><ListPlus aria-hidden="true" /></button>}</header>
+      {!readOnly && <div className="section-heading-actions"><button type="button" className="button secondary icon-only"
+        aria-label={t("添加业务模块")} data-tooltip={t("添加业务模块")} onClick={() => setModal({ type: "workstream-add",
+          targetKind: "project", targetId: rawProject.id })}><ListPlus aria-hidden="true" /></button>
+        <button type="button" className="button secondary icon-only" disabled={!activeRawWorkstream}
+          aria-label={t("设置所选业务模块")} data-tooltip={t(activeRawWorkstream ? "设置所选业务模块" : "请先选择一个业务模块")}
+          onClick={() => activeRawWorkstream && setModal({ type: "workstream-edit", targetKind: "project",
+            targetId: rawProject.id, workstreamId: activeRawWorkstream.id })}><Settings2 aria-hidden="true" /></button></div>}</header>
       {project.workstreams.length ? <div className="workstream-card-grid">{project.workstreams.map((workstream) => <WorkstreamCard key={workstream.id}
         workstream={workstream} selected={workstream.id === activeWorkstream?.id}
         openItems={rawProject.outstandingItems.filter((item) => item.workstreamId === workstream.id
@@ -1250,8 +1323,7 @@ function ProjectDetail({ project, rawProject, statuses, parentMembership, active
         onDragOver={(event) => dragOverWorkstream(event, workstream.id)}
         onDrop={(event) => dropWorkstream(event, workstream.id)}
         onReorderKeyDown={(event) => reorderWorkstreamWithKeyboard(event, workstream.id)}
-        onSelect={() => setActiveWorkstreamId((current) => current === workstream.id ? null : workstream.id)} onEdit={() => setModal({ type: "workstream-edit",
-          targetKind: "project", targetId: rawProject.id, workstreamId: workstream.id })} />)}</div>
+        onSelect={() => setActiveWorkstreamId((current) => current === workstream.id ? null : workstream.id)} />)}</div>
         : <button type="button" className="workstream-empty" disabled={readOnly}
           onClick={() => setModal({ type: "workstream-add", targetKind: "project", targetId: rawProject.id })}>
           <ListPlus aria-hidden="true" /><span><strong>{t("尚未启用业务模块")}</strong>
@@ -1280,7 +1352,7 @@ function GroupDetail({ store, group, statuses, updateWorkflowNodes, setModal, se
     .filter((entry) => outstandingIsOpen(entry.item, statuses)).length;
   const groupTaxDeadlines = collectGroupTaxDeadlineEntries(store, group.id, new Set(), 0, readOnly)
     .map((entry) => entry.deadline);
-  const primaryName = engagementTypeLabel(engagement?.engagementType, language) || t("项目类型未设置");
+  const primaryName = engagementTypesLabel(engagement, language) || t("项目类型未设置");
   const subtitle = [group.name, reportingPeriodLabel(group, language)].filter(Boolean).join(" · ")
     || t("尚未填写集团资料");
   if (!rawGroup) return null;
@@ -1317,7 +1389,7 @@ function GroupDetail({ store, group, statuses, updateWorkflowNodes, setModal, se
       onSync={() => {
         if (!window.confirm(t("用当前控股架构更新本年度组成部分？新增和移出的公司会在确认后更新，既有完成条件尽量保留。"))) return;
         setStore((current) => syncEngagementToCurrentStructure(current, engagement.id,
-          selectedGroupSample || createDefaultGroupSample(language)));
+          selectedGroupSample || EMPTY_GROUP_SAMPLE));
       }} />}
     {tab === "workflow" && <section className="workflow-panel">
       {group.consolidationEnabled ? <WorkflowNodes targetKind="group" targetId={group.id} nodes={group.nodes}
@@ -1563,7 +1635,7 @@ function MemberEditModal({ modal, store, selectedGroupSample, updateGroup, setMo
   const view = member.kind === "project" ? { ...member,
     readinessConditions: localizeReadinessConditions(member.readinessConditions, language) } : member;
   return <Modal title={t("组成部分设置：{name}", { name: target?.name || t("未知组成部分") })} onClose={() => setModal(null)}>
-    <GroupMemberForm member={view} groupSample={selectedGroupSample || createDefaultGroupSample(language)}
+    <GroupMemberForm member={view} groupSample={selectedGroupSample || EMPTY_GROUP_SAMPLE}
       onClose={() => setModal(null)} onSubmit={(values) => { updateGroup(group.id, (current) => ({ ...current,
         members: current.members.map((item) => item.id === member.id ? values : item) })); setModal(null); notify(t("组成部分设置已更新")); }}
       onRemove={() => { if (!window.confirm(t("将“{name}”移出此集团？", { name: target?.name || t("此组成部分") }))) return;

@@ -6,6 +6,24 @@ The project follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.6.5] - 2026-09-04
+
+### Added
+
+- A home overview that opens by default and surfaces active work, deadline attention, incomplete setup, companies without active engagements and outstanding items with direct actions.
+- Saved compact/detail display controls for company navigation and project scheduling, plus navigation filtering for faster record finding.
+
+### Changed
+
+- Engagement types can be selected in combination or entered as custom values, and now lead project navigation and project-detail headings ahead of company context.
+- Company and project navigation removes redundant icons and entity-type labels; workstream settings are consolidated beside Add and sortable cards can be dragged directly without a separate handle.
+- Built-in templates can be deleted through the same protected action as user-created templates.
+
+### Fixed
+
+- Archiving a subsidiary no longer makes its active parent appear archived, and archiving a record no longer switches the current filter to Archive.
+- Homepage, navigation and schedule layouts remain readable at supported widths and zoom levels without reintroducing industry-specific information.
+
 ## [0.6.4] - 2026-09-04
 
 ### Added

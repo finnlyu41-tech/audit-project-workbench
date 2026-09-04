@@ -9,7 +9,9 @@ async function expectNoSeriousViolations(page) {
 }
 
 test("primary workspaces and dialogs have no serious accessibility violations", async ({ page }) => {
-  await openWorkbench(page, accessibilityFixture());
+  await openWorkbench(page, accessibilityFixture(), { home: true });
+  await expectNoSeriousViolations(page);
+  await page.locator(".home-project-row").first().click();
   await expectNoSeriousViolations(page);
 
   await page.getByRole("button", { name: "Template library" }).click();

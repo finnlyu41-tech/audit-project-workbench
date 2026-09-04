@@ -1,8 +1,9 @@
 import React from "react";
 import { Archive, ArchiveRestore, Building, Building2, CalendarDays, CalendarPlus, ChevronRight, CircleAlert,
-  Edit3, FolderTree, GitMerge, Plus, ReceiptText, Settings2, Trash2 } from "lucide-react";
+  Edit3, FolderTree, GitMerge, Plus, ReceiptText, Settings2, Trash2, X } from "lucide-react";
 import { ProgressBar } from "./components.jsx";
-import { engagementPeriodExists, engagementReportingPeriods, engagementReportingPeriodsMatch, engagementsForEntity, engagementTypeLabel, fiscalPeriodForYear,
+import { engagementPeriodExists, engagementReportingPeriods, engagementReportingPeriodsMatch, engagementsForEntity, engagementTypeLabel,
+  engagementTypeValues, engagementTypesLabel, fiscalPeriodForYear,
   fiscalPeriodShortLabel, fiscalPeriodFromIncorporation, formalReportingPeriodLabel, formatDate, groupProgress,
   outstandingIsOpen, outstandingStatusLabel, projectStats, suggestNextFiscalYear, taxDeadlineSummary,
   uid, workstreamCategoryLabel, yearEndOrPeriodLabel } from "./model.js";
@@ -154,10 +155,13 @@ export function EngagementForm({ store, entity, initial = null, preferredSourceI
   const initialPreset = firstInitialPeriod?.periodPreset || entity.fiscalYearPreset || "calendar";
   const generated = initial ? { periodStart: firstInitialPeriod.periodStart, periodEnd: firstInitialPeriod.periodEnd }
     : fiscalPeriodForYear(initialPreset, suggestedYear);
+  const inheritedEngagementTypes = engagementTypeValues(initial || existing[0] || {
+    engagementType: entity.kind === "holding_company" ? "Group consolidation" : "Audit",
+  });
   const [values, setValues] = React.useState(() => ({
     internalName: initial?.internalName || "",
-    engagementType: initial?.engagementType || existing[0]?.engagementType
-      || (entity.kind === "holding_company" ? "Group consolidation" : "Audit"),
+    engagementTypes: inheritedEngagementTypes,
+    engagementType: inheritedEngagementTypes[0] || "",
     reportingPeriods: (initial ? engagementReportingPeriods(initial) : [{
       id: uid("reporting-period"), periodPreset: initialPreset,
       periodStart: generated.periodStart || "", periodEnd: generated.periodEnd || "",
@@ -175,6 +179,7 @@ export function EngagementForm({ store, entity, initial = null, preferredSourceI
   const [sourceEngagementId, setSourceEngagementId] = React.useState(preferredSourceId || previousDefault?.id || "");
   const [selections, setSelections] = React.useState(() => initialSelections(store.workstreamCategories,
     store.selectedSampleIdsByCategory));
+  const [customEngagementType, setCustomEngagementType] = React.useState("");
   const [error, setError] = React.useState("");
   const update = (field) => (event) => setValues((current) => ({ ...current, [field]: event.target.value }));
   const updatePeriods = (updater) => setValues((current) => ({
@@ -231,11 +236,37 @@ export function EngagementForm({ store, entity, initial = null, preferredSourceI
     ? current.filter((selection) => selection.categoryId !== category.id)
     : [...current, { categoryId: category.id, type: category.builtinType || "custom", customName: category.name || "",
       sampleId: store.selectedSampleIdsByCategory[category.id] || "" }]);
+  const engagementTypeKey = (value) => engagementTypeLabel(value, "en").trim().toLocaleLowerCase();
+  const engagementTypeSelected = (type) => values.engagementTypes.some((value) =>
+    engagementTypeKey(value) === engagementTypeKey(type));
+  const toggleEngagementType = (type) => setValues((current) => {
+    const selected = current.engagementTypes.some((value) => engagementTypeKey(value) === engagementTypeKey(type));
+    const engagementTypes = selected ? current.engagementTypes.filter((value) => engagementTypeKey(value) !== engagementTypeKey(type))
+      : [...current.engagementTypes, type];
+    return { ...current, engagementTypes, engagementType: engagementTypes[0] || "" };
+  });
+  const customTypeExists = engagementTypeSelected(customEngagementType);
+  const addCustomEngagementType = () => {
+    const type = customEngagementType.trim();
+    if (!type || customTypeExists) return;
+    setValues((current) => {
+      const engagementTypes = [...current.engagementTypes, type];
+      return { ...current, engagementTypes, engagementType: engagementTypes[0] || "" };
+    });
+    setCustomEngagementType("");
+  };
+  const availableEngagementTypes = ENGAGEMENT_TYPES.filter((type) => entity.kind === "holding_company"
+    || type !== "Group consolidation");
+  const customSelectedTypes = values.engagementTypes.filter((type) => !availableEngagementTypes.some((preset) =>
+    engagementTypeKey(preset) === engagementTypeKey(type)));
   const source = existing.find((engagement) => engagement.id === sourceEngagementId) || previousDefault;
   const submit = (event) => {
     event.preventDefault(); setError("");
     const reportingPeriods = values.reportingPeriods.map(({ baseYear, ...period }) => period);
     if (!quickField) {
+      if (!values.engagementTypes.length) {
+        setError(t("请至少选择一个项目类型。")); return;
+      }
       if (reportingPeriods.some((period) => !period.periodStart || !period.periodEnd)) {
         setError(t("请填写每个报告期间的完整日期。")); return;
       }
@@ -255,7 +286,7 @@ export function EngagementForm({ store, entity, initial = null, preferredSourceI
       setError(t("项目截止日不得早于开始日。")); return;
     }
     const sortedPeriods = engagementReportingPeriods({ reportingPeriods });
-    onSubmit({ ...values, entityId: entity.id, reportingPeriods: sortedPeriods,
+    onSubmit({ ...values, engagementType: values.engagementTypes[0] || "", entityId: entity.id, reportingPeriods: sortedPeriods,
       periodStart: sortedPeriods[0]?.periodStart || initial?.periodStart || "",
       periodEnd: sortedPeriods.at(-1)?.periodEnd || initial?.periodEnd || "",
       periodPreset: sortedPeriods.length === 1 ? sortedPeriods[0].periodPreset : "custom",
@@ -339,11 +370,22 @@ export function EngagementForm({ store, entity, initial = null, preferredSourceI
               {templates.map((template) => <option key={template.id} value={template.id}>{template.name}</option>)}</select>}</div>;
         })}</div>}
     </section>}
-    <div className="form-grid" data-columns="2"><label><span>{t("项目类型")}</span><input list="v11-engagement-type-options"
-      value={values.engagementType} onChange={update("engagementType")} placeholder={t("例如：Audit、Bookkeeping 或自定义服务")} />
-      <datalist id="v11-engagement-type-options">{ENGAGEMENT_TYPES.map((type) => <option key={type} value={type}>
-        {engagementTypeLabel(type, language)}</option>)}</datalist><small className="form-help">{t("可选择预设类型，也可以直接输入并保存自定义类型。")}</small></label>
-      <label><span>{t("财务报告准则／框架")}</span><input list="v11-framework-options"
+    <fieldset className="engagement-type-selector"><legend>{t("项目类型")} <span>{t("可多选")}</span></legend>
+      <div className="engagement-type-options">{availableEngagementTypes.map((type) => <label key={type}
+        data-selected={engagementTypeSelected(type) || undefined}><input type="checkbox" checked={engagementTypeSelected(type)}
+          onChange={() => toggleEngagementType(type)} /><span>{engagementTypeLabel(type, language)}</span></label>)}</div>
+      <div className="engagement-custom-type"><label htmlFor="v11-custom-engagement-type">{t("自定义项目类型")}</label>
+        <div><input id="v11-custom-engagement-type" value={customEngagementType}
+          onChange={(event) => setCustomEngagementType(event.target.value)} placeholder={t("输入自定义类型")}
+          onKeyDown={(event) => { if (event.key === "Enter") { event.preventDefault(); addCustomEngagementType(); } }} />
+          <button type="button" className="button secondary" disabled={!customEngagementType.trim() || customTypeExists}
+            onClick={addCustomEngagementType}><Plus aria-hidden="true" />{t("添加类型")}</button></div></div>
+      {customSelectedTypes.length > 0 && <div className="engagement-custom-type-tags">{customSelectedTypes.map((type) => <span key={type}>
+        <strong>{type}</strong><button type="button" aria-label={t("移除项目类型“{name}”", { name: type })}
+          onClick={() => toggleEngagementType(type)}><X aria-hidden="true" /></button></span>)}</div>}
+      <small className="form-help">{t("可同时选择多个预设类型，也可以添加自定义类型。")}</small>
+    </fieldset>
+    <div className="form-grid" data-columns="2"><label><span>{t("财务报告准则／框架")}</span><input list="v11-framework-options"
       value={values.reportingFramework} onChange={update("reportingFramework")} placeholder={t("选择常用框架或直接输入")} />
       <datalist id="v11-framework-options">{FRAMEWORKS.map((framework) => <option key={framework} value={framework} />)}</datalist></label>
       <label><span>{t("负责人")}</span><input value={values.owner} onChange={update("owner")} placeholder={t("例如：项目经理或主审")} /></label></div>
@@ -407,7 +449,7 @@ export function EntityOverview({ store, entity, onEdit, onNewEngagement, onOpenE
         return <article key={engagement.id} data-archived={engagement.archived || undefined}>
           <button type="button" className="annual-project-open" onClick={() => onOpenEngagement(engagement)}>
             <span className="annual-period"><strong>{yearEndOrPeriodLabel(engagement, language)}</strong>
-              <small>{engagementTypeLabel(engagement.engagementType, language) || t("项目类型未设置")}</small>
+              <small>{engagementTypesLabel(engagement, language) || t("项目类型未设置")}</small>
               <small>{engagementReportingPeriods(engagement).map((period) =>
                 `${formatDate(period.periodStart, language)} → ${formatDate(period.periodEnd, language)}`).join(" · ")}</small></span>
             <span className="annual-owner"><small>{t("负责人")}</small><strong>{engagement.owner || t("未设置")}</strong></span>

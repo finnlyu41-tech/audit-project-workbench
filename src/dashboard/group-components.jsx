@@ -1,9 +1,9 @@
 import React from "react";
-import { ArrowRightLeft, Building, Building2, CalendarDays, ChevronsDown, ChevronsUp, Copy, Minus, Pencil, Play, Plus, Trash2 } from "lucide-react";
+import { ArrowRightLeft, Building, Building2, ChevronsDown, ChevronsUp, Copy, Minus, Pencil, Play, Plus, Trash2 } from "lucide-react";
 import { ProgressBar } from "./components.jsx";
 import { handleTabListKeyDown, tabIndexFor } from "./a11y.js";
 import { GROUP_AUDIT_TYPES, GROUP_AUDIT_TYPE_KEYS, canMoveWorkspaceItem, collectGroupOutstandingEntries, formatDate,
-  engagementTypeLabel, groupProgress, makeGroupMember, memberIsReady, memberProgressPercentage, normalizeTemplateTags, outstandingIsOpen, projectStats,
+  engagementMatchesNavigationFilters, engagementTypeValues, engagementTypesLabel, groupProgress, makeGroupMember, memberIsReady, memberProgressPercentage, normalizeTemplateTags, outstandingIsOpen, projectStats,
   fiscalPeriodShortLabel, reportingPeriodLabel, uid, yearEndOrPeriodLabel } from "./model.js";
 import { useUiLanguage } from "./i18n.jsx";
 
@@ -154,7 +154,7 @@ export function WorkspaceTree(props) {
   return <LegacyWorkspaceTree {...props} />;
 }
 
-function EntityEngagementWorkspaceList({ store, selection, onSelect, search, filter, statuses }) {
+function EntityEngagementWorkspaceList({ store, selection, onSelect, search, filter, statuses, navigationFilters, simplifiedView }) {
   const { language, t } = useUiLanguage();
   const query = search.trim().toLocaleLowerCase();
   const entityById = new Map(store.entities.map((entity) => [entity.id, entity]));
@@ -172,9 +172,10 @@ function EntityEngagementWorkspaceList({ store, selection, onSelect, search, fil
       : Boolean(view && projectStats(view).complete);
     const archived = Boolean(entity.archived || engagement.archived);
     const periodLabel = yearEndOrPeriodLabel(engagement, language) || t("未设置报告期间");
-    const typeLabel = engagementTypeLabel(engagement.engagementType, language) || t("项目类型未设置");
-    const searchable = [entity.legalName, engagement.engagementType, engagement.internalName, engagement.owner,
+    const typeLabel = engagementTypesLabel(engagement, language) || t("项目类型未设置");
+    const searchable = [entity.legalName, ...engagementTypeValues(engagement), engagement.internalName, engagement.owner,
       periodLabel, reportingPeriodLabel(engagement, language)];
+    if (!engagementMatchesNavigationFilters(engagement, navigationFilters)) return null;
     if (filter === "archived" ? !archived : archived) return null;
     if (filter === "active" && complete) return null;
     if (filter === "completed" && !complete) return null;
@@ -189,23 +190,22 @@ function EntityEngagementWorkspaceList({ store, selection, onSelect, search, fil
       || (right.engagement.periodEnd || "").localeCompare(left.engagement.periodEnd || "")
       || left.entity.legalName.localeCompare(right.entity.legalName);
   });
-  return <div className="workspace-tree flat-engagement-list">
+  return <div className="workspace-tree flat-engagement-list" data-simplified={simplifiedView || undefined}>
     {rows.length ? rows.map(({ engagement, entity, kind, progress, complete, periodLabel, typeLabel, outstanding }) =>
       <button type="button" className="tree-row flat-engagement-row" key={engagement.id}
         data-selected={selection?.kind === kind && selection.id === engagement.id || undefined}
         onClick={() => onSelect({ kind, id: engagement.id, entityId: entity.id })}>
-        <span className="tree-kind-mark"><CalendarDays aria-hidden="true" /></span>
         <span className="tree-copy"><strong className="flat-engagement-type">{typeLabel}</strong>
-          <small className="flat-engagement-period">{periodLabel}</small>
-          <small className="flat-engagement-company">{[entity.legalName, engagement.owner]
+          {!simplifiedView && <small className="flat-engagement-period">{periodLabel}</small>}
+          <small className="flat-engagement-company">{[entity.legalName, simplifiedView ? periodLabel : engagement.owner]
             .filter(Boolean).join(" · ")}</small></span>
-        {outstanding > 0 && <em>{outstanding}</em>}<span className="tree-progress">{complete ? "✓" : `${progress}%`}</span>
+        {!simplifiedView && outstanding > 0 && <em>{outstanding}</em>}{!simplifiedView && <span className="tree-progress">{complete ? "✓" : `${progress}%`}</span>}
       </button>) : <div className="list-empty"><strong>{t(store.engagements.length ? "没有符合筛选的年度项目" : "还没有年度项目")}</strong>
       <span>{t(store.engagements.length ? "更改状态筛选或搜索内容。" : "先在公司主档中建立年度项目。")}</span></div>}
   </div>;
 }
 
-function EntityWorkspaceTree({ store, selection, onSelect, onMove, search, filter, statuses }) {
+function EntityWorkspaceTree({ store, selection, onSelect, onMove, search, filter, statuses, navigationFilters, simplifiedView }) {
   const { language, t } = useUiLanguage();
   const [expanded, setExpanded] = React.useState(() => new Set());
   const [draggingId, setDraggingId] = React.useState(null);
@@ -229,6 +229,7 @@ function EntityWorkspaceTree({ store, selection, onSelect, onMove, search, filte
     });
   }, [selection?.kind, selection?.id, store.engagements, store.entities]);
   const query = search.trim().toLocaleLowerCase();
+  const advancedFiltersActive = Object.values(navigationFilters || {}).some(Boolean);
   const entityEngagements = (entityId) => store.engagements.filter((engagement) => engagement.entityId === entityId)
     .sort((left, right) => (right.periodEnd || "").localeCompare(left.periodEnd || "")
       || (right.createdAt || "").localeCompare(left.createdAt || ""));
@@ -238,28 +239,32 @@ function EntityWorkspaceTree({ store, selection, onSelect, onMove, search, filte
     return project ? projectStats(project).complete : false;
   };
   const engagementMatches = (engagement, entity) => {
+    if (!engagementMatchesNavigationFilters(engagement, navigationFilters)) return false;
     const archived = Boolean(entity.archived || engagement.archived);
     if (filter === "archived" ? !archived : archived) return false;
     const complete = engagementComplete(engagement, entity);
     if (filter === "active" && complete) return false;
     if (filter === "completed" && !complete) return false;
-    if (query && ![entity.legalName, engagement.engagementType, engagement.internalName, engagement.owner,
+    if (query && ![entity.legalName, ...engagementTypeValues(engagement), engagement.internalName, engagement.owner,
       fiscalPeriodShortLabel(engagement, language), yearEndOrPeriodLabel(engagement, language), reportingPeriodLabel(engagement, language)]
       .some((value) => String(value || "").toLocaleLowerCase().includes(query))) return false;
     return true;
   };
-  const entityVisible = (entity, visited = new Set()) => {
-    if (visited.has(entity.id)) return false;
+  const entityOwnVisible = (entity) => {
     const archivedMode = filter === "archived";
     const ownArchiveMatch = archivedMode ? entity.archived : !entity.archived;
     const engagements = entityEngagements(entity.id).filter((engagement) => engagementMatches(engagement, entity));
     const ownText = !query || [entity.legalName, entity.entityType, entity.relationshipRole].some((value) =>
       String(value || "").toLocaleLowerCase().includes(query));
-    const zeroEngagementVisible = ["active", "all"].includes(filter) && ownArchiveMatch
+    const zeroEngagementVisible = !advancedFiltersActive && ["active", "all", "archived"].includes(filter) && ownArchiveMatch
       && !entityEngagements(entity.id).length && ownText;
+    return engagements.length > 0 || zeroEngagementVisible || (ownArchiveMatch && ownText && query);
+  };
+  const entityVisible = (entity, visited = new Set()) => {
+    if (visited.has(entity.id)) return false;
     const children = store.entities.filter((child) => child.parentEntityId === entity.id);
     const childVisible = children.some((child) => entityVisible(child, new Set(visited).add(entity.id)));
-    return engagements.length > 0 || zeroEngagementVisible || (ownArchiveMatch && ownText && query) || childVisible;
+    return entityOwnVisible(entity) || childVisible;
   };
   const sortedEntities = (items) => [...items].sort((left, right) =>
     (entityOrder.get(left.id) ?? Number.MAX_SAFE_INTEGER) - (entityOrder.get(right.id) ?? Number.MAX_SAFE_INTEGER)
@@ -308,24 +313,26 @@ function EntityWorkspaceTree({ store, selection, onSelect, onMove, search, filte
     const complete = engagementComplete(engagement, entity);
     const outstanding = (engagement.outstandingItems || []).filter((item) => outstandingIsOpen(item, statuses)).length;
     const kind = entity.kind === "holding_company" ? "group" : "project";
-    const typeLabel = engagementTypeLabel(engagement.engagementType, language) || t("项目类型未设置");
+    const typeLabel = engagementTypesLabel(engagement, language) || t("项目类型未设置");
     const periodLabel = yearEndOrPeriodLabel(engagement, language) || t("未设置报告期间");
     return <button type="button" className="tree-row tree-engagement-row" style={{ "--tree-depth": depth }} key={engagement.id}
       data-selected={selection?.kind === kind && selection.id === engagement.id || undefined}
       onClick={() => onSelect({ kind, id: engagement.id, entityId: entity.id })}>
-        <span className="tree-kind-mark"><CalendarDays aria-hidden="true" /></span><span className="tree-copy">
-        <strong className="tree-engagement-type">{typeLabel}</strong>
-        <small className="tree-engagement-period">{[periodLabel, engagement.owner].filter(Boolean).join(" · ")}</small></span>
-      {outstanding > 0 && <em>{outstanding}</em>}<span className="tree-progress">{complete ? "✓" : entity.kind === "company"
-        ? `${projectStats(store.projects.find((item) => item.id === engagement.id) || { workstreams: [] }).percentage}%` : `${groupProgress(store, engagement.id).percentage}%`}</span>
+        <span className="tree-copy"><strong className="tree-engagement-type">{typeLabel}</strong>
+        <small className="tree-engagement-period">{[periodLabel, simplifiedView ? "" : engagement.owner].filter(Boolean).join(" · ")}</small></span>
+      {!simplifiedView && outstanding > 0 && <em>{outstanding}</em>}{!simplifiedView && <span className="tree-progress">{complete ? "✓" : entity.kind === "company"
+        ? `${projectStats(store.projects.find((item) => item.id === engagement.id) || { workstreams: [] }).percentage}%` : `${groupProgress(store, engagement.id).percentage}%`}</span>}
     </button>;
   };
   const renderEntity = (entity, depth, visited = new Set()) => {
     if (!entityVisible(entity, visited) || visited.has(entity.id)) return null;
     const nextVisited = new Set(visited).add(entity.id);
-    const engagements = entityEngagements(entity.id).map((engagement) => renderEngagement(engagement, entity, depth + 1)).filter(Boolean);
+    const ownVisible = entityOwnVisible(entity);
+    const childDepth = ownVisible ? depth + 1 : depth;
     const children = sortedEntities(store.entities.filter((child) => child.parentEntityId === entity.id))
-      .map((child) => renderEntity(child, depth + 1, nextVisited)).filter(Boolean);
+      .map((child) => renderEntity(child, childDepth, nextVisited)).filter(Boolean);
+    if (!ownVisible) return children.length ? <React.Fragment key={entity.id}>{children}</React.Fragment> : null;
+    const engagements = entityEngagements(entity.id).map((engagement) => renderEngagement(engagement, entity, depth + 1)).filter(Boolean);
     const hasChildren = engagements.length > 0 || children.length > 0;
     const open = hasChildren && isOpen(entity.id);
     const activeEngagements = entityEngagements(entity.id).filter((engagement) => !engagement.archived).length;
@@ -339,19 +346,17 @@ function EntityWorkspaceTree({ store, selection, onSelect, onMove, search, filte
         draggable={filter !== "archived" && !entity.archived} onDragStart={(event) => beginDrag(event, entity.id)} onDragEnd={finishDrag}
         onDragEnter={(event) => dragOver(event, entity.id)} onDragOver={(event) => dragOver(event, entity.id)} onDrop={(event) => drop(event, entity.id)}
         onClick={() => onSelect({ kind: "entity", id: entity.id })}>
-        <span className="tree-kind-mark">{entity.kind === "holding_company" ? <Building2 aria-hidden="true" /> : <Building aria-hidden="true" />}</span>
-        <span className="tree-copy"><strong>{entity.legalName}</strong><small>{entity.relationshipRole || entity.entityType
-          || t(entity.kind === "holding_company" ? "控股公司" : "公司主档")}</small></span>
-        <span className="tree-progress">{activeEngagements}</span></button></div>{open && <div className="tree-children">{engagements}{children}</div>}</div>;
+        <span className="tree-copy"><strong>{entity.legalName}</strong></span>
+        {!simplifiedView && <span className="tree-progress">{activeEngagements}</span>}</button></div>{open && <div className="tree-children">{engagements}{children}</div>}</div>;
   };
   const roots = sortedEntities(store.entities.filter((entity) => !entity.parentEntityId || !entityById.has(entity.parentEntityId)));
   const rendered = roots.map((entity) => renderEntity(entity, 0)).filter(Boolean);
-  const expandableEntityIds = query ? [] : store.entities.filter((entity) => entityVisible(entity))
+  const expandableEntityIds = query ? [] : store.entities.filter((entity) => entityOwnVisible(entity) && entityVisible(entity))
     .filter((entity) => entityEngagements(entity.id).some((engagement) => engagementMatches(engagement, entity))
       || store.entities.some((child) => child.parentEntityId === entity.id && entityVisible(child)))
     .map((entity) => entity.id);
   const allExpanded = expandableEntityIds.length > 0 && expandableEntityIds.every((id) => expanded.has(id));
-  return <div className="workspace-tree" data-dragging={Boolean(draggingId) || undefined}
+  return <div className="workspace-tree" data-dragging={Boolean(draggingId) || undefined} data-simplified={simplifiedView || undefined}
     onDragEnter={(event) => dragOver(event, "")} onDragOver={(event) => dragOver(event, "")} onDrop={(event) => drop(event, "")}>
     {expandableEntityIds.length > 0 && <div className="workspace-tree-bulk-actions"><button type="button"
       aria-label={t(allExpanded ? "收起全部公司" : "展开全部公司")}
@@ -364,7 +369,7 @@ function EntityWorkspaceTree({ store, selection, onSelect, onMove, search, filte
   </div>;
 }
 
-function LegacyWorkspaceTree({ store, selection, onSelect, onMove, search, filter, statuses }) {
+function LegacyWorkspaceTree({ store, selection, onSelect, onMove, search, filter, statuses, navigationFilters }) {
   const { language, t } = useUiLanguage();
   const [expanded, setExpanded] = React.useState(() => new Set());
   const [dragging, setDragging] = React.useState(null);
@@ -379,15 +384,17 @@ function LegacyWorkspaceTree({ store, selection, onSelect, onMove, search, filte
     .filter((member) => member.kind === "group" && store.groups.some((child) => child.id === member.refId
       && child.archived === archiveMode)).map((member) => member.refId)));
   const query = search.trim().toLowerCase();
-  const matchesText = (item) => !query || [item.name, item.entity, item.engagementType, item.reportingFramework, item.period, item.periodStart,
+  const matchesText = (item) => !query || [item.name, item.entity, ...engagementTypeValues(item), item.reportingFramework, item.period, item.periodStart,
     item.periodEnd, reportingPeriodLabel(item, language), item.owner]
     .some((value) => value?.toLowerCase().includes(query));
-  const visibleProject = (project) => itemMatchesFilter(project, "project", filter, store) && matchesText(project);
+  const visibleProject = (project) => itemMatchesFilter(project, "project", filter, store) && matchesText(project)
+    && engagementMatchesNavigationFilters(project, navigationFilters);
   const groupHasVisibleContent = (group, visited = new Set()) => {
     if (visited.has(group.id)) return false;
     if (group.archived !== archiveMode) return false;
     const next = new Set(visited).add(group.id);
-    if (itemMatchesFilter(group, "group", filter, store) && matchesText(group)) return true;
+    if (itemMatchesFilter(group, "group", filter, store) && matchesText(group)
+      && engagementMatchesNavigationFilters(group, navigationFilters)) return true;
     return group.members.some((member) => member.kind === "project"
       ? Boolean(store.projects.find((project) => project.id === member.refId && visibleProject(project)))
       : Boolean(store.groups.find((child) => child.id === member.refId && groupHasVisibleContent(child, next))));
@@ -439,8 +446,8 @@ function LegacyWorkspaceTree({ store, selection, onSelect, onMove, search, filte
       draggable={!archiveMode} title={!archiveMode ? t("拖动以更改所属集团或层级") : undefined}
       onDragStart={(event) => beginDrag(event, "project", project.id)} onDragEnd={finishDrag}
       onClick={() => onSelect({ kind: "project", id: project.id })}>
-      <span className="tree-kind-mark"><Building aria-hidden="true" /></span><span className="tree-copy"><strong>{project.entity || project.name}</strong>
-        <small>{[engagementTypeLabel(project.engagementType, language), project.name !== project.entity ? project.name : "", project.owner].filter(Boolean).join(" · ")
+      <span className="tree-copy"><strong>{project.entity || project.name}</strong>
+        <small>{[engagementTypesLabel(project, language), project.name !== project.entity ? project.name : "", project.owner].filter(Boolean).join(" · ")
           || reportingPeriodLabel(project, language) || t("尚未填写项目资料")}</small></span>
       {outstanding > 0 && <em>{outstanding}</em>}<span className="tree-progress">{stats.completedWorkstreams}/{stats.workstreams}</span>
     </button>;
@@ -477,7 +484,7 @@ function LegacyWorkspaceTree({ store, selection, onSelect, onMove, search, filte
         onDragStart={(event) => beginDrag(event, "group", group.id)} onDragEnd={finishDrag}
         onDragEnter={(event) => dragOver(event, group.id)} onDragOver={(event) => dragOver(event, group.id)}
         onDrop={(event) => drop(event, group.id)} onClick={() => onSelect({ kind: "group", id: group.id })}>
-        <span className="tree-kind-mark"><Building2 aria-hidden="true" /></span><span className="tree-copy"><strong>{group.name}</strong>
+        <span className="tree-copy"><strong>{group.name}</strong>
           <small>{group.owner || reportingPeriodLabel(group, language) || t("尚未填写集团资料")}</small></span>
         {openOutstanding > 0 && <em>{openOutstanding}</em>}<span className="tree-progress">{dropEligible
           ? <span className="tree-drop-hint">{t(dropTarget === group.id ? "松开放入" : "可放入")}</span>
@@ -641,7 +648,7 @@ export function GroupSampleLibrary({ samples, selectedSampleId, onSelect, onCrea
   return <section className="sample-library"><header className="sample-library-header"><div><strong>{t("集团范本库")}</strong>
     <span>{t("保存合并节点，以及不同审计类别的默认就绪条件。")}</span></div>
     <button type="button" className="button primary" onClick={onCreate}><Plus aria-hidden="true" />{t("新建集团范本")}</button></header>
-    <div className="sample-library-list">{samples.map((sample) => {
+    {samples.length ? <div className="sample-library-list">{samples.map((sample) => {
       const conditions = sample.nodes.reduce((sum, node) => sum + node.conditions.length, 0);
       const readiness = Object.values(sample.readinessTemplates).reduce((sum, list) => sum + list.length, 0);
       const selected = sample.id === selectedSampleId;
@@ -662,7 +669,9 @@ export function GroupSampleLibrary({ samples, selectedSampleId, onSelect, onCrea
           <button type="button" className="icon-only" aria-label={t("删除范本")} title={t("删除范本")} data-tooltip={t("删除范本")}
             data-tooltip-side="left" onClick={() => onDelete(sample.id)}><Trash2 aria-hidden="true" /></button></footer>
       </article>;
-    })}</div></section>;
+    })}</div> : <div className="sample-library-empty"><strong>{t("还没有集团范本")}</strong>
+      <span>{t("可以建立新集团范本，或暂时使用空白合并流程。")}</span>
+      <button type="button" className="button primary" onClick={onCreate}>{t("新建集团范本")}</button></div>}</section>;
 }
 
 export function GroupSampleEditor({ sample, onSave, onClose, onReset }) {

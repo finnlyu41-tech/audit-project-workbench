@@ -1,6 +1,6 @@
 import React from "react";
-import { Building, Building2, CalendarClock, CircleAlert, GripVertical, LocateFixed, ReceiptText } from "lucide-react";
-import { engagementLatestPeriodEnd, engagementTypeLabel, formatDate, groupProgress, projectStats, taxDeadlineCategoryLabel, taxDeadlineUrgency,
+import { Building, Building2, CalendarClock, CircleAlert, Eye, EyeOff, LocateFixed, ReceiptText } from "lucide-react";
+import { engagementLatestPeriodEnd, engagementTypesLabel, formatDate, groupProgress, projectStats, taxDeadlineCategoryLabel, taxDeadlineUrgency,
   workspaceScheduleOrder, yearEndOrPeriodLabel } from "./model.js";
 import { useUiLanguage } from "./i18n.jsx";
 
@@ -112,6 +112,7 @@ function scheduleRows(store, filter, language = "en") {
         kind,
         name: entity.legalName,
         periodLabel: yearEndOrPeriodLabel(engagement, language),
+        engagementTypes: engagement.engagementTypes || [],
         engagementType: engagement.engagementType || "",
         secondaryName: "",
         owner: engagement.owner,
@@ -222,7 +223,8 @@ function dayOffset(date, rangeStart) {
   return calendarDayNumber(date) - calendarDayNumber(rangeStart);
 }
 
-export function ProjectSchedule({ store, filter, onOpen, onEditSchedule, onOpenTaxDeadline, onReorder }) {
+export function ProjectSchedule({ store, filter, onOpen, onEditSchedule, onOpenTaxDeadline, onReorder,
+  simplifiedView = false, onToggleSimplifiedView }) {
   const { language, t } = useUiLanguage();
   const scrollRef = React.useRef(null);
   const draggingRef = React.useRef(null);
@@ -367,6 +369,10 @@ export function ProjectSchedule({ store, filter, onOpen, onEditSchedule, onOpenT
       <div className="schedule-heading-actions"><div className="schedule-summary">
         <span>{t("{count} 项已排期", { count: scheduledCount })}</span>
         <span data-alert={incompleteCount > 0 || undefined}>{t("{count} 项日期待补", { count: incompleteCount })}</span></div>
+        <button type="button" className="button secondary schedule-detail-toggle" aria-pressed={simplifiedView}
+          data-tooltip={t(simplifiedView ? "显示导航和排期详情" : "隐藏导航和排期详情")}
+          onClick={onToggleSimplifiedView}>{simplifiedView ? <Eye aria-hidden="true" /> : <EyeOff aria-hidden="true" />}
+          <span>{t("简化视图")}</span></button>
         <div className="schedule-precision" role="group" aria-label={t("时间精度")}>
           {SCHEDULE_PRECISIONS.map((value) => <button type="button" key={value} aria-pressed={precision === value}
             onClick={() => changePrecision(value)}>{t(value === "day" ? "天" : value === "month" ? "月" : "周")}</button>)}
@@ -380,8 +386,9 @@ export function ProjectSchedule({ store, filter, onOpen, onEditSchedule, onOpenT
     {rows.length ? <div className="schedule-scroll" ref={scrollRef} tabIndex="0" onWheel={horizontalWheel}
       aria-label={t("可横向滚动的项目排期")}>
       <div className="schedule-grid" data-resizing={resizingMeta || undefined} data-precision={precision}
+        data-simplified={simplifiedView || undefined}
         style={{ "--timeline-width": `${width}px`, "--time-grid-width": `${timeline.gridWidth}px`, "--schedule-meta-width": `${metaWidth}px` }}>
-        <div className="schedule-corner"><strong>{t("公司／控股公司")}</strong><span>{t("项目类型 · 负责人")}</span>
+        <div className="schedule-corner"><strong>{t("公司／控股公司")}</strong><span>{t(simplifiedView ? "项目类型 · 报告期间" : "项目类型 · 负责人")}</span>
           <button type="button" className="schedule-column-resizer" role="separator" aria-orientation="vertical"
             aria-label={t("拖动调整公司栏宽度")} aria-valuemin={MIN_META_WIDTH} aria-valuemax={MAX_META_WIDTH}
             aria-valuenow={metaWidth} aria-keyshortcuts="ArrowLeft ArrowRight Home End"
@@ -421,26 +428,28 @@ export function ProjectSchedule({ store, filter, onOpen, onEditSchedule, onOpenT
               : t("{count} 周", { count: durationWeeks });
           const taxMarkers = Object.values((row.taxDeadlines || []).reduce((groups, deadline) => ({ ...groups,
             [deadline.dueDate]: [...(groups[deadline.dueDate] || []), deadline] }), {}));
-          const projectTypeOwner = [row.engagementType ? engagementTypeLabel(row.engagementType, language) : "",
+          const projectTypeLabel = engagementTypesLabel(row, language);
+          const projectTypeOwner = [projectTypeLabel,
             row.owner || t("未设置负责人")].filter(Boolean).join(" · ");
+          const simplifiedIdentity = [projectTypeLabel,
+            row.periodLabel].filter(Boolean).join(" · ");
           const openSchedule = () => row.archived || !onEditSchedule
             ? onOpen(row.kind, row.id) : onEditSchedule(row.kind, row.id);
           return <React.Fragment key={rowKey}>
             <div className="schedule-row-meta" data-dragging={draggingKey === rowKey || undefined}
-              data-drop-position={dropPosition} onDragOver={(event) => dragOver(event, rowKey)}
+              data-drop-position={dropPosition} draggable={canReorder} title={canReorder ? t("按住项目即可拖动排序") : undefined}
+              onDragStart={(event) => beginDrag(event, rowKey)} onDragEnd={finishDrag} onDragOver={(event) => dragOver(event, rowKey)}
               onDrop={(event) => drop(event, rowKey)}>
-              {canReorder ? <button type="button" className="schedule-drag-handle" draggable="true"
-                aria-label={t("拖动调整“{name}”的排期顺序；按 Alt 加上下方向键也可移动", { name: rowAccessibleName })}
-                aria-keyshortcuts="Alt+ArrowUp Alt+ArrowDown"
-                data-tooltip={t("拖动调整顺序；Alt + 上下方向键也可移动")}
-                onDragStart={(event) => beginDrag(event, rowKey)} onDragEnd={finishDrag}
-                onKeyDown={(event) => reorderWithKeyboard(event, rowKey)}><GripVertical aria-hidden="true" /></button>
-                : <span className="schedule-drag-spacer" aria-hidden="true" />}
-              <button type="button" className="schedule-row-open" onClick={() => onOpen(row.kind, row.id)}>
-                <i data-kind={row.kind}>{row.kind === "group" ? <Building2 aria-hidden="true" /> : <Building aria-hidden="true" />}</i>
-                <span><strong>{row.name}</strong>{row.periodLabel && <small className="schedule-reporting-period">{row.periodLabel}</small>}
-                  {projectTypeOwner && <small className="schedule-project-type">{projectTypeOwner}</small>}
-                  {row.secondaryName && <small>{row.secondaryName}</small>}
+              <button type="button" className="schedule-row-open" onClick={() => onOpen(row.kind, row.id)}
+                aria-description={canReorder ? t("按住项目即可拖动排序；按 Alt 加上下方向键也可移动") : undefined}
+                aria-keyshortcuts={canReorder ? "Alt+ArrowUp Alt+ArrowDown" : undefined}
+                onKeyDown={(event) => reorderWithKeyboard(event, rowKey)}>
+                {!simplifiedView && <i data-kind={row.kind}>{row.kind === "group" ? <Building2 aria-hidden="true" /> : <Building aria-hidden="true" />}</i>}
+                <span><strong>{row.name}</strong>{simplifiedView
+                  ? simplifiedIdentity && <small className="schedule-project-type">{simplifiedIdentity}</small>
+                  : <>{row.periodLabel && <small className="schedule-reporting-period">{row.periodLabel}</small>}
+                    {projectTypeOwner && <small className="schedule-project-type">{projectTypeOwner}</small>}
+                    {row.secondaryName && <small>{row.secondaryName}</small>}</>}
                 </span>
               </button>
               {!row.archived && <button type="button" className="schedule-row-edit"

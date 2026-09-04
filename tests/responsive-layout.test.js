@@ -15,6 +15,7 @@ const managementReport = readFileSync(new URL("../src/dashboard/management-repor
 const model = readFileSync(new URL("../src/dashboard/model.js", import.meta.url), "utf8");
 const v11Components = readFileSync(new URL("../src/dashboard/v11-components.jsx", import.meta.url), "utf8");
 const dateRangePicker = readFileSync(new URL("../src/dashboard/date-range-picker.jsx", import.meta.url), "utf8");
+const homeOverview = readFileSync(new URL("../src/dashboard/home-overview.jsx", import.meta.url), "utf8");
 
 test("compact outstanding centre remains recoverable at narrow viewport widths", () => {
   assert.match(css, /@media \(max-width: 760px\)[\s\S]*?\.workbench-layout\[data-compact-layout\] > \.outstanding-center-shell\s*{[\s\S]*?position:\s*fixed/);
@@ -33,6 +34,17 @@ test("global actions use a persistent slim rail instead of a large header", () =
   assert.match(workbench, /<h1 className="visually-hidden">/);
   assert.doesNotMatch(workbench, /className="workbench-toolbar"/);
   assert.match(css, /\.audit-workbench\s*{[\s\S]*?grid-template-columns:\s*54px minmax\(0, 1fr\)/);
+});
+
+test("home is the default actionable overview and remains available from the slim rail", () => {
+  assert.match(workbench, /return \["detail", "schedule", "report"\]\.includes\(view\) \? view : "home"/);
+  assert.match(workbench, /data-active={workspaceView === "home"/);
+  assert.match(workbench, /<HomeOverview store={store}/);
+  assert.match(homeOverview, /className="home-metric-grid"/);
+  assert.match(homeOverview, /className="home-overview-panel home-priority-panel"/);
+  assert.match(homeOverview, /className="home-project-row"/);
+  assert.match(css, /\.home-overview-columns\s*{[^}]*grid-template-columns:/);
+  assert.match(css, /@container workspace \(max-width: 900px\)[\s\S]*?\.home-overview-columns\s*{\s*grid-template-columns:\s*minmax\(0, 1fr\)/);
 });
 
 test("storage settings stay in the slim rail and expose compact save state", () => {
@@ -77,6 +89,50 @@ test("navigation switches between a company hierarchy and a flat annual-project 
   assert.match(groupComponents, /className="workspace-tree-bulk-actions"/);
 });
 
+test("one persistent simplified-view toggle compacts both navigation and project schedule details", () => {
+  assert.match(workbench, /SIMPLIFIED_VIEW_KEY = "audit-progress-workbench:simplified-view"/);
+  assert.match(workbench, /localStorage\.setItem\(SIMPLIFIED_VIEW_KEY, String\(simplifiedView\)\)/);
+  assert.match(workbench, /viewMode={navigationView} simplifiedView={simplifiedView}/);
+  assert.match(workbench, /simplifiedView={simplifiedView} onToggleSimplifiedView=/);
+  assert.match(groupComponents, /data-simplified={simplifiedView \|\| undefined}/);
+  assert.match(timeline, /className="button secondary schedule-detail-toggle" aria-pressed={simplifiedView}/);
+  assert.match(timeline, /data-simplified={simplifiedView \|\| undefined}/);
+  assert.match(css, /\.workspace-tree\[data-simplified\] \.tree-row\s*{[^}]*grid-template-columns:\s*minmax\(0, 1fr\)/);
+  assert.match(css, /\.schedule-grid\[data-simplified\] \.schedule-row-meta,[^}]*min-height:\s*56px/);
+});
+
+test("navigation exposes combinable owner, engagement-type and reporting-year filters", () => {
+  assert.match(workbench, /className="navigation-filter-toggle"/);
+  assert.match(workbench, /aria-label={t\("负责人筛选"\)}/);
+  assert.match(workbench, /aria-label={t\("项目类型筛选"\)}/);
+  assert.match(workbench, /aria-label={t\("报告年度筛选"\)}/);
+  assert.match(workbench, /navigationFilters={navigationFilters}/);
+  assert.match(groupComponents, /engagementMatchesNavigationFilters\(engagement, navigationFilters\)/);
+  assert.match(css, /\.navigation-filter-panel\s*{[^}]*display:\s*grid/);
+});
+
+test("company and project navigation use text-first rows without decorative entity icons or company-type labels", () => {
+  const projectList = groupComponents.match(/function EntityEngagementWorkspaceList[\s\S]*?function EntityWorkspaceTree/)?.[0] || "";
+  const companyTree = groupComponents.match(/function EntityWorkspaceTree[\s\S]*?function LegacyWorkspaceTree/)?.[0] || "";
+  assert.doesNotMatch(projectList, /tree-kind-mark/);
+  assert.doesNotMatch(companyTree, /tree-kind-mark/);
+  assert.doesNotMatch(companyTree, /entity\.relationshipRole\s*\|\|\s*entity\.entityType/);
+  assert.match(css, /\.flat-engagement-row\s*{\s*grid-template-columns:\s*minmax\(0, 1fr\) auto 38px/);
+});
+
+test("company hierarchy renders nonmatching ancestors as transparent context instead of mislabelling their archive state", () => {
+  assert.match(groupComponents, /const ownVisible = entityOwnVisible\(entity\)/);
+  assert.match(groupComponents, /if \(!ownVisible\) return children\.length \? <React\.Fragment/);
+  assert.match(groupComponents, /const childDepth = ownVisible \? depth \+ 1 : depth/);
+  assert.match(groupComponents, /\["active", "all", "archived"\]\.includes\(filter\)/);
+});
+
+test("archiving records preserves the current navigation status view", () => {
+  assert.doesNotMatch(workbench, /setFilter\("archived"\)/);
+  assert.match(workbench, /updateEngagement\(id, \(item\) => \(\{ \.\.\.item, archived: true \}\)\);\s*notify/);
+  assert.match(workbench, /updateEntity\(selectedEntitySource\.id,[\s\S]*?archived: true[\s\S]*?notify\(t\("公司已归档"\)\)/);
+});
+
 test("workflow controls share one compact row and template category management stays in the content header", () => {
   assert.match(components, /className="node-board-toolbar"[\s\S]*?className="node-structure-actions"/);
   assert.match(components, /className="sample-library-actions"[\s\S]*?onManageCategories/);
@@ -108,7 +164,8 @@ test("project schedule uses a two-click date range picker and day, week or month
 });
 
 test("project schedule rows support direct date editing and persistent drag ordering", () => {
-  assert.match(timeline, /className="schedule-drag-handle" draggable="true"/);
+  assert.match(timeline, /className="schedule-row-meta"[\s\S]*?draggable={canReorder}/);
+  assert.doesNotMatch(timeline, /schedule-drag-handle|GripVertical/);
   assert.match(timeline, /onReorder\?\.\(sourceKey, targetKey/);
   assert.match(timeline, /onEditSchedule\?\.\(row\.kind, row\.id\)/);
   assert.match(workbench, /onEditSchedule={openScheduleEditor}/);
@@ -130,7 +187,8 @@ test("company navigation and schedule metadata columns are resizable and remembe
 });
 
 test("workstream cards reorder directly and contain long text inside each card", () => {
-  assert.match(components, /className="workstream-drag-handle icon-only" draggable="true"/);
+  assert.match(components, /className="workstream-card"[\s\S]*?draggable={!readOnly}/);
+  assert.doesNotMatch(components, /workstream-drag-handle/);
   assert.match(workbench, /reorderWorkstreams\(project\.workstreams, sourceId, targetId, position\)/);
   assert.match(css, /\.workstream-card\s*{[^}]*overflow:\s*hidden/);
   assert.match(css, /\.workstream-card-top strong, \.workstream-card-top small\s*{[^}]*overflow-wrap:\s*anywhere/);
@@ -144,7 +202,8 @@ test("workstreams and stages disclose one level at a time while stages and crite
   assert.match(workbench, /current === workstream\.id \? null : workstream\.id/);
   assert.match(components, /setSelectedId\(\(current\) => current === node\.id \? null : node\.id\)/);
   assert.match(components, /draggable={!readOnly} onDragStart={\(event\) => beginNodeDrag/);
-  assert.match(components, /className="condition-drag-handle icon-only" draggable="true"/);
+  assert.match(components, /className="condition-row"[\s\S]*?draggable={!readOnly}/);
+  assert.doesNotMatch(components, /condition-drag-handle|node-track-grip/);
   assert.match(workbench, /reorderCondition:[\s\S]*?reorderWorkstreams\(node\.conditions/);
   assert.match(css, /\.condition-row\[data-drop-position="before"\]/);
 });
@@ -163,16 +222,25 @@ test("annual engagement forms omit internal names and project notes", () => {
   assert.doesNotMatch(v11Components, /<span>{t\("项目备注"\)}<\/span>/);
 });
 
-test("annual engagements expose a customisable type throughout navigation and reporting", () => {
-  assert.match(v11Components, /list="v11-engagement-type-options"/);
-  assert.match(v11Components, /value={values\.engagementType}/);
-  assert.match(v11Components, /可选择预设类型，也可以直接输入并保存自定义类型/);
-  assert.match(groupComponents, /engagementTypeLabel\(engagement\.engagementType, language\)/);
+test("annual engagements expose multiple preset and custom types throughout navigation and reporting", () => {
+  assert.match(v11Components, /className="engagement-type-selector"/);
+  assert.match(v11Components, /type="checkbox" checked={engagementTypeSelected\(type\)}/);
+  assert.match(v11Components, /id="v11-custom-engagement-type"/);
+  assert.match(v11Components, /可同时选择多个预设类型，也可以添加自定义类型/);
+  assert.match(groupComponents, /engagementTypesLabel\(engagement, language\)/);
   assert.match(groupComponents, /<strong className="flat-engagement-type">{typeLabel}<\/strong>[\s\S]*?flat-engagement-period[\s\S]*?flat-engagement-company/);
   assert.match(groupComponents, /<strong className="tree-engagement-type">{typeLabel}<\/strong>[\s\S]*?tree-engagement-period/);
   assert.match(managementReport, /className="management-company-cell" rowSpan={group\.rows\.length}/);
   assert.match(managementReport, /className="management-period-cell"/);
-  assert.match(managementReport, /engagementTypeLabel\(row\.engagementType, language\)/);
+  assert.match(managementReport, /engagementTypesLabel\(row, language\)/);
+  assert.match(css, /\.engagement-type-selector\s*{/);
+});
+
+test("workstream controls use one shared settings action beside add and history controls share the title row", () => {
+  assert.match(workbench, /className="section-heading-actions"[\s\S]*?设置所选业务模块/);
+  assert.doesNotMatch(components, /className="workstream-edit/);
+  assert.match(css, /\.workspace-history-controls\s*{[^}]*height:\s*0/);
+  assert.match(css, /\.detail-header\s*{[^}]*padding:[^;}]*66px/);
 });
 
 test("screen typography keeps supporting interface text readable", () => {
@@ -243,7 +311,7 @@ test("project summary facts open focused settings without exposing the full edit
   }
   assert.match(workbench, /type: "edit-entity", entityId: rawProject\.entityId/);
   assert.match(workbench, /className="detail-fact-link"/);
-  assert.match(workbench, /activeRawWorkstream \? \{ type: "workstream-edit"/);
+  assert.match(workbench, /设置所选业务模块[\s\S]*?activeRawWorkstream && setModal\(\{ type: "workstream-edit"/);
   assert.match(v11Components, /data-quick-field="schedule"/);
   assert.match(v11Components, /data-quick-field={quickField}/);
   assert.match(v11Components, /<DateRangePicker autoFocus/);

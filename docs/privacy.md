@@ -18,7 +18,7 @@ Linked files are not a collaboration service. Simultaneous edits by different pe
 
 ## Public contributions
 
-Use fictional or bracketed identifiers such as `[Company Name]`. Before submitting a pull request, inspect code, tests, screenshots and documentation for real client names, file paths, registration numbers, vessel names, email addresses and credentials.
+Use fictional or bracketed identifiers such as `[Company Name]`. Before submitting a pull request, inspect code, tests, screenshots and documentation for real client names, file paths, registration numbers, asset names, email addresses and credentials.
 
 ## Template de-identification
 

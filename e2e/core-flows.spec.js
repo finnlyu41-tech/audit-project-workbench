@@ -3,6 +3,29 @@ import { expect, test } from "@playwright/test";
 import { emptyStore } from "../src/dashboard/model.js";
 import { hierarchyFixture, openWorkbench, readStoredWorkspace, workspaceFixture } from "./helpers.js";
 
+test("home opens first and turns the whole workspace into an actionable overview", async ({ page }) => {
+  const store = workspaceFixture();
+  store.projects[0].dueDate = "2020-01-01";
+  store.projects[0].outstandingItems.push({ id: "home-outstanding", title: "Approval still required", status: "missing_document",
+    note: "", workstreamId: null, createdAt: "2026-01-01T00:00:00.000Z", updatedAt: "2026-01-01T00:00:00.000Z" });
+  await openWorkbench(page, store, { home: true });
+
+  await expect(page.getByRole("heading", { name: "Work overview" })).toBeVisible();
+  await expect(page.locator(".app-rail-button[aria-label='Home']")).toHaveAttribute("data-active", "true");
+  await expect(page.locator(".home-metric-grid > button").filter({ hasText: "Active engagements" })).toContainText("1");
+  await expect(page.locator(".home-metric-grid > button").filter({ hasText: "Deadlines needing attention" })).toContainText("1");
+  await expect(page.locator(".home-metric-grid > button").filter({ hasText: "Outstanding items" })).toContainText("1");
+  await expect(page.locator(".home-priority-list > button").first()).toContainText("overdue");
+  await expect(page.locator(".home-priority-list")).toContainText("Approval still required");
+  await expect(page.locator(".home-project-row")).toContainText("Audit");
+  await expect(page.locator(".home-project-row")).toContainText("Example Services Limited");
+
+  await page.locator(".home-project-row").click();
+  await expect(page.getByRole("heading", { name: "Audit", exact: true })).toBeVisible();
+  await page.locator(".app-rail-button[aria-label='Home']").click();
+  await expect(page.getByRole("heading", { name: "Work overview" })).toBeVisible();
+});
+
 test("creates a company, saves it in the browser and restores focus when a dialog closes", async ({ page }) => {
   await openWorkbench(page, emptyStore());
   const newCompany = page.getByRole("button", { name: "New company" });
@@ -48,10 +71,10 @@ test("group batch mode creates a holding master and multiple member companies in
   const dialog = page.getByRole("dialog", { name: "New company" });
   await dialog.getByRole("button", { name: "Holding company batch" }).click();
   await dialog.getByLabel("Legal entity *").fill("Fleet Holdings Limited");
-  await dialog.getByLabel("Company name *").fill("Vessel One Limited");
+  await dialog.getByLabel("Company name *").fill("Alpha Services Limited");
   await dialog.getByLabel("Entity type (optional)").nth(1).fill("Limited company");
   await dialog.getByRole("button", { name: "Add company" }).click();
-  await dialog.getByLabel("Company name *").nth(1).fill("Vessel Two Limited");
+  await dialog.getByLabel("Company name *").nth(1).fill("Beta Services Limited");
   await dialog.getByLabel("Default financial year").nth(2).selectOption("apr_mar");
   await dialog.getByRole("button", { name: "Create holding company and companies" }).click();
 
@@ -61,8 +84,8 @@ test("group batch mode creates a holding master and multiple member companies in
   const parent = stored.entities.find((entity) => entity.legalName === "Fleet Holdings Limited");
   expect(parent.kind).toBe("holding_company");
   expect(stored.entities.filter((entity) => entity.parentEntityId === parent.id)
-    .map((entity) => entity.legalName)).toEqual(["Vessel One Limited", "Vessel Two Limited"]);
-  expect(stored.entities.find((entity) => entity.legalName === "Vessel Two Limited").fiscalYearPreset).toBe("apr_mar");
+    .map((entity) => entity.legalName)).toEqual(["Alpha Services Limited", "Beta Services Limited"]);
+  expect(stored.entities.find((entity) => entity.legalName === "Beta Services Limited").fiscalYearPreset).toBe("apr_mar");
 });
 
 test("a first DOI engagement uses the company's next year end and shows the formal period", async ({ page }) => {
@@ -186,7 +209,7 @@ test("workstreams can be dragged into a new saved order", async ({ page }) => {
   await openWorkbench(page, workspaceFixture());
   const auditCard = page.locator(".workstream-card").filter({ hasText: "Audit" });
   const taxCard = page.locator(".workstream-card").filter({ hasText: "Tax computation & filing" });
-  await taxCard.locator(".workstream-drag-handle").dragTo(auditCard, { targetPosition: { x: 4, y: 20 } });
+  await taxCard.dragTo(auditCard, { targetPosition: { x: 4, y: 20 } });
   await expect(page.locator(".workstream-card").first()).toContainText("Tax computation & filing");
   let stored = await readStoredWorkspace(page);
   expect(stored.engagements[0].workstreams.map((workstream) => workstream.type)).toEqual(["tax_computation_filing", "audit"]);
@@ -197,8 +220,12 @@ test("workstreams can be dragged into a new saved order", async ({ page }) => {
 test("workstream stages and completion criteria can be expanded, collapsed and dragged into a saved order", async ({ page }) => {
   await openWorkbench(page, workspaceFixture());
   const auditCard = page.locator(".workstream-card").filter({ hasText: "Audit" });
+  const sharedSettings = page.getByRole("button", { name: "Configure selected workstream" });
+  await expect(page.locator(".workstream-card-actions")).toHaveCount(0);
+  await expect(sharedSettings).toBeDisabled();
   await expect(page.locator(".workflow-panel")).toHaveCount(0);
   await auditCard.locator(".workstream-card-select").click();
+  await expect(sharedSettings).toBeEnabled();
   await expect(page.locator(".workflow-panel")).toBeVisible();
   await auditCard.locator(".workstream-card-select").click();
   await expect(page.locator(".workflow-panel")).toHaveCount(0);
@@ -216,7 +243,7 @@ test("workstream stages and completion criteria can be expanded, collapsed and d
 
   const scope = page.locator(".condition-row").filter({ hasText: "Scope confirmed" });
   const independence = page.locator(".condition-row").filter({ hasText: "Independence confirmed" });
-  await independence.locator(".condition-drag-handle").dragTo(scope, { targetPosition: { x: 20, y: 2 } });
+  await independence.dragTo(scope, { targetPosition: { x: 20, y: 2 } });
   await expect(page.locator(".condition-row").first()).toContainText("Independence confirmed");
   let stored = await readStoredWorkspace(page);
   let audit = stored.engagements[0].workstreams.find((workstream) => workstream.type === "audit");
@@ -244,24 +271,33 @@ test("owner quick edit updates only the annual engagement", async ({ page }) => 
   expect(stored.engagements[0].workstreams.map((workstream) => workstream.owner)).toEqual(originalWorkstreamOwners);
 });
 
-test("a custom engagement type is saved and becomes the primary company-tree project label", async ({ page }) => {
+test("multiple preset and custom engagement types are saved and shown together", async ({ page }) => {
   await openWorkbench(page, workspaceFixture());
   await page.getByRole("button", { name: "Edit annual engagement" }).click();
   const dialog = page.getByRole("dialog", { name: /Edit annual engagement/ });
   await expect(dialog.getByLabel("Internal engagement name (optional)")).toHaveCount(0);
   await expect(dialog.getByLabel("Project notes")).toHaveCount(0);
-  await dialog.getByLabel("Engagement type").fill("Marine bookkeeping");
+  await expect(dialog.locator(".engagement-type-options").getByRole("checkbox", { name: "Group consolidation" })).toHaveCount(0);
+  await dialog.locator(".engagement-type-options").getByRole("checkbox", { name: "Bookkeeping" }).check();
+  await dialog.locator("#v11-custom-engagement-type").fill("Compliance support");
+  await dialog.getByRole("button", { name: "Add type" }).click();
   await dialog.getByRole("button", { name: "Save engagement" }).click();
-  await expect(page.locator(".tree-engagement-row .tree-engagement-type")).toHaveText("Marine bookkeeping");
+  await expect(page.locator(".tree-engagement-row .tree-engagement-type")).toHaveText("Audit · Bookkeeping · Compliance support");
   await expect(page.locator(".tree-engagement-row .tree-engagement-period")).toContainText("YE December 31, 2026");
-  await expect(page.getByRole("heading", { name: "Marine bookkeeping", exact: true })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Audit · Bookkeeping · Compliance support", exact: true })).toBeVisible();
   await expect(page.locator(".detail-title > p")).toContainText("Example Services Limited");
-  expect((await readStoredWorkspace(page)).engagements[0].engagementType).toBe("Marine bookkeeping");
+  const stored = (await readStoredWorkspace(page)).engagements[0];
+  expect(stored.engagementTypes).toEqual(["Audit", "Bookkeeping", "Compliance support"]);
+  expect(stored.engagementType).toBe("Audit");
 });
 
 test("switches between company hierarchy and a flat searchable project list", async ({ page }) => {
   await openWorkbench(page, workspaceFixture());
   const viewTabs = page.locator(".navigation-view-tabs");
+  const companyRow = page.locator(".tree-entity-row").first();
+  await expect(companyRow.locator("svg")).toHaveCount(0);
+  await expect(companyRow.locator("small")).toHaveCount(0);
+  await expect(page.locator(".tree-engagement-row").first().locator("svg")).toHaveCount(0);
   await viewTabs.getByRole("tab", { name: "Projects" }).click();
   await expect(viewTabs.getByRole("tab", { name: "Projects" })).toHaveAttribute("aria-selected", "true");
   const projectRow = page.locator(".flat-engagement-row");
@@ -269,6 +305,16 @@ test("switches between company hierarchy and a flat searchable project list", as
   await expect(projectRow.locator(".flat-engagement-type")).toHaveText("Audit");
   await expect(projectRow.locator(".flat-engagement-period")).toHaveText("YE December 31, 2026");
   await expect(projectRow.locator(".flat-engagement-company")).toContainText("Example Services Limited");
+  await expect(projectRow.locator("svg")).toHaveCount(0);
+  const navigationFilterToggle = page.locator(".navigation-filter-toggle");
+  await page.getByRole("button", { name: "Open navigation filters" }).click();
+  await page.getByRole("combobox", { name: "Owner filter" }).selectOption("Alex Chan");
+  await page.getByRole("combobox", { name: "Engagement type filter" }).selectOption({ label: "Audit" });
+  await page.getByRole("combobox", { name: "Reporting year filter" }).selectOption("2026");
+  await expect(navigationFilterToggle.locator("strong")).toHaveText("3");
+  await expect(projectRow).toHaveCount(1);
+  await page.getByRole("button", { name: "Clear filters" }).click();
+  await expect(navigationFilterToggle.locator("strong")).toHaveCount(0);
   await page.getByRole("textbox", { name: "Search projects, companies or owners" }).fill("Alex Chan");
   await expect(projectRow).toHaveCount(1);
   await projectRow.click();
@@ -382,12 +428,20 @@ test("company structure conversion is editable in the company master and support
 test("archives, restores and permanently deletes only from the archive view", async ({ page }) => {
   await openWorkbench(page, workspaceFixture());
   await page.getByRole("button", { name: "Archive project" }).click();
+  await expect(page.getByRole("tab", { name: /Active/u })).toHaveAttribute("aria-selected", "true");
+  await expect(page.locator(".tree-engagement-row")).toHaveCount(0);
+
+  await page.getByRole("tab", { name: /Archived/u }).click();
+  await page.locator(".tree-engagement-row").click();
   await expect(page.getByText("Archived · Read only")).toBeVisible();
   await expect(page.getByRole("button", { name: "Edit annual engagement" })).toHaveCount(0);
 
   await page.getByRole("button", { name: "Restore" }).click();
   await expect(page.getByRole("button", { name: "Edit annual engagement" })).toBeVisible();
   await page.getByRole("button", { name: "Archive project" }).click();
+  await expect(page.getByRole("tab", { name: /Active/u })).toHaveAttribute("aria-selected", "true");
+  await page.getByRole("tab", { name: /Archived/u }).click();
+  await page.locator(".tree-engagement-row").click();
   await page.getByRole("button", { name: "Permanently delete" }).click();
   const deleteDialog = page.getByRole("dialog", { name: "Permanently delete" });
   await expect(deleteDialog.getByText("This action cannot be undone")).toBeVisible();
@@ -398,6 +452,17 @@ test("archives, restores and permanently deletes only from the archive view", as
   const stored = await readStoredWorkspace(page);
   expect(stored.entities).toHaveLength(1);
   expect(stored.engagements).toHaveLength(0);
+});
+
+test("archiving a company keeps the current status view instead of opening the archive", async ({ page }) => {
+  await openWorkbench(page, workspaceFixture());
+  await page.getByRole("button", { name: "Archive project" }).click();
+  await page.getByRole("button", { name: "Archive company" }).click();
+
+  await expect(page.getByRole("tab", { name: /Active/u })).toHaveAttribute("aria-selected", "true");
+  await expect(page.locator(".tree-entity-row").filter({ hasText: "Example Services Limited" })).toHaveCount(0);
+  await page.getByRole("tab", { name: /Archived/u }).click();
+  await expect(page.locator(".tree-entity-row").filter({ hasText: "Example Services Limited" })).toBeVisible();
 });
 
 test("exports, initialises and restores a V11 backup without losing records", async ({ page }) => {
@@ -425,6 +490,9 @@ test("exports, initialises and restores a V11 backup without losing records", as
   const chooser = await chooserPromise;
   page.once("dialog", (dialog) => dialog.accept());
   await chooser.setFiles(backupPath);
+  await expect(page.getByRole("heading", { name: "Work overview" })).toBeVisible();
+  await expect(page.locator(".home-project-row")).toContainText("Example Services Limited");
+  await page.locator(".home-project-row").click();
   await expect(page.getByRole("heading", { name: "Audit", exact: true })).toBeVisible();
   await expect(page.locator(".detail-title > p")).toContainText("Example Services Limited");
   const restored = await readStoredWorkspace(page);

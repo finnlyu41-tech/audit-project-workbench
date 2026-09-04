@@ -3,6 +3,23 @@ import { expect, test } from "@playwright/test";
 import { canonicalStorePayload, emptyStore, makeEngagement, makeEntity } from "../src/dashboard/model.js";
 import { openWorkbench, readStoredWorkspace, workspaceFixture } from "./helpers.js";
 
+test("a built-in template can be deleted without changing existing engagement work", async ({ page }) => {
+  await openWorkbench(page, workspaceFixture());
+  const before = await readStoredWorkspace(page);
+  const projectNodes = structuredClone(before.engagements[0].workstreams[0].nodes);
+
+  await page.getByRole("button", { name: "Template library" }).click();
+  const library = page.getByRole("dialog", { name: "Template library" });
+  const auditTemplate = library.locator(".sample-library-card").filter({ hasText: "Core Audit Workflow" });
+  page.once("dialog", (dialog) => dialog.accept());
+  await auditTemplate.getByRole("button", { name: "Delete template" }).click();
+  await expect(auditTemplate).toHaveCount(0);
+
+  const after = await readStoredWorkspace(page);
+  expect(after.samples.some((sample) => sample.categoryId === "audit")).toBe(false);
+  expect(after.engagements[0].workstreams[0].nodes).toEqual(projectNodes);
+});
+
 test("exports a portable template package and imports an explicit replacement without changing an existing project", async ({ page }) => {
   await openWorkbench(page, workspaceFixture());
   const before = await readStoredWorkspace(page);

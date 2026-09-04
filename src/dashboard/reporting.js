@@ -180,6 +180,7 @@ function recordRow(store, kind, record, now) {
     periodStart: record.periodStart || "",
     periodEnd: record.periodEnd || "",
     reportingPeriods: record.reportingPeriods || [],
+    engagementTypes: record.engagementTypes || [],
     engagementType: record.engagementType || "",
     secondaryName: kind === "project" && record.entity && record.name !== record.entity ? record.name : "",
     owner: record.owner || "",
@@ -286,6 +287,7 @@ function projectRecordReport(store, project, now) {
     id: project.id,
     name: project.entity || project.name,
     secondaryName: project.entity && project.name !== project.entity ? project.name : "",
+    engagementTypes: project.engagementTypes || [],
     engagementType: project.engagementType || "",
     owner: project.owner,
     periodStart: project.periodStart,
@@ -424,6 +426,7 @@ export function buildRecordReport(store, kind, id, nowValue = new Date()) {
         const complete = viewKind === "group" ? Boolean(view && groupProgress(store, engagement.id).ready)
           : Boolean(view && projectStats(view).complete);
         return { id: engagement.id, kind: viewKind, label: yearEndOrPeriodLabel(engagement, "en"),
+          engagementTypes: engagement.engagementTypes || [],
           engagementType: engagement.engagementType || "",
           periodStart: engagement.periodStart, periodEnd: engagement.periodEnd,
           reportingPeriods: engagement.reportingPeriods || [], owner: engagement.owner,

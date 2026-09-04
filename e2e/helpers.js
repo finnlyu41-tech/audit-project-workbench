@@ -77,7 +77,7 @@ export function localDateOffset(days) {
   return `${year}-${month}-${day}`;
 }
 
-export async function openWorkbench(page, store = emptyStore()) {
+export async function openWorkbench(page, store = emptyStore(), { home = false } = {}) {
   await page.addInitScript(({ storageKey, languageKey, initialStore }) => {
     if (sessionStorage.getItem("apw-e2e-seeded")) return;
     localStorage.clear();
@@ -85,7 +85,7 @@ export async function openWorkbench(page, store = emptyStore()) {
     localStorage.setItem(languageKey, "en");
     sessionStorage.setItem("apw-e2e-seeded", "true");
   }, { storageKey: STORAGE_KEY, languageKey: LANGUAGE_KEY, initialStore: store });
-  await page.goto("./");
+  await page.goto(home ? "./" : "./?view=detail");
   await expect(page.locator(".audit-workbench")).toBeVisible();
   await expect.poll(() => page.evaluate((storageKey) => {
     const value = JSON.parse(localStorage.getItem(storageKey) || "null");

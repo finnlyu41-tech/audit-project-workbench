@@ -91,26 +91,26 @@ test("package validation rejects workspace data, duplicate identities and partia
 
 test("custom categories match by name or are created during import", () => {
   const source = emptyStore();
-  const sample = { ...source.samples[0], id: "shipping-template", templateKey: "firm:shipping-audit", categoryId: "shipping",
-    workstreamType: "custom", builtinKey: undefined, name: "Shipping audit", tags: ["shipping", "annual"], versionNote: "2026 refresh" };
-  source.workstreamCategories.push({ id: "shipping", name: "Shipping" });
+  const sample = { ...source.samples[0], id: "specialist-template", templateKey: "firm:specialist-audit", categoryId: "specialist",
+    workstreamType: "custom", builtinKey: undefined, name: "Specialist audit", tags: ["specialist", "annual"], versionNote: "2026 refresh" };
+  source.workstreamCategories.push({ id: "specialist", name: "Specialist" });
   source.samples.push(sample);
   const pkg = createTemplatePackage(source, { sampleIds: [sample.id] });
 
   const exactTarget = emptyStore();
-  exactTarget.workstreamCategories.push({ id: "existing-shipping", name: "shipping" });
+  exactTarget.workstreamCategories.push({ id: "existing-specialist", name: "specialist" });
   const exactPreview = templatePackagePreview(exactTarget, pkg);
-  assert.equal(exactPreview.items[0].suggestedCategoryId, "existing-shipping");
+  assert.equal(exactPreview.items[0].suggestedCategoryId, "existing-specialist");
 
   const freshTarget = emptyStore();
   const preview = templatePackagePreview(freshTarget, pkg);
   assert.match(preview.items[0].suggestedCategoryId, /^__new__:/u);
   const imported = applyTemplatePackage(freshTarget, pkg);
-  const category = imported.workstreamCategories.find((item) => item.name === "Shipping");
-  const importedTemplate = imported.samples.find((item) => item.sourceTemplateKey === "firm:shipping-audit");
+  const category = imported.workstreamCategories.find((item) => item.name === "Specialist");
+  const importedTemplate = imported.samples.find((item) => item.sourceTemplateKey === "firm:specialist-audit");
   assert.ok(category);
   assert.equal(importedTemplate.categoryId, category.id);
-  assert.deepEqual(importedTemplate.tags, ["shipping", "annual"]);
+  assert.deepEqual(importedTemplate.tags, ["specialist", "annual"]);
   assert.equal(importedTemplate.versionNote, "2026 refresh");
 });
 

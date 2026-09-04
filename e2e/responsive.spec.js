@@ -14,6 +14,11 @@ for (const width of [1024, 1280, 1440, 1920]) {
     await expect(page.locator(".app-rail")).toBeVisible();
     await expect(page.locator(".project-panel")).toBeVisible();
     await expect(page.locator(".project-detail")).toBeVisible();
+    const historyBox = await page.locator(".workspace-history-controls").boundingBox();
+    const detailHeaderBox = await page.locator(".detail-header").boundingBox();
+    expect(historyBox.height).toBe(0);
+    expect(historyBox.y).toBeGreaterThanOrEqual(detailHeaderBox.y - 4);
+    expect(historyBox.y).toBeLessThanOrEqual(detailHeaderBox.y + detailHeaderBox.height);
 
     if (width < 1400) {
       const openOutstanding = page.getByRole("button", { name: "Expand outstanding centre" });
@@ -48,6 +53,25 @@ for (const width of [1024, 1280, 1440, 1920]) {
     const dialogBox = await dialog.boundingBox();
     expect(dialogBox.x).toBeGreaterThanOrEqual(0);
     expect(dialogBox.x + dialogBox.width).toBeLessThanOrEqual(width);
+  });
+}
+
+for (const width of [1024, 1920]) {
+  test(`home overview reflows without horizontal overflow at ${width}px`, async ({ page }) => {
+    await page.setViewportSize({ width, height: 900 });
+    await openWorkbench(page, workspaceFixture(), { home: true });
+    await expect(page.getByRole("heading", { name: "Work overview" })).toBeVisible();
+    await expect(page.locator(".home-metric-grid > button")).toHaveCount(4);
+    const metrics = await page.evaluate(() => ({
+      clientWidth: document.documentElement.clientWidth,
+      scrollWidth: document.documentElement.scrollWidth,
+      columnCount: getComputedStyle(document.querySelector(".home-overview-columns")).gridTemplateColumns.split(" ").length,
+    }));
+    expect(metrics.scrollWidth).toBeLessThanOrEqual(metrics.clientWidth + 1);
+    expect(metrics.columnCount).toBe(width === 1024 ? 1 : 2);
+    const overviewBox = await page.locator(".home-overview").boundingBox();
+    expect(overviewBox.x).toBeGreaterThanOrEqual(0);
+    expect(overviewBox.x + overviewBox.width).toBeLessThanOrEqual(width);
   });
 }
 
@@ -99,4 +123,43 @@ test("company navigation and schedule company columns resize by dragging and per
   await expect(page.locator(".schedule-corner")).toBeVisible();
   expect((await page.locator(".project-panel").boundingBox()).width).toBeCloseTo(navAfter, 0);
   expect((await page.locator(".schedule-corner").boundingBox()).width).toBeCloseTo(scheduleAfter, 0);
+});
+
+test("simplified view compacts navigation and schedule while retaining core project identity", async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 900 });
+  await openWorkbench(page, workspaceFixture());
+
+  const navigationToggle = page.locator(".navigation-density-toggle");
+  await expect(navigationToggle).toHaveAttribute("aria-pressed", "false");
+  await expect(page.locator(".tree-engagement-period")).toContainText("Alex Chan");
+  await navigationToggle.click();
+  await expect(navigationToggle).toHaveAttribute("aria-pressed", "true");
+  await expect(page.locator(".tree-engagement-period")).not.toContainText("Alex Chan");
+  await expect(page.locator(".workspace-tree .tree-progress")).toHaveCount(0);
+  await expect.poll(() => page.evaluate(() => localStorage.getItem("audit-progress-workbench:simplified-view"))).toBe("true");
+
+  await page.getByRole("tab", { name: "Projects", exact: true }).click();
+  await expect(page.locator(".flat-engagement-type")).toHaveText("Audit");
+  await expect(page.locator(".flat-engagement-company")).toContainText("Example Services Limited");
+  await expect(page.locator(".flat-engagement-company")).toContainText("December 31, 2026");
+  await expect(page.locator(".flat-engagement-period")).toHaveCount(0);
+
+  await page.locator(".app-rail-button[aria-label='Project schedule']").click();
+  const compactRow = page.locator(".schedule-row-meta");
+  await expect(page.locator(".schedule-grid")).toHaveAttribute("data-simplified", "true");
+  await expect(page.locator(".schedule-reporting-period")).toHaveCount(0);
+  await expect(page.locator(".schedule-project-type")).toContainText("Audit");
+  await expect(page.locator(".schedule-project-type")).toContainText("December 31, 2026");
+  await expect(page.locator(".schedule-project-type")).not.toContainText("Alex Chan");
+  const compactHeight = (await compactRow.boundingBox()).height;
+
+  await page.locator(".schedule-detail-toggle").click();
+  await expect(page.locator(".schedule-grid")).not.toHaveAttribute("data-simplified", "true");
+  await expect(page.locator(".schedule-reporting-period")).toHaveText("YE December 31, 2026");
+  await expect(page.locator(".schedule-project-type")).toContainText("Alex Chan");
+  expect((await compactRow.boundingBox()).height).toBeGreaterThan(compactHeight);
+
+  await navigationToggle.click();
+  await page.reload();
+  await expect(page.locator(".navigation-density-toggle")).toHaveAttribute("aria-pressed", "true");
 });

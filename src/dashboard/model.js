@@ -410,6 +410,26 @@ export function engagementTypeLabel(value, language = "en") {
   return language === "zh-Hant" ? toTraditional(label) : label;
 }
 
+export function engagementTypeValues(value = {}) {
+  const source = Array.isArray(value) ? value
+    : value && typeof value === "object"
+      ? (Array.isArray(value.engagementTypes) && value.engagementTypes.length
+        ? value.engagementTypes : [value.engagementType ?? value.projectType])
+      : [value];
+  const seen = new Set();
+  return source.flatMap((item) => typeof item === "string" && item.trim() ? [item.trim()] : [])
+    .filter((item) => {
+      const key = item.toLocaleLowerCase();
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+}
+
+export function engagementTypesLabel(value, language = "en") {
+  return engagementTypeValues(value).map((type) => engagementTypeLabel(type, language)).filter(Boolean).join(" · ");
+}
+
 export function createDefaultWorkstreamCategories() {
   return WORKSTREAM_TYPES.map((type) => ({ id: type, builtinType: type, name: "" }));
 }
@@ -722,9 +742,12 @@ export function makeGroupMember(values, groupSample = createDefaultGroupSample()
 export function makeGroup(values, useStarter = true, groupSample = createDefaultGroupSample()) {
   const now = new Date().toISOString();
   const consolidationEnabled = values.consolidationEnabled !== false;
+  const engagementTypes = engagementTypeValues(values).length ? engagementTypeValues(values) : ["Group consolidation"];
   return {
     id: uid("group"),
     name: values.name.trim(),
+    engagementTypes,
+    engagementType: engagementTypes[0],
     period: values.period?.trim() || "",
     periodStart: values.periodStart || "",
     periodEnd: values.periodEnd || "",
@@ -947,7 +970,8 @@ function normalizeLegacyStore(value) {
       || samples.find((sample) => sample.categoryId === category.id);
     return [category.id, selected?.id || null];
   }));
-  const rawGroupSamples = Array.isArray(value.groupSamples) ? value.groupSamples : [];
+  const hasExplicitGroupSamples = Array.isArray(value.groupSamples);
+  const rawGroupSamples = hasExplicitGroupSamples ? value.groupSamples : [];
   const seenGroupSampleIds = new Set();
   const groupSamples = rawGroupSamples.filter(Boolean).map((sample) => {
     const normalized = normalizeGroupSample(sample);
@@ -955,16 +979,20 @@ function normalizeLegacyStore(value) {
     seenGroupSampleIds.add(normalized.id);
     return normalized;
   });
-  if (!groupSamples.length) groupSamples.push(createDefaultGroupSample());
+  if (!groupSamples.length && (!hasExplicitGroupSamples || sourceVersion < STORE_VERSION)) {
+    groupSamples.push(createDefaultGroupSample());
+  }
   const selectedGroupSampleId = groupSamples.some((sample) => sample.id === value.selectedGroupSampleId)
-    ? value.selectedGroupSampleId : groupSamples[0].id;
-  const defaultGroupSample = groupSamples.find((sample) => sample.id === selectedGroupSampleId) || groupSamples[0];
+    ? value.selectedGroupSampleId : groupSamples[0]?.id || null;
+  const defaultGroupSample = groupSamples.find((sample) => sample.id === selectedGroupSampleId)
+    || groupSamples[0] || createDefaultGroupSample();
   const normalizeConversionState = (state) => {
     if (!state || typeof state !== "object") return undefined;
     const normalized = {};
     if (state.project && typeof state.project === "object") normalized.project = {
       entity: typeof state.project.entity === "string" ? state.project.entity : "",
-      engagementType: typeof state.project.engagementType === "string" ? state.project.engagementType : "",
+      engagementTypes: engagementTypeValues(state.project),
+      engagementType: engagementTypeValues(state.project)[0] || "",
       reportingFramework: typeof state.project.reportingFramework === "string" ? state.project.reportingFramework : "",
       workstreams: Array.isArray(state.project.workstreams)
         ? state.project.workstreams.map((workstream) => normalizeWorkstream(workstream)) : [],
@@ -1011,8 +1039,8 @@ function normalizeLegacyStore(value) {
       id: project?.id || uid("project"),
       name: typeof project?.name === "string" && project.name.trim() ? project.name.trim() : "未命名项目",
       entity: typeof project?.entity === "string" ? project.entity : "",
-      engagementType: typeof (project?.engagementType ?? project?.projectType) === "string"
-        ? String(project.engagementType ?? project.projectType).trim() : "",
+      engagementTypes: engagementTypeValues(project),
+      engagementType: engagementTypeValues(project)[0] || "",
       reportingFramework: typeof project?.reportingFramework === "string" ? project.reportingFramework : "",
       period: typeof project?.period === "string" ? project.period : "",
       periodStart: typeof project?.periodStart === "string" ? project.periodStart : "",
@@ -1033,8 +1061,8 @@ function normalizeLegacyStore(value) {
   const groups = Array.isArray(value.groups) ? value.groups.map((group) => ({
     id: group?.id || uid("group"),
     name: typeof group?.name === "string" && group.name.trim() ? group.name.trim() : "未命名控股公司",
-    engagementType: typeof group?.engagementType === "string" && group.engagementType.trim()
-      ? group.engagementType.trim() : "Group consolidation",
+    engagementTypes: engagementTypeValues(group).length ? engagementTypeValues(group) : ["Group consolidation"],
+    engagementType: engagementTypeValues(group)[0] || "Group consolidation",
     period: typeof group?.period === "string" ? group.period : "",
     periodStart: typeof group?.periodStart === "string" ? group.periodStart : "",
     periodEnd: typeof group?.periodEnd === "string" ? group.periodEnd : "",
@@ -1120,6 +1148,23 @@ export function engagementReportingPeriods(engagement = {}) {
   }).filter((period) => period.periodStart || period.periodEnd)
     .sort((left, right) => left.periodStart.localeCompare(right.periodStart)
       || left.periodEnd.localeCompare(right.periodEnd));
+}
+
+export function engagementReportingYears(engagement = {}) {
+  return [...new Set(engagementReportingPeriods(engagement)
+    .map((period) => /^\d{4}-\d{2}-\d{2}$/u.test(period.periodEnd) ? period.periodEnd.slice(0, 4) : "")
+    .filter(Boolean))].sort((left, right) => right.localeCompare(left));
+}
+
+export function engagementMatchesNavigationFilters(engagement = {}, filters = {}) {
+  const owner = String(filters.owner || "").trim();
+  const engagementType = String(filters.engagementType || "").trim();
+  const reportingYear = String(filters.reportingYear || "").trim();
+  if (owner && String(engagement.owner || "").trim() !== owner) return false;
+  if (engagementType && !engagementTypeValues(engagement)
+    .some((value) => value.toLocaleLowerCase() === engagementType.toLocaleLowerCase())) return false;
+  if (reportingYear && !engagementReportingYears(engagement).includes(reportingYear)) return false;
+  return true;
 }
 
 function normalizeReportingPeriods(engagement = {}) {
@@ -1319,10 +1364,11 @@ function normalizeEngagementRecord(value = {}, context = {}) {
   const periodEnd = reportingPeriods.at(-1)?.periodEnd || (typeof value.periodEnd === "string" ? value.periodEnd : "");
   const inferredPreset = reportingPeriods.length === 1
     ? reportingPeriods[0].periodPreset : inferPeriodPreset(periodStart, periodEnd);
-  const explicitEngagementType = typeof (value.engagementType ?? value.projectType) === "string"
-    ? String(value.engagementType ?? value.projectType).trim() : "";
+  const explicitEngagementTypes = engagementTypeValues(value);
   const inferredWorkstreamType = workstreams.some((workstream) => workstream.type === "audit") ? "Audit"
     : workstreams[0] ? workstreamTypeLabel(workstreams[0].type, "en", workstreams[0].customName) : "";
+  const engagementTypes = explicitEngagementTypes.length ? explicitEngagementTypes
+    : [value.consolidation ? "Group consolidation" : inferredWorkstreamType].filter(Boolean);
   return {
     id: value.id || uid("engagement"),
     entityId: typeof value.entityId === "string" ? value.entityId : "",
@@ -1334,7 +1380,8 @@ function normalizeEngagementRecord(value = {}, context = {}) {
     reportingPeriods,
     legacyPeriod: typeof value.legacyPeriod === "string" ? value.legacyPeriod
       : (typeof value.period === "string" ? value.period : ""),
-    engagementType: explicitEngagementType || (value.consolidation ? "Group consolidation" : inferredWorkstreamType),
+    engagementTypes,
+    engagementType: engagementTypes[0] || "",
     reportingFramework: typeof value.reportingFramework === "string" ? value.reportingFramework.trim() : "",
     owner,
     startDate: typeof value.startDate === "string" ? value.startDate : "",
@@ -1411,6 +1458,7 @@ function addRuntimeViews(store) {
       name: engagement.internalName || entity.legalName,
       entity: entity.legalName,
       entityType: entity.entityType,
+      engagementTypes: engagement.engagementTypes,
       engagementType: engagement.engagementType,
       reportingFramework: engagement.reportingFramework,
       period: engagement.legacyPeriod || "",
@@ -1572,7 +1620,8 @@ function migrateLegacyStore(value) {
       internalName: project.name && project.name !== (project.entity || project.name) ? project.name : "",
       periodPreset: inferPeriodPreset(project.periodStart, project.periodEnd), periodStart: project.periodStart,
       periodEnd: project.periodEnd, legacyPeriod: project.period,
-      engagementType: project.engagementType || project.projectType, reportingFramework: project.reportingFramework,
+      engagementTypes: project.engagementTypes, engagementType: project.engagementType || project.projectType,
+      reportingFramework: project.reportingFramework,
       owner: project.owner, startDate: project.startDate, dueDate: project.dueDate, notes: project.notes,
       archived: project.archived, workstreams: project.workstreams, outstandingItems: project.outstandingItems,
       consolidation: project.conversionState?.group ? { enabled: project.conversionState.group.consolidationEnabled !== false,
@@ -1590,7 +1639,8 @@ function migrateLegacyStore(value) {
       incorporationDate: group.incorporationDate || group.dateOfIncorporation, kind: "holding_company",
       fiscalYearPreset: inferPeriodPreset(group.periodStart, group.periodEnd), taxDeadlines: group.taxDeadlines,
       archived: group.archived, createdAt: group.createdAt, updatedAt: group.updatedAt }));
-    engagements.push(normalizeEngagementRecord({ id: group.id, entityId, internalName: "", engagementType: group.engagementType || "Group consolidation",
+    engagements.push(normalizeEngagementRecord({ id: group.id, entityId, internalName: "", engagementTypes: group.engagementTypes,
+      engagementType: group.engagementType || "Group consolidation",
       periodPreset: inferPeriodPreset(group.periodStart, group.periodEnd), periodStart: group.periodStart,
       periodEnd: group.periodEnd, legacyPeriod: group.period, reportingFramework: "", owner: group.owner,
       startDate: group.startDate, dueDate: group.dueDate, notes: group.notes, archived: group.archived,
@@ -1701,6 +1751,7 @@ function syncCanonicalFromLegacyViews(previous, candidate) {
     } : previousEngagement?.consolidation || null;
     const normalized = normalizeEngagementRecord({ ...previousEngagement, id: record.id, entityId,
       internalName: record.name && record.name !== (record.entity || record.name) ? record.name : "",
+      engagementTypes: record.engagementTypes || previousEngagement?.engagementTypes,
       engagementType: record.engagementType || record.projectType || previousEngagement?.engagementType,
       periodPreset: record.periodPreset || inferPeriodPreset(record.periodStart, record.periodEnd),
       periodStart: record.periodStart, periodEnd: record.periodEnd,
@@ -1854,6 +1905,8 @@ export function makeEngagement(values = {}, options = {}) {
     id: values.id || uid("engagement"),
     entityId: values.entityId || entity?.id || "",
     internalName: values.internalName || "",
+    engagementTypes: values.engagementTypes
+      ?? (values.engagementType !== undefined ? [values.engagementType] : source?.engagementTypes),
     engagementType: values.engagementType ?? source?.engagementType
       ?? (entity?.kind === "holding_company" ? "Group consolidation" : "Audit"),
     periodPreset: values.periodPreset || inferPeriodPreset(periodStart, periodEnd),
@@ -1993,12 +2046,16 @@ export function makeProject(values, useStarter = true, sampleSource = null, cate
     return makeWorkstream({ type, categoryId, customName: selection.customName, owner: selection.owner || values.owner,
       dueDate: selection.dueDate || values.dueDate }, useStarter ? sample : []);
   });
+  const fallbackEngagementType = workstreams.some((workstream) => workstream.type === "audit")
+    ? "Audit" : workstreams[0] ? workstreamTypeLabel(workstreams[0].type, "en", workstreams[0].customName) : "";
+  const engagementTypes = engagementTypeValues(values).length ? engagementTypeValues(values)
+    : [fallbackEngagementType].filter(Boolean);
   return {
     id: uid("project"),
     name: values.name?.trim() || "未命名项目",
     entity: values.entity?.trim() || "",
-    engagementType: values.engagementType?.trim() || (workstreams.some((workstream) => workstream.type === "audit")
-      ? "Audit" : workstreams[0] ? workstreamTypeLabel(workstreams[0].type, "en", workstreams[0].customName) : ""),
+    engagementTypes,
+    engagementType: engagementTypes[0] || "",
     reportingFramework: values.reportingFramework?.trim() || "",
     period: values.period?.trim() || "",
     periodStart: values.periodStart || "",
@@ -2031,6 +2088,7 @@ export function convertProjectToGroup(store, projectId, groupSample = createDefa
   const group = {
     id: project.id,
     name: project.entity || project.name || "未命名控股公司",
+    engagementTypes: ["Group consolidation"],
     engagementType: "Group consolidation",
     period: project.period || "",
     periodStart: project.periodStart || "",
@@ -2049,6 +2107,7 @@ export function convertProjectToGroup(store, projectId, groupSample = createDefa
     nodes: consolidationEnabled ? normalizeNodeList(starterNodes) : [],
     conversionState: mergeConversionState(project.conversionState, { project: {
       entity: project.entity || "",
+      engagementTypes: engagementTypeValues(project),
       engagementType: project.engagementType || "Audit",
       reportingFramework: project.reportingFramework || "",
       workstreams: (project.workstreams || []).map((workstream) => normalizeWorkstream(workstream,
@@ -2068,8 +2127,10 @@ export function convertGroupToProject(store, groupId, groupSample = createDefaul
   const group = store.groups.find((item) => item.id === groupId);
   if (!group) return store;
   const savedProject = group.conversionState?.project;
+  const savedEngagementTypes = engagementTypeValues(savedProject);
   const baseProject = makeProject({ name: group.name, entity: savedProject?.entity || group.name,
-    engagementType: savedProject?.engagementType || "Audit", reportingFramework: savedProject?.reportingFramework || "",
+    engagementTypes: savedEngagementTypes.length ? savedEngagementTypes : ["Audit"],
+    engagementType: savedEngagementTypes[0] || "Audit", reportingFramework: savedProject?.reportingFramework || "",
     period: group.period, periodStart: group.periodStart,
     periodEnd: group.periodEnd, startDate: group.startDate, dueDate: group.dueDate, owner: group.owner, notes: group.notes,
     workstreamSelections: [{ type: "audit", categoryId: "audit", sampleId: store.selectedSampleIdsByCategory?.audit }] },
@@ -2083,7 +2144,8 @@ export function convertGroupToProject(store, groupId, groupSample = createDefaul
     id: group.id,
     name: group.name,
     entity: savedProject?.entity || group.name,
-    engagementType: savedProject?.engagementType || "Audit",
+    engagementTypes: savedEngagementTypes.length ? savedEngagementTypes : ["Audit"],
+    engagementType: savedEngagementTypes[0] || "Audit",
     reportingFramework: savedProject?.reportingFramework || "",
     period: group.period || "",
     periodStart: group.periodStart || "",
@@ -2404,6 +2466,76 @@ export function deadlineAlerts(store, now = new Date()) {
   return alerts.sort((left, right) => (urgencyRank[left.urgency || "overdue"] ?? 0) - (urgencyRank[right.urgency || "overdue"] ?? 0)
     || (left.urgency === "overdue" || !left.urgency ? right.daysOverdue - left.daysOverdue : left.dueDate.localeCompare(right.dueDate))
     || left.dueDate.localeCompare(right.dueDate) || left.recordName.localeCompare(right.recordName));
+}
+
+function overviewDay(value) {
+  if (!value) return null;
+  const parsed = Date.parse(`${value}T00:00:00Z`);
+  return Number.isNaN(parsed) ? null : parsed;
+}
+
+export function homeOverviewData(store, now = new Date()) {
+  const current = now instanceof Date ? new Date(now) : new Date(now);
+  const safeNow = Number.isNaN(current.getTime()) ? new Date() : current;
+  const today = Date.UTC(safeNow.getFullYear(), safeNow.getMonth(), safeNow.getDate());
+  const entityById = new Map((store?.entities || []).map((entity) => [entity.id, entity]));
+  const records = (store?.engagements || []).flatMap((engagement) => {
+    const entity = entityById.get(engagement.entityId);
+    if (!entity || entity.archived || engagement.archived) return [];
+    const kind = entity.kind === "holding_company" ? "group" : "project";
+    const view = kind === "group" ? store.groups?.find((group) => group.id === engagement.id)
+      : store.projects?.find((project) => project.id === engagement.id);
+    const stats = kind === "group" ? groupProgress(store, engagement.id) : projectStats(view || engagement);
+    return [{ id: engagement.id, kind, engagement, entity, view: view || engagement,
+      percentage: stats.percentage || 0, complete: kind === "group" ? Boolean(stats.ready) : Boolean(stats.complete),
+      started: kind === "group" ? (stats.percentage || 0) > 0 : Boolean(stats.started) }];
+  });
+  const recordById = new Map(records.map((record) => [record.id, record]));
+  const activeRecords = records.filter((record) => !record.complete);
+  const completedRecords = records.filter((record) => record.complete);
+  const alerts = deadlineAlerts(store, safeNow);
+  const upcomingDeadlines = activeRecords.flatMap((record) => {
+    const due = overviewDay(record.engagement.dueDate);
+    if (due === null) return [];
+    const daysUntil = Math.floor((due - today) / 86400000);
+    return daysUntil >= 0 && daysUntil <= 14 ? [{ record, daysUntil, dueDate: record.engagement.dueDate }] : [];
+  }).sort((left, right) => left.daysUntil - right.daysUntil || left.record.entity.legalName.localeCompare(right.record.entity.legalName));
+  const incompleteSetups = activeRecords.flatMap((record) => {
+    const issues = [];
+    if (!record.engagement.startDate) issues.push("start_date");
+    if (!record.engagement.dueDate) issues.push("due_date");
+    if (record.kind === "project" && !(record.engagement.workstreams || []).length) issues.push("workstreams");
+    return issues.length ? [{ record, issues }] : [];
+  });
+  const openOutstanding = records.flatMap((record) => (record.engagement.outstandingItems || [])
+    .filter((item) => outstandingIsOpen(item, store.outstandingStatuses))
+    .map((item) => ({ record, item }))).sort((left, right) =>
+      String(left.item.createdAt || "").localeCompare(String(right.item.createdAt || ""))
+      || left.item.title.localeCompare(right.item.title));
+  const entityIdsWithActiveEngagements = new Set(records.map((record) => record.entity.id));
+  const entitiesWithoutEngagement = (store?.entities || []).filter((entity) => !entity.archived
+    && !entityIdsWithActiveEngagements.has(entity.id)).sort((left, right) => left.legalName.localeCompare(right.legalName));
+  const priorityItems = [
+    ...alerts.map((alert) => ({ category: "deadline", urgency: alert.urgency || "overdue", alert,
+      record: recordById.get(alert.targetId) || null, sortDate: alert.dueDate || "" })),
+    ...upcomingDeadlines.map((item) => ({ category: "upcoming", urgency: item.daysUntil === 0 ? "due_today" : "due_soon",
+      ...item, sortDate: item.dueDate })),
+    ...incompleteSetups.map((item) => ({ category: "setup", urgency: "setup", ...item, sortDate: "" })),
+    ...entitiesWithoutEngagement.map((entity) => ({ category: "new_engagement", urgency: "setup", entity, sortDate: "" })),
+    ...openOutstanding.map((entry) => ({ category: "outstanding", urgency: "outstanding", ...entry,
+      sortDate: entry.item.createdAt || "" })),
+  ];
+  const urgencyRank = { overdue: 0, due_today: 1, due_soon: 2, setup: 3, outstanding: 4 };
+  priorityItems.sort((left, right) => (urgencyRank[left.urgency] ?? 9) - (urgencyRank[right.urgency] ?? 9)
+    || left.sortDate.localeCompare(right.sortDate)
+    || (left.record?.entity.legalName || left.entity?.legalName || left.alert?.recordName || "")
+      .localeCompare(right.record?.entity.legalName || right.entity?.legalName || right.alert?.recordName || ""));
+  const averageProgress = activeRecords.length
+    ? Math.round(activeRecords.reduce((sum, record) => sum + record.percentage, 0) / activeRecords.length) : 0;
+  return { records, activeRecords, completedRecords, alerts, upcomingDeadlines, incompleteSetups,
+    openOutstanding, entitiesWithoutEngagement, priorityItems, averageProgress,
+    deadlineAttentionCount: alerts.length + upcomingDeadlines.length,
+    immediateDeadlineCount: priorityItems.filter((item) => ["overdue", "due_today"].includes(item.urgency)).length };
 }
 
 export function findParentMembership(store, kind, refId) {

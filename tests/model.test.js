@@ -21,9 +21,13 @@ import {
   duplicateSample,
   emptyStore,
   engagementTypeLabel,
+  engagementTypeValues,
+  engagementTypesLabel,
+  engagementMatchesNavigationFilters,
   engagementPeriodExists,
   engagementReportingPeriods,
   engagementReportingPeriodsMatch,
+  engagementReportingYears,
   engagementsForEntity,
   fiscalPeriodForYear,
   fiscalPeriodFromIncorporation,
@@ -31,6 +35,7 @@ import {
   findParentMembership,
   formalReportingPeriodLabel,
   groupProgress,
+  homeOverviewData,
   localizeGroupSample,
   localizeOutstandingStatuses,
   localizeSample,
@@ -115,18 +120,18 @@ test("outstanding items do not affect workflow progress", () => {
 test("Sample company de-identification replaces supplied names and preserves structure", () => {
   const sample = {
     id: "sample-main",
-    name: "Acme Shipping Limited audit",
-    description: "Workflow for ACME SHIPPING LIMITED",
+    name: "Acme Services Limited audit",
+    description: "Workflow for ACME SERVICES LIMITED",
     updatedAt: "2025-01-01T00:00:00.000Z",
     nodes: [{
       id: "node-1",
-      title: "Acme Shipping Limited setup",
-      description: "Confirm Acme Shipping Limited records",
-      conditions: [{ id: "condition-1", label: "Acme Shipping Limited confirmed", done: false }],
+      title: "Acme Services Limited setup",
+      description: "Confirm Acme Services Limited records",
+      conditions: [{ id: "condition-1", label: "Acme Services Limited confirmed", done: false }],
     }],
   };
 
-  const result = redactSampleCompanies(sample, ["Acme Shipping Limited"], "[Company Name]");
+  const result = redactSampleCompanies(sample, ["Acme Services Limited"], "[Company Name]");
 
   assert.equal(result.replacements, 5);
   assert.equal(result.sample.name, "[Company Name] audit");
@@ -134,8 +139,8 @@ test("Sample company de-identification replaces supplied names and preserves str
   assert.equal(result.sample.nodes[0].id, "node-1");
   assert.equal(result.sample.nodes[0].conditions[0].id, "condition-1");
   assert.match(JSON.stringify(result.sample), /\[Company Name\]/);
-  assert.doesNotMatch(JSON.stringify(result.sample), /Acme Shipping Limited/i);
-  assert.match(JSON.stringify(sample), /Acme Shipping Limited/);
+  assert.doesNotMatch(JSON.stringify(result.sample), /Acme Services Limited/i);
+  assert.match(JSON.stringify(sample), /Acme Services Limited/);
 });
 
 test("version 1 data migrates outstanding items separately and removes the retired criterion", () => {
@@ -553,6 +558,18 @@ test("deleting the final workstream template persists and new workstreams start 
   assert.equal(reloaded.samples.some((sample) => sample.categoryId === "audit"), false);
   assert.equal(reloaded.selectedSampleIdsByCategory.audit, null);
   assert.deepEqual(project.workstreams[0].nodes, []);
+});
+
+test("deleting the final built-in group template persists", () => {
+  const saved = emptyStore();
+  saved.groupSamples = [];
+  saved.selectedGroupSampleId = null;
+
+  const reloaded = normalizeStore(saved);
+
+  assert.deepEqual(reloaded.groupSamples, []);
+  assert.equal(reloaded.selectedGroupSampleId, null);
+  assert.deepEqual(normalizeStore(reloaded).groupSamples, []);
 });
 
 test("a custom template category can create an independent named workstream", () => {
@@ -1033,17 +1050,24 @@ test("formal period labels show a year-end date for full years and DOI wording f
 test("engagement types are preserved, inferred for legacy records and localised without changing custom text", () => {
   const store = emptyStore();
   const entity = makeEntity({ legalName: "Type Limited" });
-  const bookkeeping = makeEngagement({ entityId: entity.id, engagementType: "Bookkeeping",
+  const bookkeeping = makeEngagement({ entityId: entity.id,
+    engagementTypes: ["Audit", "Bookkeeping", "Compliance support", "audit"],
     periodStart: "2025-01-01", periodEnd: "2025-12-31" }, {
     entity, store, sourceMode: "blank", workstreamCategories: store.workstreamCategories,
     outstandingStatuses: store.outstandingStatuses,
   });
-  assert.equal(bookkeeping.engagementType, "Bookkeeping");
-  assert.equal(engagementTypeLabel(bookkeeping.engagementType, "zh-Hant"), "賬務處理");
-  assert.equal(engagementTypeLabel("Marine compliance", "zh-Hant"), "Marine compliance");
+  assert.deepEqual(bookkeeping.engagementTypes, ["Audit", "Bookkeeping", "Compliance support"]);
+  assert.equal(bookkeeping.engagementType, "Audit");
+  assert.deepEqual(engagementTypeValues(bookkeeping), ["Audit", "Bookkeeping", "Compliance support"]);
+  assert.equal(engagementTypesLabel(bookkeeping, "zh-Hant"), "審計 · 賬務處理 · Compliance support");
+  assert.equal(engagementTypeLabel("Compliance support", "zh-Hant"), "Compliance support");
   const legacy = normalizeStore({ ...store, projects: undefined, groups: undefined, entities: [entity], engagements: [{ ...bookkeeping,
-    engagementType: undefined, workstreams: [makeWorkstream({ type: "audit" }, [])] }] });
-  assert.equal(legacy.engagements[0].engagementType, "Audit");
+    engagementTypes: undefined, engagementType: "Bookkeeping", workstreams: [makeWorkstream({ type: "audit" }, [])] }] });
+  assert.deepEqual(legacy.engagements[0].engagementTypes, ["Bookkeeping"]);
+  assert.equal(legacy.engagements[0].engagementType, "Bookkeeping");
+  const inferred = normalizeStore({ ...store, projects: undefined, groups: undefined, entities: [entity], engagements: [{ ...bookkeeping,
+    engagementTypes: undefined, engagementType: undefined, workstreams: [makeWorkstream({ type: "audit" }, [])] }] });
+  assert.equal(inferred.engagements[0].engagementType, "Audit");
 });
 
 test("workstream reordering supports before and after positions without mutating the source", () => {
@@ -1083,6 +1107,8 @@ test("V10 records migrate losslessly into separate V11 entities and engagements 
   assert.equal(migrated.entities.length, 3);
   assert.equal(migrated.entities.filter((entity) => entity.legalName === "Repeat Limited").length, 2);
   assert.equal(migrated.engagements.length, 3);
+  assert.deepEqual(migrated.engagements.find((item) => item.id === first.id).engagementTypes, ["Audit"]);
+  assert.equal(migrated.engagements.find((item) => item.id === first.id).engagementType, "Audit");
   assert.equal(migrated.engagements.find((item) => item.id === first.id).periodPreset, "calendar");
   assert.equal(migrated.engagements.find((item) => item.id === second.id).periodPreset, "apr_mar");
   const childEntity = migrated.entities.find((entity) => entity.id === migrated.engagements.find((item) => item.id === second.id).entityId);
@@ -1168,11 +1194,62 @@ test("one engagement can combine multiple reporting years while legacy engagemen
     outstandingStatuses: store.outstandingStatuses }), /already exists/u);
 });
 
+test("navigation filters combine owner, engagement type and every reporting year in a multi-period engagement", () => {
+  const engagement = {
+    owner: "Alex Chan",
+    engagementTypes: ["audit", "bookkeeping"],
+    engagementType: "audit",
+    reportingPeriods: [
+      { periodPreset: "calendar", periodStart: "2024-01-01", periodEnd: "2024-12-31" },
+      { periodPreset: "calendar", periodStart: "2025-01-01", periodEnd: "2025-12-31" },
+    ],
+  };
+  assert.deepEqual(engagementReportingYears(engagement), ["2025", "2024"]);
+  assert.equal(engagementMatchesNavigationFilters(engagement,
+    { owner: "Alex Chan", engagementType: "audit", reportingYear: "2024" }), true);
+  assert.equal(engagementMatchesNavigationFilters(engagement, { owner: "Jamie Lee" }), false);
+  assert.equal(engagementMatchesNavigationFilters(engagement, { engagementType: "bookkeeping" }), true);
+  assert.equal(engagementMatchesNavigationFilters(engagement, { engagementType: "tax" }), false);
+  assert.equal(engagementMatchesNavigationFilters(engagement, { reportingYear: "2026" }), false);
+});
+
+test("home overview ranks urgent deadlines before setup and outstanding work", () => {
+  const store = emptyStore();
+  const activeEntity = makeEntity({ legalName: "Overview Limited" });
+  const emptyEntity = makeEntity({ legalName: "Needs Engagement Limited" });
+  store.entities.push(activeEntity, emptyEntity);
+  const overdue = makeEngagement({ entityId: activeEntity.id, engagementType: "Audit",
+    periodStart: "2025-01-01", periodEnd: "2025-12-31", startDate: "2026-08-01", dueDate: "2026-09-03" },
+  { entity: activeEntity, store, sourceMode: "blank", outstandingStatuses: store.outstandingStatuses });
+  overdue.workstreams = [makeWorkstream({ type: "audit" }, [])];
+  overdue.outstandingItems = [makeOutstandingItem({ title: "Approval required", status: "missing_document",
+    createdAt: "2026-08-01T00:00:00.000Z" }, store.outstandingStatuses)];
+  const upcoming = makeEngagement({ entityId: activeEntity.id, engagementType: "Bookkeeping",
+    periodStart: "2026-01-01", periodEnd: "2026-12-31", startDate: "2026-09-01", dueDate: "2026-09-10" },
+  { entity: activeEntity, store: { ...store, engagements: [overdue] }, sourceMode: "blank",
+    outstandingStatuses: store.outstandingStatuses });
+  upcoming.workstreams = [makeWorkstream({ type: "bookkeeping" }, [])];
+  store.engagements.push(overdue, upcoming);
+
+  const overview = homeOverviewData(store, new Date("2026-09-04T12:00:00+08:00"));
+  assert.equal(overview.activeRecords.length, 2);
+  assert.equal(overview.alerts.length, 1);
+  assert.equal(overview.upcomingDeadlines.length, 1);
+  assert.equal(overview.deadlineAttentionCount, 2);
+  assert.equal(overview.immediateDeadlineCount, 1);
+  assert.equal(overview.openOutstanding.length, 1);
+  assert.deepEqual(overview.entitiesWithoutEngagement.map((entity) => entity.id), [emptyEntity.id]);
+  assert.equal(overview.priorityItems[0].category, "deadline");
+  assert.equal(overview.priorityItems[1].category, "upcoming");
+  assert.ok(overview.priorityItems.some((item) => item.category === "new_engagement"));
+  assert.ok(overview.priorityItems.some((item) => item.category === "outstanding"));
+});
+
 test("new-year copy keeps structure and framework while clearing owners dates status and outstanding items", () => {
   const store = emptyStore();
   const entity = makeEntity({ legalName: "Carry Forward Limited" });
   const source = makeEngagement({ entityId: entity.id, periodStart: "2024-01-01", periodEnd: "2024-12-31",
-    engagementType: "Bookkeeping", reportingFramework: "HKFRS Accounting Standards",
+    engagementTypes: ["Bookkeeping", "Tax computation & filing"], reportingFramework: "HKFRS Accounting Standards",
     workstreamSelections: [{ type: "audit", categoryId: "audit" }] },
   { entity, store, sourceMode: "template", samples: store.samples, workstreamCategories: store.workstreamCategories,
     outstandingStatuses: store.outstandingStatuses });
@@ -1190,6 +1267,7 @@ test("new-year copy keeps structure and framework while clearing owners dates st
 
   assert.equal(copied.reportingFramework, "HKFRS Accounting Standards");
   assert.equal(copied.engagementType, "Bookkeeping");
+  assert.deepEqual(copied.engagementTypes, ["Bookkeeping", "Tax computation & filing"]);
   assert.equal(copied.owner, "");
   assert.equal(copied.startDate, "");
   assert.equal(copied.dueDate, "");

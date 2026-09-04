@@ -1,5 +1,5 @@
 import React from "react";
-import { ArrowDown, ArrowLeft, ArrowRight, ArrowRightLeft, ArrowUp, Copy, GripVertical, Pencil, Play, Plus, Settings2, Trash2, X } from "lucide-react";
+import { ArrowDown, ArrowLeft, ArrowRight, ArrowRightLeft, ArrowUp, Copy, Pencil, Play, Plus, Settings2, Trash2, X } from "lucide-react";
 import { GROUP_AUDIT_TYPES, GROUP_AUDIT_TYPE_KEYS, createDefaultWorkstreamCategories, dueTone, formatDate,
   nodeStatus, normalizeTemplateTags, outstandingIsOpen, projectStats, reportingPeriodLabel, uid, workstreamCategoryLabel, workstreamStats,
   workstreamTypeLabel } from "./model.js";
@@ -272,30 +272,21 @@ export function WorkstreamForm({ initial, availableCategories = createDefaultWor
   </form>;
 }
 
-export function WorkstreamCard({ workstream, selected, openItems = 0, onSelect, onEdit, readOnly = false,
+export function WorkstreamCard({ workstream, selected, openItems = 0, onSelect, readOnly = false,
   dragging = false, dropPosition, onDragStart, onDragEnd, onDragOver, onDrop, onReorderKeyDown }) {
   const { language, t } = useUiLanguage();
   const stats = workstreamStats(workstream);
   const label = workstreamTypeLabel(workstream.type, language, workstream.customName);
   return <article className="workstream-card" data-selected={selected || undefined} data-complete={stats.complete || undefined}
     data-editable={!readOnly || undefined} data-dragging={dragging || undefined} data-drop-position={dropPosition}
-    onDragOver={onDragOver} onDrop={onDrop}>
-    <button type="button" className="workstream-card-select" aria-pressed={selected} onClick={onSelect}>
+    draggable={!readOnly} onDragStart={onDragStart} onDragEnd={onDragEnd} onDragOver={onDragOver} onDrop={onDrop}>
+    <button type="button" className="workstream-card-select" aria-pressed={selected} onClick={onSelect}
+      aria-description={!readOnly ? t("按住模块卡片即可拖动排序；按 Alt 加方向键也可移动") : undefined}
+      aria-keyshortcuts={!readOnly ? "Alt+ArrowLeft Alt+ArrowRight Alt+ArrowUp Alt+ArrowDown" : undefined}
+      onKeyDown={onReorderKeyDown}>
     <span className="workstream-card-top"><ProgressBar value={stats.percentage} compact />
       <span><strong>{label}</strong></span></span>
     {openItems > 0 && <span className="workstream-card-meta"><small>{t("{count} 项未清", { count: openItems })}</small></span>}</button>
-    {!readOnly && <div className="workstream-card-actions">
-      <button type="button" className="workstream-drag-handle icon-only" draggable="true"
-        aria-label={t("拖动调整“{name}”的业务模块顺序；按 Alt 加方向键也可移动", { name: label })}
-        aria-keyshortcuts="Alt+ArrowLeft Alt+ArrowRight Alt+ArrowUp Alt+ArrowDown"
-        data-tooltip={t("拖动调整业务模块顺序；Alt + 方向键也可移动")}
-        onDragStart={onDragStart} onDragEnd={onDragEnd} onKeyDown={onReorderKeyDown}>
-        <GripVertical aria-hidden="true" />
-      </button>
-      <button type="button" className="workstream-edit icon-only" onClick={onEdit}
-        aria-label={t("设置 {name}", { name: label })} data-tooltip={t("设置")}
-        data-tooltip-side="left"><Settings2 aria-hidden="true" /></button>
-    </div>}
   </article>;
 }
 
@@ -472,7 +463,7 @@ export function UserGuide() {
       { title: "建立第一个年度项目", steps: ["打开公司概览并选择“新建年度项目”。", "自然年输入 2025 会生成 2025 年 1 月 1 日至 12 月 31 日；4 月制输入 2025 会生成 2025 年 4 月 1 日至 2026 年 3 月 31 日。",
         "检查完整报告期间，再设置准则、负责人、项目排期和起始业务模块。", "同一公司可以建立多个年度项目，但不能重复使用完全相同的报告期间。"],
       result: "FY2023、FY2024、FY2025 等项目各自保存模块、节点、待清事项和进度。" },
-      { title: "认识三区工作台", steps: ["最左侧窄工具栏集中放置项目排期、逾期提醒、范本库、使用指南、设置、备份和语言入口。", "左侧“项目导航”用于搜索、筛选和切换项目或控股公司。", "中间“项目工作区”或“控股公司工作区”用于处理模块、节点及合并工作。",
+      { title: "认识三区工作台", steps: ["最左侧窄工具栏集中放置首页、项目排期、逾期提醒、范本库、使用指南、设置、备份和语言入口。", "左侧“项目导航”用于搜索、筛选和切换项目或控股公司。", "中间“项目工作区”或“控股公司工作区”用于处理模块、节点及合并工作。",
         "右侧“待清中心”用于持续追踪缺少文件、等待签署和其他阻塞事项。", "左右区域都可以收起，需要时再展开。"],
       result: "日常工作集中在中间视觉热区，导航和待清事项仍保持随手可用。" },
       { title: "识别图标和悬停说明", steps: ["常用的编辑、复制、归档、新增和面板开关以统一线性图标显示。",
@@ -651,7 +642,7 @@ export function SampleEditor({ sample, categories = createDefaultWorkstreamCateg
         onChange={(event) => setDraft((current) => ({ ...current, description: event.target.value }))}
         placeholder={t("说明这个范本的适用范围")} /></label>
       <label><span>{t("标签")}</span><input value={tags} onChange={(event) => setTags(event.target.value)}
-        placeholder={t("例如：年度审计，航运，香港")} /></label>
+        placeholder={t("例如：年度审计，标准流程，香港")} /></label>
       <label><span>{t("版本备注")}</span><input maxLength="240" value={draft.versionNote || ""}
         onChange={(event) => setDraft((current) => ({ ...current, versionNote: event.target.value }))}
         placeholder={t("说明本次范本修改")} /></label>
@@ -843,8 +834,7 @@ export function NodeBoard({ nodes, readOnly = false, actions, label = "", title 
         onKeyDown={(event) => reorderNodeWithKeyboard(event, node, index)}
         onClick={() => setSelectedId((current) => current === node.id ? null : node.id)}>
         <span className="node-track-number">{index + 1}</span><span><strong>{node.title}</strong>
-          <small>{done}/{node.conditions.length} {t("项条件")}</small></span><i>{t(status)}</i>
-        {!readOnly && <GripVertical className="node-track-grip" aria-hidden="true" />}</button>;
+          <small>{done}/{node.conditions.length} {t("项条件")}</small></span><i>{t(status)}</i></button>;
     })}</div> : <div className="inline-empty"><strong>{t("还没有节点")}</strong>
       <span>{readOnly ? t("此记录没有保存节点。") : t("添加第一个节点后，即可设置完成条件。")}</span></div>}
     {selected && <section className="node-detail-panel"><header><div><span>{t("节点详情")}</span><h4>{selected.title}</h4>
@@ -858,13 +848,11 @@ export function NodeBoard({ nodes, readOnly = false, actions, label = "", title 
       {selected.conditions.length ? <div className="condition-list">{selected.conditions.map((condition, index) => <div className="condition-row"
         data-done={condition.done || undefined} data-dragging={draggingConditionId === condition.id || undefined}
         data-drop-position={conditionDropTarget?.id === condition.id ? conditionDropTarget.position : undefined}
+        draggable={!readOnly} aria-description={!readOnly ? t("按住完成条件即可拖动排序；按 Alt 加上下方向键也可移动") : undefined}
+        onDragStart={(event) => beginConditionDrag(event, condition.id)} onDragEnd={finishConditionDrag}
         onDragOver={(event) => dragOverCondition(event, condition.id)} onDrop={(event) => dropCondition(event, condition.id)}
-        key={condition.id}>{!readOnly && <button type="button" className="condition-drag-handle icon-only" draggable="true"
-          aria-label={t("拖动调整“{name}”的完成条件顺序；按 Alt 加上下方向键也可移动", { name: condition.label })}
-          aria-keyshortcuts="Alt+ArrowUp Alt+ArrowDown" data-tooltip={t("拖动调整完成条件顺序；Alt + 上下方向键也可移动")}
-          onDragStart={(event) => beginConditionDrag(event, condition.id)} onDragEnd={finishConditionDrag}
-          onKeyDown={(event) => reorderConditionWithKeyboard(event, condition, index)}><GripVertical aria-hidden="true" /></button>}
-        <label><input type="checkbox" disabled={readOnly}
+        onKeyDown={(event) => reorderConditionWithKeyboard(event, condition, index)} key={condition.id}>
+        <label><input type="checkbox" disabled={readOnly} aria-keyshortcuts={!readOnly ? "Alt+ArrowUp Alt+ArrowDown" : undefined}
           checked={condition.done} onChange={() => actions.toggle(selected.id, condition.id)} /><span>{condition.label}</span></label>
         {!readOnly && <div className="condition-actions"><button type="button" className="icon-only"
           onClick={() => actions.editCondition(selected, condition)} aria-label={t("修改")} data-tooltip={t("修改")}>

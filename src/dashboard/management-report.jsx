@@ -1,7 +1,7 @@
 import React from "react";
 import { AlertTriangle, ArrowDown, ArrowUp, ArrowUpDown, BarChart3, Building, Building2, CalendarRange, CircleAlert, Layers3, Printer, ReceiptText } from "lucide-react";
 import {
-  engagementTypeLabel,
+  engagementTypesLabel,
   formatDate,
   outstandingStatusLabel,
   reportingPeriodLabel,
@@ -129,7 +129,7 @@ function PortfolioTable({ report, onOpen }) {
           </span></button></td>}
         <td className="management-period-cell"><button type="button" onClick={() => onOpen(row.kind, row.id)}>
           <strong>{yearEndOrPeriodLabel(row, language) || row.periodLabel || t("未设置报告期间")}</strong>
-          <small>{engagementTypeLabel(row.engagementType, language) || t("项目类型未设置")}
+          <small>{engagementTypesLabel(row, language) || t("项目类型未设置")}
             {row.secondaryName ? ` · ${row.secondaryName}` : ""}</small></button></td>
         <td>{row.owner || "—"}</td><td>{row.hierarchy.length ? row.hierarchy.map((item) => item.name).join(" / ") : t("顶层")}</td>
         <td><span>{formatDate(row.startDate, language)} → {formatDate(row.dueDate, language)}</span>
@@ -167,7 +167,7 @@ function ProjectRecordReport({ report, statuses }) {
   const period = reportingPeriodLabel(report, language) || t("未设置");
   return <>
     <section className="record-report-facts"><div><span>{t("项目类型")}</span><strong>
-      {engagementTypeLabel(report.engagementType, language) || t("项目类型未设置")}</strong></div>
+      {engagementTypesLabel(report, language) || t("项目类型未设置")}</strong></div>
       <div><span>{t("负责人")}</span><strong>{report.owner || t("未设置")}</strong></div>
       <div><span>{t("报告期间")}</span><strong>{period}</strong></div><div><span>{t("财务报告准则／框架")}</span>
         <strong>{report.reportingFramework ? t(report.reportingFramework) : t("未设置")}</strong></div><div><span>{t("项目排期")}</span>
@@ -214,7 +214,7 @@ function EntityRecordReport({ report, statuses }) {
         <th>{t("报告期间")}</th><th>{t("项目类型")}</th><th>{t("负责人")}</th><th>{t("项目排期")}</th><th>{t("状态")}</th></tr></thead><tbody>
         {report.projects.map((project) => <tr key={project.id}><td><strong>{project.label}</strong>
           <small>{reportingPeriodLabel(project, language)}</small></td>
-          <td>{engagementTypeLabel(project.engagementType, language) || t("项目类型未设置")}</td>
+          <td>{engagementTypesLabel(project, language) || t("项目类型未设置")}</td>
           <td>{project.owner || "—"}</td><td>{formatDate(project.startDate, language)} → {formatDate(project.dueDate, language)}</td>
           <td>{t(project.archived ? "归档" : project.complete ? "已完成" : "进行中")}</td></tr>)}</tbody></table></div>
         : <div className="management-report-empty compact"><strong>{t("这家公司还没有年度项目")}</strong></div>}</section>

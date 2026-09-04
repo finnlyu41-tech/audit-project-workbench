@@ -61,14 +61,14 @@ test("schedule rows can be dragged into a saved order and open focused date sett
   await expect(secondRow.locator(".schedule-delivery-period")).toHaveCount(0);
   await expect(page.getByRole("button", { name: /Second Company Limited: 1 Nov 2026 to 15 Dec 2026/ }))
     .toHaveAttribute("title", /1 Nov 2026 → 15 Dec 2026/);
-  await secondRow.locator(".schedule-drag-handle").dragTo(firstRow, { targetPosition: { x: 120, y: 3 } });
+  await secondRow.dragTo(firstRow, { targetPosition: { x: 120, y: 3 } });
 
   await expect(page.locator(".schedule-row-open strong").first()).toContainText("Second Company Limited");
   const firstRowHeight = await firstRow.evaluate((element) => element.getBoundingClientRect().height);
-  await secondRow.locator(".schedule-drag-handle").dragTo(firstRow,
+  await secondRow.dragTo(firstRow,
     { targetPosition: { x: 120, y: firstRowHeight - 2 } });
   await expect(page.locator(".schedule-row-open strong").first()).toContainText("Example Services Limited");
-  await secondRow.locator(".schedule-drag-handle").focus();
+  await secondRow.locator(".schedule-row-open").focus();
   await page.keyboard.press("Alt+ArrowUp");
   await expect(page.locator(".schedule-row-open strong").first()).toContainText("Second Company Limited");
   let stored = await readStoredWorkspace(page);
