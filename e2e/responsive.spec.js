@@ -1,7 +1,8 @@
 import { expect, test } from "@playwright/test";
 import { openWorkbench, workspaceFixture } from "./helpers.js";
 
-for (const width of [1280, 1440, 1920]) {
+// 1024 CSS px also covers a 1280px desktop at 125% browser zoom.
+for (const width of [1024, 1280, 1440, 1920]) {
   test(`keeps the desktop workspace operable without page overflow at ${width}px`, async ({ page }) => {
     await page.setViewportSize({ width, height: 900 });
     await openWorkbench(page, workspaceFixture());
@@ -30,5 +31,22 @@ for (const width of [1280, 1440, 1920]) {
       scrollWidth: document.documentElement.scrollWidth,
     }));
     expect(reportMetrics.scrollWidth).toBeLessThanOrEqual(reportMetrics.clientWidth + 1);
+
+    await page.locator(".app-rail-button[aria-label='Project schedule']").click();
+    await expect(page.locator(".schedule-scroll")).toBeVisible();
+    const scheduleMetrics = await page.evaluate(() => ({
+      clientWidth: document.documentElement.clientWidth,
+      scrollWidth: document.documentElement.scrollWidth,
+      scheduleClientWidth: document.querySelector(".schedule-scroll")?.clientWidth || 0,
+      scheduleScrollWidth: document.querySelector(".schedule-scroll")?.scrollWidth || 0,
+    }));
+    expect(scheduleMetrics.scrollWidth).toBeLessThanOrEqual(scheduleMetrics.clientWidth + 1);
+    expect(scheduleMetrics.scheduleScrollWidth).toBeGreaterThanOrEqual(scheduleMetrics.scheduleClientWidth);
+    await page.getByRole("button", { name: /Edit the project schedule for Example Services Limited/ }).click();
+    const dialog = page.getByRole("dialog", { name: /Project schedule · Example Services Limited/ });
+    await expect(dialog).toBeVisible();
+    const dialogBox = await dialog.boundingBox();
+    expect(dialogBox.x).toBeGreaterThanOrEqual(0);
+    expect(dialogBox.x + dialogBox.width).toBeLessThanOrEqual(width);
   });
 }

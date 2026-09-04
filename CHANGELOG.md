@@ -6,6 +6,26 @@ The project follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-09-04
+
+### Added
+
+- Persistent project-schedule ordering with drag-and-drop and `Alt` plus arrow-key movement.
+- Focused company and holding-company date editors directly from schedule calendars, duration bars and incomplete-date markers.
+- Browser coverage for saved ordering, both drop directions, keyboard movement, legacy empty-entity records, holding-company dates, archived read-only behavior, accessibility and responsive schedule layouts.
+
+### Changed
+
+- Schedule editor titles now identify the company or holding company being changed.
+- Existing workspaces without a saved schedule order retain the former owner, start-date and name ordering on first migration.
+- Schedule controls use clearer accessible names and larger pointer targets while keeping the compact desktop layout.
+
+### Fixed
+
+- Archived schedule graphics can no longer open a writable date editor.
+- Drop placement is calculated at release time, avoiding an intermittent stale before/after position.
+- Focused date edits no longer reorder holding-company members or fail on legacy company records without a legal-entity value.
+
 ## [0.4.0] - 2026-09-04
 
 ### Added

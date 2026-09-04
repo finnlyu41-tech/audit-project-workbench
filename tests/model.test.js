@@ -40,6 +40,7 @@ import {
   projectIsComplete,
   projectStats,
   redactSampleCompanies,
+  reorderWorkspaceSchedule,
   reportingPeriodLabel,
   reviseTaxDeadline,
   taxDeadlineCategoryLabel,
@@ -47,6 +48,7 @@ import {
   taxDeadlineUrgency,
   workstreamStats,
   workstreamCategoryLabel,
+  workspaceScheduleOrder,
   workstreamTypeLabel,
 } from "../src/dashboard/model.js";
 
@@ -707,6 +709,67 @@ test("navigation moves a project between groups while preserving its member sett
 
   const detached = moveWorkspaceItem(moved, "project", project.id, "", groupSample);
   assert.equal(detached.groups.some((group) => group.members.some((item) => item.refId === project.id)), false);
+});
+
+test("project schedule order is stable, reorderable and preserved across company structure conversion", () => {
+  const base = emptyStore();
+  const first = makeProject({ ...projectValues, name: "First", entity: "First Limited" }, false);
+  const second = makeProject({ ...projectValues, name: "Second", entity: "Second Limited" }, false);
+  const holding = makeGroup({ name: "Holding", consolidationEnabled: false }, false);
+  const store = normalizeStore({ ...base, projects: [first, second], groups: [holding],
+    scheduleOrder: [`project:${second.id}`, "missing:item", `project:${second.id}`] });
+
+  assert.deepEqual(workspaceScheduleOrder(store), [
+    `project:${second.id}`, `project:${first.id}`, `group:${holding.id}`,
+  ]);
+  const reordered = reorderWorkspaceSchedule(store, `group:${holding.id}`, `project:${second.id}`, "before");
+  assert.deepEqual(reordered.scheduleOrder, [
+    `group:${holding.id}`, `project:${second.id}`, `project:${first.id}`,
+  ]);
+  const converted = convertProjectToGroup(reordered, second.id, createDefaultGroupSample());
+  assert.deepEqual(converted.scheduleOrder, [
+    `group:${holding.id}`, `group:${second.id}`, `project:${first.id}`,
+  ]);
+});
+
+test("project schedule migration preserves the previous owner and start-date ordering", () => {
+  const base = emptyStore();
+  const later = makeProject({ ...projectValues, name: "Later", entity: "Later Limited",
+    owner: "Alex", startDate: "2026-11-01" }, false);
+  const earlier = makeProject({ ...projectValues, name: "Earlier", entity: "Earlier Limited",
+    owner: "Alex", startDate: "2026-10-01" }, false);
+  const unassigned = makeProject({ ...projectValues, name: "Unassigned", entity: "Unassigned Limited",
+    owner: "", startDate: "2026-09-01" }, false);
+  const holding = makeGroup({ name: "Beta Holding", owner: "Beta", startDate: "2026-08-01",
+    consolidationEnabled: false }, false);
+  const legacy = { ...base, version: 10, projects: [later, unassigned, earlier], groups: [holding] };
+  delete legacy.scheduleOrder;
+
+  const migrated = normalizeStore(legacy);
+  assert.deepEqual(migrated.scheduleOrder, [
+    `project:${earlier.id}`, `project:${later.id}`, `group:${holding.id}`, `project:${unassigned.id}`,
+  ]);
+});
+
+test("updating a company within the same holding company preserves member order", () => {
+  const base = emptyStore();
+  const first = makeProject({ ...projectValues, entity: "First Limited" }, false);
+  const second = makeProject({ ...projectValues, entity: "Second Limited" }, false);
+  const holding = makeGroup({ name: "Holding", consolidationEnabled: false }, false, base.groupSamples[0]);
+  holding.members.push(
+    makeGroupMember({ kind: "project", refId: first.id, role: "First" }, base.groupSamples[0]),
+    makeGroupMember({ kind: "project", refId: second.id, role: "Second" }, base.groupSamples[0]),
+  );
+  const store = { ...base, projects: [first, second], groups: [holding] };
+  const beforeIds = holding.members.map((member) => member.id);
+
+  const unchanged = assignProjectToGroup(store, first.id,
+    { groupId: holding.id, role: "First", auditType: "internal_team" }, base.groupSamples[0]);
+  assert.equal(unchanged.groups[0], holding);
+  const updated = assignProjectToGroup(store, first.id,
+    { groupId: holding.id, role: "Parent", auditType: "internal_team" }, base.groupSamples[0]);
+  assert.deepEqual(updated.groups[0].members.map((member) => member.id), beforeIds);
+  assert.equal(updated.groups[0].members[0].role, "Parent");
 });
 
 test("a standalone company can move directly to an expanded middle holding-company level", () => {

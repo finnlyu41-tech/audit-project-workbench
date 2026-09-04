@@ -11,7 +11,7 @@ import { activeOutstandingItems,
   convertGroupToProject, convertProjectToGroup, deadlineAlerts, duplicateSample, emptyStore, findParentMembership, formatDate, groupProgress, isValidStore, loadStore, localizeGroupSample,
   localizeGroupWorkflowNodes, localizeOutstandingStatuses, localizeReadinessConditions, localizeSample, localizeWorkstream, makeBlankGroupSample,
   makeBlankSample, makeGroup, makeGroupMember, makeNode, makeOutstandingItem, makeProject, makeTaxDeadline, makeWorkstream, moveWorkspaceItem,
-  navigationStatusCounts, normalizeStore, outstandingIsOpen, projectStats, redactSampleCompanies, reportingPeriodLabel, taxDeadlineSummary, uid,
+  navigationStatusCounts, normalizeStore, outstandingIsOpen, projectStats, redactSampleCompanies, reorderWorkspaceSchedule, reportingPeriodLabel, taxDeadlineSummary, uid,
   workstreamStats, reviseTaxDeadline, workstreamCategoryLabel, workstreamTypeLabel } from "./model.js";
 import { LanguageProvider, useUiLanguage } from "./i18n.jsx";
 import { DeadlineAlertCentre } from "./deadline-alerts.jsx";
@@ -156,6 +156,17 @@ function DashboardWorkbench() {
     setSelection({ kind, id });
     setWorkspaceView("detail");
   }, []);
+  const openScheduleEditor = React.useCallback((kind, id) => {
+    const target = kind === "group" ? store.groups.find((item) => item.id === id)
+      : store.projects.find((item) => item.id === id);
+    if (!target || target.archived) {
+      if (target) openWorkspaceRecord(kind, id);
+      return;
+    }
+    setSelection({ kind, id });
+    setModal({ type: kind === "group" ? "edit-group" : "edit-project", targetKind: kind, targetId: id,
+      quickField: "schedule" });
+  }, [openWorkspaceRecord, store.groups, store.projects]);
   const openTaxDeadlineCentre = React.useCallback((kind, id, deadlineId = null) => {
     openWorkspaceRecord(kind, id);
     setModal({ type: "tax-deadlines", targetKind: kind, targetId: id, deadlineId });
@@ -252,6 +263,10 @@ function DashboardWorkbench() {
     notify(target ? t("{name} 已移到“{group}”", { name: source?.name || "", group: target.name })
       : t("{name} 已移到顶层", { name: source?.name || "" }));
   };
+  const reorderSchedule = (sourceKey, targetKey, position) => {
+    setStore((current) => reorderWorkspaceSchedule(current, sourceKey, targetKey, position));
+    notify(t("项目排期顺序已更新"));
+  };
   const updateWorkflowNodes = (targetKind, targetId, workstreamId, updater) => {
     if (targetKind === "group") updateGroup(targetId, (group) => ({ ...group, nodes: updater(group.nodes) }));
     else updateProject(targetId, (project) => ({ ...project, workstreams: project.workstreams.map((workstream) =>
@@ -262,6 +277,7 @@ function DashboardWorkbench() {
     const project = makeProject(values, useStarter, store.samples, store.workstreamCategories);
     const parentGroupId = modal?.parentGroupId;
     setStore((current) => ({ ...current, projects: [project, ...current.projects],
+      scheduleOrder: [`project:${project.id}`, ...(current.scheduleOrder || []).filter((key) => key !== `project:${project.id}`)],
       groups: parentGroupId ? current.groups.map((group) => group.id === parentGroupId
         ? { ...group, members: [...group.members, makeGroupMember({ kind: "project", refId: project.id,
           auditType: "internal_team", role: "" }, selectedGroupSample || createDefaultGroupSample())] } : group) : current.groups }));
@@ -271,7 +287,9 @@ function DashboardWorkbench() {
   const createGroup = (values, useStarter) => {
     const group = makeGroup(values, Boolean(useStarter && selectedGroupSample), selectedGroupSample || createDefaultGroupSample());
     const parentGroupId = modal?.parentGroupId;
-    setStore((current) => ({ ...current, groups: [group, ...current.groups.map((item) => item.id === parentGroupId
+    setStore((current) => ({ ...current,
+      scheduleOrder: [`group:${group.id}`, ...(current.scheduleOrder || []).filter((key) => key !== `group:${group.id}`)],
+      groups: [group, ...current.groups.map((item) => item.id === parentGroupId
       ? { ...item, members: [...item.members, makeGroupMember({ kind: "group", refId: group.id, role: "" },
         selectedGroupSample || createDefaultGroupSample())] } : item)] }));
     setSelection({ kind: "group", id: group.id }); setWorkspaceView("detail"); setFilter("active"); setModal(null); notify(t("集团已建立并自动保存"));
@@ -297,7 +315,8 @@ function DashboardWorkbench() {
         type: workstream.type, categoryId: workstream.categoryId, customName: workstream.customName,
         owner: workstream.owner, dueDate: workstream.dueDate,
       }, workstream.nodes)) };
-    setStore((current) => ({ ...current, projects: [copy, ...current.projects] }));
+    setStore((current) => ({ ...current, projects: [copy, ...current.projects],
+      scheduleOrder: [`project:${copy.id}`, ...(current.scheduleOrder || []).filter((key) => key !== `project:${copy.id}`)] }));
     setSelection({ kind: "project", id: copy.id }); setWorkspaceView("detail"); setActiveWorkstreamId(copy.workstreams[0]?.id || null); setFilter("active");
     notify(t("已复制流程，所有完成状态已重置"));
   };
@@ -317,10 +336,12 @@ function DashboardWorkbench() {
   const permanentlyDeleteTarget = (kind, id) => {
     setStore((current) => kind === "project" ? { ...current,
       projects: current.projects.filter((project) => project.id !== id),
+      scheduleOrder: (current.scheduleOrder || []).filter((key) => key !== `project:${id}`),
       groups: current.groups.map((group) => ({ ...group,
         members: group.members.filter((member) => !(member.kind === "project" && member.refId === id)) })) }
       : { ...current, groups: current.groups.filter((group) => group.id !== id).map((group) => ({ ...group,
-        members: group.members.filter((member) => !(member.kind === "group" && member.refId === id)) })) });
+        members: group.members.filter((member) => !(member.kind === "group" && member.refId === id)) })),
+        scheduleOrder: (current.scheduleOrder || []).filter((key) => key !== `group:${id}`) });
     setSelection(null); setModal(null); notify(t(kind === "project" ? "项目已永久删除" : "集团已永久删除"));
   };
 
@@ -488,6 +509,10 @@ function DashboardWorkbench() {
   const modalTargetWorkstream = modalTargetProject?.workstreams.find((item) => item.id === modal.workstreamId) || null;
   const quickProjectTitle = ({ owner: "负责人", schedule: "项目排期", framework: "财务报告准则／框架",
     group: "所属集团" })[modal?.quickField] || "编辑项目资料";
+  const projectModalTitle = modal?.quickField === "schedule" && modalTargetProject
+    ? `${t("项目排期")} · ${modalTargetProject.entity || modalTargetProject.name}` : t(quickProjectTitle);
+  const groupModalTitle = modal?.quickField === "schedule" && modalTargetGroup
+    ? `${t("项目排期")} · ${modalTargetGroup.name}` : t("编辑集团资料");
   const modalWorkflowNodes = modal?.targetKind === "group" ? modalTargetGroup?.nodes : modalTargetWorkstream?.nodes;
   const modalNode = modalWorkflowNodes?.find((item) => item.id === modal?.nodeId) || modal?.node || null;
   const availableProjects = store.projects.filter((project) => !project.archived && !findParentMembership(store, "project", project.id));
@@ -597,7 +622,7 @@ function DashboardWorkbench() {
       <main className="project-detail" aria-label={t(workspaceView === "schedule" ? "项目排期"
         : workspaceView === "report" ? "管理层报告" : selectedGroup ? "集团工作区" : "项目工作区")}>
         {workspaceView === "schedule" ? <ProjectSchedule store={store} filter={filter} onOpen={openWorkspaceRecord}
-          onOpenTaxDeadline={openTaxDeadlineCentre} />
+          onEditSchedule={openScheduleEditor} onOpenTaxDeadline={openTaxDeadlineCentre} onReorder={reorderSchedule} />
           : workspaceView === "report" ? <ManagementReport store={store} selection={selection} now={deadlineClock}
             onOpen={openWorkspaceRecord} />
           : selectedProject ? <ProjectDetail project={selectedProject} rawProject={selectedProjectSource} statuses={outstandingStatusViews}
@@ -643,7 +668,7 @@ function DashboardWorkbench() {
         selectedSampleIdsByCategory={store.selectedSampleIdsByCategory} selectedGroupSample={selectedGroupSample}
         initialWorkstreamSelections={modal.initialWorkstreamSelections} onCreateProject={createProject}
         onCreateGroup={createGroup} onClose={() => setModal(null)} /></Modal>}
-    {modal?.type === "edit-project" && selectedProjectSource && <Modal title={t(quickProjectTitle)} onClose={() => setModal(null)}
+    {modal?.type === "edit-project" && selectedProjectSource && <Modal title={projectModalTitle} onClose={() => setModal(null)}
       wide={!modal.quickField}>
       <ProjectForm initial={selectedProjectSource} allowWorkstreams={false} onClose={() => setModal(null)} submitLabel="保存修改"
         quickField={modal.quickField}
@@ -656,16 +681,19 @@ function DashboardWorkbench() {
               ? { ...project, ...projectValues, updatedAt: new Date().toISOString() } : project) };
             const groupSample = current.groupSamples.find((sample) => sample.id === current.selectedGroupSampleId)
               || current.groupSamples[0] || createDefaultGroupSample();
-            return assignProjectToGroup(next, selectedProjectSource.id, groupAssignment, groupSample);
+            return groupAssignment ? assignProjectToGroup(next, selectedProjectSource.id, groupAssignment, groupSample) : next;
           });
-          setModal(null); notify(t("项目资料及集团归属已更新")); }} /></Modal>}
-    {modal?.type === "edit-group" && selectedGroupSource && <Modal title={t("编辑集团资料")} onClose={() => setModal(null)} wide>
+           setModal(null); notify(t(modal.quickField === "schedule" ? "项目排期已更新" : "项目资料及集团归属已更新")); }} /></Modal>}
+    {modal?.type === "edit-group" && selectedGroupSource && <Modal title={groupModalTitle}
+      onClose={() => setModal(null)} wide={!modal.quickField}>
       <GroupForm initial={selectedGroupSource} sampleName={selectedGroupSample?.name || ""} allowTemplate={false}
+        quickField={modal.quickField}
         onConvert={() => setModal({ type: "convert-target", targetKind: "group" })}
         memberTargets={{ projects: store.projects, groups: store.groups }} availableProjects={availableProjects}
         availableGroups={availableGroups} groupSample={selectedGroupSample || createDefaultGroupSample()}
         onSubmit={(values) => { updateGroup(selectedGroupSource.id, (group) => ({ ...group, ...values,
-          nodes: values.consolidationEnabled ? group.nodes : [] })); setModal(null); notify(t("集团资料已更新")); }}
+          nodes: values.consolidationEnabled ? group.nodes : [] })); setModal(null);
+          notify(t(modal.quickField === "schedule" ? "项目排期已更新" : "集团资料已更新")); }}
         onClose={() => setModal(null)} /></Modal>}
     {modal?.type === "workstream-add" && modalTargetProject && <Modal title={t("添加业务模块")} onClose={() => setModal(null)}>
       <WorkstreamForm availableCategories={workstreamCategoryViews.filter((category) => !category.builtinType

@@ -12,7 +12,7 @@
 - 最左侧采用固定窄工具栏，以统一线性图标收纳项目排期、范本、指南、设置、备份和语言；悬停或键盘聚焦会显示完整功能说明，同时保留无障碍名称。建立公司仍放在项目导航的视觉热区。
 - 内置分章节使用指南，逐项说明入口、操作步骤和完成结果。
 - 每个项目记录法律实体、可自定义财务报告准则／框架，以及可覆盖短期或长期间的报告期开始日和结束日；项目执行另设独立开始日和截止日，避免与财务报告期间混淆。
-- 项目排期以负责人、公司／控股公司和按周横向工期条呈现，支持横向滚动、今天定位及红色虚线、逾期提示、日期缺失提示、状态筛选及从排期直接返回项目；排期逻辑参考年度人员计划表，但不复制其中的客户资料。
+- 项目排期以公司／控股公司和按周横向工期条呈现，支持拖动自定义并保存显示顺序、键盘调整、横向滚动、今天定位及红色虚线、逾期与日期缺失提示；点击名称返回详情，点击日历或工期条可直接编辑开始日和截止日，归档记录则保持只读。
 - 独立税务期限台账支持每家公司或控股公司保存多项报税、缴税、雇主报税表及自定义期限；逐项设置课税年度、负责人、提醒天数、税务模块关联、参考编号和备注，改期时强制记录原因并保留完整历史。
 - 铃铛提醒同时纳入已逾期、今日到期及进入提醒期的税务期限；排期图以同日可合并计数的菱形标记显示税务日期。已完成项目仍保留税务提醒，归档记录则退出提醒。
 - 公司可不启用任何业务模块而先作为空容器建立，也可并行启用账务处理、审计、税务及其他模块；每个模块各自拥有负责人、截止日、横向节点和客观达成条件。
@@ -71,7 +71,7 @@ Audit Project Workbench (APW) is an English-first, desktop-first and local-first
 - Consistent line icons condense project scheduling, deadline alerts, templates, guidance, settings, backup, language and workspace actions; hover or keyboard focus reveals the full explanation while preserving accessible names. Record creation stays in the navigation work area.
 - A built-in, sectioned user guide explaining each entry point, procedure and expected result.
 - Project details capture the legal entity, a customisable financial reporting standard or framework, reporting-period start and end dates, plus separate project start and deadline fields so the financial period is not confused with delivery timing.
-- A horizontally scrollable weekly schedule groups companies and holding companies by owner, marks today with a red dashed line, highlights overdue or incomplete dates, follows the navigation status filter and links each bar back to the record. Its planning logic was informed by an annual staff plan without copying client data.
+- A horizontally scrollable weekly schedule supports saved drag-and-drop ordering and keyboard movement, marks today with a red dashed line, highlights overdue or incomplete dates, and follows the navigation status filter. Choose a name for record details or a calendar/bar to edit start and deadline directly; archived rows remain read-only.
 - A persistent deadline-alert badge counts active overdue company, holding-company and distinct workstream deadlines; its compact list is ordered by days overdue and links directly to the source record. Completed, rescheduled or archived work clears automatically.
 - A separate tax-deadline register stores multiple filing, payment, employer-return or custom deadlines for each company or holding company, with per-item lead time, year of assessment, owner, optional workstream link, reference, notes and mandatory reasons for every saved date change.
 - Tax deadlines enter the alert centre when overdue, due today or inside their own reminder window, and appear as same-day-counted diamond markers on the schedule. They remain independent of project completion and disappear only when completed, marked not applicable or archived.

@@ -23,6 +23,12 @@ test("primary workspaces and dialogs have no serious accessibility violations", 
   await page.getByRole("button", { name: "Management reports" }).click();
   await expectNoSeriousViolations(page);
 
+  await page.locator(".app-rail-button[aria-label='Project schedule']").click();
+  await expectNoSeriousViolations(page);
+  await page.getByRole("button", { name: /Edit the project schedule for Example Services Limited/ }).click();
+  await expectNoSeriousViolations(page);
+  await page.keyboard.press("Escape");
+
   await page.locator(".tree-group-row").filter({ hasText: "Example Holdings Limited" }).click();
   await expectNoSeriousViolations(page);
   await page.getByRole("button", { name: /Tax deadlines:/ }).click();

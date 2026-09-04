@@ -1030,6 +1030,7 @@ export function normalizeStore(value) {
     version: STORE_VERSION,
     projects,
     groups,
+    scheduleOrder: workspaceScheduleOrder({ projects, groups, scheduleOrder: value.scheduleOrder }),
     samples,
     workstreamCategories,
     selectedSampleIdsByCategory,
@@ -1133,6 +1134,7 @@ export function convertProjectToGroup(store, projectId, groupSample = createDefa
     groups: [...store.groups.map((parent) => ({ ...parent, members: parent.members.map((member) =>
       member.kind === "project" && member.refId === projectId
         ? makeGroupMember({ id: member.id, kind: "group", refId: projectId, role: member.role }, groupSample) : member) })), group],
+    scheduleOrder: workspaceScheduleOrder(store).map((key) => key === `project:${projectId}` ? `group:${projectId}` : key),
   };
 }
 
@@ -1180,6 +1182,7 @@ export function convertGroupToProject(store, groupId, groupSample = createDefaul
       members: parent.members.map((member) => member.kind === "group" && member.refId === groupId
         ? makeGroupMember({ id: member.id, kind: "project", refId: groupId, role: member.role,
           auditType: "internal_team" }, groupSample) : member) })),
+    scheduleOrder: workspaceScheduleOrder(store).map((key) => key === `group:${groupId}` ? `project:${groupId}` : key),
   };
 }
 
@@ -1187,7 +1190,7 @@ export function emptyStore() {
   const samples = createDefaultSamples();
   const groupSample = createDefaultGroupSample();
   const workstreamCategories = createDefaultWorkstreamCategories();
-  return { version: STORE_VERSION, projects: [], groups: [], samples, workstreamCategories,
+  return { version: STORE_VERSION, projects: [], groups: [], scheduleOrder: [], samples, workstreamCategories,
     selectedSampleIdsByCategory: Object.fromEntries(workstreamCategories.map((category) => [category.id,
       samples.find((sample) => sample.categoryId === category.id)?.id || null])),
     groupSamples: [groupSample], selectedGroupSampleId: groupSample.id,
@@ -1393,6 +1396,39 @@ export function findParentMembership(store, kind, refId) {
   return null;
 }
 
+export function workspaceScheduleOrder(store) {
+  const rows = [
+    ...(store?.projects || []).map((project) => ({ key: `project:${project.id}`, name: project.entity || project.name,
+      owner: project.owner, startDate: project.startDate })),
+    ...(store?.groups || []).map((group) => ({ key: `group:${group.id}`, name: group.name,
+      owner: group.owner, startDate: group.startDate })),
+  ];
+  const validKeys = rows.map((row) => row.key);
+  const valid = new Set(validKeys);
+  const seen = new Set();
+  const supplied = Array.isArray(store?.scheduleOrder) ? store.scheduleOrder : rows
+    .sort((left, right) => (left.owner || "\uffff").localeCompare(right.owner || "\uffff")
+      || (left.startDate || "9999-99-99").localeCompare(right.startDate || "9999-99-99")
+      || String(left.name || "").localeCompare(String(right.name || ""))).map((row) => row.key);
+  const ordered = supplied.filter((key) => {
+    if (typeof key !== "string" || !valid.has(key) || seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+  return [...ordered, ...validKeys.filter((key) => !seen.has(key))];
+}
+
+export function reorderWorkspaceSchedule(store, sourceKey, targetKey, position = "before") {
+  if (sourceKey === targetKey) return store;
+  const order = workspaceScheduleOrder(store);
+  if (!order.includes(sourceKey) || !order.includes(targetKey)) return store;
+  const withoutSource = order.filter((key) => key !== sourceKey);
+  const targetIndex = withoutSource.indexOf(targetKey);
+  const insertionIndex = Math.max(0, targetIndex + (position === "after" ? 1 : 0));
+  withoutSource.splice(insertionIndex, 0, sourceKey);
+  return { ...store, scheduleOrder: withoutSource };
+}
+
 export function canMoveWorkspaceItem(store, kind, refId, parentGroupId = "") {
   if (!["project", "group"].includes(kind)) return false;
   const source = kind === "project" ? store.projects?.find((item) => item.id === refId)
@@ -1426,17 +1462,24 @@ export function assignProjectToGroup(store, projectId, assignment, groupSample =
   const requestedGroup = groupId ? store.groups.find((group) => group.id === groupId) : null;
   const targetGroup = requestedGroup && (!requestedGroup.archived || current?.group.id === requestedGroup.id) ? requestedGroup : null;
   const auditType = GROUP_AUDIT_TYPES.includes(assignment?.auditType) ? assignment.auditType : "internal_team";
+  const role = assignment?.role?.trim() || "";
   let nextMember = null;
   if (targetGroup) {
     nextMember = current?.group.id === targetGroup.id && current.member.auditType === auditType
-      ? { ...current.member, role: assignment?.role?.trim() || "", auditType }
-      : makeGroupMember({ kind: "project", refId: projectId, role: assignment?.role?.trim() || "", auditType }, groupSample);
+      ? (current.member.role === role ? current.member : { ...current.member, role, auditType })
+      : makeGroupMember({ kind: "project", refId: projectId, role, auditType }, groupSample);
   }
   const now = new Date().toISOString();
   return { ...store, groups: store.groups.map((group) => {
-    const members = group.members.filter((member) => !(member.kind === "project" && member.refId === projectId));
-    if (group.id === targetGroup?.id && nextMember) members.push(nextMember);
-    if (members.length === group.members.length && group.id !== targetGroup?.id) return group;
+    const memberIndex = group.members.findIndex((member) => member.kind === "project" && member.refId === projectId);
+    if (group.id === targetGroup?.id && nextMember) {
+      if (memberIndex >= 0 && group.members[memberIndex] === nextMember) return group;
+      const members = [...group.members];
+      if (memberIndex >= 0) members[memberIndex] = nextMember; else members.push(nextMember);
+      return { ...group, members, updatedAt: now };
+    }
+    if (memberIndex < 0) return group;
+    const members = group.members.filter((_, index) => index !== memberIndex);
     return { ...group, members, updatedAt: now };
   }) };
 }

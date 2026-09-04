@@ -88,6 +88,16 @@ test("project schedule uses separate start and deadline fields and a horizontall
   assert.match(css, /\.schedule-row-meta\s*{[\s\S]*?position:\s*sticky/);
 });
 
+test("project schedule rows support direct date editing and persistent drag ordering", () => {
+  assert.match(timeline, /className="schedule-drag-handle" draggable="true"/);
+  assert.match(timeline, /onReorder\?\.\(sourceKey, targetKey/);
+  assert.match(timeline, /onEditSchedule\?\.\(row\.kind, row\.id\)/);
+  assert.match(workbench, /onEditSchedule={openScheduleEditor}/);
+  assert.match(workbench, /reorderWorkspaceSchedule\(current, sourceKey, targetKey, position\)/);
+  assert.match(groupComponents, /quickField === "schedule"/);
+  assert.match(css, /\.schedule-row-meta\[data-drop-position="before"\]/);
+});
+
 test("overdue deadlines use a compact global badge and open a navigable alert list", () => {
   assert.match(workbench, /className="app-rail-button deadline-alert-trigger"/);
   assert.match(workbench, /<strong className="app-rail-badge">/);

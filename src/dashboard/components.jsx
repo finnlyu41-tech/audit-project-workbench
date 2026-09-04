@@ -136,10 +136,10 @@ export function ProjectForm({ initial, onSubmit, onClose, submitLabel, allowWork
     const validSelections = selections.filter((item) => item.type !== "custom" || item.customName.trim());
     const legalEntity = values.entity.trim();
     const projectName = values.name.trim() || legalEntity;
-    if (legalEntity && projectName) {
+    if ((quickField || legalEntity) && projectName) {
       const cleanedValues = { ...values, name: projectName, entity: legalEntity };
       const submittedValues = allowWorkstreams ? { ...cleanedValues, workstreamSelections: validSelections } : cleanedValues;
-      onSubmit(groupOptions ? { ...submittedValues, groupAssignment: { ...membership, role: membership.role.trim() } }
+      onSubmit(showGroupFields ? { ...submittedValues, groupAssignment: { ...membership, role: membership.role.trim() } }
         : submittedValues, true);
     }
   }}>
@@ -475,7 +475,8 @@ export function UserGuide() {
       { title: "寻找和筛选项目", steps: ["在项目导航的搜索框输入项目、集团或负责人名称。", "使用“进行中”“已完成”“全部”及“归档”筛选所需记录。",
         "选择名称可打开资料；使用控股公司前的加减号展开或收起下级，层级线会显示归属。"], result: "你只会在当前筛选范围内看到相关记录。" },
       { title: "安排项目开始日和截止日", steps: ["编辑公司或控股公司资料，分别填写项目开始日和项目截止日；它们与财务报告期间是不同字段。",
-        "选择最左侧窄工具栏的“项目排期”，按负责人查看所有横向工期条。", "使用左侧状态筛选同步缩小排期范围；选择任一排期行或工期条可返回该项目。",
+        "选择最左侧窄工具栏的“项目排期”，按自定义顺序查看所有横向工期条。", "使用左侧状态筛选同步缩小排期范围；选择项目名称可返回详情，选择工期条可直接修改日期。",
+        "拖动排期行左侧把手可调整显示顺序，键盘可按 Alt 加上下方向键移动；选择日历按钮或工期条可直接修改项目开始日和截止日，归档记录保持只读。",
         "在排期图上滚动鼠标滚轮可横向查看日期；选择“今天”会定位到红色虚线。", "红色工期条代表已逾期，日期不完整的项目会显示提醒。"], result: "工作台会像年度计划表一样集中呈现项目起止时间，同时保留每个项目的详细流程。" },
       { title: "查看逾期提醒", steps: ["左侧窄工具栏的铃铛会显示当前逾期数量；没有逾期时不显示数字。",
         "选择铃铛可查看逾期项目、控股公司和业务模块，并按逾期天数排序。", "选择任一提醒可直接打开来源记录；业务模块提醒会同时定位到对应模块。",

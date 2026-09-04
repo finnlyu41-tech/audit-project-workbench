@@ -10,7 +10,8 @@ import { useUiLanguage } from "./i18n.jsx";
 export const auditTypeKeys = GROUP_AUDIT_TYPE_KEYS;
 
 export function GroupForm({ initial, sampleName, allowTemplate = true, memberTargets = { projects: [], groups: [] },
-  availableProjects = [], availableGroups = [], groupSample, onSubmit, onClose, onConvert, structureSelector = null }) {
+  availableProjects = [], availableGroups = [], groupSample, onSubmit, onClose, onConvert, structureSelector = null,
+  quickField = null }) {
   const { t } = useUiLanguage();
   const [values, setValues] = React.useState(() => ({
     name: initial?.name || "",
@@ -28,6 +29,19 @@ export function GroupForm({ initial, sampleName, allowTemplate = true, memberTar
   const [memberRefId, setMemberRefId] = React.useState("");
   const [useStarter, setUseStarter] = React.useState(true);
   const update = (field) => (event) => setValues((current) => ({ ...current, [field]: event.target.value }));
+  if (quickField === "schedule") return <form className="workbench-form" data-quick-field="schedule" onSubmit={(event) => {
+    event.preventDefault();
+    onSubmit(values, false);
+  }}>
+    <div className="project-date-groups" data-single="true"><fieldset><legend>{t("项目排期")}</legend><div>
+      <label><span>{t("开始日")}</span><input autoFocus aria-label={t("项目开始日")} type="date"
+        value={values.startDate} max={values.dueDate || undefined} onChange={update("startDate")} /></label>
+      <label><span>{t("截止日")}</span><input aria-label={t("项目截止日")} type="date"
+        value={values.dueDate} min={values.startDate || undefined} onChange={update("dueDate")} /></label>
+    </div></fieldset></div>
+    <footer className="modal-actions"><button type="button" className="button secondary" onClick={onClose}>{t("取消")}</button>
+      <button type="submit" className="button primary">{t("保存修改")}</button></footer>
+  </form>;
   const initialProjectTargets = (initial?.members || []).filter((member) => member.kind === "project")
     .map((member) => memberTargets.projects.find((project) => project.id === member.refId)).filter(Boolean);
   const initialGroupTargets = (initial?.members || []).filter((member) => member.kind === "group")

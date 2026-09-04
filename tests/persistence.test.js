@@ -67,12 +67,16 @@ test("only incomplete persistence states require leave protection", () => {
 
 test("workbench serialization is stable and file output stays valid JSON", async () => {
   const store = emptyStore();
+  store.projects.push({ id: "scheduled-project", name: "Scheduled", entity: "Scheduled Limited" });
+  store.groups.push({ id: "scheduled-group", name: "Scheduled Holding" });
+  store.scheduleOrder = ["group:scheduled-group", "project:scheduled-project"];
   const payload = serializeStore(store);
   assert.equal(serializeStore(JSON.parse(payload)), payload);
   assert.deepEqual(JSON.parse(formatStorePayload(payload)), store);
+  assert.deepEqual(JSON.parse(payload).scheduleOrder, store.scheduleOrder);
   assert.equal(await digestText(payload), await digestText(payload));
   assert.notEqual(await digestText(payload), await digestText(`${payload} `));
-  assert.deepEqual(workspaceSummary(store), { version: 10, projects: 0, groups: 0, updatedAt: "" });
+  assert.deepEqual(workspaceSummary(store), { version: 10, projects: 1, groups: 1, updatedAt: "" });
 });
 
 test("linked-file reads validate and normalize the same V10 structure used by backups", async () => {
