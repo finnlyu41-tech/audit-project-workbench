@@ -1,4 +1,5 @@
 import React from "react";
+import { ReportRiskPanel, ReportTableRegion } from "./report-ui.jsx";
 import { AlertTriangle, ArrowDown, ArrowUp, ArrowUpDown, BarChart3, Building, Building2, CalendarRange, CircleAlert, Layers3, Printer, ReceiptText } from "lucide-react";
 import {
   engagementTypesLabel,
@@ -112,7 +113,7 @@ function PortfolioTable({ report, onOpen }) {
   }, [rows]);
   return <section className="management-report-section"><header><div><h3>{t("项目组合明细")}</h3>
     <span>{t("{count} 项记录", { count: report.rows.length })}</span></div></header>
-    {report.rows.length ? <div className="management-table-scroll"><table className="management-report-table"><thead><tr>
+    {report.rows.length ? <ReportTableRegion label={t("项目组合明细")}><table className="management-report-table"><thead><tr>
       <SortableHeading name="name" label={t("公司／控股公司")} sort={sort} onSort={toggleSort} />
       <th>{t("年结／报告期间")}</th>
       <SortableHeading name="owner" label={t("负责人")} sort={sort} onSort={toggleSort} />
@@ -136,29 +137,32 @@ function PortfolioTable({ report, onOpen }) {
           <small data-urgency={row.deliveryUrgency}>{urgencyLabel(row.deliveryUrgency, t)}</small></td>
         <td>{row.kind === "project" ? t("{done}/{total} 个模块", { done: row.completedWorkstreams, total: row.totalWorkstreams })
           : `${row.progress}%`}</td><td>{row.openOutstanding}</td><td><span>{row.taxAttention}/{row.taxOpen}</span>
-          {row.taxUrgency !== "none" && <small data-urgency={row.taxUrgency}>{urgencyLabel(row.taxUrgency, t)}</small>}</td></tr>))}</tbody></table></div>
+          {row.taxUrgency !== "none" && <small data-urgency={row.taxUrgency}>{urgencyLabel(row.taxUrgency, t)}</small>}</td></tr>))}</tbody></table></ReportTableRegion>
       : <div className="management-report-empty"><strong>{t("没有符合筛选的记录")}</strong><span>{t("调整筛选条件后再查看。")}</span></div>}
   </section>;
 }
 
-function PortfolioRisks({ report, statuses, onOpen }) {
+function PortfolioRisks({ report, statuses, onOpen, onOpenOutstanding, onOpenTaxDeadline }) {
   const { language, t } = useUiLanguage();
-  const overdue = report.rows.filter((row) => row.deliveryUrgency === "overdue");
+  const overdue = report.rows.filter((row) => row.deliveryUrgency === "overdue").map((row) => ({
+    key: JSON.stringify([row.kind, row.id]), title: row.name,
+    context: [yearEndOrPeriodLabel(row, language), row.owner, formatDate(row.dueDate, language)].filter(Boolean).join(" · "),
+    onOpen: () => onOpen(row.kind, row.id),
+  }));
+  const tax = report.taxRisks.map(({ kind, record, deadline, urgency }) => ({
+    key: JSON.stringify([kind, record.id, deadline.id]), title: taxDeadlineCategoryLabel(deadline, language),
+    context: [record.entity || record.name, deadline.taxYear, formatDate(deadline.dueDate, language), urgencyLabel(urgency.level, t)].filter(Boolean).join(" · "),
+    onOpen: () => onOpenTaxDeadline ? onOpenTaxDeadline(kind, record.id, deadline.id) : onOpen(kind, record.id),
+  }));
+  const outstanding = report.outstandingRisks.map(({ kind, record, item, ageDays }) => ({
+    key: JSON.stringify([kind, record.id, item.id]), title: item.title,
+    context: [record.entity || record.name, outstandingStatusLabel(item.status, statuses, language), t("{count} 天", { count: ageDays })].join(" · "),
+    onOpen: () => onOpenOutstanding ? onOpenOutstanding(kind, record.id, item.id) : onOpen(kind, record.id),
+  }));
   return <section className="management-risk-grid">
-    <article><header><AlertTriangle aria-hidden="true" /><strong>{t("逾期项目")}</strong><span>{overdue.length}</span></header>
-      {overdue.length ? <div>{overdue.slice(0, 20).map((row) => <button type="button" key={`${row.kind}:${row.id}`}
-        onClick={() => onOpen(row.kind, row.id)}><strong>{row.name}</strong><small>{formatDate(row.dueDate, language)}</small></button>)}</div>
-        : <p>{t("没有逾期项目")}</p>}</article>
-    <article><header><ReceiptText aria-hidden="true" /><strong>{t("需关注税务期限")}</strong><span>{report.taxRisks.length}</span></header>
-      {report.taxRisks.length ? <div>{report.taxRisks.slice(0, 20).map(({ kind, record, deadline, urgency }) => <button type="button"
-        key={`${kind}:${record.id}:${deadline.id}`} onClick={() => onOpen(kind, record.id)}><strong>{record.entity || record.name}</strong>
-        <small>{taxDeadlineCategoryLabel(deadline, language)} · {formatDate(deadline.dueDate, language)} · {urgencyLabel(urgency.level, t)}</small></button>)}</div>
-        : <p>{t("没有需要关注的税务期限")}</p>}</article>
-    <article><header><CircleAlert aria-hidden="true" /><strong>{t("未清事项")}</strong><span>{report.outstandingRisks.length}</span></header>
-      {report.outstandingRisks.length ? <div>{report.outstandingRisks.slice(0, 20).map(({ kind, record, item, ageDays }) => <button type="button"
-        key={`${kind}:${record.id}:${item.id}`} onClick={() => onOpen(kind, record.id)}><strong>{item.title}</strong>
-        <small>{record.entity || record.name} · {outstandingStatusLabel(item.status, statuses, language)} · {t("{count} 天", { count: ageDays })}</small></button>)}</div>
-        : <p>{t("没有未清事项")}</p>}</article>
+    <ReportRiskPanel kind="overdue" title={t("逾期项目")} Icon={AlertTriangle} items={overdue} emptyText={t("没有逾期项目")} />
+    <ReportRiskPanel kind="tax" title={t("需关注税务期限")} Icon={ReceiptText} items={tax} emptyText={t("没有需要关注的税务期限")} />
+    <ReportRiskPanel kind="outstanding" title={t("未清事项")} Icon={CircleAlert} items={outstanding} emptyText={t("没有未清事项")} />
   </section>;
 }
 
@@ -190,11 +194,11 @@ function GroupRecordReport({ report, statuses }) {
       <div><span>{t("组成部分就绪")}</span><strong>{report.progress.readyCompanies}/{report.progress.totalCompanies}</strong></div>
       <div><span>{t("本级合并进度")}</span><strong>{report.progress.consolidationPercentage}%</strong></div></section>
     <section className="management-report-section"><header><div><h3>{t("组成部分")}</h3><span>{t("进度、就绪状态及截止日")}</span></div></header>
-      <div className="management-table-scroll"><table className="management-report-table"><thead><tr><th>{t("公司／控股公司")}</th>
+      <ReportTableRegion label={t("组成部分")}><table className="management-report-table"><thead><tr><th>{t("公司／控股公司")}</th>
         <th>{t("角色")}</th><th>{t("负责人")}</th><th>{t("进度")}</th><th>{t("合并就绪")}</th><th>{t("截止日")}</th></tr></thead><tbody>
         {report.members.map((member) => <tr key={`${member.kind}:${member.id}`} data-unresolved={member.unresolved || undefined}><td style={{ "--report-depth": member.depth }}>
           <strong>{member.name}</strong>{member.periodLabel && <small>{member.periodLabel}</small>}</td><td>{member.role || "—"}</td><td>{member.owner || "—"}</td><td>{member.progress}%</td>
-          <td>{t(member.unresolved ? "待指定" : member.ready ? "已就绪" : "未就绪")}</td><td>{formatDate(member.dueDate, language)}</td></tr>)}</tbody></table></div></section>
+          <td>{t(member.unresolved ? "待指定" : member.ready ? "已就绪" : "未就绪")}</td><td>{formatDate(member.dueDate, language)}</td></tr>)}</tbody></table></ReportTableRegion></section>
     <section className="management-report-section"><header><div><h3>{t("本级合并节点")}</h3><span>{t("明确条件完成情况")}</span></div></header>
       <div className="record-stage-list">{report.nodes.map((node, index) => <article key={node.id}><span>{index + 1}</span><strong>{node.title}</strong>
         <small>{node.completedConditions}/{node.conditions} · {t(node.status)}</small></article>)}</div></section>
@@ -210,27 +214,27 @@ function EntityRecordReport({ report, statuses }) {
         apr_mar: "4 月 1 日 → 次年 3 月 31 日", custom: "每个项目自定义日期" }[report.fiscalYearPreset])}</strong></div>
       <div><span>{t("年度项目")}</span><strong>{report.projects.length}</strong></div><div><span>{t("未完成税务期限")}</span><strong>{report.taxDeadlines.length}</strong></div></section>
     <section className="management-report-section"><header><div><h3>{t("历年项目")}</h3><span>{t("报告期间、负责人、排期和状态")}</span></div></header>
-      {report.projects.length ? <div className="management-table-scroll"><table className="management-report-table"><thead><tr>
+      {report.projects.length ? <ReportTableRegion label={t("历年项目")}><table className="management-report-table"><thead><tr>
         <th>{t("报告期间")}</th><th>{t("项目类型")}</th><th>{t("负责人")}</th><th>{t("项目排期")}</th><th>{t("状态")}</th></tr></thead><tbody>
         {report.projects.map((project) => <tr key={project.id}><td><strong>{project.label}</strong>
           <small>{reportingPeriodLabel(project, language)}</small></td>
           <td>{engagementTypesLabel(project, language) || t("项目类型未设置")}</td>
           <td>{project.owner || "—"}</td><td>{formatDate(project.startDate, language)} → {formatDate(project.dueDate, language)}</td>
-          <td>{t(project.archived ? "归档" : project.complete ? "已完成" : "进行中")}</td></tr>)}</tbody></table></div>
+          <td>{t(project.archived ? "归档" : project.complete ? "已完成" : "进行中")}</td></tr>)}</tbody></table></ReportTableRegion>
         : <div className="management-report-empty compact"><strong>{t("这家公司还没有年度项目")}</strong></div>}</section>
     {report.entityKind === "holding_company" && <section className="management-report-section"><header><div><h3>{t("当前控股架构")}</h3>
       <span>{t("当前直属成员，不改写历史年度范围")}</span></div></header><div className="record-stage-list">{report.children.map((child, index) => <article key={child.id}>
         <span>{index + 1}</span><strong>{child.name}</strong><small>{child.role || t(child.kind === "holding_company" ? "控股公司" : "公司")}</small></article>)}</div></section>}
     <section className="record-risk-tables"><article><header><strong>{t("历年待清事项")}</strong><span>{report.outstanding.length}</span></header>
-      {report.outstanding.length ? <table><thead><tr><th>{t("事项")}</th><th>{t("来源年度")}</th><th>{t("状态")}</th><th>{t("建立时间")}</th></tr></thead><tbody>
+      {report.outstanding.length ? <ReportTableRegion label={t("当前未清事项")} className="record-risk-scroll"><table><thead><tr><th>{t("事项")}</th><th>{t("来源年度")}</th><th>{t("状态")}</th><th>{t("建立时间")}</th></tr></thead><tbody>
         {report.outstanding.map((entry) => <tr key={`${entry.engagementId}:${entry.item.id}`}><td><strong>{entry.item.title}</strong></td>
           <td>{entry.periodLabel}</td><td>{outstandingStatusLabel(entry.item.status, statuses, language)}</td>
-          <td>{formatDate(entry.item.createdAt?.slice(0, 10), language)} · {t("{count} 天", { count: entry.ageDays })}</td></tr>)}</tbody></table>
+          <td>{formatDate(entry.item.createdAt?.slice(0, 10), language)} · {t("{count} 天", { count: entry.ageDays })}</td></tr>)}</tbody></table></ReportTableRegion>
         : <p>{t("没有未清事项")}</p>}</article></section>
     <section className="record-risk-tables"><article><header><strong>{t("未完成税务期限")}</strong><span>{report.taxDeadlines.length}</span></header>
-      {report.taxDeadlines.length ? <table><thead><tr><th>{t("期限种类")}</th><th>{t("课税年度")}</th><th>{t("负责人")}</th><th>{t("当前期限")}</th><th>{t("紧急程度")}</th></tr></thead><tbody>
+      {report.taxDeadlines.length ? <ReportTableRegion label={t("未完成税务期限")} className="record-risk-scroll"><table><thead><tr><th>{t("期限种类")}</th><th>{t("课税年度")}</th><th>{t("负责人")}</th><th>{t("当前期限")}</th><th>{t("紧急程度")}</th></tr></thead><tbody>
         {report.taxDeadlines.map((deadline) => <tr key={deadline.id}><td>{taxDeadlineCategoryLabel(deadline, language)}</td><td>{deadline.taxYear || "—"}</td>
-          <td>{deadline.owner || "—"}</td><td>{formatDate(deadline.dueDate, language)}</td><td>{urgencyLabel(deadline.urgency.level, t)}</td></tr>)}</tbody></table>
+          <td>{deadline.owner || "—"}</td><td>{formatDate(deadline.dueDate, language)}</td><td>{urgencyLabel(deadline.urgency.level, t)}</td></tr>)}</tbody></table></ReportTableRegion>
         : <p>{t("没有未完成税务期限")}</p>}</article></section>
   </>;
 }
@@ -238,17 +242,17 @@ function EntityRecordReport({ report, statuses }) {
 function RecordRiskTables({ report, statuses, group = false }) {
   const { language, t } = useUiLanguage();
   return <section className="record-risk-tables"><article><header><strong>{t("当前未清事项")}</strong><span>{report.outstanding.length}</span></header>
-    {report.outstanding.length ? <table><thead><tr><th>{t("事项")}</th><th>{t("状态")}</th><th>{t("所属层级或业务模块")}</th><th>{t("建立时间")}</th></tr></thead><tbody>
-      {report.outstanding.map((entry) => { const item = group ? entry.item : entry; return <tr key={item.id}><td><strong>{item.title}</strong>
+    {report.outstanding.length ? <ReportTableRegion label={t("当前未清事项")} className="record-risk-scroll"><table><thead><tr><th>{t("事项")}</th><th>{t("状态")}</th><th>{t("所属层级或业务模块")}</th><th>{t("建立时间")}</th></tr></thead><tbody>
+      {report.outstanding.map((entry) => { const item = group ? entry.item : entry; return <tr key={JSON.stringify([entry.sourceType, entry.sourceId, item.id])}><td><strong>{item.title}</strong>
         {group && <small>{entry.sourceName}</small>}</td><td>{outstandingStatusLabel(item.status, statuses, language)}</td>
-        <td>{workstreamLabel(item.workstream, language, t)}</td><td>{formatDate(item.createdAt?.slice(0, 10), language)} · {t("{count} 天", { count: entry.ageDays })}</td></tr>; })}</tbody></table>
+        <td>{workstreamLabel(item.workstream, language, t)}</td><td>{formatDate(item.createdAt?.slice(0, 10), language)} · {t("{count} 天", { count: entry.ageDays })}</td></tr>; })}</tbody></table></ReportTableRegion>
       : <p>{t("没有未清事项")}</p>}</article>
     <article><header><strong>{t("未完成税务期限")}</strong><span>{report.taxDeadlines.length}</span></header>
-      {report.taxDeadlines.length ? <table><thead><tr><th>{t("期限种类")}</th><th>{t("课税年度")}</th><th>{t("负责人")}</th><th>{t("当前期限")}</th><th>{t("紧急程度")}</th></tr></thead><tbody>
-        {report.taxDeadlines.map((entry) => { const deadline = group ? entry.deadline : entry; return <tr key={deadline.id}><td>
+      {report.taxDeadlines.length ? <ReportTableRegion label={t("未完成税务期限")} className="record-risk-scroll"><table><thead><tr><th>{t("期限种类")}</th><th>{t("课税年度")}</th><th>{t("负责人")}</th><th>{t("当前期限")}</th><th>{t("紧急程度")}</th></tr></thead><tbody>
+        {report.taxDeadlines.map((entry) => { const deadline = group ? entry.deadline : entry; return <tr key={JSON.stringify([entry.sourceType, entry.sourceId, deadline.id])}><td>
           <strong>{taxDeadlineCategoryLabel(deadline, language)}</strong>{group && <small>{entry.sourceName}</small>}</td><td>{deadline.taxYear || "—"}</td>
           <td>{deadline.owner || "—"}</td><td>{formatDate(deadline.dueDate, language)}</td>
-          <td><span data-urgency={entry.urgency.level}>{urgencyLabel(entry.urgency.level, t)}</span></td></tr>; })}</tbody></table>
+          <td><span data-urgency={entry.urgency.level}>{urgencyLabel(entry.urgency.level, t)}</span></td></tr>; })}</tbody></table></ReportTableRegion>
         : <p>{t("没有未完成税务期限")}</p>}</article></section>;
 }
 
@@ -270,7 +274,7 @@ function PrintScope({ filters, store, current }) {
     <span>{t("项目截止范围")}：{formatDate(filters.dateTo, language)}</span></section>;
 }
 
-export function ManagementReport({ store, selection, now = new Date(), onOpen }) {
+export function ManagementReport({ store, selection, now = new Date(), onOpen, onOpenOutstanding, onOpenTaxDeadline }) {
   const { t } = useUiLanguage();
   const [view, setView] = React.useState("portfolio");
   const [filters, setFilters] = React.useState(DEFAULT_MANAGEMENT_REPORT_FILTERS);
@@ -292,7 +296,7 @@ export function ManagementReport({ store, selection, now = new Date(), onOpen })
       <button type="button" role="tab" aria-selected={Boolean(current)} tabIndex={tabIndexFor(Boolean(current))} disabled={!selectedExists}
         onClick={() => setView("record")}>{t("当前记录")}</button></div>
     {!current ? <><PortfolioFilters store={store} filters={filters} setFilters={setFilters} /><MetricStrip metrics={portfolio.metrics} />
-      <PortfolioTable report={portfolio} onOpen={onOpen} /><PortfolioRisks report={portfolio} statuses={store.outstandingStatuses} onOpen={onOpen} /></>
+      <PortfolioTable report={portfolio} onOpen={onOpen} /><PortfolioRisks key={JSON.stringify(filters)} onOpenOutstanding={onOpenOutstanding} onOpenTaxDeadline={onOpenTaxDeadline} report={portfolio} statuses={store.outstandingStatuses} onOpen={onOpen} /></>
       : <>{current.kind !== "entity" && <section className="record-report-status"><span data-complete={current.complete || undefined}>{t(current.complete ? "已完成" : "进行中")}</span>
         {current.archived && <strong>{t("归档 · 只读")}</strong>}</section>}{current.kind === "entity"
         ? <EntityRecordReport report={current} statuses={store.outstandingStatuses} /> : current.kind === "project"

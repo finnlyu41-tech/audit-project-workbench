@@ -1025,7 +1025,7 @@ function DashboardWorkbench() {
           onEditSchedule={openScheduleEditor} onOpenTaxDeadline={openTaxDeadlineCentre} onReorder={reorderSchedule}
           simplifiedView={simplifiedView} onToggleSimplifiedView={() => setSimplifiedView((current) => !current)} />
           : workspaceView === "report" ? <ManagementReport store={store} selection={selection} now={deadlineClock}
-            onOpen={revealWorkspaceRecord} />
+            onOpen={revealWorkspaceRecord} onOpenOutstanding={revealOutstandingItem} onOpenTaxDeadline={openTaxDeadlineCentre} />
           : selectedEntitySource ? <EntityOverview key={selectedEntitySource.id} store={store} entity={selectedEntitySource}
             onOpenOutstanding={(engagement, item) => revealOutstandingItem(selectedEntitySource.kind === "holding_company" ? "group" : "project", engagement.id, item.id)}
             onEdit={() => setModal({ type: "edit-entity", entityId: selectedEntitySource.id })}

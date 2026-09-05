@@ -133,3 +133,15 @@ The detailed metadata column also displays entered schedule dates, including par
 Date bars, missing-date actions and tax markers include the reporting period in their accessible names, distinguishing multiple engagements for one company. Existing guarded editors, source routing, archived read-only access, explicit drag/keyboard reordering, date calculations and tax-marker aggregation remain in use. Filling missing dates can naturally remove a row from the Missing dates view; Clear filters restores the list.
 
 All verification uses fictional records in isolated browser contexts. No schema, persistence, reporting-period, tax-rule or audit-completion changes are included. Unit coverage is in `tests/schedule-view.test.js` and browser coverage is in `e2e/schedule-usability.spec.js`.
+
+## Management report usability and complete risk lists
+
+The portfolio report keeps its existing calculation, date filters, sorting and grouped company rows. Screen-only layout rules align filter controls at 42px, wrap long labels and metadata, and enlarge sorting/print actions. Report tables retain native table semantics inside named focusable scroll regions; arrow-key scrolling applies only when the region itself has focus, not when a child control is active.
+
+The three portfolio risk categories now retain all computed entries in the rendered report. The screen initially shows twenty per category and explicitly displays the visible/total count. Show all and collapse affect the screen only. A change to the report filters resets disclosure so old list state does not obscure the new scope. No report filter or disclosure writes to the workspace.
+
+Tax risk actions call the existing deadline-opening handler with the source and deadline ID. Outstanding risk actions use the existing exact-item navigation handler. These remain view/navigation operations and preserve the existing read-only and source resolution behavior. Composite source/item keys prevent separate companies with identical item IDs from sharing rendered rows.
+
+Printing deliberately includes every risk in the computed report scope, independent of screen disclosure. The former first-twenty truncation is removed. Long risk lists may span more pages. Risk rows avoid internal page breaks, list sections may span pages, and the portfolio detail table is constrained to the page width so its last columns remain printable. Existing report scope and page-numbering styles remain in place. No new customer fields, notes or reference numbers are added to reports.
+
+Verification uses fictional records with more than twenty risks, duplicate item IDs across sources and long names. It covers report filtering, expand/collapse, exact source navigation, archive opening, native table sorting, keyboard scroll, 800/1024/1440/1920px layouts, accessibility, and print-media completeness. A synthetic Chromium PDF is also rendered and checked for all risk entries, readable columns and absence of private notes/references. No user browser profile or real client dataset is used.

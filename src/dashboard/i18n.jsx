@@ -4,6 +4,13 @@ import { toTraditional } from "./traditional.js";
 export const LANGUAGE_PREFERENCE_KEY = "audit-progress-workbench:language";
 
 const english = {
+  "查看全部风险并打开来源": "View every risk and open its source",
+  "每类风险先显示二十项；选择展开全部风险查看余下事项，筛选报告后会恢复收起。": "Each risk list starts with twenty items. Show all risks reveals the rest; changing report filters collapses it again.",
+  "点击税务或待清风险直接定位对应期限或事项；展开和跳转不会修改业务资料。": "Tax and outstanding risks open their exact deadline or item. Expanding and navigating do not change business records.",
+  "打印包含当前报告范围内的全部风险，不受屏幕折叠影响。": "Printing includes every risk in the current report scope, regardless of screen disclosure.",
+  "收起风险清单": "Collapse risks",
+  "展开全部风险": "Show all risks",
+  "打印始终包含当前报告范围内的全部风险。": "Printing includes all risks in the current report scope.",
   "滚轮上下查看项目，横向滚动条或触控板左右查看日期；选择“今天”定位到红色虚线。": "Scroll vertically for projects and use the horizontal scrollbar or trackpad for dates. Today locates the red line.",
   "查找需要补日期的排期": "Find schedules with missing dates",
   "在排期页组合输入公司、报告年度、项目类型或负责人。": "Combine company, reporting year, project type or owner in the schedule search.",
