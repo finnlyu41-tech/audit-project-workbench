@@ -32,7 +32,7 @@ import { CompanyForm, EngagementForm, EntityOverview, HoldingComponentsPanel, Me
 import { applyTemplatePackage, createTemplatePackage, TEMPLATE_PACKAGE_MAX_BYTES,
   templatePackagePreview } from "./template-packages.js";
 import { QuickUpdate } from "./ux-components.jsx";
-import { RECENT_RECORDS_KEY, prepareQuickUpdate, recentRecordsFor, rememberRecord, sanitizeRecentRecords } from "./ux-model.js";
+import { RECENT_RECORDS_KEY, nextEngagementAction, prepareQuickUpdate, recentRecordsFor, rememberRecord, resolveWorkspaceTarget, sanitizeRecentRecords } from "./ux-model.js";
 import "./dashboard.css";
 
 const SIDEBAR_PREFERENCE_KEY = "audit-progress-workbench:sidebar-collapsed";
@@ -100,6 +100,9 @@ function DashboardWorkbench() {
   const persistence = useWorkbenchPersistence({ store, setStore });
   const [selection, setSelection] = React.useState(null);
   const [activeWorkstreamId, setActiveWorkstreamId] = React.useState(null);
+  const [workflowReveal, setWorkflowReveal] = React.useState(null);
+  const [outstandingReveal, setOutstandingReveal] = React.useState(null);
+  const revealSequence = React.useRef(0);
   const [search, setSearch] = React.useState("");
   const quickDrafts = React.useRef(new Map());
   const [recentVisits, setRecentVisits] = React.useState(() => {
@@ -288,6 +291,32 @@ function DashboardWorkbench() {
     setSelection({ kind, id });
     setWorkspaceView("detail");
   }, []);
+  const revealWorkspaceRecord = React.useCallback((kind, id) => {
+    const target = resolveWorkspaceTarget(store, kind, id);
+    if (!target) { setMessage(t("来源记录已不存在。")); return null; }
+    setSearch(""); setNavigationFilters({ owner: "", engagementType: "", reportingYear: "" });
+    setFilter(target.filter);
+    setWorkflowReveal(null); setOutstandingReveal(null);
+    openWorkspaceRecord(target.kind, target.id);
+    return target;
+  }, [store, t, openWorkspaceRecord]);
+  const revealNextStep = (id) => {
+    const target = resolveWorkspaceTarget(store, "project", id);
+    if (!target || target.filter === "archived") return;
+    const next = nextEngagementAction(target.engagement);
+    if (!next) return;
+    setActiveWorkstreamId(next.workstreamId);
+    setWorkflowReveal({ targetId: id, workstreamId: next.workstreamId, nodeId: next.node?.id || null,
+      sequence: ++revealSequence.current });
+  };
+  const revealOutstandingItem = (kind, id, itemId) => {
+    const target = resolveWorkspaceTarget(store, kind, id);
+    const item = target?.engagement?.outstandingItems?.find((entry) => entry.id === itemId);
+    if (!item) { setMessage(t("待清事项已不存在。")); return; }
+    revealWorkspaceRecord(kind, id);
+    setOutstandingCollapsed(false); setCompactOutstandingOpen(true);
+    setOutstandingReveal({ targetId: id, itemId, sequence: ++revealSequence.current });
+  };
   const openScheduleEditor = React.useCallback((kind, id) => {
     const target = kind === "group" ? store.groups.find((item) => item.id === id)
       : store.projects.find((item) => item.id === id);
@@ -303,20 +332,20 @@ function DashboardWorkbench() {
     const engagement = kind === "entity" ? null : store.engagements.find((item) => item.id === id);
     const entityId = kind === "entity" ? id : engagement?.entityId;
     if (!entityId) return;
-    if (kind === "entity") openWorkspaceRecord("entity", entityId); else openWorkspaceRecord(kind, id);
+    if (kind === "entity") revealWorkspaceRecord("entity", entityId); else revealWorkspaceRecord(kind, id);
     setModal({ type: "tax-deadlines", targetKind: "entity", targetId: entityId, deadlineId,
       engagementId: engagement?.id || null });
-  }, [openWorkspaceRecord, store.engagements]);
+  }, [revealWorkspaceRecord, store.engagements]);
   const openDeadlineAlert = React.useCallback((alert) => {
     if (alert.scope === "tax") {
       setFilter("all");
       openTaxDeadlineCentre(alert.targetKind, alert.targetId, alert.taxDeadline?.id || null);
       return;
     }
-    openWorkspaceRecord(alert.targetKind, alert.targetId);
+    revealWorkspaceRecord(alert.targetKind, alert.targetId);
     setActiveWorkstreamId(null);
     setModal(null);
-  }, [openTaxDeadlineCentre, openWorkspaceRecord]);
+  }, [openTaxDeadlineCentre, revealWorkspaceRecord]);
   const selectedProjectSource = selection?.kind === "project"
     ? store.projects.find((project) => project.id === selection.id) || null : null;
   const selectedGroupSource = selection?.kind === "group"
@@ -927,7 +956,7 @@ function DashboardWorkbench() {
                 <strong>{navigationCounts[value]}</strong></button>)}</div></div>
           {recentRecordsFor(store, recentVisits).length > 0 && <details className="navigation-recent"><summary>{t("最近访问")}</summary>
             {recentRecordsFor(store, recentVisits).slice(0, 3).map((record) => <button type="button" key={`${record.kind}:${record.id}`}
-              onClick={() => { clearNavigationFilters(); setSearch(""); setFilter("all"); openWorkspaceRecord(record.kind, record.id); }}>
+              onClick={() => revealWorkspaceRecord(record.kind, record.id)}>
               <strong>{record.entity.legalName}</strong><small>{record.engagement ? reportingPeriodLabel(record.engagement, language) : t("公司主档")}</small>
             </button>)}</details>}
           <WorkspaceTree store={store} selection={selection} onSelect={(next) => openWorkspaceRecord(next.kind, next.id)} search={search} filter={filter}
@@ -949,20 +978,18 @@ function DashboardWorkbench() {
             aria-label={t("前进到下一个界面")} data-tooltip={t("前进到下一个界面")}><ArrowRight aria-hidden="true" /></button>
         </nav>
         {workspaceView === "home" ? <HomeOverview store={store} now={deadlineClock} recentVisits={recentVisits}
-          onClearRecent={() => setRecentVisits([])} onOpen={(kind, id) => {
-            clearNavigationFilters(); setSearch(""); setFilter("all"); openWorkspaceRecord(kind, id);
-          }}
+          onClearRecent={() => setRecentVisits([])} onOpen={revealWorkspaceRecord} onOpenOutstanding={revealOutstandingItem}
           onOpenDeadline={openDeadlineAlert} onShowDeadlines={() => setModal({ type: "deadline-alerts" })}
           onNewCompany={() => setModal({ type: "create-entity" })}
           onNewEngagement={(entityId) => setModal({ type: "create-engagement", entityId })}
           onShowProjects={(status = "all") => { clearNavigationFilters(); setSearch(""); setSidebarCollapsed(false);
             setNavigationView("projects"); setFilter(status); setWorkspaceView("detail"); }}
           onShowSchedule={() => setWorkspaceView("schedule")} />
-          : workspaceView === "schedule" ? <ProjectSchedule store={store} filter={filter} onOpen={openWorkspaceRecord}
+          : workspaceView === "schedule" ? <ProjectSchedule store={store} filter={filter} onOpen={revealWorkspaceRecord}
           onEditSchedule={openScheduleEditor} onOpenTaxDeadline={openTaxDeadlineCentre} onReorder={reorderSchedule}
           simplifiedView={simplifiedView} onToggleSimplifiedView={() => setSimplifiedView((current) => !current)} />
           : workspaceView === "report" ? <ManagementReport store={store} selection={selection} now={deadlineClock}
-            onOpen={openWorkspaceRecord} />
+            onOpen={revealWorkspaceRecord} />
           : selectedEntitySource ? <EntityOverview store={store} entity={selectedEntitySource}
             onEdit={() => setModal({ type: "edit-entity", entityId: selectedEntitySource.id })}
             onNewEngagement={() => setModal({ type: "create-engagement", entityId: selectedEntitySource.id })}
@@ -983,10 +1010,10 @@ function DashboardWorkbench() {
             onDelete={() => setModal({ type: "delete-entity", targetId: selectedEntitySource.id, name: selectedEntitySource.legalName })}
             onMerge={() => setModal({ type: "merge-entities", entityId: selectedEntitySource.id })} />
           : selectedProject ? <ProjectDetail project={selectedProject} rawProject={selectedProjectSource} statuses={outstandingStatusViews}
-          parentMembership={selectedProjectMembership}
+          parentMembership={selectedProjectMembership} onWorkflowRevealed={() => setWorkflowReveal(null)} workflowReveal={workflowReveal?.targetId === selectedProjectSource.id ? workflowReveal : null}
           quickUpdate={selectedEngagement && <QuickUpdate key={selectedEngagement.id} engagement={selectedEngagement}
             readOnly={Boolean(selectedEngagement.archived || selectedRecordEntity?.archived)} drafts={quickDrafts.current}
-            showSummary={false} onSave={saveQuickUpdate} onContinue={(action) => setActiveWorkstreamId(action.workstreamId)} />}
+            showSummary={false} onSave={saveQuickUpdate} onContinue={() => revealNextStep(selectedEngagement.id)} />}
           activeWorkstreamId={activeWorkstreamId} setActiveWorkstreamId={setActiveWorkstreamId} updateWorkflowNodes={updateWorkflowNodes}
           setModal={setModal} duplicateProject={duplicateProject} archiveTarget={archiveTarget} restoreTarget={restoreTarget}
           onReorderWorkstreams={reorderProjectWorkstreams} deadlineClock={deadlineClock} />
@@ -1010,10 +1037,12 @@ function DashboardWorkbench() {
               data-tooltip={t("收起待清中心")} data-tooltip-side="left" onClick={collapseOutstandingPanel}>
               <PanelRightClose aria-hidden="true" /></button></header>
           {workspaceView === "home" ? <div className="outstanding-center-empty">{t("首页已经汇总所有活跃项目的优先事项；打开项目后可处理该项目的待清事项。")}</div>
-            : selectedProject ? <OutstandingCenter store={store} target={selectedProjectSource} targetKind="project" statuses={outstandingStatusViews}
+            : selectedProject ? <OutstandingCenter key={selectedProjectSource.id} revealRequest={outstandingReveal}
+            onRevealHandled={() => setOutstandingReveal(null)} store={store} target={selectedProjectSource} targetKind="project" statuses={outstandingStatusViews}
             updateProject={updateProject} updateGroup={updateGroup} setModal={setModal} setSelection={(next) => openWorkspaceRecord(next.kind, next.id)} notify={notify}
             readOnly={selectedProjectSource.archived} activeWorkstreamId={activeWorkstreamId} />
-            : selectedGroup ? <OutstandingCenter store={store} target={selectedGroupSource} targetKind="group" statuses={outstandingStatusViews}
+            : selectedGroup ? <OutstandingCenter key={selectedGroupSource.id} revealRequest={outstandingReveal}
+              onRevealHandled={() => setOutstandingReveal(null)} store={store} target={selectedGroupSource} targetKind="group" statuses={outstandingStatusViews}
               updateProject={updateProject} updateGroup={updateGroup} setModal={setModal} setSelection={(next) => openWorkspaceRecord(next.kind, next.id)} notify={notify}
               readOnly={selectedGroupSource.archived} />
               : selectedEntitySource ? <div className="outstanding-center-empty">{t("公司概览会汇总历年项目；进入某一年度查看该年度待清事项。")}</div>
@@ -1253,7 +1282,7 @@ function DetailFactAction({ label, children, onClick, actionLabel, icon: Icon = 
 }
 
 function ProjectDetail({ project, rawProject, statuses, parentMembership, activeWorkstreamId, setActiveWorkstreamId,
-  updateWorkflowNodes, setModal, duplicateProject, archiveTarget, restoreTarget, onReorderWorkstreams, deadlineClock, quickUpdate }) {
+  updateWorkflowNodes, setModal, duplicateProject, archiveTarget, restoreTarget, onReorderWorkstreams, deadlineClock, quickUpdate, workflowReveal, onWorkflowRevealed }) {
   const { language, t } = useUiLanguage();
   const draggingWorkstreamRef = React.useRef(null);
   const [draggingWorkstreamId, setDraggingWorkstreamId] = React.useState(null);
@@ -1379,7 +1408,8 @@ function ProjectDetail({ project, rawProject, statuses, parentMembership, active
     </section>
 
     {activeWorkstream && activeRawWorkstream && <section className="workflow-panel">
-      <WorkflowNodes targetKind="project" targetId={rawProject.id} workstreamId={activeRawWorkstream.id}
+      <WorkflowNodes key={activeRawWorkstream.id} targetKind="project" targetId={rawProject.id} workstreamId={activeRawWorkstream.id}
+        revealRequest={workflowReveal?.workstreamId === activeRawWorkstream.id ? workflowReveal : null} onRevealHandled={onWorkflowRevealed}
         nodes={activeWorkstream.nodes} updateWorkflowNodes={updateWorkflowNodes} setModal={setModal} readOnly={readOnly}
         label={t("模块节点")} title={workstreamTypeLabel(activeWorkstream.type, language, activeWorkstream.customName)}
         description={t("点击节点查看完成条件；再次点击可收起详情。")}
@@ -1457,7 +1487,7 @@ function GroupDetail({ store, group, statuses, updateWorkflowNodes, setModal, se
 }
 
 function WorkflowNodes({ targetKind, targetId, workstreamId = null, nodes, updateWorkflowNodes, setModal, readOnly,
-  label = "", title = "", description = "", percentage = null }) {
+  label = "", title = "", description = "", percentage = null, revealRequest = null, onRevealHandled }) {
   const { t } = useUiLanguage();
   const update = (updater) => updateWorkflowNodes(targetKind, targetId, workstreamId, updater);
   const actions = {
@@ -1487,16 +1517,18 @@ function WorkflowNodes({ targetKind, targetId, workstreamId = null, nodes, updat
       update((current) => current.filter((item) => item.id !== node.id));
     },
   };
-  return <NodeBoard nodes={nodes} readOnly={readOnly} actions={actions} label={label} title={title}
+  return <NodeBoard nodes={nodes} revealRequest={revealRequest} onRevealHandled={onRevealHandled} readOnly={readOnly} actions={actions} label={label} title={title}
     description={description} percentage={percentage} />;
 }
 
 function OutstandingCenter({ store, target, targetKind, statuses, updateProject, updateGroup, setModal, setSelection,
-  notify, readOnly = false, activeWorkstreamId = null }) {
+  notify, readOnly = false, activeWorkstreamId = null, revealRequest = null, onRevealHandled }) {
   const { language, t } = useUiLanguage();
   const [visibilityFilter, setVisibilityFilter] = React.useState("open");
   const [statusFilter, setStatusFilter] = React.useState("all");
   const [moduleFilter, setModuleFilter] = React.useState("all");
+  const [revealedItemId, setRevealedItemId] = React.useState(null);
+  const cardsRef = React.useRef(new Map());
   const rawEntries = targetKind === "group"
     ? collectGroupOutstandingEntries(store, target.id, new Set(), 0, readOnly)
     : (target.outstandingItems || []).map((item) => ({ item, sourceType: "project", sourceId: target.id,
@@ -1524,6 +1556,24 @@ function OutstandingCenter({ store, target, targetKind, statuses, updateProject,
     if (visibilityFilter === "closed" && open) return false;
     return statusFilter === "all" || entry.item.status === statusFilter;
   });
+  React.useEffect(() => {
+    if (!revealRequest || revealRequest.targetId !== target.id) return;
+    const entry = entries.find((item) => item.sourceId === target.id && item.item.id === revealRequest.itemId);
+    if (!entry) { onRevealHandled?.(); return; }
+    setVisibilityFilter(outstandingIsOpen(entry.item, store.outstandingStatuses) ? "open" : "closed");
+    setStatusFilter("all"); setModuleFilter("all"); setRevealedItemId(entry.item.id);
+  }, [revealRequest, target.id]);
+  React.useEffect(() => {
+    if (!revealRequest || revealRequest.targetId !== target.id || revealedItemId !== revealRequest.itemId
+      || statusFilter !== "all" || moduleFilter !== "all") return;
+    const card = cardsRef.current.get(`${target.id}:${revealRequest.itemId}`);
+    if (!card) return;
+    const frame = window.requestAnimationFrame(() => {
+      card.focus({ preventScroll: true }); card.scrollIntoView({ block: "nearest", inline: "nearest" });
+      onRevealHandled?.();
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [revealRequest, revealedItemId, visibilityFilter, statusFilter, moduleFilter, target.id, onRevealHandled]);
   const statusById = (id) => statuses.find((status) => status.id === id) || statuses[0];
   const updateSource = (entry, updater) => (entry.sourceType === "group" ? updateGroup : updateProject)(entry.sourceId,
     (source) => ({ ...source, outstandingItems: updater(source.outstandingItems || []) }));
@@ -1552,11 +1602,15 @@ function OutstandingCenter({ store, target, targetKind, statuses, updateProject,
           targetId: target.id, defaultWorkstreamId: targetKind === "project" ? activeWorkstreamId : null })}><ListPlus aria-hidden="true" /></button></div>}</div>
     <div className="outstanding-list">{visible.map((entry) => {
       const status = statusById(entry.item.status);
-      return <article className="outstanding-item" style={{ "--status-color": status?.color || "#778078" }} key={`${entry.sourceId}-${entry.item.id}`}>
+      return <article className="outstanding-item" tabIndex="-1" aria-label={entry.item.title}
+        data-revealed={entry.item.id === revealedItemId || undefined}
+        ref={(element) => { const key = `${entry.sourceId}:${entry.item.id}`;
+          if (element) cardsRef.current.set(key, element); else cardsRef.current.delete(key); }} style={{ "--status-color": status?.color || "#778078" }} key={`${entry.sourceId}-${entry.item.id}`}>
         <header><span className="status-color-dot" aria-hidden="true" /><strong>{entry.item.title}</strong></header>
         <div className="outstanding-source"><button type="button" onClick={() => setSelection({ kind: entry.sourceType, id: entry.sourceId })}>{entry.sourceName}</button>
           <span>{entry.moduleLabel}</span></div>{entry.item.note && <p>{entry.item.note}</p>}
         <footer>{readOnly ? <span className="status-color-pill">{status?.label || entry.item.status}</span> : <select value={entry.item.status}
+          aria-label={t("待清事项状态：{name}", { name: entry.item.title })}
           style={{ "--status-color": status?.color || "#778078" }} onChange={(event) => updateStatus(entry, event.target.value)}>
           {statuses.map((option) => <option value={option.id} key={option.id}>{option.label}</option>)}</select>}
           {!readOnly && <div><button type="button" onClick={() => setModal({ type: "outstanding", targetKind: entry.sourceType,

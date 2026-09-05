@@ -204,30 +204,6 @@
     gap: 12px;
   }
 
-  .workbench-modal .status-editor-row {
-    grid-template-columns: 8px minmax(0, 1fr) auto auto auto;
-    align-items: end;
-  }
-
-  .workbench-modal .status-editor-dot {
-    align-self: end;
-    margin-bottom: 17px;
-  }
-
-  .workbench-modal .status-editor-row > :is(.status-closed-option, small, div) {
-    display: flex;
-    min-height: var(--wb-field-height);
-    align-items: center;
-  }
-
-  .workbench-modal .status-editor-row > small {
-    justify-content: flex-end;
-  }
-
-  .workbench-modal .status-closed-option {
-    white-space: normal;
-  }
-
   .workbench-modal .readiness-edit-row {
     grid-template-columns: 18px minmax(0, 1fr) 32px;
     align-items: center;
@@ -277,21 +253,6 @@
     .workbench-modal .sample-editor-summary > small {
       grid-column: 1 / -1;
       padding-bottom: 0;
-    }
-
-    .workbench-modal .status-editor-row {
-      grid-template-columns: 8px minmax(0, 1fr) auto;
-    }
-
-    .workbench-modal .status-editor-row > label:first-of-type {
-      grid-column: 2 / -1;
-    }
-
-    .workbench-modal .status-closed-option { grid-column: 2; }
-    .workbench-modal .status-editor-row > small { grid-column: 3; }
-    .workbench-modal .status-editor-row > div {
-      grid-column: 2 / -1;
-      justify-content: flex-end;
     }
 
     .workbench-modal .group-batch-list > article {
@@ -344,5 +305,51 @@
   .workbench-modal > header { padding: 16px; }
   .workbench-modal :is(.sample-editor, .status-editor, .group-sample-editor) {
     padding: 16px;
+  }
+}
+
+/* Status rows contain native color fields, not decorative eight-pixel dots. */
+@media screen {
+  .workbench-modal .status-editor-row {
+    grid-template-columns: 84px minmax(0, 1fr) minmax(100px, 140px) auto;
+    grid-template-areas: "color name closed actions" ". usage . .";
+    align-items: end; gap: 6px 12px; padding: 12px;
+  }
+  .workbench-modal .status-editor-row > .status-color-field {
+    grid-area: color; display: grid; align-items: start; gap: 6px;
+  }
+  .workbench-modal .status-editor-row > .status-name-field {
+    grid-area: name; display: grid; gap: 6px;
+  }
+  .workbench-modal .status-color-field input[type="color"] {
+    width: 42px; min-width: 42px; height: 42px; min-height: 42px; margin: 0; padding: 3px;
+    border: 1px solid var(--border); border-radius: 8px; background: var(--surface-raised);
+  }
+  .workbench-modal .status-editor-row > .status-closed-option {
+    grid-area: closed; display: flex; min-height: 42px; align-items: center; gap: 8px;
+    white-space: normal; line-height: 1.4;
+  }
+  .workbench-modal .status-editor-row > small {
+    grid-area: usage; min-width: 0; align-self: start; text-align: left; white-space: normal;
+  }
+  .workbench-modal .status-editor-row > .status-row-actions {
+    grid-area: actions; display: flex; min-height: 42px; align-items: center; gap: 4px;
+  }
+  .workbench-modal .status-row-actions button.icon-only {
+    width: 32px; min-width: 32px; height: 32px; min-height: 32px; padding: 0;
+  }
+  .workbench-modal .status-editor-row label > span { font-weight: 600; line-height: 1.4; }
+  @container apw-dialog (max-width: 680px) {
+    .workbench-modal .status-editor-row {
+      grid-template-columns: 84px minmax(0, 1fr) auto;
+      grid-template-areas: "color name name" "closed closed actions" "usage usage usage";
+      align-items: end; gap: 8px 12px;
+    }
+  }
+  .audit-workbench .outstanding-item[data-revealed] {
+    border-color: var(--wb-accent); box-shadow: inset 3px 0 0 var(--wb-accent);
+  }
+  .audit-workbench :is(.outstanding-item, .node-detail-panel, .node-board):focus {
+    outline: 2px solid var(--wb-accent); outline-offset: -2px;
   }
 }

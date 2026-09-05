@@ -19,7 +19,7 @@ function deadlineBadge(item, t) {
 }
 
 export function HomeOverview({ store, now, onOpen, onOpenDeadline, onNewCompany, onNewEngagement,
-  onShowDeadlines, onShowProjects, onShowSchedule, recentVisits = [], onClearRecent }) {
+  onShowDeadlines, onShowProjects, onShowSchedule, recentVisits = [], onClearRecent, onOpenOutstanding }) {
   const { language, t } = useUiLanguage();
   const overview = React.useMemo(() => {
     const data = homeOverviewData(store, now);
@@ -84,6 +84,9 @@ export function HomeOverview({ store, now, onOpen, onOpenDeadline, onNewCompany,
   const openPriority = (item) => {
     if (item.category === "deadline") { onOpenDeadline(item.alert); return; }
     if (item.category === "new_engagement") { onNewEngagement(item.entity.id); return; }
+    if (item.category === "outstanding" && onOpenOutstanding) {
+      onOpenOutstanding(item.record.kind, item.record.id, item.item.id); return;
+    }
     if (item.record) onOpen(item.record.kind, item.record.id);
   };
 
