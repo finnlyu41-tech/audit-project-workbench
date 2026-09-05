@@ -6,6 +6,12 @@ The project follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Quick open and navigation continuity
+
+- Added a Quick open action and Cmd/Ctrl+K for local company/engagement lookup by company, reporting year, type and owner. Recent records rank first, archives require explicit opt-in, and keyboard selection respects IME composition.
+- App back/forward retains navigation search, filters, list mode, active workstream and main-workspace scroll in memory. Missing or newly archived destinations are resolved safely without restoring old business data.
+- Archived company overviews no longer expose editing, merging or new-engagement actions; historical period summaries open the read-only record.
+
 ### Guide and icon affordances
 
 - The built-in user guide now has an autofocus search that matches both localized and source guide text, filters the feature directory, and shows a clear empty state.
