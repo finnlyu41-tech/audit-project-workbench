@@ -4,6 +4,7 @@ import App from "./App.jsx";
 import "./theme.css";
 import "./dashboard/controls.css";
 import "./dashboard/feedback.css";
+import "./dashboard/company-entry.css";
 import "./dashboard/ux.css";
 import "./dashboard/quick-open.css";
 import "./dashboard/editor-safety.css";

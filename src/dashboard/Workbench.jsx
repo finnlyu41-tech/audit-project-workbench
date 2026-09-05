@@ -533,6 +533,8 @@ function DashboardWorkbench() {
     const createdIds = [entity.id, ...members.map((member) => member.id)];
     setStore((current) => ({ ...current, entities: [entity, ...members, ...current.entities],
       entityOrder: [...createdIds, ...(current.entityOrder || []).filter((id) => !createdIds.includes(id))] }));
+    setSearch(""); setNavigationFilters({ owner: "", engagementType: "", reportingYear: "" });
+    setNavigationView("companies"); pendingWorkspaceFocus.current = true;
     setSelection({ kind: "entity", id: entity.id }); setWorkspaceView("detail"); setFilter("all"); setModal(null);
     notify(t(members.length ? "集团及 {count} 家公司已建立并自动保存" : "公司主档已建立并自动保存",
       { count: members.length }));

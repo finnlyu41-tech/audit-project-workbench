@@ -4,6 +4,9 @@ import { toTraditional } from "./traditional.js";
 export const LANGUAGE_PREFERENCE_KEY = "audit-progress-workbench:language";
 
 const english = {
+  "切换为单个公司会清除本次填写的集团成员。是否继续？": "Switching to a single company will discard the member-company entries in this draft. Continue?",
+  "每行都需填写公司名称；不用的行请移除。所有成员都归属于上方集团。": "Every row needs a company name. Remove unused rows. All members belong to the holding company above.",
+  "成员公司 {number}": "Member company {number}",
   "阅读操作提示": "Reading operation notifications",
   "普通操作提示显示在工作台顶部；打开弹窗时显示在标题下方，不会盖住保存或取消按钮。": "Operation notifications appear above the workbench or below the active dialog title, without covering Save or Cancel.",
   "提示显示 8–20 秒；悬停、键盘焦点停留或页面隐藏时暂停计时，也可以单独关闭提示。": "Notifications last 8\u201320 seconds. Hover, keyboard focus or a hidden page pauses the timer; the notification can also be dismissed.",
