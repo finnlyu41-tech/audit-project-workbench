@@ -6,6 +6,12 @@ The project follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Template-library usability
+
+- Library cards wrap long names, descriptions, tags and version notes; controls align across narrow and wide dialogs.
+- Added current-category metadata search, result counts and filtered-empty recovery without changing stored templates.
+- Saving and copying reveal the actual template; cancel preserves filters and existing draft protection. Selected templates expose their pressed state.
+
 ### Report usability and complete risks
 
 - Align report controls and long labels; add named keyboard-scrollable regions to report tables.

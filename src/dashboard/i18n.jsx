@@ -4,6 +4,17 @@ import { toTraditional } from "./traditional.js";
 export const LANGUAGE_PREFERENCE_KEY = "audit-progress-workbench:language";
 
 const english = {
+  "在范本库查找和继续编辑": "Find templates and continue editing",
+  "在当前种类按名称、说明、标签和版本组合搜索，标签筛选与排序仍可叠加。": "Combine name, description, tag and version terms within the current category, alongside tag filters and sorting.",
+  "没有匹配不代表范本被删除；清除搜索和标签即可查看当前种类全部范本。": "No matches does not mean templates were deleted. Clear the search and tag to see this category.",
+  "新建、保存或复制后会清除遮挡结果的筛选并定位到实际范本；取消会保留原筛选。": "Creating, saving or copying reveals that template and clears obstructing filters. Cancel preserves the filters.",
+  "查找不会修改范本或现有项目，节点及完成条件正文不参与搜索。": "Searching changes neither templates nor existing engagements. Stage and criterion text is not indexed.",
+  "查找当前种类范本": "Find templates in this category",
+  "名称、说明、标签或版本": "Name, description, tags or version",
+  "当前种类：显示 {visible} / {total} 个范本": "This category: showing {visible} of {total} templates",
+  "清除范本筛选": "Clear template filters",
+  "没有符合筛选的范本": "No templates match the filters",
+  "此种类仍有范本；清除搜索或标签筛选即可查看。": "This category still has templates. Clear the search or tag filter to see them.",
   "查看全部风险并打开来源": "View every risk and open its source",
   "每类风险先显示二十项；选择展开全部风险查看余下事项，筛选报告后会恢复收起。": "Each risk list starts with twenty items. Show all risks reveals the rest; changing report filters collapses it again.",
   "点击税务或待清风险直接定位对应期限或事项；展开和跳转不会修改业务资料。": "Tax and outstanding risks open their exact deadline or item. Expanding and navigating do not change business records.",

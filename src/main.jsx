@@ -14,6 +14,7 @@ import "./dashboard/deadline-alerts.css";
 
 import "./dashboard/schedule-usability.css";
 import "./dashboard/report-usability.css";
+import "./dashboard/template-library.css";
 
 createRoot(document.getElementById("root")).render(
   <React.StrictMode>

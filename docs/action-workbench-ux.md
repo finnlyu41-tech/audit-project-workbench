@@ -145,3 +145,13 @@ Tax risk actions call the existing deadline-opening handler with the source and 
 Printing deliberately includes every risk in the computed report scope, independent of screen disclosure. The former first-twenty truncation is removed. Long risk lists may span more pages. Risk rows avoid internal page breaks, list sections may span pages, and the portfolio detail table is constrained to the page width so its last columns remain printable. Existing report scope and page-numbering styles remain in place. No new customer fields, notes or reference numbers are added to reports.
 
 Verification uses fictional records with more than twenty risks, duplicate item IDs across sources and long names. It covers report filtering, expand/collapse, exact source navigation, archive opening, native table sorting, keyboard scroll, 800/1024/1440/1920px layouts, accessibility, and print-media completeness. A synthetic Chromium PDF is also rendered and checked for all risk entries, readable columns and absence of private notes/references. No user browser profile or real client dataset is used.
+
+## Template-library search and layout
+
+Business and holding-company library cards now wrap names, descriptions, tags and version notes. Library controls use the shared 42px field height and at least 36px icon actions; narrow dialogs show one card per row. The selected template retains its existing preference behavior and exposes an `aria-pressed` state.
+
+Metadata search is limited to the current category and combines name, description, tag and version terms using normalized full-width/case-insensitive matching. Exact tag filtering and the prior sort comparators are unchanged. Workflow nodes, completion criteria and readiness text are not indexed. Search is view-only and does not change saved template preferences, engagements, companies or exported package contents.
+
+Filtered-empty lists explain that templates still exist and offer a clear-filter action. Truly empty categories retain their creation action. Clear-filter resets only query and tag, not category or sorting. Saving or copying switches to the result category, clears obstructing filters and focuses the actual template card without an extra selection write. Cancelling an editor preserves query/tag state and the existing unsaved-change guard. Search state is session-local and is not added to navigation history or exported business data.
+
+Import/export formats, replacement decisions, deletion confirmation and existing template-selection/use handlers are retained. This pass does not redesign creation from templates or change how editing a template remains independent of existing engagements. All tests use fictional metadata and isolated browser contexts.
