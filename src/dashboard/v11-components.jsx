@@ -11,6 +11,7 @@ import { engagementPeriodExists, engagementReportingPeriods, engagementReporting
 import { useUiLanguage } from "./i18n.jsx";
 import { DateRangePicker } from "./date-range-picker.jsx";
 import { filterHoldingComponents, holdingComponentRows } from "./holding-components-model.js";
+import { companyAnnualRows, filterAnnualProjects } from "./company-overview-model.js";
 import { AdvancedSection } from "./ux-components.jsx";
 
 const FRAMEWORKS = [
@@ -417,9 +418,15 @@ export function EngagementForm({ store, entity, initial = null, preferredSourceI
 }
 
 export function EntityOverview({ store, entity, onEdit, onNewEngagement, onOpenEngagement, onEditEngagement,
-  onTax, onArchive, onRestore, onDelete, onMerge }) {
+  onTax, onArchive, onRestore, onDelete, onMerge, onOpenOutstanding }) {
   const { language, t } = useUiLanguage();
   const engagements = engagementsForEntity(store, entity.id);
+  const [annualQuery, setAnnualQuery] = React.useState("");
+  const [annualScope, setAnnualScope] = React.useState("all");
+  const annualSearchRef = React.useRef(null);
+  const annualRows = React.useMemo(() => companyAnnualRows(store, entity, language), [store, entity, language]);
+  const visibleAnnual = filterAnnualProjects(annualRows, annualQuery, annualScope);
+  const clearAnnualFilters = () => { setAnnualQuery(""); setAnnualScope("all"); annualSearchRef.current?.focus(); };
   const active = engagements.filter((engagement) => !engagement.archived);
   const latestEngagement = active[0] || engagements[0] || null;
   const latestPeriodLabel = formalReportingPeriodLabel(latestEngagement, language);
@@ -457,34 +464,47 @@ export function EntityOverview({ store, entity, onEdit, onNewEngagement, onOpenE
     <section className="annual-project-list"><header><div><h3>{t("历年项目")}</h3>
       <p>{t("一个项目可包含多个报告年度，并共用模块、负责人、排期、待清事项和进度。")}</p></div>
       {!entity.archived && <button type="button" className="button secondary" onClick={onNewEngagement}><CalendarPlus aria-hidden="true" />{t("新建年度项目")}</button>}</header>
-      {engagements.length ? <div className="annual-project-rows">{engagements.map((engagement) => {
-        const view = entity.kind === "holding_company" ? store.groups.find((item) => item.id === engagement.id)
-          : store.projects.find((item) => item.id === engagement.id);
-        const stats = entity.kind === "holding_company" ? null : projectStats(view || { workstreams: [] });
-        const percentage = stats?.percentage || 0;
-        return <article key={engagement.id} data-archived={engagement.archived || undefined}>
+      {engagements.length > 0 && <div className="annual-filters">
+        <label><span>{t("查找历年项目")}</span><span className="annual-search-control"><Search aria-hidden="true" />
+          <input ref={annualSearchRef} type="search" value={annualQuery} onChange={(event) => setAnnualQuery(event.target.value)}
+            aria-label={t("查找历年项目")} placeholder={t("报告年度、项目类型或负责人")} /></span></label>
+        <span className="annual-result-count" role="status">{t("显示 {visible} / {total} 个项目", { visible: visibleAnnual.length, total: annualRows.length })}</span>
+        <div className="annual-filter-options" role="group" aria-label={t("历年项目筛选")}>
+          {[["all", "全部项目"], ["unarchived", "未归档"], ["archived", "已归档"]].map(([value, label]) =>
+            <button type="button" key={value} aria-pressed={annualScope === value} onClick={() => setAnnualScope(value)}>
+              <span>{t(label)}</span><strong>{filterAnnualProjects(annualRows, annualQuery, value).length}</strong></button>)}
+          {(annualQuery || annualScope !== "all") && <button type="button" onClick={clearAnnualFilters}>{t("清除筛选")}</button>}
+        </div>
+      </div>}
+      {engagements.length ? visibleAnnual.length ? <div className="annual-project-rows">{visibleAnnual.map(({ engagement, percentage, archived }) =>
+        <article key={engagement.id} data-engagement-id={engagement.id} data-archived={archived || undefined}>
           <button type="button" className="annual-project-open" onClick={() => onOpenEngagement(engagement)}>
             <span className="annual-period"><strong>{yearEndOrPeriodLabel(engagement, language)}</strong>
               <small>{engagementTypesLabel(engagement, language) || t("项目类型未设置")}</small>
               <small>{engagementReportingPeriods(engagement).map((period) =>
-                `${formatDate(period.periodStart, language)} → ${formatDate(period.periodEnd, language)}`).join(" · ")}</small></span>
+                `${formatDate(period.periodStart, language)} → ${formatDate(period.periodEnd, language)}`).join(" · ")}</small>
+              {archived && <small className="annual-archive-label">{t("已归档，只读")}</small>}</span>
             <span className="annual-owner"><small>{t("负责人")}</small><strong>{engagement.owner || t("未设置")}</strong></span>
-            <span className="annual-schedule"><small>{t("项目排期")}</small><strong>{engagement.startDate && engagement.dueDate
-              ? `${formatDate(engagement.startDate, language)} → ${formatDate(engagement.dueDate, language)}` : t("未完整设置")}</strong></span>
+            <span className="annual-schedule"><small>{t("项目排期")}</small><strong>
+              <span>{engagement.startDate ? formatDate(engagement.startDate, language) : t("未设置开始日")}</span>
+              <span aria-hidden="true"> → </span><span>{engagement.dueDate ? formatDate(engagement.dueDate, language) : t("未设置截止日")}</span>
+            </strong></span>
             <span className="annual-progress"><ProgressBar value={percentage} compact /></span>
             <ChevronRight aria-hidden="true" /></button>
-          {!entity.archived && !engagement.archived && <button type="button" className="icon-only" onClick={() => onEditEngagement(engagement)}
-            aria-label={t("编辑年度项目")} data-tooltip={t("编辑年度项目")}><Settings2 aria-hidden="true" /></button>}
-        </article>;
-      })}</div> : <div className="entity-empty-projects"><CalendarPlus aria-hidden="true" /><strong>{t("这家公司还没有年度项目")}</strong>
-        <span>{t("先建立公司主档，再按需要加入 FY2023、FY2024、FY2025 等项目。")}</span>
-        {!entity.archived && <button type="button" className="button primary" onClick={onNewEngagement}>{t("建立第一个项目")}</button>}</div>}
+          {!archived && <button type="button" className="icon-only" onClick={() => onEditEngagement(engagement)}
+            aria-label={t("编辑年度项目")} data-tooltip={t("编辑年度项目")} data-tooltip-side="left"><Settings2 aria-hidden="true" /></button>}
+        </article>)}</div> : <div className="annual-filter-empty"><strong>{t("没有符合筛选的历年项目")}</strong>
+          <span>{t("清除筛选查看其他年度；搜索不会改变项目资料。")}</span>
+          <button type="button" className="button secondary" onClick={clearAnnualFilters}>{t("清除筛选")}</button></div>
+        : <div className="entity-empty-projects"><CalendarPlus aria-hidden="true" /><strong>{t("这家公司还没有年度项目")}</strong>
+          <span>{t("先建立公司主档，再按需要加入 FY2023、FY2024、FY2025 等项目。")}</span>
+          {!entity.archived && <button type="button" className="button primary" onClick={onNewEngagement}>{t("建立第一个项目")}</button>}</div>}
     </section>
     <section className="entity-outstanding-summary"><header><div><h3>{t("历年待清事项")}</h3>
       <p>{t("每项均标注来源年度；进入对应项目后处理。")}</p></div><strong>{openOutstanding.length}</strong></header>
       {openOutstanding.length ? <div>{openOutstanding.map(({ engagement, item }) => <button type="button" key={`${engagement.id}:${item.id}`}
-        onClick={() => onOpenEngagement(engagement)}><span><strong>{item.title}</strong><small>{yearEndOrPeriodLabel(engagement, language)}
-          </small></span>
+        onClick={() => onOpenOutstanding ? onOpenOutstanding(engagement, item) : onOpenEngagement(engagement)}><span><strong>{item.title}</strong><small>{yearEndOrPeriodLabel(engagement, language)}
+          </small>{(entity.archived || engagement.archived) && <small>{t("已归档，只读")}</small>}</span>
         <em>{outstandingStatusLabel(item.status, store.outstandingStatuses, language)}</em><ChevronRight aria-hidden="true" /></button>)}</div>
         : <p className="entity-children-empty">{t("所有年度项目目前都没有未清事项。")}</p>}
     </section>

@@ -89,3 +89,15 @@ Changing the assigned project still updates that component immediately. Panel se
 Historical scope does not change on opening, searching or filtering the panel. Structure synchronization retains its existing explicit confirmation. The new component filters are temporary view state, not saved business data or additional navigation-history fields.
 
 `tests/holding-components.test.js` checks pure diagnostics, complete-period matching, archived/missing targets and view-only search. `e2e/holding-components.spec.js` exercises layout, source navigation, search and filters, explicit assignment/readiness updates, historical scope and accessibility using the fictional fixture in `tests/fixtures/holding-workspace.js`.
+
+## Company master annual overview
+
+The company master now derives holding-company annual progress from `groupProgress`, the same function used by the workspace, instead of rendering a hard-coded zero. Company annual records retain `projectStats`. Neither calculation nor its treatment of archived records is changed.
+
+A local search combines report-year, displayed/English project-type and owner tokens, including normalized full-width input. All periods of a multi-period engagement are searchable. Notes and other sensitive free-text fields are not indexed. The default remains all annual records; explicit unarchived and archived filters only affect this list. Company totals and the separate outstanding summary remain unfiltered. View filters reset when changing companies and are not saved into business records or navigation history.
+
+Annual cards preserve full period labels, owner and both available schedule dates. Missing starts and deadlines are separately labelled instead of hiding the supplied half of a schedule. Card layout responds to the actual panel width. Archived badges remain visible and edit actions stay unavailable for archived companies or engagements.
+
+Outstanding-item shortcuts on the company master reuse the existing exact-item reveal flow. They open the proper record, clear stale navigation filters, expand the outstanding centre and focus the corresponding card; archived sources remain read-only. This does not modify completion status or any saved project fields.
+
+Verification is in `tests/company-overview.test.js` and `e2e/company-overview.spec.js`, with fictional data in `tests/fixtures/company-overview.js`. No schema, persistence, tax-deadline rules or report-printing configuration is changed.

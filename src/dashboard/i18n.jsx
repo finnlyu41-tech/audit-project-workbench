@@ -4,6 +4,18 @@ import { toTraditional } from "./traditional.js";
 export const LANGUAGE_PREFERENCE_KEY = "audit-progress-workbench:language";
 
 const english = {
+  "查找公司的历年项目": "Find annual engagements for a company",
+  "在公司主档按报告年度、项目类型或负责人组合搜索，也可查看未归档或已归档项目。": "In the company master, combine reporting years, project types or owners to search, or filter unarchived and archived engagements.",
+  "历年待清事项会直接打开对应卡片；归档来源仍只能查看。": "Outstanding-item shortcuts reveal the corresponding card. Archived sources remain read-only.",
+  "搜索和筛选不改变业务资料，项目进度与工作区使用同一计算规则。": "Search and filters do not change business data. Progress uses the same calculations as the workspace.",
+  "查找历年项目": "Search annual engagements",
+  "报告年度、项目类型或负责人": "Reporting year, project type or owner",
+  "显示 {visible} / {total} 个项目": "Showing {visible} of {total} engagements",
+  "历年项目筛选": "Annual engagement filters",
+  "全部项目": "All engagements",
+  "未归档": "Unarchived",
+  "没有符合筛选的历年项目": "No annual engagements match these filters.",
+  "清除筛选查看其他年度；搜索不会改变项目资料。": "Clear filters to see other years. Searching does not change project data.",
   "关联来源已归档": "Linked source archived",
   "查找本年度组成部分": "Find annual components",
   "在组成部分面板按公司、角色或负责人搜索，可筛出待指定或期间不匹配的记录。": "Search the component panel by company, role or owner, or filter unassigned and period-mismatched records.",
