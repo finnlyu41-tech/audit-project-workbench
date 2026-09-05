@@ -7,6 +7,7 @@ import "./dashboard/ux.css";
 import "./dashboard/quick-open.css";
 import "./dashboard/editor-safety.css";
 import "./dashboard/tax-editor.css";
+import "./dashboard/holding-components.css";
 
 createRoot(document.getElementById("root")).render(
   <React.StrictMode>

@@ -1056,7 +1056,7 @@ function DashboardWorkbench() {
             quickUpdate={selectedEngagement && <QuickUpdate key={selectedEngagement.id} engagement={selectedEngagement}
               readOnly={Boolean(selectedEngagement.archived || selectedRecordEntity?.archived)}
               drafts={quickDrafts.current} onSave={saveQuickUpdate} />}
-            updateWorkflowNodes={updateWorkflowNodes} setModal={setModal} setSelection={(next) => openWorkspaceRecord(next.kind, next.id)}
+            updateWorkflowNodes={updateWorkflowNodes} setModal={setModal} onOpenComponent={revealWorkspaceRecord}
             updateEngagement={updateEngagement} setStore={setStore} selectedGroupSample={selectedGroupSample}
             archiveTarget={archiveTarget} restoreTarget={restoreTarget} deadlineClock={deadlineClock} />
             : <div className="detail-empty"><span className="empty-mark">◎</span><h2>{t("选择公司或年度项目")}</h2>
@@ -1458,7 +1458,7 @@ function ProjectDetail({ project, rawProject, statuses, parentMembership, active
   </div>;
 }
 
-function GroupDetail({ store, group, statuses, updateWorkflowNodes, setModal, setSelection, updateEngagement, setStore,
+function GroupDetail({ store, group, statuses, updateWorkflowNodes, setModal, onOpenComponent, updateEngagement, setStore,
   selectedGroupSample, archiveTarget, restoreTarget, deadlineClock, quickUpdate }) {
   const { language, t } = useUiLanguage();
   const [tab, setTab] = React.useState("overview");
@@ -1500,8 +1500,8 @@ function GroupDetail({ store, group, statuses, updateWorkflowNodes, setModal, se
     <div className="group-tabs" role="tablist" aria-label={t("控股公司工作区")} onKeyDown={handleTabListKeyDown}>{[["overview", "组成部分"], ["workflow", "合并节点"], ["settings", "集团资料"]]
       .map(([value, label]) => <button type="button" role="tab" aria-selected={tab === value} key={value}
         tabIndex={tabIndexFor(tab === value)} onClick={() => setTab(value)}>{t(label)}</button>)}</div>
-    {tab === "overview" && engagement && <HoldingComponentsPanel store={store} engagement={engagement} readOnly={readOnly}
-      onOpen={(kind, id) => setSelection({ kind, id })}
+    {tab === "overview" && engagement && <HoldingComponentsPanel key={engagement.id} store={store} engagement={engagement} readOnly={readOnly}
+      onOpen={onOpenComponent}
       onUpdate={(componentId, patch) => updateEngagement(engagement.id, (current) => ({ ...current,
         consolidation: { ...current.consolidation, components: (current.consolidation?.components || []).map((component) =>
           component.id === componentId ? { ...component, ...patch } : component) } }))}

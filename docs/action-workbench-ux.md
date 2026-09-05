@@ -77,3 +77,15 @@ The editor retains the original record snapshot for revision validation. Save an
 The form scrolls in the outer modal body, its footer stays visible, and fields reflow by actual dialog width. Cancel returns focus to the source edit button; save clears list filters and focuses the saved record. Subsidiary edits from the holding-company list target only the owning company. The current holding-component panel uses immediate updates, so legacy, unreachable member forms were not modified in this pass.
 
 Coverage: `tests/tax-editor-state.test.js` and `e2e/tax-editor-safety.spec.js`. Tests use fictional records only. As before, browser warnings do not guarantee draft recovery after refresh, forced shutdown or application replacement. No schema, legal-date calculation, report period, print layout or audit-signoff rules are added.
+
+## Annual component workspace
+
+The current holding-company component panel now reflows according to the actual workspace width. Company names wrap, annual project fields are 42px high, progress labels are centered against their graphics, and readiness checks retain readable text. The group summary also allows its labels to wrap instead of clipping them.
+
+Component search is local and view-only. It matches company name, role and the assigned project's owner; it does not search audit notes or upload text. Assignment filters identify unassigned and mismatched records using the existing complete-reporting-period comparison. A matching period is not evidence that audit work or consolidation readiness is complete. No match/readiness rules were changed.
+
+Changing the assigned project still updates that component immediately. Panel search and filters are cleared after assignment so the edited row stays visible; readiness checks remain explicit and immediate. Other component snapshots, audit conditions and tax records are unchanged. Missing-company rows keep their historical names and cannot accidentally open another source. Archived project candidates are labelled, and source navigation selects their read-only archive view instead of an active fallback.
+
+Historical scope does not change on opening, searching or filtering the panel. Structure synchronization retains its existing explicit confirmation. The new component filters are temporary view state, not saved business data or additional navigation-history fields.
+
+`tests/holding-components.test.js` checks pure diagnostics, complete-period matching, archived/missing targets and view-only search. `e2e/holding-components.spec.js` exercises layout, source navigation, search and filters, explicit assignment/readiness updates, historical scope and accessibility using the fictional fixture in `tests/fixtures/holding-workspace.js`.

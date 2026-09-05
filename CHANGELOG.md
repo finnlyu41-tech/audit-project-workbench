@@ -6,6 +6,12 @@ The project follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Holding component workspace
+
+- Reflow annual-component controls by panel width, retain full company/period labels and align 42px selectors, progress graphics and readiness criteria.
+- Add view-only component search and assignment/mismatch filters, explicit complete-period diagnostics and archived source labels without changing readiness or workflow calculations.
+- Component links now use canonical cross-workspace navigation, including archived sources; assignments remain immediate and historical scope is not automatically synced.
+
 ### Tax deadline editing
 
 - Tax deadline drafts now require confirmation before cancellation, closing or deletion; whitespace-only custom names and revision reasons show field errors.
