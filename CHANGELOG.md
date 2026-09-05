@@ -8,6 +8,8 @@ The project follows [Semantic Versioning](https://semver.org/).
 
 ### Company entry and batch completeness
 
+- Complete add/remove focus during the committed layout so a delayed animation frame cannot redirect typing intended for another member field.
+
 - Company master names and every visible batch member use linked non-blank validation. No unnamed member row is silently removed during submission.
 - Batch rows have labelled sections, equal-size fields, explicit removal and keyboard focus after row changes. Unused rows must be removed before creating the group.
 - Leaving a populated batch for single-company mode asks before discarding member entries; returning an untouched mode to its original state does not show a false draft warning.

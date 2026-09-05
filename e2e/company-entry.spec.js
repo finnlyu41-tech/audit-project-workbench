@@ -217,3 +217,30 @@ test('legal-name validation keeps adjacent master inputs on the same baseline', 
   const second = await dialog.getByLabel('Entity type (optional)').boundingBox();
   expect(Math.abs(first.y - second.y)).toBeLessThanOrEqual(1);
 });
+test('a delayed row reveal cannot steal focus from a subsequently selected field', async ({ page }) => {
+  const dialog = await openCompany(page, true);
+  await dialog.locator('.form-grid input').first().focus();
+  await expect(dialog.locator('.form-grid input').first()).toBeFocused();
+  // Hold animation callbacks to exercise a slow frame after the Add action.
+  await page.evaluate(() => {
+    const request = window.requestAnimationFrame; const cancel = window.cancelAnimationFrame;
+    const pending = new Map(); let next = -1;
+    window.requestAnimationFrame = (callback) => { const id = next--; pending.set(id, callback); return id; };
+    window.cancelAnimationFrame = (id) => { if (id < 0) pending.delete(id); else cancel.call(window, id); };
+    window.__releaseCompanyFrames = () => {
+      window.requestAnimationFrame = request; window.cancelAnimationFrame = cancel;
+      const callbacks = [...pending.values()]; pending.clear(); delete window.__releaseCompanyFrames;
+      callbacks.forEach((callback) => callback(performance.now()));
+    };
+    document.querySelector('.group-batch-builder > header button').click();
+  });
+  const second = dialog.locator('.group-batch-list > article').nth(1);
+  await expect(second).toHaveCount(1);
+  const type = second.getByLabel('Entity type (optional)');
+  await type.evaluate((element) => element.focus());
+  await page.evaluate(() => window.__releaseCompanyFrames());
+  await expect(type).toBeFocused();
+  await page.keyboard.insertText('Partnership');
+  await expect(type).toHaveValue('Partnership');
+  await expect(second.locator('input').first()).toHaveValue('');
+});
