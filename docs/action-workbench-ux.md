@@ -187,3 +187,13 @@ Messages receive a fresh identity even when their wording repeats. Reading time 
 Feedback remains session-only, latest-message-only and is not included in backups, reports or storage. These are ordinary operation messages, not a new confirmation of file persistence. The original backup status, validation, unsaved-draft prompts and storage-conflict controls remain authoritative and unchanged.
 
 Tests cover the export-then-import overlap, dirty-editor dismissal, keyboard containment, repeated messages, overlapping pauses, hidden-page events, long-name operation feedback, print suppression and accessible roles. Test data are fictional and browser contexts are isolated. The live-region design follows W3C ARIA22 and the APG modal-dialog pattern; automated checks do not replace hands-on assistive-technology testing.
+
+## Company entry and batch completeness
+
+CompanyForm reuses RequiredTextInput for the legal entity and for every visible member company. Empty or whitespace-only names have linked inline errors and focused validation; an incomplete later row no longer disappears from the submitted payload. Every visible member row is required. Remove unused rows explicitly. All rows are validated before the existing single company/group state update occurs.
+
+The editor-only helper preserves the existing edge trimming, member order, financial-year values and parent-role semantics. It does not introduce company-name uniqueness, translation or other audit rules. Defaults used by each newly added row are retained only in memory so abandoning entered member metadata requires confirmation, while untouched defaults do not. Confirming a switch to single-company mode discards only the batch-member draft and retains the parent fields. Existing editor-close protection remains in place; none of this is a cross-refresh draft backup.
+
+Member cards have numbered accessible groups, equally sized 42px fields and 36px removal controls. Add/remove operations focus the corresponding new or surviving member; the last remaining row cannot be removed. New company creation clears navigation search and advanced filters, returns to company-list mode and focuses the new master. Cancelling does not change navigation filters or business data. Existing-company edits and the template-start company draft reuse the same required-name validation.
+
+Tests use fictional records and cover no partial submission, correcting/removing invalid rows, mode confirmation/reversion, preserved prior engagements, template-start drafts, narrow geometry, keyboard focus and accessibility. model.js, the canonical schema, persistence, audit calculations, tax deadlines and print styles are unchanged.

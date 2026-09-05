@@ -1,0 +1,28 @@
+/* Company entry only; keep business records and printed reports unchanged. */
+@media screen {
+  .workbench-modal .company-master-form .group-batch-builder { padding: 14px; gap: 14px; }
+  .workbench-modal .company-master-form .group-batch-builder > header { flex-wrap: wrap; gap: 10px 16px; }
+  .workbench-modal .company-master-form .group-batch-builder > header strong { font-size: 15px; }
+  .workbench-modal .company-master-form .group-batch-builder > header span { font-size: 13px; line-height: 1.5; }
+  .workbench-modal .company-master-form .group-batch-list { gap: 14px; }
+  .workbench-modal .company-master-form .group-batch-list > article {
+    display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: start;
+    gap: 12px 16px; padding: 14px; border: 1px solid var(--border); border-radius: 10px;
+    background: var(--surface-raised);
+  }
+  .workbench-modal .company-master-form .group-batch-list > article > label { grid-column: auto; gap: 6px; }
+  .workbench-modal .company-master-form .group-batch-list > article > .batch-company-heading {
+    grid-column: 1 / -1; display: flex; min-width: 0; justify-content: space-between; align-items: center; gap: 12px;
+  }
+  .workbench-modal .batch-company-heading > strong { font-size: 14px; line-height: 1.4; }
+  .workbench-modal .company-master-form .batch-company-heading > .icon-only {
+    width: 36px; min-width: 36px; height: 36px; min-height: 36px; padding: 0;
+  }
+  .workbench-modal .company-master-form .group-batch-list :is(input, select) { height: 42px; font-size: 15px; padding: 9px 12px; }
+  .workbench-modal .company-master-form .group-batch-list select { padding-inline-end: 32px; }
+  .workbench-modal .company-master-form .group-batch-list label > span { font-size: 14px; line-height: 1.4; }
+  @container apw-dialog (max-width: 680px) {
+    .workbench-modal .company-master-form .group-batch-list > article { grid-template-columns: minmax(0, 1fr); padding: 12px; }
+    .workbench-modal .company-master-form .group-batch-builder { padding: 12px; }
+  }
+}

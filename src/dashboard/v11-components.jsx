@@ -1,4 +1,6 @@
 import React from "react";
+import { RequiredTextInput } from "./required-text-input.jsx";
+import { batchCompanyEdited, prepareCompanyEntry } from "./company-entry-state.js";
 import { useModalDraft } from "./modal-draft.jsx";
 import { Archive, ArchiveRestore, Building, Building2, CalendarDays, CalendarPlus, ChevronRight, CircleAlert,
   Edit3, FolderTree, GitMerge, Plus, ReceiptText, Search, Settings2, Trash2, X } from "lucide-react";
@@ -48,19 +50,53 @@ export function CompanyForm({ store, initial = null, onSubmit, onClose, creation
     fiscalYearPreset: initial?.fiscalYearPreset || "calendar",
     notes: initial?.notes || "",
   }));
-  const [batchCompanies, setBatchCompanies] = React.useState(() => [{
-    id: uid("batch-entity"), legalName: "", entityType: "", fiscalYearPreset: "calendar", relationshipRole: "子公司",
-  }]);
+  const batchBaselines = React.useRef(new Map());
+  const batchFields = React.useRef(new Map());
+  const pendingBatchFocus = React.useRef(null);
+  const makeBatchDraft = (preset) => {
+    const row = { id: uid("batch-entity"), legalName: "", entityType: "", fiscalYearPreset: preset, relationshipRole: "子公司" };
+    batchBaselines.current.set(row.id, { ...row }); return row;
+  };
+  const [batchCompanies, setBatchCompanies] = React.useState(() => [makeBatchDraft("calendar")]);
+  const initialBatchCompany = React.useRef(batchCompanies[0]);
+  const batchHelpId = React.useId();
   const { closeEditor } = useModalDraft({ values, creationMode, batchCompanies }, onClose);
   const update = (field) => (event) => setValues((current) => ({ ...current, [field]: event.target.value }));
   const updateBatchCompany = (id, field) => (event) => setBatchCompanies((current) => current.map((company) =>
     company.id === id ? { ...company, [field]: event.target.value } : company));
-  const addBatchCompany = () => setBatchCompanies((current) => [...current, {
-    id: uid("batch-entity"), legalName: "", entityType: "", fiscalYearPreset: values.fiscalYearPreset,
-    relationshipRole: "子公司",
-  }]);
-  const removeBatchCompany = (id) => setBatchCompanies((current) => current.length === 1
-    ? current : current.filter((company) => company.id !== id));
+  const addBatchCompany = () => {
+    const row = makeBatchDraft(values.fiscalYearPreset);
+    pendingBatchFocus.current = row.id;
+    setBatchCompanies((current) => [...current, row]);
+  };
+  const removeBatchCompany = (id) => {
+    if (batchCompanies.length === 1) return;
+    const index = batchCompanies.findIndex((company) => company.id === id);
+    if (index < 0) return;
+    pendingBatchFocus.current = (batchCompanies[index + 1] || batchCompanies[index - 1])?.id;
+    batchBaselines.current.delete(id);
+    setBatchCompanies((current) => current.filter((company) => company.id !== id));
+  };
+  React.useEffect(() => {
+    if (!pendingBatchFocus.current) return;
+    const frame = window.requestAnimationFrame(() => {
+      const field = batchFields.current.get(pendingBatchFocus.current);
+      pendingBatchFocus.current = null;
+      field?.focus({ preventScroll: true }); field?.scrollIntoView({ block: "nearest", inline: "nearest" });
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [batchCompanies]);
+  const changeCreationMode = (next) => {
+    if (next === creationMode) return;
+    if (next === "single" && batchCompanies.some((row) => batchCompanyEdited(row, batchBaselines.current.get(row.id)))
+      && !window.confirm(t("切换为单个公司会清除本次填写的集团成员。是否继续？"))) return;
+    if (next === "single") {
+      pendingBatchFocus.current = null; batchBaselines.current.clear();
+      batchBaselines.current.set(initialBatchCompany.current.id, initialBatchCompany.current);
+      setBatchCompanies([initialBatchCompany.current]);
+    }
+    setCreationMode(next); setValues((current) => ({ ...current, kind: next === "group" ? "holding_company" : "company" }));
+  };
   const updateParent = (event) => setValues((current) => ({ ...current, parentEntityId: event.target.value,
     relationshipRole: event.target.value ? current.relationshipRole : "" }));
   const children = initial ? store.entities.filter((entity) => entity.parentEntityId === initial.id) : [];
@@ -68,31 +104,20 @@ export function CompanyForm({ store, initial = null, onSubmit, onClose, creation
     && entity.id !== initial?.id);
   return <form data-editor-guard className="workbench-form company-master-form" onSubmit={(event) => {
     event.preventDefault();
-    if (!values.legalName.trim()) return;
-    const isBatch = !initial && creationMode === "group";
-    const members = isBatch ? batchCompanies.filter((company) => company.legalName.trim()).map((company) => ({
-      legalName: company.legalName.trim(), entityType: company.entityType.trim(), kind: "company",
-      fiscalYearPreset: company.fiscalYearPreset, relationshipRole: company.relationshipRole.trim(),
-    })) : [];
-    if (isBatch && !members.length) return;
-    onSubmit({ ...values, kind: isBatch ? "holding_company" : values.kind,
-      legalName: values.legalName.trim(), entityType: values.entityType.trim(),
-      parentEntityId: values.parentEntityId || null,
-      relationshipRole: values.parentEntityId ? values.relationshipRole.trim() : "", notes: values.notes.trim(),
-      batchCompanies: members });
+    const result = prepareCompanyEntry(values, batchCompanies, !initial && creationMode === "group");
+    if (result.error) { event.currentTarget.reportValidity(); return; }
+    onSubmit(result.values);
   }}>
     <div className="company-master-lead"><FolderTree aria-hidden="true" /><div><strong>{t(initial ? "编辑公司主档" : "建立公司主档")}</strong>
       <span>{t("公司主档保存长期资料；报告期间、项目排期和业务模块在年度项目中设置。")}</span></div></div>
     {!initial && !creationKind && <div className="company-creation-mode choice-tabs" role="group" aria-label={t("新建模式")}>
-      <button type="button" data-active={creationMode === "single" || undefined} onClick={() => {
-        setCreationMode("single"); setValues((current) => ({ ...current, kind: "company" }));
-      }}>{t("单个公司")}</button>
-      <button type="button" data-active={creationMode === "group" || undefined} onClick={() => {
-        setCreationMode("group"); setValues((current) => ({ ...current, kind: "holding_company" }));
-      }}>{t("集团批量")}</button>
+      <button type="button" data-active={creationMode === "single" || undefined} aria-pressed={creationMode === "single"}
+        onClick={() => changeCreationMode("single")}>{t("单个公司")}</button>
+      <button type="button" data-active={creationMode === "group" || undefined} aria-pressed={creationMode === "group"}
+        onClick={() => changeCreationMode("group")}>{t("集团批量")}</button>
     </div>}
     <div className="form-grid" data-columns="2"><label><span>{t("法律实体 *")}</span>
-      <input autoFocus required value={values.legalName} onChange={update("legalName")}
+      <RequiredTextInput autoFocus value={values.legalName} onChange={update("legalName")}
         placeholder={t(creationMode === "group" && !initial ? "集团完整名称" : "公司完整名称")} /></label>
       <label><span>{t("主体类型（可选）")}</span><input list="v11-entity-type-options" value={values.entityType}
         onChange={update("entityType")} placeholder={t("例如：有限公司、个人独资、合伙企业或直接输入")} />
@@ -116,12 +141,17 @@ export function CompanyForm({ store, initial = null, onSubmit, onClose, creation
         kind: event.target.checked ? "holding_company" : "company" }))} />
       <span><strong>{t("启用控股公司架构")}</strong><small>{t("允许在此主体下建立公司层级和合并年度项目。")}</small></span></label>}
     {!initial && creationMode === "group" && <section className="group-batch-builder">
-      <header><div><strong>{t("集团成员公司")}</strong>
-        <span>{t("在同一窗口加入多家公司；建立后会自动归属于上方集团。")}</span></div>
+      <header><div><strong>{t("集团成员公司")} · {batchCompanies.length}</strong>
+        <span id={batchHelpId}>{t("每行都需填写公司名称；不用的行请移除。所有成员都归属于上方集团。")}</span></div>
         <button type="button" className="button secondary" onClick={addBatchCompany}><Plus aria-hidden="true" />{t("添加公司")}</button></header>
-      <div className="group-batch-list">{batchCompanies.map((company, index) => <article key={company.id}>
-        <span className="group-batch-number">{index + 1}</span>
-        <label><span>{t("公司名称 *")}</span><input required={index === 0} value={company.legalName}
+      <div className="group-batch-list">{batchCompanies.map((company, index) => <article key={company.id}
+        role="group" aria-labelledby={`batch-company-${company.id}`}>
+        <header className="batch-company-heading"><strong id={`batch-company-${company.id}`}>{t("成员公司 {number}", { number: index + 1 })}</strong>
+          <button type="button" className="icon-button danger icon-only" aria-label={t("移除公司 {number}", { number: index + 1 })}
+            title={t("移除公司 {number}", { number: index + 1 })} disabled={batchCompanies.length === 1}
+            onClick={() => removeBatchCompany(company.id)}><Trash2 aria-hidden="true" /></button></header>
+        <label><span>{t("公司名称 *")}</span><RequiredTextInput value={company.legalName} aria-describedby={batchHelpId}
+          ref={(element) => { if (element) batchFields.current.set(company.id, element); else batchFields.current.delete(company.id); }}
           onChange={updateBatchCompany(company.id, "legalName")} placeholder={t("公司完整名称")} /></label>
         <label><span>{t("主体类型（可选）")}</span><input list="v11-entity-type-options" value={company.entityType}
           onChange={updateBatchCompany(company.id, "entityType")} placeholder={t("可直接输入")} /></label>
@@ -130,8 +160,6 @@ export function CompanyForm({ store, initial = null, onSubmit, onClose, creation
           {["calendar", "apr_mar", "custom"].map((preset) => <option value={preset} key={preset}>{presetLabel(preset, t)}</option>)}</select></label>
         <label><span>{t("集团角色")}</span><input value={company.relationshipRole}
           onChange={updateBatchCompany(company.id, "relationshipRole")} placeholder={t("例如：子公司或联营公司")} /></label>
-        <button type="button" className="icon-button danger" aria-label={t("移除公司 {number}", { number: index + 1 })}
-          disabled={batchCompanies.length === 1} onClick={() => removeBatchCompany(company.id)}><Trash2 aria-hidden="true" /></button>
       </article>)}</div>
     </section>}
     {values.kind === "company" && children.length > 0 && <div className="inline-warning"><CircleAlert aria-hidden="true" />
