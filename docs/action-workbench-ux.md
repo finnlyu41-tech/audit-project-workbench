@@ -23,3 +23,15 @@ An inline quick-update panel edits the engagement owner, schedule and existing p
 `tests/ux-model.test.js` covers filtering, recent-history validation, read-only records, next-stage selection, conflict detection and partial updates. `e2e/action-workbench.spec.js` covers in-place save/cancel, navigation drafts, date validation, disclosures, list expansion, recent shortcuts, accessibility and 1024/1440/1920px layouts. Existing control-alignment coverage also checks dialogs at 480px and short viewport heights.
 
 Local validation uses an isolated checkout, synthetic browser contexts and separate test-server ports. Run `pnpm check` for the normal repository gate. The new UI and existing control-alignment/accessibility cases are also checked with Playwright WebKit; this is an engine-level check, not certification of every Safari or iOS version.
+
+## Action navigation and editor follow-through
+
+The follow-through pass resolves cross-workspace destinations against the canonical company/engagement records before opening them. Home, recent history, deadline and report links clear stale navigation filters; archived destinations select the archive rather than silently falling back to another record. Normal clicks within the filtered navigation tree retain the selected filters.
+
+Next-step requests explicitly select the unfinished stage and move keyboard focus to its details. Requests are consumed after focus, so manually collapsing a stage or switching workstreams does not repeatedly reopen it. Empty workstreams are revealed without inventing stages or marking progress complete.
+
+Home outstanding-item links expand the outstanding centre even in compact layouts, reveal the specific item and scroll it into view. A subtle border identifies the destination. Outstanding filters reset for the destination; project-note drafts remain in memory and are not saved by navigation.
+
+The status editor now gives the actual native color selector its own column and aligns its 42px field with the name input. At narrow dialog widths, the checkbox and icon actions move to a separate row. Layout tests measure both horizontal containment and non-overlap, because containment alone did not catch the old color/name collision.
+
+`tests/action-navigation.test.js` covers identity resolution and archived/missing sources. `e2e/action-navigation.spec.js` and `e2e/editor-layout.spec.js` cover target focus, draft preservation, stale filters, empty workflows, native color editing, status ordering, accessibility and 480/800/1440px configuration dialogs. Existing broader regression tests remain in place. This pass does not change the workspace schema, audit completion rules, reporting periods or tax-deadline data.

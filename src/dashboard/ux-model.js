@@ -89,3 +89,14 @@ export function prepareQuickUpdate(store, id, baseline, values) {
   if (merged.startDate && merged.dueDate && merged.dueDate < merged.startDate) return { error: "range" };
   return { patch };
 }
+
+// Cross-workspace links resolve current canonical identity, including archived sources.
+export function resolveWorkspaceTarget(store, kind, id) {
+  if (!["entity", "project", "group"].includes(kind) || typeof id !== "string" || !id) return null;
+  const engagement = kind === "entity" ? null : store.engagements.find((item) => item.id === id);
+  if (kind !== "entity" && !engagement) return null;
+  const entity = store.entities.find((item) => item.id === (engagement?.entityId || id));
+  if (!entity) return null;
+  return { id, kind: engagement ? (entity.kind === "holding_company" ? "group" : "project") : "entity",
+    entity, engagement, filter: entity.archived || engagement?.archived ? "archived" : "all" };
+}

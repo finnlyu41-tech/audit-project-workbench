@@ -362,16 +362,19 @@ export function OutstandingStatusEditor({ statuses, usageCounts, onSave, onClose
     <div className="status-editor-list">{draft.map((status, index) => <section className="status-editor-row" key={status.id}>
       <label className="status-color-field"><span>{t("状态颜色")}</span><input type="color" value={status.color || "#778078"}
         onChange={(event) => updateStatus(status.id, (current) => ({ ...current, color: event.target.value }))} /></label>
-      <label><span>{t("状态名称 *")}</span><input required value={status.label}
+      <label className="status-name-field"><span>{t("状态名称 *")}</span><input required value={status.label}
         onChange={(event) => updateStatus(status.id, (current) => ({ ...current,
           builtinKey: undefined, label: event.target.value }))} /></label>
       <label className="status-closed-option"><input type="checkbox" checked={status.closed}
         onChange={(event) => updateStatus(status.id, (current) => ({ ...current, closed: event.target.checked }))} />
         <span>{t("视为已清")}</span></label>
       <small>{t("{count} 项使用中", { count: usageCounts[status.id] || 0 })}</small>
-      <div><button type="button" disabled={index === 0} onClick={() => moveStatus(index, -1)} aria-label={t("上移状态")}>↑</button>
-        <button type="button" disabled={index === draft.length - 1} onClick={() => moveStatus(index, 1)} aria-label={t("下移状态")}>↓</button>
-        <button type="button" disabled={draft.length === 1} onClick={() => removeStatus(status)}>{t("删除")}</button></div>
+      <div className="status-row-actions"><button type="button" className="icon-only" disabled={index === 0}
+        onClick={() => moveStatus(index, -1)} aria-label={t("上移状态")} data-tooltip={t("上移状态")} data-tooltip-side="left"><ArrowUp aria-hidden="true" /></button>
+        <button type="button" className="icon-only" disabled={index === draft.length - 1}
+          onClick={() => moveStatus(index, 1)} aria-label={t("下移状态")} data-tooltip={t("下移状态")} data-tooltip-side="left"><ArrowDown aria-hidden="true" /></button>
+        <button type="button" className="icon-only" disabled={draft.length === 1} onClick={() => removeStatus(status)}
+          aria-label={t("删除状态")} data-tooltip={t("删除状态")} data-tooltip-side="left"><Trash2 aria-hidden="true" /></button></div>
     </section>)}</div>
     <button type="button" className="status-add-button" onClick={() => setDraft((current) => [...current, {
       id: uid("outstanding-status"), label: "", closed: false, tone: "neutral", color: "#778078",
@@ -726,10 +729,27 @@ export function ProjectRow({ project, outstandingStatuses, selected, onSelect })
   </button>;
 }
 
-export function NodeBoard({ nodes, readOnly = false, actions, label = "", title = "", description = "", percentage = null }) {
+export function NodeBoard({ nodes, readOnly = false, actions, label = "", title = "", description = "", percentage = null,
+  revealRequest = null, onRevealHandled }) {
   const { t } = useUiLanguage();
   const currentNode = nodes.find((node) => !workstreamStats({ nodes: [node] }).complete);
   const [selectedId, setSelectedId] = React.useState(null);
+  const boardRef = React.useRef(null);
+  const detailRef = React.useRef(null);
+  React.useEffect(() => {
+    if (revealRequest) setSelectedId(nodes.some((node) => node.id === revealRequest.nodeId) ? revealRequest.nodeId : null);
+  }, [revealRequest]);
+  React.useEffect(() => {
+    if (!revealRequest) return;
+    const nodeId = nodes.some((node) => node.id === revealRequest.nodeId) ? revealRequest.nodeId : null;
+    if (selectedId !== nodeId) return;
+    const frame = window.requestAnimationFrame(() => {
+      const target = nodeId ? detailRef.current : boardRef.current;
+      target?.focus({ preventScroll: true }); target?.scrollIntoView({ block: "nearest", inline: "nearest" });
+      onRevealHandled?.();
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [revealRequest, selectedId, onRevealHandled]);
   const [draggingNodeId, setDraggingNodeId] = React.useState(null);
   const [nodeDropTarget, setNodeDropTarget] = React.useState(null);
   const [draggingConditionId, setDraggingConditionId] = React.useState(null);
@@ -812,7 +832,7 @@ export function NodeBoard({ nodes, readOnly = false, actions, label = "", title 
     event.preventDefault();
     actions.reorderCondition(selected.id, condition.id, target.id, event.key === "ArrowUp" ? "before" : "after");
   };
-  return <div className="node-board" style={{ "--node-count": Math.max(nodes.length, 1) }}>
+  return <div className="node-board" ref={boardRef} role="group" tabIndex="-1" aria-label={title || t("项目节点")} style={{ "--node-count": Math.max(nodes.length, 1) }}>
     <header className="node-board-toolbar"><div className="node-board-heading">{label && <span>{label}</span>}
       {title && <h3>{title}</h3>}{description && <p>{description}</p>}</div>
       {percentage !== null && <div className="workflow-panel-progress"><ProgressBar value={percentage} compact /></div>}
@@ -837,7 +857,7 @@ export function NodeBoard({ nodes, readOnly = false, actions, label = "", title 
           <small>{done}/{node.conditions.length} {t("项条件")}</small></span><i>{t(status)}</i></button>;
     })}</div> : <div className="inline-empty"><strong>{t("还没有节点")}</strong>
       <span>{readOnly ? t("此记录没有保存节点。") : t("添加第一个节点后，即可设置完成条件。")}</span></div>}
-    {selected && <section className="node-detail-panel"><header><div><span>{t("节点详情")}</span><h4>{selected.title}</h4>
+    {selected && <section className="node-detail-panel" ref={detailRef} tabIndex="-1" aria-label={selected.title}><header><div><span>{t("节点详情")}</span><h4>{selected.title}</h4>
       {selected.description && <p>{selected.description}</p>}</div>{!readOnly && <div className="node-detail-actions">
         <button type="button" className="icon-only" disabled={nodes.indexOf(selected) === 0} onClick={() => actions.move(selected.id, -1)}
           aria-label={t("上移节点")} data-tooltip={t("上移节点")}><ArrowLeft aria-hidden="true" /></button>

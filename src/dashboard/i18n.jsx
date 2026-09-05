@@ -4,6 +4,10 @@ import { toTraditional } from "./traditional.js";
 export const LANGUAGE_PREFERENCE_KEY = "audit-progress-workbench:language";
 
 const english = {
+  "来源记录已不存在。": "The source record no longer exists.",
+  "待清事项已不存在。": "This outstanding item no longer exists.",
+  "待清事项状态：{name}": "Outstanding status: {name}",
+  "删除状态": "Delete status",
   "活跃项目": "Active engagements",
   "框架与高级设置": "Framework and advanced options",
   "快速更新": "Quick update",

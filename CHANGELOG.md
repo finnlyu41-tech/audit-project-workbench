@@ -6,6 +6,14 @@ The project follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Action navigation and editor follow-through
+
+- Next-step actions now reveal and focus the exact unfinished stage; empty workstreams remain empty until explicitly configured.
+- Home outstanding-item actions expand the outstanding centre, clear stale item filters and focus the selected card, including in narrow workspaces.
+- Cross-workspace links resolve the current source identity and clear stale navigation filters without losing unsaved quick-edit drafts. Archived sources remain in the read-only archive view.
+- Status-editor colors, names, checkboxes and icon actions use explicit aligned columns instead of the old decorative-dot layout. Template and category editors gain narrow-dialog regression coverage.
+
+
 ### Changed
 
 - Home now has focused action filters, an owner filter, expandable priority lists and recent-record shortcuts. Home uses the space previously occupied by the empty outstanding panel.
