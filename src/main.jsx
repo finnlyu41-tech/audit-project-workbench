@@ -5,6 +5,7 @@ import "./theme.css";
 import "./dashboard/controls.css";
 import "./dashboard/ux.css";
 import "./dashboard/quick-open.css";
+import "./dashboard/editor-safety.css";
 
 createRoot(document.getElementById("root")).render(
   <React.StrictMode>

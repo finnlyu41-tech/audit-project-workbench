@@ -1,4 +1,5 @@
 import React from "react";
+import { useModalDraft } from "./modal-draft.jsx";
 import { Archive, ArchiveRestore, Building, Building2, CalendarDays, CalendarPlus, ChevronRight, CircleAlert,
   Edit3, FolderTree, GitMerge, Plus, ReceiptText, Settings2, Trash2, X } from "lucide-react";
 import { ProgressBar } from "./components.jsx";
@@ -48,6 +49,7 @@ export function CompanyForm({ store, initial = null, onSubmit, onClose }) {
   const [batchCompanies, setBatchCompanies] = React.useState(() => [{
     id: uid("batch-entity"), legalName: "", entityType: "", fiscalYearPreset: "calendar", relationshipRole: "子公司",
   }]);
+  const { closeEditor } = useModalDraft({ values, creationMode, batchCompanies }, onClose);
   const update = (field) => (event) => setValues((current) => ({ ...current, [field]: event.target.value }));
   const updateBatchCompany = (id, field) => (event) => setBatchCompanies((current) => current.map((company) =>
     company.id === id ? { ...company, [field]: event.target.value } : company));
@@ -62,7 +64,7 @@ export function CompanyForm({ store, initial = null, onSubmit, onClose }) {
   const children = initial ? store.entities.filter((entity) => entity.parentEntityId === initial.id) : [];
   const parentOptions = store.entities.filter((entity) => entity.kind === "holding_company" && !entity.archived
     && entity.id !== initial?.id);
-  return <form className="workbench-form company-master-form" onSubmit={(event) => {
+  return <form data-editor-guard className="workbench-form company-master-form" onSubmit={(event) => {
     event.preventDefault();
     if (!values.legalName.trim()) return;
     const isBatch = !initial && creationMode === "group";
@@ -135,7 +137,7 @@ export function CompanyForm({ store, initial = null, onSubmit, onClose }) {
     <label><span>{t("公司备注")}</span><textarea rows="3" value={values.notes} onChange={update("notes")}
       placeholder={t("记录长期适用、不会随年度项目改变的公司资料")} /></label>
     </AdvancedSection>
-    <footer className="modal-actions"><button type="button" className="button secondary" onClick={onClose}>{t("取消")}</button>
+    <footer className="modal-actions"><button type="button" className="button secondary" onClick={closeEditor}>{t("取消")}</button>
       <button type="submit" className="button primary" disabled={values.kind === "company" && children.length > 0}>
         {t(initial ? "保存公司主档" : creationMode === "group" ? "建立集团及公司" : "建立公司")}</button></footer>
   </form>;
@@ -186,6 +188,7 @@ export function EngagementForm({ store, entity, initial = null, preferredSourceI
     store.selectedSampleIdsByCategory));
   const [customEngagementType, setCustomEngagementType] = React.useState("");
   const [error, setError] = React.useState("");
+  const { closeEditor, confirmTransition } = useModalDraft({ values, sourceMode, sourceEngagementId, selections, customEngagementType }, onClose);
   const update = (field) => (event) => setValues((current) => ({ ...current, [field]: event.target.value }));
   const updatePeriods = (updater) => setValues((current) => ({
     ...current,
@@ -298,7 +301,7 @@ export function EngagementForm({ store, entity, initial = null, preferredSourceI
       workstreamSelections: selections },
     { sourceMode, sourceEngagement: source });
   };
-  if (quickField === "schedule") return <form className="workbench-form" data-quick-field="schedule" onSubmit={submit}>
+  if (quickField === "schedule") return <form data-editor-guard className="workbench-form" data-quick-field="schedule" onSubmit={submit}>
     <div className="engagement-company-lock"><i>{entity.kind === "holding_company" ? <Building2 aria-hidden="true" /> : <Building aria-hidden="true" />}</i>
       <span><small>{t("年度项目")}</small><strong>{entity.legalName} · {yearEndOrPeriodLabel(initial, language)}</strong></span></div>
     <div className="project-date-groups" data-single="true"><fieldset><legend>{t("项目排期")}</legend>
@@ -306,13 +309,13 @@ export function EngagementForm({ store, entity, initial = null, preferredSourceI
         onChange={(startDate, dueDate) => setValues((current) => ({ ...current, startDate, dueDate }))} />
     </fieldset></div>
     {error && <div className="form-error" role="alert"><CircleAlert aria-hidden="true" />{error}</div>}
-    <footer className="modal-actions"><button type="button" className="button secondary" onClick={onClose}>{t("取消")}</button>
+    <footer className="modal-actions"><button type="button" className="button secondary" onClick={closeEditor}>{t("取消")}</button>
       <button type="submit" className="button primary">{t("保存项目排期")}</button></footer>
   </form>;
   if (["owner", "framework"].includes(quickField)) {
     const field = quickField === "owner" ? "owner" : "reportingFramework";
     const label = quickField === "owner" ? "负责人" : "财务报告准则／框架";
-    return <form className="workbench-form engagement-quick-form" data-quick-field={quickField} onSubmit={submit}>
+    return <form data-editor-guard className="workbench-form engagement-quick-form" data-quick-field={quickField} onSubmit={submit}>
       <div className="engagement-company-lock"><i>{entity.kind === "holding_company" ? <Building2 aria-hidden="true" /> : <Building aria-hidden="true" />}</i>
         <span><small>{t("年度项目")}</small><strong>{entity.legalName} · {yearEndOrPeriodLabel(initial, language)}</strong></span></div>
       <label><span>{t(label)}</span>{quickField === "framework" ? <><input autoFocus list="v11-quick-framework-options"
@@ -320,18 +323,18 @@ export function EngagementForm({ store, entity, initial = null, preferredSourceI
         <datalist id="v11-quick-framework-options">{FRAMEWORKS.map((framework) => <option key={framework} value={framework} />)}</datalist></>
         : <input autoFocus value={values[field]} onChange={update(field)} placeholder={t("例如：项目经理或主审")} />}</label>
       {error && <div className="form-error" role="alert"><CircleAlert aria-hidden="true" />{error}</div>}
-      <footer className="modal-actions"><button type="button" className="button secondary" onClick={onClose}>{t("取消")}</button>
+      <footer className="modal-actions"><button type="button" className="button secondary" onClick={closeEditor}>{t("取消")}</button>
         <button type="submit" className="button primary">{t("保存")}</button></footer>
     </form>;
   }
-  return <form className="workbench-form annual-engagement-form" onSubmit={submit}>
+  return <form data-editor-guard className="workbench-form annual-engagement-form" onSubmit={submit}>
     <div className="engagement-company-lock"><i>{entity.kind === "holding_company" ? <Building2 aria-hidden="true" /> : <Building aria-hidden="true" />}</i>
       <span><small>{t("法律实体")}</small><strong>{entity.legalName}</strong></span></div>
     <section className="period-builder"><header><div><strong>{t("报告期间")} · {values.reportingPeriods.length}</strong>
       <span>{t("一个项目可包含多个报告年度，共用负责人、排期、模块和进度。")}</span></div>
       <div className="period-builder-actions"><button type="button" className="period-create-another" onClick={addReportingPeriod}>
         <Plus aria-hidden="true" />{t("添加报告年度")}</button>
-        {initial && onCreateAnotherYear && <button type="button" className="period-create-another" onClick={onCreateAnotherYear}>
+        {initial && onCreateAnotherYear && <button type="button" className="period-create-another" onClick={() => confirmTransition(onCreateAnotherYear)}>
           <CalendarPlus aria-hidden="true" />{t("另建独立项目")}</button>}</div></header>
       <div className="reporting-period-list">{values.reportingPeriods.map((period, index) => <article key={period.id}>
         <div className="reporting-period-heading"><span>{t("报告期间 {number}", { number: index + 1 })}</span>
@@ -407,7 +410,7 @@ export function EngagementForm({ store, entity, initial = null, preferredSourceI
       <span><strong>{t("本级需要独立合并流程")}</strong><small>{t("关闭后，本级只汇总组成部分。")}</small></span></label>}
     </AdvancedSection>
     {error && <div className="form-error" role="alert"><CircleAlert aria-hidden="true" />{error}</div>}
-    <footer className="modal-actions"><button type="button" className="button secondary" onClick={onClose}>{t("取消")}</button>
+    <footer className="modal-actions"><button type="button" className="button secondary" onClick={closeEditor}>{t("取消")}</button>
       <button type="submit" className="button primary">{t(initial ? "保存项目" : "建立年度项目")}</button></footer>
   </form>;
 }

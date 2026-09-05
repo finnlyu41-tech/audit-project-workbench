@@ -7,14 +7,8 @@ import { useUiLanguage } from "./i18n.jsx";
 import { handleTabListKeyDown, tabIndexFor } from "./a11y.js";
 import { toTraditional } from "./traditional.js";
 
-const DIALOG_FOCUSABLE = [
-  "button:not([disabled])",
-  "a[href]",
-  "input:not([disabled]):not([type='hidden'])",
-  "select:not([disabled])",
-  "textarea:not([disabled])",
-  "[tabindex]:not([tabindex='-1'])",
-].join(",");
+export { Modal } from "./modal.jsx";
+import { useModalDraft } from "./modal-draft.jsx";
 
 const REPORTING_FRAMEWORK_PRESETS = [
   { key: "香港财务报告准则", aliases: ["HKFRS Accounting Standards"] },
@@ -28,55 +22,6 @@ function reportingFrameworkPreset(value) {
     || preset.aliases.includes(value));
 }
 
-export function Modal({ title, onClose, children, wide = false, large = false }) {
-  const { t } = useUiLanguage();
-  const dialogRef = React.useRef(null);
-  const onCloseRef = React.useRef(onClose);
-  const returnFocusRef = React.useRef(typeof document === "undefined" ? null : document.activeElement);
-  const titleId = React.useId();
-  onCloseRef.current = onClose;
-  React.useEffect(() => {
-    const focusDialog = window.requestAnimationFrame(() => {
-      const dialog = dialogRef.current;
-      if (!dialog || dialog.contains(document.activeElement)) return;
-      const preferred = dialog.querySelector("[data-dialog-initial-focus], input:not([type='hidden']):not([disabled]), select:not([disabled]), textarea:not([disabled])");
-      const fallback = [...dialog.querySelectorAll(DIALOG_FOCUSABLE)].find((element) => !element.matches("[data-modal-close]"));
-      (preferred || fallback || dialog).focus();
-    });
-    const closeOnEscape = (event) => {
-      if (event.key !== "Escape") return;
-      event.preventDefault();
-      onCloseRef.current();
-    };
-    window.addEventListener("keydown", closeOnEscape);
-    return () => {
-      window.cancelAnimationFrame(focusDialog);
-      window.removeEventListener("keydown", closeOnEscape);
-      if (returnFocusRef.current?.isConnected) returnFocusRef.current.focus();
-    };
-  }, []);
-
-  const trapFocus = (event) => {
-    if (event.key !== "Tab") return;
-    const focusable = [...event.currentTarget.querySelectorAll(DIALOG_FOCUSABLE)]
-      .filter((element) => element.getClientRects().length > 0);
-    if (!focusable.length) { event.preventDefault(); event.currentTarget.focus(); return; }
-    const first = focusable[0];
-    const last = focusable[focusable.length - 1];
-    if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus(); }
-    else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
-  };
-
-  return <div className="workbench-modal-backdrop" role="presentation" onMouseDown={onClose}>
-    <section className="workbench-modal" data-wide={wide || undefined} data-large={large || undefined}
-      ref={dialogRef} role="dialog" aria-modal="true" aria-labelledby={titleId} tabIndex="-1" onKeyDown={trapFocus}
-      onMouseDown={(event) => event.stopPropagation()}>
-      <header><h2 id={titleId}>{title}</h2><button type="button" className="icon-button icon-only" onClick={onClose} data-modal-close
-        aria-label={t("关闭")} data-tooltip={t("关闭")} data-tooltip-side="left"><X aria-hidden="true" /></button></header>
-      <div className="workbench-modal-body">{children}</div>
-    </section>
-  </div>;
-}
 export function ProjectForm({ initial, onSubmit, onClose, submitLabel, allowWorkstreams = true,
   samples = [], workstreamCategories = createDefaultWorkstreamCategories(), selectedSampleIdsByCategory = {},
   initialWorkstreamSelections, groupOptions = null, initialMembership, onConvert, quickField = null,
@@ -329,6 +274,7 @@ export function SampleLibrary({ samples, categoryLabel, selectedSampleId, onSele
 export function OutstandingStatusEditor({ statuses, usageCounts, onSave, onClose }) {
   const { t } = useUiLanguage();
   const [draft, setDraft] = React.useState(() => JSON.parse(JSON.stringify(statuses)));
+  const { closeEditor } = useModalDraft(draft, onClose);
   const updateStatus = (statusId, updater) => setDraft((current) => current.map((status) =>
     status.id === statusId ? updater(status) : status));
   const moveStatus = (index, direction) => setDraft((current) => {
@@ -345,7 +291,7 @@ export function OutstandingStatusEditor({ statuses, usageCounts, onSave, onClose
     }
     setDraft((current) => current.filter((item) => item.id !== status.id));
   };
-  return <form className="status-editor" onSubmit={(event) => {
+  return <form data-editor-guard className="status-editor" onSubmit={(event) => {
     event.preventDefault();
     const cleaned = draft.map((status) => ({ ...status, label: status.label.trim() }));
     if (!cleaned.length) {
@@ -379,7 +325,7 @@ export function OutstandingStatusEditor({ statuses, usageCounts, onSave, onClose
     <button type="button" className="status-add-button" onClick={() => setDraft((current) => [...current, {
       id: uid("outstanding-status"), label: "", closed: false, tone: "neutral", color: "#778078",
     }])}>{t("＋ 添加状态")}</button>
-    <footer className="modal-actions"><button type="button" className="button secondary" onClick={onClose}>{t("取消")}</button>
+    <footer className="modal-actions"><button type="button" className="button secondary" onClick={closeEditor}>{t("取消")}</button>
       <button type="submit" className="button primary">{t("保存状态")}</button></footer>
   </form>;
 }
@@ -388,6 +334,7 @@ export function WorkstreamCategoryEditor({ categories, usageCounts, onSave, onCl
   const { language, t } = useUiLanguage();
   const [draft, setDraft] = React.useState(() => categories.map((category) => ({ ...category,
     editorName: category.name || workstreamCategoryLabel(category, language), hadCustomName: Boolean(category.name) })));
+  const { closeEditor } = useModalDraft(draft, onClose);
   const updateCategory = (categoryId, name) => setDraft((current) => current.map((category) =>
     category.id === categoryId ? { ...category, editorName: name } : category));
   const moveCategory = (categoryId, direction) => setDraft((current) => {
@@ -428,7 +375,7 @@ export function WorkstreamCategoryEditor({ categories, usageCounts, onSave, onCl
         <button type="button" className="icon-only" onClick={() => removeCategory(category)}
           aria-label={t("删除")} data-tooltip={t("删除")} data-tooltip-side="left"><Trash2 aria-hidden="true" /></button></div></div>;
   });
-  return <form className="category-editor" onSubmit={(event) => {
+  return <form data-editor-guard className="category-editor" onSubmit={(event) => {
     event.preventDefault();
     const cleaned = draft.map(({ editorName, hadCustomName, ...category }) => ({ ...category,
       name: category.builtinType && !hadCustomName
@@ -450,7 +397,7 @@ export function WorkstreamCategoryEditor({ categories, usageCounts, onSave, onCl
       <div className="category-editor-list">{renderCategories(draft.filter((category) => !category.builtinType))}</div>
       <button type="button" className="status-add-button" onClick={() => setDraft((current) => [...current,
         { id: uid("workstream-category"), name: "", editorName: "", hadCustomName: false }])}>{t("＋ 添加种类")}</button></section>
-    <footer className="modal-actions"><button type="button" className="button secondary" onClick={onClose}>{t("取消")}</button>
+    <footer className="modal-actions"><button type="button" className="button secondary" onClick={closeEditor}>{t("取消")}</button>
       <button type="submit" className="button primary">{t("保存种类")}</button></footer>
   </form>;
 }
@@ -466,6 +413,7 @@ export function UserGuide() {
       { title: "建立第一个年度项目", steps: ["打开公司概览并选择“新建年度项目”。", "自然年输入 2025 会生成 2025 年 1 月 1 日至 12 月 31 日；4 月制输入 2025 会生成 2025 年 4 月 1 日至 2026 年 3 月 31 日。",
         "检查完整报告期间，再设置准则、负责人、项目排期和起始业务模块。", "同一公司可以建立多个年度项目，但不能重复使用完全相同的报告期间。"],
       result: "FY2023、FY2024、FY2025 等项目各自保存模块、节点、待清事项和进度。" },
+      { title: "保护未保存的配置", steps: ["公司、年度项目、范本、状态和种类编辑器有改动时，会显示未保存标记。", "关闭或取消前，确认框允许保留编辑器；只有确认放弃才会丢弃改动。", "保存按钮固定在长表单底部；刷新或强制关闭不会保证保留未保存草稿。"], result: "保存才会应用改动，返回初始值后不再提示。" },
       { title: "认识三区工作台", steps: ["最左侧窄工具栏集中放置首页、项目排期、逾期提醒、范本库、使用指南、设置、备份和语言入口。", "左侧“项目导航”用于搜索、筛选和切换项目或控股公司。", "中间“项目工作区”或“控股公司工作区”用于处理模块、节点及合并工作。",
         "右侧“待清中心”用于持续追踪缺少文件、等待签署和其他阻塞事项。", "左右区域都可以收起，需要时再展开。"],
       result: "日常工作集中在中间视觉热区，导航和待清事项仍保持随手可用。" },
@@ -626,6 +574,7 @@ export function SampleEditor({ sample, categories = createDefaultWorkstreamCateg
   const { language, t } = useUiLanguage();
   const [draft, setDraft] = React.useState(() => JSON.parse(JSON.stringify(sample)));
   const [tags, setTags] = React.useState(() => (sample.tags || []).join(", "));
+  const { closeEditor, confirmTransition } = useModalDraft({ draft, tags }, onClose);
   const updateNode = (nodeId, updater) => setDraft((current) => ({ ...current,
     nodes: current.nodes.map((node) => node.id === nodeId ? updater(node) : node) }));
   const moveNode = (index, direction) => setDraft((current) => {
@@ -635,7 +584,7 @@ export function SampleEditor({ sample, categories = createDefaultWorkstreamCateg
     return { ...current, nodes };
   });
   const totalConditions = draft.nodes.reduce((sum, node) => sum + node.conditions.length, 0);
-  return <form className="sample-editor" onSubmit={(event) => {
+  return <form data-editor-guard className="sample-editor" onSubmit={(event) => {
     event.preventDefault();
     if (!draft.name.trim() || draft.nodes.some((node) => !node.title.trim())) return;
     onSave({ ...draft, builtinKey: undefined, name: draft.name.trim(), description: draft.description.trim(),
@@ -690,9 +639,9 @@ export function SampleEditor({ sample, categories = createDefaultWorkstreamCateg
       nodes: [...current.nodes, { id: uid("sample-node"), title: "", description: "", conditions: [] }] }))}>
       <Plus aria-hidden="true" />{t("添加节点")}</button>
     <footer className="sample-editor-actions">{onReset
-      ? <button type="button" className="button secondary" onClick={onReset}>{t("恢复基础范本")}</button> : <span />}
-      {onRedact ? <button type="button" className="button secondary" onClick={() => onRedact(draft)}>{t("公司去敏")}</button> : <span />}
-      <span /><button type="button" className="button secondary" onClick={onClose}>{t("取消")}</button>
+      ? <button type="button" className="button secondary" onClick={() => confirmTransition(onReset)}>{t("恢复基础范本")}</button> : <span />}
+      {onRedact ? <button type="button" className="button secondary" onClick={() => confirmTransition(() => onRedact(draft))}>{t("公司去敏")}</button> : <span />}
+      <span /><button type="button" className="button secondary" onClick={closeEditor}>{t("取消")}</button>
       <button type="submit" className="button primary">{t("保存范本")}</button></footer>
   </form>;
 }
