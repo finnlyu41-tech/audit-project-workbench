@@ -6,6 +6,12 @@ The project follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Template-package selection and import safety
+
+- Package export search keeps hidden selections explicit and separates global selection from matching-result selection. Exported content still comes from the original package creator.
+- Import decisions use the existing unsaved-editor guard, with copy/replace/skip counts and readable replacement names. Reverted inactive choices do not create false warnings.
+- Import/export use one modal scroll surface, visible action footers and aligned controls; long names and metadata wrap across desktop and narrow dialogs.
+
 ### Template-library usability
 
 - Library cards wrap long names, descriptions, tags and version notes; controls align across narrow and wide dialogs.
