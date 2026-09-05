@@ -12,7 +12,7 @@ test("home opens first and turns the whole workspace into an actionable overview
 
   await expect(page.getByRole("heading", { name: "Work overview" })).toBeVisible();
   await expect(page.locator(".app-rail-button[aria-label='Home']")).toHaveAttribute("data-active", "true");
-  await expect(page.locator(".home-metric-grid > button").filter({ hasText: "Active engagements" })).toContainText("1");
+  await expect(page.locator(".home-metric-grid > button").filter({ has: page.getByText("Active engagements", { exact: true }) })).toContainText("1");
   await expect(page.locator(".home-metric-grid > button").filter({ hasText: "Deadlines needing attention" })).toContainText("1");
   await expect(page.locator(".home-metric-grid > button").filter({ hasText: "Outstanding items" })).toContainText("1");
   await expect(page.locator(".home-priority-list > button").first()).toContainText("overdue");

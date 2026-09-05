@@ -9,6 +9,7 @@ import { engagementPeriodExists, engagementReportingPeriods, engagementReporting
   uid, workstreamCategoryLabel, yearEndOrPeriodLabel } from "./model.js";
 import { useUiLanguage } from "./i18n.jsx";
 import { DateRangePicker } from "./date-range-picker.jsx";
+import { AdvancedSection } from "./ux-components.jsx";
 
 const FRAMEWORKS = [
   "HKFRS Accounting Standards",
@@ -96,8 +97,11 @@ export function CompanyForm({ store, initial = null, onSubmit, onClose }) {
       <label><span>{t("默认会计年度")}</span><select value={values.fiscalYearPreset} onChange={update("fiscalYearPreset")}>
         {["calendar", "apr_mar", "custom"].map((preset) => <option value={preset} key={preset}>{presetLabel(preset, t)}</option>)}</select></label>
       <label><span>{t("成立／开始日期（DOI，可选）")}</span><input type="date" value={values.incorporationDate}
-        onChange={update("incorporationDate")} /><small className="form-help">{t("用于首个项目的 DOI → 年结日期间。")}</small></label>
-      <label><span>{t("所属控股公司")}</span><select value={values.parentEntityId} onChange={updateParent}>
+        onChange={update("incorporationDate")} /></label>
+    </div><small className="form-help">{t("用于首个项目的 DOI → 年结日期间。")}</small>
+    <AdvancedSection key={creationMode} title={t("公司关系与备注")} hint={t("高级设置，不影响先建立公司。")}
+      defaultOpen={Boolean(initial) || creationMode === "group"}>
+      <div className="form-grid"><label className="span-two"><span>{t("所属控股公司")}</span><select value={values.parentEntityId} onChange={updateParent}>
         <option value="">{t("独立主体（不属于控股公司）")}</option>
         {parentOptions.map((entity) => <option key={entity.id} value={entity.id}>{entity.legalName}</option>)}</select></label>
       {values.parentEntityId && <label className="span-two"><span>{t("控股公司归属角色")}</span>
@@ -130,6 +134,7 @@ export function CompanyForm({ store, initial = null, onSubmit, onClose }) {
       <span>{t("这家控股公司仍有 {count} 家直属成员。转换为普通公司前请先移动这些成员。", { count: children.length })}</span></div>}
     <label><span>{t("公司备注")}</span><textarea rows="3" value={values.notes} onChange={update("notes")}
       placeholder={t("记录长期适用、不会随年度项目改变的公司资料")} /></label>
+    </AdvancedSection>
     <footer className="modal-actions"><button type="button" className="button secondary" onClick={onClose}>{t("取消")}</button>
       <button type="submit" className="button primary" disabled={values.kind === "company" && children.length > 0}>
         {t(initial ? "保存公司主档" : creationMode === "group" ? "建立集团及公司" : "建立公司")}</button></footer>
@@ -358,7 +363,8 @@ export function EngagementForm({ store, entity, initial = null, preferredSourceI
       {sourceMode === "previous" && <label><span>{t("来源年度")}</span><select value={sourceEngagementId}
         onChange={(event) => setSourceEngagementId(event.target.value)}>{existing.map((engagement) => <option key={engagement.id} value={engagement.id}>
           {yearEndOrPeriodLabel(engagement, language)}</option>)}</select></label>}
-      {sourceMode === "template" && entity.kind === "company" && <div className="annual-template-picker">
+      {sourceMode === "template" && entity.kind === "company" && <AdvancedSection title={t("业务模块与范本")}
+        hint={t("已选择 {count} 个", { count: selections.length })}><div className="annual-template-picker">
         {store.workstreamCategories.filter((category) => category.id !== "custom").map((category) => {
           const selected = selections.find((selection) => selection.categoryId === category.id);
           const templates = store.samples.filter((sample) => sample.categoryId === category.id);
@@ -368,7 +374,7 @@ export function EngagementForm({ store, entity, initial = null, preferredSourceI
               value={selected.sampleId} onChange={(event) => setSelections((current) => current.map((item) => item.categoryId === category.id
                 ? { ...item, sampleId: event.target.value } : item))}><option value="">{t("空白流程")}</option>
               {templates.map((template) => <option key={template.id} value={template.id}>{template.name}</option>)}</select>}</div>;
-        })}</div>}
+        })}</div></AdvancedSection>}
     </section>}
     <fieldset className="engagement-type-selector"><legend>{t("项目类型")} <span>{t("可多选")}</span></legend>
       <div className="engagement-type-options">{availableEngagementTypes.map((type) => <label key={type}
@@ -385,17 +391,21 @@ export function EngagementForm({ store, entity, initial = null, preferredSourceI
           onClick={() => toggleEngagementType(type)}><X aria-hidden="true" /></button></span>)}</div>}
       <small className="form-help">{t("可同时选择多个预设类型，也可以添加自定义类型。")}</small>
     </fieldset>
-    <div className="form-grid" data-columns="2"><label><span>{t("财务报告准则／框架")}</span><input list="v11-framework-options"
-      value={values.reportingFramework} onChange={update("reportingFramework")} placeholder={t("选择常用框架或直接输入")} />
-      <datalist id="v11-framework-options">{FRAMEWORKS.map((framework) => <option key={framework} value={framework} />)}</datalist></label>
-      <label><span>{t("负责人")}</span><input value={values.owner} onChange={update("owner")} placeholder={t("例如：项目经理或主审")} /></label></div>
+    <div className="form-grid" data-columns="1"><label><span>{t("负责人")}</span>
+      <input value={values.owner} onChange={update("owner")} placeholder={t("例如：项目经理或主审")} /></label></div>
     <div className="project-date-groups" data-single="true"><fieldset><legend>{t("项目排期")}</legend>
       <DateRangePicker startDate={values.startDate} dueDate={values.dueDate}
         onChange={(startDate, dueDate) => setValues((current) => ({ ...current, startDate, dueDate }))} />
     </fieldset></div>
+    <AdvancedSection title={t("框架与高级设置")} hint={t("已有配置会保留；展开后可修改。")}
+      defaultOpen={Boolean(initial?.reportingFramework) || entity.kind === "holding_company"}>
+      <label><span>{t("财务报告准则／框架")}</span><input list="v11-framework-options" value={values.reportingFramework}
+        onChange={update("reportingFramework")} placeholder={t("选择常用框架或直接输入")} />
+        <datalist id="v11-framework-options">{FRAMEWORKS.map((framework) => <option key={framework} value={framework} />)}</datalist></label>
     {entity.kind === "holding_company" && <label className="check-option"><input type="checkbox" checked={values.consolidationEnabled}
       onChange={(event) => setValues((current) => ({ ...current, consolidationEnabled: event.target.checked }))} />
       <span><strong>{t("本级需要独立合并流程")}</strong><small>{t("关闭后，本级只汇总组成部分。")}</small></span></label>}
+    </AdvancedSection>
     {error && <div className="form-error" role="alert"><CircleAlert aria-hidden="true" />{error}</div>}
     <footer className="modal-actions"><button type="button" className="button secondary" onClick={onClose}>{t("取消")}</button>
       <button type="submit" className="button primary">{t(initial ? "保存项目" : "建立年度项目")}</button></footer>

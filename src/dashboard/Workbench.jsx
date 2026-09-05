@@ -31,6 +31,8 @@ import { TemplateExportPanel, TemplateImportPreview, TemplateLibraryTools } from
 import { CompanyForm, EngagementForm, EntityOverview, HoldingComponentsPanel, MergeEntitiesForm } from "./v11-components.jsx";
 import { applyTemplatePackage, createTemplatePackage, TEMPLATE_PACKAGE_MAX_BYTES,
   templatePackagePreview } from "./template-packages.js";
+import { QuickUpdate } from "./ux-components.jsx";
+import { RECENT_RECORDS_KEY, prepareQuickUpdate, recentRecordsFor, rememberRecord, sanitizeRecentRecords } from "./ux-model.js";
 import "./dashboard.css";
 
 const SIDEBAR_PREFERENCE_KEY = "audit-progress-workbench:sidebar-collapsed";
@@ -99,6 +101,11 @@ function DashboardWorkbench() {
   const [selection, setSelection] = React.useState(null);
   const [activeWorkstreamId, setActiveWorkstreamId] = React.useState(null);
   const [search, setSearch] = React.useState("");
+  const quickDrafts = React.useRef(new Map());
+  const [recentVisits, setRecentVisits] = React.useState(() => {
+    try { return sanitizeRecentRecords(JSON.parse(localStorage.getItem(RECENT_RECORDS_KEY) || "[]")); }
+    catch { return []; }
+  });
   const [filter, setFilter] = React.useState("active");
   const [navigationFiltersOpen, setNavigationFiltersOpen] = React.useState(false);
   const [navigationFilters, setNavigationFilters] = React.useState({ owner: "", engagementType: "", reportingYear: "" });
@@ -262,6 +269,20 @@ function DashboardWorkbench() {
     };
   }, [closeMenu]);
 
+  React.useEffect(() => {
+    if (workspaceView === "detail" && selection) setRecentVisits((current) => rememberRecord(current, selection));
+  }, [workspaceView, selection?.kind, selection?.id]);
+  React.useEffect(() => {
+    try { localStorage.setItem(RECENT_RECORDS_KEY, JSON.stringify(recentVisits)); } catch { /* Optional preference. */ }
+  }, [recentVisits]);
+  React.useEffect(() => {
+    const protectDraft = (event) => {
+      if (!quickDrafts.current.size) return;
+      event.preventDefault(); event.returnValue = "";
+    };
+    window.addEventListener("beforeunload", protectDraft);
+    return () => window.removeEventListener("beforeunload", protectDraft);
+  }, []);
   const notify = (text) => setMessage(text);
   const openWorkspaceRecord = React.useCallback((kind, id) => {
     setSelection({ kind, id });
@@ -369,6 +390,14 @@ function DashboardWorkbench() {
     engagements: current.engagements.map((engagement) => engagement.id === engagementId
       ? { ...updater(engagement), updatedAt: new Date().toISOString() } : engagement),
   })), []);
+  const saveQuickUpdate = (id, baseline, values) => {
+    const result = prepareQuickUpdate(store, id, baseline, values);
+    if (!result.error && Object.keys(result.patch).length) {
+      updateEngagement(id, (current) => ({ ...current, ...result.patch }));
+      notify(t("项目资料已更新"));
+    }
+    return result;
+  };
   const saveTaxDeadline = React.useCallback((kind, targetId, existing, values, revisionReason = "") => {
     const engagement = kind === "entity" ? null : store.engagements.find((item) => item.id === targetId);
     const entityId = kind === "entity" ? targetId : engagement?.entityId;
@@ -653,6 +682,7 @@ function DashboardWorkbench() {
   };
   const initializeWorkbench = async () => {
     if (persistence.settings.mode === "linked_file") await persistence.disconnect();
+    setRecentVisits([]); quickDrafts.current.clear();
     setStore(emptyStore()); setSelection(null); setWorkspaceView("home"); setActiveWorkstreamId(null); setFilter("active"); setSearch("");
     setTemplateType("audit"); setModal(null); notify(t("工作台已初始化"));
   };
@@ -850,7 +880,7 @@ function DashboardWorkbench() {
       </nav>
     </aside>
 
-    <section className="workbench-layout" data-sidebar-collapsed={sidebarCollapsed || undefined}
+    <section className="workbench-layout" data-home={workspaceView === "home" || undefined} data-sidebar-collapsed={sidebarCollapsed || undefined}
       data-compact-layout={compactLayout || undefined} data-outstanding-collapsed={outstandingPanelCollapsed || undefined}
       data-resizing-navigation={resizingNavigation || undefined} data-simplified-view={simplifiedView || undefined}
       style={{ "--project-panel-width": `${navigationWidth}px`,
@@ -895,6 +925,11 @@ function DashboardWorkbench() {
               ["all", "全部"], ["archived", "归档"]].map(([value, label]) => <button type="button" role="tab" key={value}
                 aria-selected={filter === value} tabIndex={tabIndexFor(filter === value)} onClick={() => setFilter(value)}><span>{t(label)}</span>
                 <strong>{navigationCounts[value]}</strong></button>)}</div></div>
+          {recentRecordsFor(store, recentVisits).length > 0 && <details className="navigation-recent"><summary>{t("最近访问")}</summary>
+            {recentRecordsFor(store, recentVisits).slice(0, 3).map((record) => <button type="button" key={`${record.kind}:${record.id}`}
+              onClick={() => { clearNavigationFilters(); setSearch(""); setFilter("all"); openWorkspaceRecord(record.kind, record.id); }}>
+              <strong>{record.entity.legalName}</strong><small>{record.engagement ? reportingPeriodLabel(record.engagement, language) : t("公司主档")}</small>
+            </button>)}</details>}
           <WorkspaceTree store={store} selection={selection} onSelect={(next) => openWorkspaceRecord(next.kind, next.id)} search={search} filter={filter}
             navigationFilters={navigationFilters} statuses={store.outstandingStatuses} onMove={moveNavigationItem}
             viewMode={navigationView} simplifiedView={simplifiedView} /></>}
@@ -913,11 +948,15 @@ function DashboardWorkbench() {
           <button type="button" disabled={forwardHistoryIndex < 0} onClick={() => goThroughHistory(1)}
             aria-label={t("前进到下一个界面")} data-tooltip={t("前进到下一个界面")}><ArrowRight aria-hidden="true" /></button>
         </nav>
-        {workspaceView === "home" ? <HomeOverview store={store} now={deadlineClock} onOpen={openWorkspaceRecord}
+        {workspaceView === "home" ? <HomeOverview store={store} now={deadlineClock} recentVisits={recentVisits}
+          onClearRecent={() => setRecentVisits([])} onOpen={(kind, id) => {
+            clearNavigationFilters(); setSearch(""); setFilter("all"); openWorkspaceRecord(kind, id);
+          }}
           onOpenDeadline={openDeadlineAlert} onShowDeadlines={() => setModal({ type: "deadline-alerts" })}
           onNewCompany={() => setModal({ type: "create-entity" })}
           onNewEngagement={(entityId) => setModal({ type: "create-engagement", entityId })}
-          onShowProjects={(status = "all") => { setSidebarCollapsed(false); setNavigationView("projects"); setFilter(status); }}
+          onShowProjects={(status = "all") => { clearNavigationFilters(); setSearch(""); setSidebarCollapsed(false);
+            setNavigationView("projects"); setFilter(status); setWorkspaceView("detail"); }}
           onShowSchedule={() => setWorkspaceView("schedule")} />
           : workspaceView === "schedule" ? <ProjectSchedule store={store} filter={filter} onOpen={openWorkspaceRecord}
           onEditSchedule={openScheduleEditor} onOpenTaxDeadline={openTaxDeadlineCentre} onReorder={reorderSchedule}
@@ -945,10 +984,16 @@ function DashboardWorkbench() {
             onMerge={() => setModal({ type: "merge-entities", entityId: selectedEntitySource.id })} />
           : selectedProject ? <ProjectDetail project={selectedProject} rawProject={selectedProjectSource} statuses={outstandingStatusViews}
           parentMembership={selectedProjectMembership}
+          quickUpdate={selectedEngagement && <QuickUpdate key={selectedEngagement.id} engagement={selectedEngagement}
+            readOnly={Boolean(selectedEngagement.archived || selectedRecordEntity?.archived)} drafts={quickDrafts.current}
+            showSummary={false} onSave={saveQuickUpdate} onContinue={(action) => setActiveWorkstreamId(action.workstreamId)} />}
           activeWorkstreamId={activeWorkstreamId} setActiveWorkstreamId={setActiveWorkstreamId} updateWorkflowNodes={updateWorkflowNodes}
           setModal={setModal} duplicateProject={duplicateProject} archiveTarget={archiveTarget} restoreTarget={restoreTarget}
           onReorderWorkstreams={reorderProjectWorkstreams} deadlineClock={deadlineClock} />
           : selectedGroup ? <GroupDetail store={store} group={selectedGroup} statuses={outstandingStatusViews}
+            quickUpdate={selectedEngagement && <QuickUpdate key={selectedEngagement.id} engagement={selectedEngagement}
+              readOnly={Boolean(selectedEngagement.archived || selectedRecordEntity?.archived)}
+              drafts={quickDrafts.current} onSave={saveQuickUpdate} />}
             updateWorkflowNodes={updateWorkflowNodes} setModal={setModal} setSelection={(next) => openWorkspaceRecord(next.kind, next.id)}
             updateEngagement={updateEngagement} setStore={setStore} selectedGroupSample={selectedGroupSample}
             archiveTarget={archiveTarget} restoreTarget={restoreTarget} deadlineClock={deadlineClock} />
@@ -1208,7 +1253,7 @@ function DetailFactAction({ label, children, onClick, actionLabel, icon: Icon = 
 }
 
 function ProjectDetail({ project, rawProject, statuses, parentMembership, activeWorkstreamId, setActiveWorkstreamId,
-  updateWorkflowNodes, setModal, duplicateProject, archiveTarget, restoreTarget, onReorderWorkstreams, deadlineClock }) {
+  updateWorkflowNodes, setModal, duplicateProject, archiveTarget, restoreTarget, onReorderWorkstreams, deadlineClock, quickUpdate }) {
   const { language, t } = useUiLanguage();
   const draggingWorkstreamRef = React.useRef(null);
   const [draggingWorkstreamId, setDraggingWorkstreamId] = React.useState(null);
@@ -1284,6 +1329,7 @@ function ProjectDetail({ project, rawProject, statuses, parentMembership, active
         <button type="button" className="button secondary icon-only" aria-label={t("归档项目")}
           data-tooltip={t("归档项目")} onClick={() => archiveTarget("project", rawProject.id)}><Archive aria-hidden="true" /></button></>}</div>
     </header>
+    {quickUpdate}
     <dl className="detail-facts"><DetailFactAction label={t("负责人")} actionLabel={`${t("编辑项目资料")}：${t("负责人")}`}
       onClick={!readOnly ? () => setModal({ type: "edit-engagement", targetKind: "project", targetId: rawProject.id, quickField: "owner" }) : null}>
       {project.owner || t("未设置")}</DetailFactAction>
@@ -1343,7 +1389,7 @@ function ProjectDetail({ project, rawProject, statuses, parentMembership, active
 }
 
 function GroupDetail({ store, group, statuses, updateWorkflowNodes, setModal, setSelection, updateEngagement, setStore,
-  selectedGroupSample, archiveTarget, restoreTarget, deadlineClock }) {
+  selectedGroupSample, archiveTarget, restoreTarget, deadlineClock, quickUpdate }) {
   const { language, t } = useUiLanguage();
   const [tab, setTab] = React.useState("overview");
   const rawGroup = store.groups.find((item) => item.id === group.id);
@@ -1372,6 +1418,7 @@ function GroupDetail({ store, group, statuses, updateWorkflowNodes, setModal, se
           data-tooltip={t("编辑年度项目")} onClick={() => setModal({ type: "edit-engagement", targetKind: "group", targetId: rawGroup.id })}><Pencil aria-hidden="true" /></button>
         <button type="button" className="button secondary icon-only" aria-label={t("归档集团")}
           data-tooltip={t("归档集团")} onClick={() => archiveTarget("group", group.id)}><Archive aria-hidden="true" /></button></>}</div></header>
+    {quickUpdate}
     <section className="group-status-strip" aria-label={t("集团状态")}><article><span>{t("组成部分进度")}</span>
       <ProgressBar value={stats.componentPercentage} compact /></article>
       <article><span>{t("公司合并就绪")}</span><div><strong>{stats.readyCompanies}/{stats.totalCompanies}</strong><small>{t("家公司")}</small></div></article>
