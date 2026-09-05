@@ -4,6 +4,22 @@ import { toTraditional } from "./traditional.js";
 export const LANGUAGE_PREFERENCE_KEY = "audit-progress-workbench:language";
 
 const english = {
+  "工作台资料需要恢复": "Workspace recovery required",
+  "无法读取浏览器资料。已暂停启动和自动保存，请检查浏览器权限后重新读取。": "Browser data could not be read. Startup and autosave are paused. Check browser access, then retry reading.",
+  "资料来自较新版本。已暂停启动和自动保存，不会用空白工作台覆盖它。": "These data come from a newer version. Startup and autosave are paused; no empty workspace will overwrite them.",
+  "已有资料无法解析。已暂停启动和自动保存，不会用空白工作台覆盖它。": "Existing data could not be parsed. Startup and autosave are paused; no empty workspace will overwrite them.",
+  "原始资料仅保留在此浏览器，不会上传。导出的原始文件可能包含客户资料，不代表它是可直接恢复的有效备份。": "Original data remain in this browser and are not uploaded. The original file may contain client information and is not necessarily a valid restorable backup.",
+  "导出原始资料": "Export original data",
+  "重新读取": "Retry reading",
+  "从有效备份恢复": "Restore a valid backup",
+  "恢复备份将替换此浏览器资料，并暂停原文件关联；不会覆盖本地文件。请先导出原始资料。是否继续？": "Restoring will replace this browser data and pause file linking, without overwriting the local file. Export the original data first. Continue?",
+  "原始资料已变化或无法读取，请先重新读取。": "Original data changed or could not be read. Retry reading first.",
+  "恢复未完成，原始资料没有被替换。请检查浏览器存储后重试。": "Recovery did not complete; the original data were not replaced. Check browser storage and retry.",
+  "无法导出原始资料，请保留此页面并重试。": "Could not export the original data. Keep this page open and retry.",
+  "保存需要处理": "Saving needs attention",
+  "浏览器保存失败": "Browser save failed",
+  "重试保存": "Retry saving",
+  "最新已应用的更改仍在本页内存中。请立即导出备份，不要刷新或关闭；未提交的表单草稿不包含在备份内。": "The latest applied changes are still in this page memory. Export a backup now; do not reload or close. Unsubmitted form drafts are not included in backups.",
   "这家公司已归档或不存在，请关闭后重新选择。": "This company is archived or unavailable. Close the editor and choose again.",
   "来源项目已不存在或不属于这家公司，请重新选择来源年度。": "The source engagement is unavailable or belongs to another company. Choose the source year again.",
   "所选范本或种类已不可用，请重新选择起始范本。": "A selected template or category is unavailable. Choose the starting templates again.",

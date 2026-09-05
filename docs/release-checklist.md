@@ -1,6 +1,6 @@
 # Release verification checklist
 
-Run `pnpm check` before publishing. The command must complete the unit tests, Chromium browser flows and production build.
+Run `pnpm check` before publishing. The command must complete the unit tests, full Chromium flows, the WebKit stability gate and a production build. Automatic retries are disabled; investigate failures instead of treating a retry as a clean gate.
 
 ## Automated gate
 
@@ -29,3 +29,7 @@ Complete this short check in current desktop Chrome and Edge before a release th
 - Open portfolio and current-record reports, exercise every filter and a sortable column, then inspect print preview and save one report as PDF with scope, generation time and page numbering visible.
 
 Do not publish if any item fails. Attach the Playwright report, screenshots and traces to the issue when an automated check fails.
+
+## Stability and recovery
+
+Run `pnpm test:stability` for the focused dual-engine gate and follow `docs/stability-recovery.md`. Verify full-payload backup restoration in a clean context, explicit failure/retry behaviour, blocked startup preservation and no draft carry-over across a confirmed replacement. Preserve failing results; never remove a failing case or relax its assertion merely to publish.
