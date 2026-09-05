@@ -190,3 +190,17 @@ for (const [language, title] of [['en', 'Workspace recovery required'], ['zh-Han
     await page.screenshot({ path: testInfo.outputPath(`recovery-${language}.png`) });
   });
 }
+test('pointer-opened company dialog returns keyboard focus to its actual trigger', async ({ page }) => {
+  await openWorkbench(page);
+  const trigger = page.getByRole('button', { name: 'New company', exact: true });
+  await trigger.focus(); await trigger.click();
+  const dialog = page.getByRole('dialog', { name: 'New company', exact: true });
+  await expect(dialog.getByLabel('Legal entity *')).toBeFocused();
+  await dialog.getByRole('button', { name: 'Close', exact: true }).focus();
+  await page.keyboard.press('Shift+Tab');
+  await expect(dialog.getByRole('button', { name: 'Create company', exact: true })).toBeFocused();
+  await page.keyboard.press('Tab');
+  await expect(dialog.getByRole('button', { name: 'Close', exact: true })).toBeFocused();
+  await page.keyboard.press('Escape'); await expect(dialog).toHaveCount(0);
+  await expect(trigger).toBeFocused();
+});

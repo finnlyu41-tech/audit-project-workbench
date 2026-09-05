@@ -988,7 +988,10 @@ function DashboardWorkbench({ initialSnapshot }) {
                 {simplifiedView ? <Eye aria-hidden="true" /> : <EyeOff aria-hidden="true" />}<span>{t("简化")}</span></button>
               <button type="button" className="project-panel-new"
               aria-label={t("新建公司")} data-tooltip={t("新建公司")} data-tooltip-side="left"
-              onClick={() => setModal({ type: "create-entity" })}><Plus aria-hidden="true" /><span>{t("新建公司")}</span></button></div></div>
+              onClick={(event) => {
+                // Safari pointer activation need not focus its trigger; capture a real return target.
+                event.currentTarget.focus({ preventScroll: true }); setModal({ type: "create-entity" });
+              }}><Plus aria-hidden="true" /><span>{t("新建公司")}</span></button></div></div>
             <div className="navigation-view-tabs" role="tablist" aria-label={t("公司与项目视图")} onKeyDown={handleTabListKeyDown}>
               {["companies", "projects"].map((value) => <button type="button" role="tab" key={value}
                 aria-selected={navigationView === value} tabIndex={tabIndexFor(navigationView === value)}

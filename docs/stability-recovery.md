@@ -25,3 +25,7 @@ Negative cases cover malformed/future data, blocked reads/writes, unsuccessful r
 No business schema, audit completion, group readiness or tax calculations change. This is not a cross-tab locking system, automatic cloud backup, encryption feature or guarantee of recovery from arbitrary corruption. Recovery does not prove that the browser retained a download on the user's disk. WebKit automation is not a test on every Safari/iOS device or assistive technology. The second and third roadmap phases remain planned.
 
 Sources: https://playwright.dev/docs/browser-contexts (clean browser isolation); https://react.dev/learn/preserving-and-resetting-state (state identity and reset).
+
+## Additional full-engine finding
+
+The expanded WebKit run found the existing new-company modal return-focus assertion failing. Isolated focus logging reproduced it in three fresh contexts: pointer activation blurred the trigger before Modal captured document.activeElement, leaving body as the return target. The new-company action now explicitly focuses its own trigger before opening; no modal-wide focus behaviour or test timeouts are loosened. The same case is included in the permanent dual-engine stability gate. Reference: https://developer.mozilla.org/en-US/docs/Web/HTML/Reference/Elements/button#clicking_and_focus .
