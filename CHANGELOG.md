@@ -6,6 +6,12 @@ The project follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Deadline alert readability and search
+
+- Alert titles, sources and dates wrap in narrow dialogs; one modal body handles scrolling. Search and urgency fields share the 42px control height.
+- Search existing alerts by company, owner, deadline type or year and combine it with tax/project and urgency filters. Clear filters restores the full existing alert list without updating any deadlines.
+- Tax-alert accessible names include their source company so identical deadline titles can be distinguished.
+
 ### Outstanding centre usability
 
 - Long item titles, source details, notes and status controls fit the sidebar; common fields are 42px high and icon/text actions stay aligned.
