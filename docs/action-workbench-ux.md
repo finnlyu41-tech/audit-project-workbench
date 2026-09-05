@@ -199,3 +199,17 @@ Member cards have numbered accessible groups, equally sized 42px fields and 36px
 Tests use fictional records and cover no partial submission, correcting/removing invalid rows, mode confirmation/reversion, preserved prior engagements, template-start drafts, narrow geometry, keyboard focus and accessibility. model.js, the canonical schema, persistence, audit calculations, tax deadlines and print styles are unchanged.
 
 Release follow-through: live three-language testing exposed a delayed add-row focus callback that could run after a user selected another field. Row focus now completes synchronously in the committed layout, without a later animation callback. A deterministic delayed-frame browser regression protects subsequent field selection and typing. The final release acceptance includes this correction; earlier PR #36 publication is not the final accepted version.
+
+## Annual-engagement source choices
+
+The Copy / Create separate engagement shortcuts provide an initial source only. A subsequent choice of another previous year, template mode or blank mode is now authoritative at submission. Source records are resolved from current canonical data; a missing or unrelated previous record cannot silently fall back to the latest year. Source validation also rejects archived/missing target companies and unavailable selected template categories or IDs.
+
+The annual form shows the actual workflow source, its complete period or template names, an archive marker where applicable, and counts of the workflow structure about to be created. The summary is not an audit-completion measure. It excludes client notes and deadlines. Previous-source completion checks, workstream owners and workstream dates are reset by the existing creator. Current form values, including reporting periods, engagement types, framework, owner and schedule, are not overwritten by switching sources.
+
+Blank mode creates no workflow nodes. Holding-company component generation still follows the existing current-structure and readiness rules; this pass does not change those rules. Template mode uses the existing selected defaults unless explicitly changed in this form. The dedicated template-card start flow from #32 retains its separate, fixed-template semantics.
+
+Validation completes before any new engagement is added. Successful creation clears navigation filters that would hide the new record and focuses the new workspace. Cancel and refused-discard keep the original business data and existing draft protections. Drafts are still in-memory, not cross-refresh backups.
+
+Source controls use pressed-state buttons and 42px fields. Native select text stays inside its control; the complete source is repeated in the wrapping summary. The custom engagement-type field ignores composition-confirmation Enter without prematurely adding a type or submitting.
+
+Regression coverage: `tests/annual-source.test.js`, `tests/fixtures/annual-source.js` and `e2e/annual-source.spec.js`. Tests use synthetic companies and distinct source workflows. No schema, model.js, persistence, tax or audit-calculation changes.

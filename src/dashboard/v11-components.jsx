@@ -15,6 +15,9 @@ import { DateRangePicker } from "./date-range-picker.jsx";
 import { filterHoldingComponents, holdingComponentRows } from "./holding-components-model.js";
 import { companyAnnualRows, filterAnnualProjects } from "./company-overview-model.js";
 import { AdvancedSection } from "./ux-components.jsx";
+import { isComposingKey } from "./editor-draft-state.js";
+import { resolveAnnualSource } from "./annual-source-model.js";
+import { AnnualSourceSummary } from "./annual-source-summary.jsx";
 
 const FRAMEWORKS = [
   "HKFRS Accounting Standards",
@@ -295,9 +298,14 @@ export function EngagementForm({ store, entity, initial = null, preferredSourceI
     || type !== "Group consolidation");
   const customSelectedTypes = values.engagementTypes.filter((type) => !availableEngagementTypes.some((preset) =>
     engagementTypeKey(preset) === engagementTypeKey(type)));
-  const source = existing.find((engagement) => engagement.id === sourceEngagementId) || previousDefault;
+  const source = existing.find((engagement) => engagement.id === sourceEngagementId) || null;
   const submit = (event) => {
     event.preventDefault(); setError("");
+    if (!initial && !templateStarter) {
+      try { resolveAnnualSource(store, entity.id, { sourceMode, sourceEngagementId }, selections); }
+      catch {
+        event.currentTarget.querySelector(".engagement-source")?.focus(); return; }
+    }
     const reportingPeriods = values.reportingPeriods.map(({ baseYear, ...period }) => period);
     if (!quickField) {
       if (!values.engagementTypes.length) {
@@ -322,12 +330,13 @@ export function EngagementForm({ store, entity, initial = null, preferredSourceI
       setError(t("项目截止日不得早于开始日。")); return;
     }
     const sortedPeriods = engagementReportingPeriods({ reportingPeriods });
-    onSubmit({ ...values, engagementType: values.engagementTypes[0] || "", entityId: entity.id, reportingPeriods: sortedPeriods,
+    const result = onSubmit({ ...values, engagementType: values.engagementTypes[0] || "", entityId: entity.id, reportingPeriods: sortedPeriods,
       periodStart: sortedPeriods[0]?.periodStart || initial?.periodStart || "",
       periodEnd: sortedPeriods.at(-1)?.periodEnd || initial?.periodEnd || "",
       periodPreset: sortedPeriods.length === 1 ? sortedPeriods[0].periodPreset : "custom",
       workstreamSelections: selections },
-    { sourceMode, sourceEngagement: source });
+    { sourceMode, sourceEngagementId, sourceEngagement: sourceMode === "previous" ? source : null });
+    if (result?.error) setError(result.error);
   };
   if (quickField === "schedule") return <form data-editor-guard className="workbench-form" data-quick-field="schedule" onSubmit={submit}>
     <div className="engagement-company-lock"><i>{entity.kind === "holding_company" ? <Building2 aria-hidden="true" /> : <Building aria-hidden="true" />}</i>
@@ -385,15 +394,15 @@ export function EngagementForm({ store, entity, initial = null, preferredSourceI
       </article>)}</div>
       {!initial && <em>{t("公司默认：{preset}", { preset: presetLabel(entity.fiscalYearPreset, t) })}</em>}
     </section>
-    {!initial && !templateStarter && <section className="engagement-source"><header><strong>{t("起始方式")}</strong>
-      <span>{t("新年度默认复制最近项目的结构，并清空所有完成状态、负责人和日期。")}</span></header>
-      <div className="choice-tabs" role="group">{previousDefault && <button type="button" data-active={sourceMode === "previous" || undefined}
-        onClick={() => setSourceMode("previous")}>{t("复制上一年度")}</button>}
-        <button type="button" data-active={sourceMode === "template" || undefined} onClick={() => setSourceMode("template")}>{t("从范本建立")}</button>
-        <button type="button" data-active={sourceMode === "blank" || undefined} onClick={() => setSourceMode("blank")}>{t("空白项目")}</button></div>
-      {sourceMode === "previous" && <label><span>{t("来源年度")}</span><select value={sourceEngagementId}
-        onChange={(event) => setSourceEngagementId(event.target.value)}>{existing.map((engagement) => <option key={engagement.id} value={engagement.id}>
-          {yearEndOrPeriodLabel(engagement, language)}</option>)}</select></label>}
+    {!initial && !templateStarter && <section className="engagement-source" tabIndex="-1" aria-label={t("起始方式")}><header><strong>{t("起始方式")}</strong>
+      <span>{t("选择本次项目的起始方式，以下摘要会随选择更新。")}</span></header>
+      <div className="choice-tabs" role="group" aria-label={t("起始方式")}>{previousDefault && <button type="button" aria-pressed={sourceMode === "previous"} data-active={sourceMode === "previous" || undefined}
+        onClick={() => { setSourceMode("previous"); setError(""); }}>{t("复制上一年度")}</button>}
+        <button type="button" aria-pressed={sourceMode === "template"} data-active={sourceMode === "template" || undefined} onClick={() => { setSourceMode("template"); setError(""); }}>{t("从范本建立")}</button>
+        <button type="button" aria-pressed={sourceMode === "blank"} data-active={sourceMode === "blank" || undefined} onClick={() => { setSourceMode("blank"); setError(""); }}>{t("空白项目")}</button></div>
+      {sourceMode === "previous" && <label><span>{t("来源年度")}</span><select aria-label={t("来源年度")} value={sourceEngagementId}
+        onChange={(event) => { setSourceEngagementId(event.target.value); setError(""); }}>{existing.map((engagement) => <option key={engagement.id} value={engagement.id}>
+          {yearEndOrPeriodLabel(engagement, language)}{engagement.archived ? ` · ${t("已归档")}` : ""}</option>)}</select></label>}
       {sourceMode === "template" && entity.kind === "company" && <AdvancedSection title={t("业务模块与范本")}
         hint={t("已选择 {count} 个", { count: selections.length })}><div className="annual-template-picker">
         {store.workstreamCategories.filter((category) => category.id !== "custom").map((category) => {
@@ -406,6 +415,7 @@ export function EngagementForm({ store, entity, initial = null, preferredSourceI
                 ? { ...item, sampleId: event.target.value } : item))}><option value="">{t("空白流程")}</option>
               {templates.map((template) => <option key={template.id} value={template.id}>{template.name}</option>)}</select>}</div>;
         })}</div></AdvancedSection>}
+      <AnnualSourceSummary store={store} entityId={entity.id} options={{ sourceMode, sourceEngagementId }} selections={selections} />
     </section>}
     <fieldset className="engagement-type-selector"><legend>{t("项目类型")} <span>{t("可多选")}</span></legend>
       <div className="engagement-type-options">{availableEngagementTypes.map((type) => <label key={type}
@@ -414,7 +424,7 @@ export function EngagementForm({ store, entity, initial = null, preferredSourceI
       <div className="engagement-custom-type"><label htmlFor="v11-custom-engagement-type">{t("自定义项目类型")}</label>
         <div><input id="v11-custom-engagement-type" value={customEngagementType}
           onChange={(event) => setCustomEngagementType(event.target.value)} placeholder={t("输入自定义类型")}
-          onKeyDown={(event) => { if (event.key === "Enter") { event.preventDefault(); addCustomEngagementType(); } }} />
+          onKeyDown={(event) => { if (event.key === "Enter" && !isComposingKey(event)) { event.preventDefault(); addCustomEngagementType(); } }} />
           <button type="button" className="button secondary" disabled={!customEngagementType.trim() || customTypeExists}
             onClick={addCustomEngagementType}><Plus aria-hidden="true" />{t("添加类型")}</button></div></div>
       {customSelectedTypes.length > 0 && <div className="engagement-custom-type-tags">{customSelectedTypes.map((type) => <span key={type}>

@@ -2,6 +2,8 @@ import { useModalDraft } from "./modal-draft.jsx";
 import React from "react";
 import { TemplateStartFlow } from "./template-start.jsx";
 import { buildTemplateStart } from "./template-start-model.js";
+import { buildAnnualEngagement } from "./annual-source-model.js";
+import { ANNUAL_SOURCE_ERRORS } from "./annual-source-summary.jsx";
 import { filterTemplateLibrary } from "./template-library-view.js";
 import { TemplateLibrarySurface } from "./template-library-surface.jsx";
 import { filterOutstandingEntries, outstandingEntryKey, outstandingVisibilityCounts } from "./outstanding-center-model.js";
@@ -541,20 +543,15 @@ function DashboardWorkbench() {
   };
   const createAnnualEngagement = (entity, values, options) => {
     try {
-      let engagement = makeEngagement(values, { ...options, entity, store, samples: store.samples,
-        workstreamCategories: store.workstreamCategories, outstandingStatuses: store.outstandingStatuses,
-        groupSample: selectedGroupSample || EMPTY_GROUP_SAMPLE });
-      if (entity.kind === "holding_company" && engagement.consolidation) engagement = { ...engagement,
-        consolidation: { ...engagement.consolidation,
-          components: componentsForCurrentStructure(store, entity.id, engagement.periodStart, engagement.periodEnd,
-            selectedGroupSample || EMPTY_GROUP_SAMPLE, engagement.reportingPeriods) } };
-      const kind = entity.kind === "holding_company" ? "group" : "project";
+      const { engagement, kind } = buildAnnualEngagement(store, entity?.id, values, options, language);
       setStore((current) => ({ ...current, engagements: [engagement, ...current.engagements],
         scheduleOrder: [`${kind}:${engagement.id}`, ...(current.scheduleOrder || []).filter((key) => !key.endsWith(`:${engagement.id}`))] }));
+      setSearch(""); setNavigationFilters({ owner: "", engagementType: "", reportingYear: "" });
+      pendingWorkspaceFocus.current = true;
       setSelection({ kind, id: engagement.id }); setWorkspaceView("detail"); setFilter("active"); setModal(null);
       setActiveWorkstreamId(null); notify(t("年度项目已建立并自动保存"));
-    } catch (error) { window.alert(t(error.message.includes("already exists")
-      ? "这家公司已经有相同报告期间的项目，包括归档项目。" : "请检查报告期间后再建立项目。")); }
+    } catch (error) { return { error: t(ANNUAL_SOURCE_ERRORS[error.code] || (error.message.includes("already exists")
+      ? "这家公司已经有相同报告期间的项目，包括归档项目。" : "请检查报告期间后再建立项目。")) }; }
   };
   const duplicateProject = (project) => {
     const engagement = store.engagements.find((item) => item.id === project.id);
@@ -1149,8 +1146,7 @@ function DashboardWorkbench() {
       <EngagementForm store={store} entity={store.entities.find((entity) => entity.id === modal.entityId)}
         preferredSourceId={modal.sourceEngagementId} onClose={() => setModal(null)}
         onSubmit={(values, options) => createAnnualEngagement(store.entities.find((entity) => entity.id === modal.entityId), values,
-          modal.sourceEngagementId ? { ...options, sourceMode: "previous",
-            sourceEngagement: store.engagements.find((engagement) => engagement.id === modal.sourceEngagementId) } : options)} /></Modal>}
+          options)} /></Modal>}
     {modal?.type === "edit-engagement" && modalTargetEngagement && modalTargetEntity && <Modal title={`${t(quickProjectTitle || "编辑年度项目")} · ${modalTargetEntity.legalName}`}
       onClose={() => setModal(null)} large={!modal.quickField}>
       <EngagementForm store={store} entity={modalTargetEntity} initial={modalTargetEngagement} quickField={modal.quickField}
