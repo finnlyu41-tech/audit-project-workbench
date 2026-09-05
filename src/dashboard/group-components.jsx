@@ -1,6 +1,6 @@
 import React from "react";
 import { useModalDraft } from "./modal-draft.jsx";
-import { ArrowRightLeft, Building, Building2, ChevronsDown, ChevronsUp, Copy, Minus, Pencil, Play, Plus, Trash2 } from "lucide-react";
+import { ArrowDown, ArrowUp, ArrowRightLeft, Building, Building2, ChevronsDown, ChevronsUp, Copy, Minus, Pencil, Play, Plus, Trash2 } from "lucide-react";
 import { ProgressBar } from "./components.jsx";
 import { handleTabListKeyDown, tabIndexFor } from "./a11y.js";
 import { GROUP_AUDIT_TYPES, GROUP_AUDIT_TYPE_KEYS, canMoveWorkspaceItem, collectGroupOutstandingEntries, formatDate,
@@ -710,37 +710,39 @@ export function GroupSampleEditor({ sample, onSave, onClose, onReset }) {
     <section className="group-sample-section"><header><strong>{t("合并工作流")}</strong>
       <span>{t("用于每一级选择“需要合并”的集团。")}</span></header>
       <div className="sample-editor-list">{draft.nodes.map((node, index) => <section className="sample-edit-node" key={node.id}>
-        <header><span>{index + 1}</span><input required value={node.title}
+        <header><span>{index + 1}</span><input required value={node.title} aria-label={t("节点 {index} 名称", { index: index + 1 })}
           onChange={(event) => updateNode(node.id, (current) => ({ ...current, title: event.target.value }))} />
-          <div><button type="button" disabled={index === 0} onClick={() => setDraft((current) => {
+          <div><button type="button" className="icon-only" aria-label={t("上移节点")} data-tooltip={t("上移节点")} data-tooltip-side="left" disabled={index === 0} onClick={() => setDraft((current) => {
             const nodes = [...current.nodes]; [nodes[index - 1], nodes[index]] = [nodes[index], nodes[index - 1]]; return { ...current, nodes };
-          })}>↑</button><button type="button" disabled={index === draft.nodes.length - 1} onClick={() => setDraft((current) => {
+          })}><ArrowUp aria-hidden="true" /></button><button type="button" className="icon-only" aria-label={t("下移节点")} data-tooltip={t("下移节点")} data-tooltip-side="left" disabled={index === draft.nodes.length - 1} onClick={() => setDraft((current) => {
             const nodes = [...current.nodes]; [nodes[index + 1], nodes[index]] = [nodes[index], nodes[index + 1]]; return { ...current, nodes };
-          })}>↓</button><button type="button" onClick={() => setDraft((current) => ({ ...current,
-            nodes: current.nodes.filter((item) => item.id !== node.id) }))}>{t("删除")}</button></div></header>
+          })}><ArrowDown aria-hidden="true" /></button><button type="button" className="icon-only" aria-label={t("删除节点")} data-tooltip={t("删除节点")} data-tooltip-side="left" onClick={() => setDraft((current) => ({ ...current,
+            nodes: current.nodes.filter((item) => item.id !== node.id) }))}><Trash2 aria-hidden="true" /></button></div></header>
         <input className="sample-node-description" value={node.description}
+          aria-label={t("{name}说明", { name: node.title || t("节点 {index}", { index: index + 1 }) })}
           onChange={(event) => updateNode(node.id, (current) => ({ ...current, description: event.target.value }))} />
-        <div className="sample-condition-editor">{node.conditions.map((condition) => <div key={condition.id}><span>•</span>
-          <input value={condition.label} onChange={(event) => updateNode(node.id, (current) => ({ ...current,
+        <div className="sample-condition-editor">{node.conditions.map((condition, conditionIndex) => <div key={condition.id}><span>{conditionIndex + 1}</span>
+          <input value={condition.label} aria-label={t("{name}条件 {index}", { name: node.title || t("节点 {index}", { index: index + 1 }), index: conditionIndex + 1 })} onChange={(event) => updateNode(node.id, (current) => ({ ...current,
             conditions: current.conditions.map((item) => item.id === condition.id ? { ...item, label: event.target.value } : item) }))} />
-          <button type="button" onClick={() => updateNode(node.id, (current) => ({ ...current,
-            conditions: current.conditions.filter((item) => item.id !== condition.id) }))}>×</button></div>)}</div>
+          <button type="button" className="icon-only" aria-label={t("删除条件")} data-tooltip={t("删除条件")} data-tooltip-side="left" onClick={() => updateNode(node.id, (current) => ({ ...current,
+            conditions: current.conditions.filter((item) => item.id !== condition.id) }))}><Trash2 aria-hidden="true" /></button></div>)}</div>
         <footer><button type="button" onClick={() => updateNode(node.id, (current) => ({ ...current,
-          conditions: [...current.conditions, { id: uid("group-sample-condition"), label: "", done: false }] }))}>{t("＋ 添加条件")}</button></footer>
+          conditions: [...current.conditions, { id: uid("group-sample-condition"), label: "", done: false }] }))}><Plus aria-hidden="true" />{t("添加完成条件")}</button></footer>
       </section>)}</div><button type="button" className="sample-add-node" onClick={() => setDraft((current) => ({ ...current,
-        nodes: [...current.nodes, { id: uid("group-sample-node"), title: "", description: "", conditions: [] }] }))}>{t("＋ 添加合并节点")}</button></section>
+        nodes: [...current.nodes, { id: uid("group-sample-node"), title: "", description: "", conditions: [] }] }))}><Plus aria-hidden="true" />{t("添加合并节点")}</button></section>
     <section className="group-sample-section"><header><strong>{t("公司合并就绪条件")}</strong>
       <span>{t("按审计类别设置默认值；建立公司成员后仍可单独覆盖。")}</span></header>
       <div className="readiness-template-grid">{GROUP_AUDIT_TYPES.map((auditType) => <section key={auditType}><h4>{t(auditTypeKeys[auditType])}</h4>
-        {draft.readinessTemplates[auditType].map((condition) => <div key={condition.id}><input value={condition.label}
+        {draft.readinessTemplates[auditType].map((condition, conditionIndex) => <div key={condition.id}><input value={condition.label}
+          aria-label={t("{type}就绪条件 {index}", { type: t(auditTypeKeys[auditType]), index: conditionIndex + 1 })}
           onChange={(event) => setDraft((current) => ({ ...current, readinessTemplates: { ...current.readinessTemplates,
             [auditType]: current.readinessTemplates[auditType].map((item) => item.id === condition.id
               ? { ...item, label: event.target.value } : item) } }))} />
-          <button type="button" onClick={() => setDraft((current) => ({ ...current, readinessTemplates: { ...current.readinessTemplates,
-            [auditType]: current.readinessTemplates[auditType].filter((item) => item.id !== condition.id) } }))}>×</button></div>)}
-        <button type="button" onClick={() => setDraft((current) => ({ ...current, readinessTemplates: { ...current.readinessTemplates,
+          <button type="button" className="icon-only" aria-label={t("删除就绪条件")} data-tooltip={t("删除就绪条件")} data-tooltip-side="left" onClick={() => setDraft((current) => ({ ...current, readinessTemplates: { ...current.readinessTemplates,
+            [auditType]: current.readinessTemplates[auditType].filter((item) => item.id !== condition.id) } }))}><Trash2 aria-hidden="true" /></button></div>)}
+        <button type="button" className="readiness-add" onClick={() => setDraft((current) => ({ ...current, readinessTemplates: { ...current.readinessTemplates,
           [auditType]: [...current.readinessTemplates[auditType], { id: uid("readiness-condition"), label: "", done: false }] } }))}>
-          {t("＋ 添加就绪条件")}</button></section>)}</div></section>
+          <Plus aria-hidden="true" />{t("添加就绪条件")}</button></section>)}</div></section>
     <footer className="sample-editor-actions">{onReset ? <button type="button" className="button secondary" onClick={() => confirmTransition(onReset)}>{t("恢复基础范本")}</button> : <span />}
       <span /><span /><button type="button" className="button secondary" onClick={closeEditor}>{t("取消")}</button>
       <button type="submit" className="button primary">{t("保存集团范本")}</button></footer>

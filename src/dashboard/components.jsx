@@ -1,4 +1,5 @@
 import React from "react";
+import { RequiredTextInput } from "./required-text-input.jsx";
 import { ArrowDown, ArrowLeft, ArrowRight, ArrowRightLeft, ArrowUp, Copy, Pencil, Play, Plus, Search, Settings2, Trash2, X } from "lucide-react";
 import { GROUP_AUDIT_TYPES, GROUP_AUDIT_TYPE_KEYS, createDefaultWorkstreamCategories, dueTone, formatDate,
   nodeStatus, normalizeTemplateTags, outstandingIsOpen, projectStats, reportingPeriodLabel, uid, workstreamCategoryLabel, workstreamStats,
@@ -190,6 +191,7 @@ export function WorkstreamForm({ initial, availableCategories = createDefaultWor
     sampleId: initial ? "" : (selectedSampleIdsByCategory[firstCategory.id]
       || samples.find((sample) => sample.categoryId === firstCategory.id)?.id || ""),
   }));
+  const { closeEditor, confirmTransition } = useModalDraft(values, onClose);
   const update = (field) => (event) => setValues((current) => ({ ...current, [field]: event.target.value }));
   const changeCategory = (event) => {
     const category = categoryOptions.find((item) => item.id === event.target.value) || firstCategory;
@@ -200,19 +202,19 @@ export function WorkstreamForm({ initial, availableCategories = createDefaultWor
         || samples.find((sample) => sample.categoryId === category.id)?.id || "" }));
   };
   const typeSamples = samples.filter((sample) => sample.categoryId === values.categoryId);
-  return <form className="workbench-form" onSubmit={(event) => {
+  return <form data-editor-guard className="workbench-form" onSubmit={(event) => {
     event.preventDefault();
     if (values.type !== "custom" || values.customName.trim()) onSubmit({ ...values, customName: values.customName.trim() });
   }}>
     <label><span>{t("模块类别")}</span><select value={values.categoryId} disabled={Boolean(initial)} onChange={changeCategory}>
       {categoryOptions.map((category) => <option value={category.id} key={category.id}>{workstreamCategoryLabel(category, language)}</option>)}
     </select></label>
-    {values.type === "custom" && values.categoryId === "custom" && <label><span>{t("自定义模块名称 *")}</span><input autoFocus required value={values.customName}
+    {values.type === "custom" && values.categoryId === "custom" && <label><span>{t("自定义模块名称 *")}</span><RequiredTextInput autoFocus aria-label={t("自定义模块名称 *")} value={values.customName}
       onChange={update("customName")} placeholder={t("例如：公司秘书服务")} /></label>}
     {!initial && <label><span>{t("业务范本")}</span><select value={values.sampleId} onChange={update("sampleId")}>
       <option value="">{t("空白流程")}</option>{typeSamples.map((sample) => <option value={sample.id} key={sample.id}>{sample.name}</option>)}</select></label>}
-    <footer className="modal-actions">{onRemove && <button type="button" className="button danger-quiet" onClick={onRemove}>{t("移除模块")}</button>}
-      <span className="modal-action-spacer" /><button type="button" className="button secondary" onClick={onClose}>{t("取消")}</button>
+    <footer className="modal-actions">{onRemove && <button type="button" className="button danger-quiet" onClick={() => confirmTransition(onRemove)}>{t("移除模块")}</button>}
+      <span className="modal-action-spacer" /><button type="button" className="button secondary" onClick={closeEditor}>{t("取消")}</button>
       <button type="submit" className="button primary">{t(initial ? "保存模块" : "添加模块")}</button></footer>
   </form>;
 }
@@ -406,6 +408,7 @@ export function UserGuide() {
   const { t } = useUiLanguage();
   const sections = [
     { id: "start", title: "快速开始", summary: "先建立公司主档，再为每个报告期间建立独立的年度项目。", topics: [
+      { title: "保护日常小表单", steps: ["节点、完成条件、待清事项和业务模块表单也会提示未保存更改；取消不会自动提交。", "名称或内容不能为空，也不能只输入空格；出现提示后修正原输入即可保存。"], result: "草稿仍只在打开的编辑器中，刷新或强制关闭不保证恢复。" },
       { title: "建立第一家公司主档", steps: ["在公司列表选择加号。", "填写法律实体并选择公司或控股公司。",
         "选择默认会计年度：自然年、4 月至次年 3 月，或自定义。", "需要时指定所属控股公司和长期适用的公司备注。",
         "选择“建立公司”；公司可以先不建立任何年度项目。"],
@@ -650,15 +653,16 @@ export function NodeForm({ initial, onSubmit, onClose }) {
   const { t } = useUiLanguage();
   const [title, setTitle] = React.useState(initial?.title || "");
   const [description, setDescription] = React.useState(initial?.description || "");
-  return <form className="workbench-form" onSubmit={(event) => {
+  const { closeEditor } = useModalDraft({ title, description }, onClose);
+  return <form data-editor-guard className="workbench-form" onSubmit={(event) => {
     event.preventDefault();
     if (title.trim()) onSubmit({ title: title.trim(), description: description.trim() });
   }}>
-    <label><span>{t("节点名称 *")}</span><input autoFocus required value={title} onChange={(event) => setTitle(event.target.value)}
+    <label><span>{t("节点名称 *")}</span><RequiredTextInput autoFocus aria-label={t("节点名称 *")} value={title} onChange={(event) => setTitle(event.target.value)}
       placeholder={t("例如：税务计算")} /></label>
     <label><span>{t("说明")}</span><textarea rows="3" value={description}
       onChange={(event) => setDescription(event.target.value)} placeholder={t("说明这个节点的目标")} /></label>
-    <footer className="modal-actions"><button type="button" className="button secondary" onClick={onClose}>{t("取消")}</button>
+    <footer className="modal-actions"><button type="button" className="button secondary" onClick={closeEditor}>{t("取消")}</button>
       <button type="submit" className="button primary">{t("保存节点")}</button></footer>
   </form>;
 }

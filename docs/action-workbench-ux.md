@@ -59,3 +59,11 @@ This is not a blanket guard on every form. Search panels, directly applied setti
 When an opted-in editor is dirty, a beforeunload listener requests the browser-native page-leave warning; it is removed when clean or unmounted. The browser owns the warning text and may suppress it, especially on mobile or forced shutdown. This is a warning, not durable autosave or guaranteed crash recovery. See MDN's Window beforeunload event documentation.
 
 Sticky action footers use opaque backgrounds and stay inside the dialog viewport. Initial focus ignores hidden/disabled controls, the tab loop includes disclosure summaries, invalid collapsed ancestors expand before validation focus, and composition Escape is ignored in both the outer dialog and date-range picker. The calendar consumes its own Escape before the editor is considered for closing.
+
+## Daily editors and group-template alignment
+
+The seventh pass extends the explicit modal draft registry to stage, completion-criterion, outstanding-item and workstream forms. Cancel, Escape and modal dismissal use the same confirmation as the larger editors. Reverting values removes the warning; successful submission follows the existing save handlers. This is not recovery storage and does not expand protection to the tax-deadline manager or other unregistered editors.
+
+Required single-line names and content keep the existing trimmed non-empty constraint, now backed by a browser pattern and a visible error linked with aria-describedby. Errors are marked only after validation, clear after correction and do not rewrite the entered text. The browser's own invalid-field navigation remains available.
+
+Group-template stage sorting, deletion, condition deletion and readiness deletion now have consistent icons, sizes, tooltips and accessible names. Field names identify the stage or readiness category. Edits stay in the template draft until Save; existing engagements are not rewritten. UI tests cover 480/800/1440px, cancellation, correction, template order and data isolation. Existing legacy-view saves may update company timestamps, as before; business fields and audit completion rules are unchanged.

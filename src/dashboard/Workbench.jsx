@@ -1,4 +1,6 @@
+import { useModalDraft } from "./modal-draft.jsx";
 import React from "react";
+import { RequiredTextInput } from "./required-text-input.jsx";
 import { Archive, ArchiveRestore, ArrowLeft, ArrowRight, BarChart3, BellRing, BookOpen, Building, Building2, CalendarRange, Copy, DatabaseBackup, Eye, EyeOff, House, Languages, LibraryBig, ListPlus, Palette,
   ListFilter, PanelRightClose, PanelRightOpen, PanelsTopLeft, Pencil, Plus, ReceiptText, Search, Settings, Settings2, Trash2, X } from "lucide-react";
 import { Modal, NodeBoard, NodeForm, OutstandingStatusEditor, ProgressBar, ProjectForm, SampleEditor,
@@ -1671,10 +1673,11 @@ function OutstandingCenter({ store, target, targetKind, statuses, updateProject,
 function ConditionForm({ initial, onSubmit, onClose }) {
   const { t } = useUiLanguage();
   const [label, setLabel] = React.useState(initial);
-  return <form className="workbench-form" onSubmit={(event) => { event.preventDefault(); if (label.trim()) onSubmit(label.trim()); }}>
-    <label><span>{t("完成条件 *")}</span><input autoFocus required value={label} onChange={(event) => setLabel(event.target.value)}
+  const { closeEditor } = useModalDraft(label, onClose);
+  return <form data-editor-guard className="workbench-form" onSubmit={(event) => { event.preventDefault(); if (label.trim()) onSubmit(label.trim()); }}>
+    <label><span>{t("完成条件 *")}</span><RequiredTextInput autoFocus aria-label={t("完成条件 *")} value={label} onChange={(event) => setLabel(event.target.value)}
       placeholder={t("说明可客观确认的达成条件")} /></label>
-    <footer className="modal-actions"><button type="button" className="button secondary" onClick={onClose}>{t("取消")}</button>
+    <footer className="modal-actions"><button type="button" className="button secondary" onClick={closeEditor}>{t("取消")}</button>
       <button type="submit" className="button primary">{t("保存条件")}</button></footer></form>;
 }
 
@@ -1683,10 +1686,11 @@ function OutstandingForm({ initial, statuses, workstreams, defaultWorkstreamId, 
   const [values, setValues] = React.useState(() => ({ title: initial?.title || "", note: initial?.note || "",
     status: initial?.status || statuses.find((status) => !status.closed)?.id || statuses[0]?.id || "",
     workstreamId: initial?.workstreamId || defaultWorkstreamId || "" }));
+  const { closeEditor } = useModalDraft(values, onClose);
   const update = (field) => (event) => setValues((current) => ({ ...current, [field]: event.target.value }));
-  return <form className="workbench-form" onSubmit={(event) => { event.preventDefault(); if (values.title.trim()) onSubmit({ ...values,
+  return <form data-editor-guard className="workbench-form" onSubmit={(event) => { event.preventDefault(); if (values.title.trim()) onSubmit({ ...values,
     title: values.title.trim(), note: values.note.trim(), workstreamId: values.workstreamId || null }); }}>
-    <label><span>{t("待清事项 *")}</span><input autoFocus required value={values.title} onChange={update("title")}
+    <label><span>{t("待清事项 *")}</span><RequiredTextInput autoFocus aria-label={t("待清事项 *")} value={values.title} onChange={update("title")}
       placeholder={t("例如：尚欠银行月结单")} /></label>
     {workstreams.length > 0 && <label><span>{t("所属层级或业务模块")}</span><select value={values.workstreamId} onChange={update("workstreamId")}>
       <option value="">{t("项目级")}</option>{workstreams.map((workstream) => <option value={workstream.id} key={workstream.id}>
@@ -1695,7 +1699,7 @@ function OutstandingForm({ initial, statuses, workstreams, defaultWorkstreamId, 
       <option value={status.id} key={status.id}>{status.label}</option>)}</select></label>
     <label><span>{t("说明")}</span><textarea rows="4" value={values.note} onChange={update("note")}
       placeholder={t("记录缺少内容、负责方或下一步跟进")} /></label>
-    <footer className="modal-actions"><button type="button" className="button secondary" onClick={onClose}>{t("取消")}</button>
+    <footer className="modal-actions"><button type="button" className="button secondary" onClick={closeEditor}>{t("取消")}</button>
       <button type="submit" className="button primary">{t("保存待清事项")}</button></footer></form>;
 }
 
