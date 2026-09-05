@@ -77,14 +77,12 @@ export function CompanyForm({ store, initial = null, onSubmit, onClose, creation
     batchBaselines.current.delete(id);
     setBatchCompanies((current) => current.filter((company) => company.id !== id));
   };
-  React.useEffect(() => {
+  React.useLayoutEffect(() => {
     if (!pendingBatchFocus.current) return;
-    const frame = window.requestAnimationFrame(() => {
-      const field = batchFields.current.get(pendingBatchFocus.current);
-      pendingBatchFocus.current = null;
-      field?.focus({ preventScroll: true }); field?.scrollIntoView({ block: "nearest", inline: "nearest" });
-    });
-    return () => window.cancelAnimationFrame(frame);
+    const field = batchFields.current.get(pendingBatchFocus.current);
+    pendingBatchFocus.current = null;
+    // Complete row focus before the next interaction can choose another field.
+    field?.focus({ preventScroll: true }); field?.scrollIntoView({ block: "nearest", inline: "nearest" });
   }, [batchCompanies]);
   const changeCreationMode = (next) => {
     if (next === creationMode) return;
