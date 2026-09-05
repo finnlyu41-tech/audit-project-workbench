@@ -6,6 +6,12 @@ The project follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Guide and icon affordances
+
+- The built-in user guide now has an autofocus search that matches both localized and source guide text, filters the feature directory, and shows a clear empty state.
+- Guide search and content remain keyboard-accessible and contained in narrow dialogs.
+- Date-range calendar icon controls now expose the same hover/focus tooltips as the rest of the icon-action system.
+
 ### Action navigation and editor follow-through
 
 - Next-step actions now reveal and focus the exact unfinished stage; empty workstreams remain empty until explicitly configured.
