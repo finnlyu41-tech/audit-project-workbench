@@ -213,3 +213,11 @@ Validation completes before any new engagement is added. Successful creation cle
 Source controls use pressed-state buttons and 42px fields. Native select text stays inside its control; the complete source is repeated in the wrapping summary. The custom engagement-type field ignores composition-confirmation Enter without prematurely adding a type or submitting.
 
 Regression coverage: `tests/annual-source.test.js`, `tests/fixtures/annual-source.js` and `e2e/annual-source.spec.js`. Tests use synthetic companies and distinct source workflows. No schema, model.js, persistence, tax or audit-calculation changes.
+
+## Holding quick-update bug fix
+
+A user-reported holding-consolidation bug was reproduced on the published site: the quick-update card appeared multiple times, with more copies after re-renders. The injected QuickUpdate and its sibling HoldingComponentsPanel both used the same engagement ID as their React key. They now use separate stable key namespaces. No duplicate cards are hidden with CSS and no business IDs are changed.
+
+Saving an owner edit also clears the obsolete owner/search navigation filters so the same annual engagement remains visible. The type, reporting-year and status filters remain unchanged. Notes-only edits do not reset valid owner or search filters.
+
+`e2e/group-quick-update.spec.js` asserts a single editor and absence of duplicate-key warnings across re-renders, tab switches and component updates. It checks annual draft isolation, save/reload, conflict handling, read-only archives, date rejection, unchanged consolidation snapshots and 800/1024/1440px geometry. The existing metadata patcher, audit algorithms, component readiness, tax data, schema and storage format are unchanged. React key identity follows the official sibling-key rule: https://react.dev/learn/rendering-lists#rules-of-keys . All tests use synthetic records in isolated browser contexts.

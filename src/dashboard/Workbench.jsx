@@ -464,6 +464,11 @@ function DashboardWorkbench() {
     const result = prepareQuickUpdate(store, id, baseline, values);
     if (!result.error && Object.keys(result.patch).length) {
       updateEngagement(id, (current) => ({ ...current, ...result.patch }));
+      if (Object.prototype.hasOwnProperty.call(result.patch, "owner")) {
+        // An old owner filter must not remove the engagement just edited.
+        setSearch("");
+        setNavigationFilters((current) => ({ ...current, owner: "" }));
+      }
       notify(t("项目资料已更新"));
     }
     return result;
@@ -1061,14 +1066,14 @@ function DashboardWorkbench() {
             onMerge={() => setModal({ type: "merge-entities", entityId: selectedEntitySource.id })} />
           : selectedProject ? <ProjectDetail project={selectedProject} rawProject={selectedProjectSource} statuses={outstandingStatusViews}
           parentMembership={selectedProjectMembership} onWorkflowRevealed={() => setWorkflowReveal(null)} workflowReveal={workflowReveal?.targetId === selectedProjectSource.id ? workflowReveal : null}
-          quickUpdate={selectedEngagement && <QuickUpdate key={selectedEngagement.id} engagement={selectedEngagement}
+          quickUpdate={selectedEngagement && <QuickUpdate key={`quick-update:${selectedEngagement.id}`} engagement={selectedEngagement}
             readOnly={Boolean(selectedEngagement.archived || selectedRecordEntity?.archived)} drafts={quickDrafts.current}
             showSummary={false} onSave={saveQuickUpdate} onContinue={() => revealNextStep(selectedEngagement.id)} />}
           activeWorkstreamId={activeWorkstreamId} setActiveWorkstreamId={setActiveWorkstreamId} updateWorkflowNodes={updateWorkflowNodes}
           setModal={setModal} duplicateProject={duplicateProject} archiveTarget={archiveTarget} restoreTarget={restoreTarget}
           onReorderWorkstreams={reorderProjectWorkstreams} deadlineClock={deadlineClock} />
           : selectedGroup ? <GroupDetail store={store} group={selectedGroup} statuses={outstandingStatusViews}
-            quickUpdate={selectedEngagement && <QuickUpdate key={selectedEngagement.id} engagement={selectedEngagement}
+            quickUpdate={selectedEngagement && <QuickUpdate key={`quick-update:${selectedEngagement.id}`} engagement={selectedEngagement}
               readOnly={Boolean(selectedEngagement.archived || selectedRecordEntity?.archived)}
               drafts={quickDrafts.current} onSave={saveQuickUpdate} />}
             updateWorkflowNodes={updateWorkflowNodes} setModal={setModal} onOpenComponent={revealWorkspaceRecord}
@@ -1525,7 +1530,7 @@ function GroupDetail({ store, group, statuses, updateWorkflowNodes, setModal, on
     <div className="group-tabs" role="tablist" aria-label={t("控股公司工作区")} onKeyDown={handleTabListKeyDown}>{[["overview", "组成部分"], ["workflow", "合并节点"], ["settings", "集团资料"]]
       .map(([value, label]) => <button type="button" role="tab" aria-selected={tab === value} key={value}
         tabIndex={tabIndexFor(tab === value)} onClick={() => setTab(value)}>{t(label)}</button>)}</div>
-    {tab === "overview" && engagement && <HoldingComponentsPanel key={engagement.id} store={store} engagement={engagement} readOnly={readOnly}
+    {tab === "overview" && engagement && <HoldingComponentsPanel key={`holding-components:${engagement.id}`} store={store} engagement={engagement} readOnly={readOnly}
       onOpen={onOpenComponent}
       onUpdate={(componentId, patch) => updateEngagement(engagement.id, (current) => ({ ...current,
         consolidation: { ...current.consolidation, components: (current.consolidation?.components || []).map((component) =>

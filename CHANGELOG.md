@@ -6,6 +6,12 @@ The project follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Holding quick-update identity fix
+
+- Give the quick-update editor and holding-components panel distinct, stable sibling keys. Holding views no longer accumulate duplicate quick-update cards during re-renders.
+- Keep the edited annual engagement visible after changing its owner by clearing stale owner/search navigation filters. Notes-only edits retain their applicable filters.
+- Add holding-specific regression coverage for single-instance rendering, tab/year switches, isolated drafts, save/cancel, conflict handling, archive protection and narrow layouts.
+
 ### Explicit annual-engagement starting choices
 
 - Separate-engagement and copy shortcuts now use the selected starting method and source year, not the original shortcut source.
