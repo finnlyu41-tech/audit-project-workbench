@@ -238,7 +238,7 @@ export function WorkstreamCard({ workstream, selected, openItems = 0, onSelect, 
 }
 
 export function SampleLibrary({ samples, categoryLabel, selectedSampleId, onSelect, onCreate, onEdit, onDuplicate, onDelete, onUse,
-  onManageCategories }) {
+  onManageCategories, emptyFiltered = false, onReset }) {
   const { language, t } = useUiLanguage();
   return <section className="sample-library">
     <header className="sample-library-header"><div><strong>{t("业务模块范本")}</strong>
@@ -249,8 +249,9 @@ export function SampleLibrary({ samples, categoryLabel, selectedSampleId, onSele
     {samples.length ? <div className="sample-library-list">{samples.map((sample) => {
       const conditions = sample.nodes.reduce((sum, node) => sum + node.conditions.length, 0);
       const selected = sample.id === selectedSampleId;
-      return <article className="sample-library-card" data-selected={selected || undefined} key={sample.id}>
-        <button type="button" className="sample-library-select" onClick={() => onSelect(sample.id)}>
+      return <article className="sample-library-card" data-template-id={sample.id} tabIndex="-1" aria-label={sample.name}
+        data-selected={selected || undefined} key={sample.id}>
+        <button type="button" className="sample-library-select" aria-pressed={selected} onClick={() => onSelect(sample.id)}>
           <span className="sample-mark" aria-hidden="true">{language === "en" ? "T" : language === "zh-Hant" ? "範" : "范"}</span><span><strong>{sample.name}</strong>
             <small>{sample.description || t("没有说明")}</small>
             <em>{categoryLabel || workstreamTypeLabel(sample.workstreamType, language)} · {t("{nodes} 个节点 · {conditions} 项条件", { nodes: sample.nodes.length, conditions })}</em>
@@ -267,7 +268,9 @@ export function SampleLibrary({ samples, categoryLabel, selectedSampleId, onSele
           <button type="button" className="icon-only" aria-label={t("删除范本")} title={t("删除范本")} data-tooltip={t("删除范本")}
             data-tooltip-side="left" onClick={() => onDelete(sample.id)}><Trash2 aria-hidden="true" /></button></footer>
       </article>;
-    })}</div> : <div className="sample-library-empty"><strong>{t("还没有范本")}</strong>
+    })}</div> : emptyFiltered ? <div className="sample-library-empty"><strong>{t("没有符合筛选的范本")}</strong>
+      <span>{t("此种类仍有范本；清除搜索或标签筛选即可查看。")}</span>
+      <button type="button" className="button secondary" onClick={onReset}>{t("清除范本筛选")}</button></div> : <div className="sample-library-empty"><strong>{t("还没有范本")}</strong>
       <span>{t("建立第一个范本后，就能用它快速创建项目。")}</span>
       <button type="button" className="button primary" onClick={onCreate}>{t("新建范本")}</button></div>}
   </section>;
@@ -526,6 +529,7 @@ export function UserGuide() {
         "系统范本也可以删除；删除最后一个范本后，新业务模块会从空白流程开始。范本改动只影响之后建立的项目。"], result: "既有项目保留自己的节点和完成状态。" },
       { title: "公司名称去敏和集团范本", steps: ["编辑业务范本时选择“公司去敏”，每行输入一个需要替换的完整公司名称。", "系统只替换完全匹配的名称；保存前仍应人工复核。",
         "集团范本独立保存合并节点及各审计类别的默认就绪条件。"], result: "公开或复用范本前，可降低残留客户名称的风险。" },
+      { title: "在范本库查找和继续编辑", steps: ["在当前种类按名称、说明、标签和版本组合搜索，标签筛选与排序仍可叠加。", "没有匹配不代表范本被删除；清除搜索和标签即可查看当前种类全部范本。", "新建、保存或复制后会清除遮挡结果的筛选并定位到实际范本；取消会保留原筛选。"], result: "查找不会修改范本或现有项目，节点及完成条件正文不参与搜索。" },
       { title: "导出和导入范本包", steps: ["在范本库选择“导出范本包”，勾选要分享的业务模块范本及控股公司范本。", "范本包只包含种类、节点、达成条件和就绪条件；不会包含公司、负责人、待清事项或税务资料。",
         "选择“导入范本包”后先检查范本数、节点数、标签和版本备注，再逐项决定另存副本、替换现有范本或跳过。", "同来源范本默认另存副本；只有明确选择目标范本时才会替换。"],
       result: "范本可以在电脑或团队之间携带，而既有项目不会因范本替换而改变。" },

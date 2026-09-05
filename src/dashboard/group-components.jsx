@@ -647,7 +647,7 @@ export function GroupMemberForm({ member, groupSample, onSubmit, onRemove, onClo
   </form>;
 }
 
-export function GroupSampleLibrary({ samples, selectedSampleId, onSelect, onCreate, onEdit, onDuplicate, onDelete, onUse }) {
+export function GroupSampleLibrary({ samples, selectedSampleId, onSelect, onCreate, onEdit, onDuplicate, onDelete, onUse, emptyFiltered = false, onReset }) {
   const { t } = useUiLanguage();
   return <section className="sample-library"><header className="sample-library-header"><div><strong>{t("集团范本库")}</strong>
     <span>{t("保存合并节点，以及不同审计类别的默认就绪条件。")}</span></div>
@@ -656,9 +656,10 @@ export function GroupSampleLibrary({ samples, selectedSampleId, onSelect, onCrea
       const conditions = sample.nodes.reduce((sum, node) => sum + node.conditions.length, 0);
       const readiness = Object.values(sample.readinessTemplates).reduce((sum, list) => sum + list.length, 0);
       const selected = sample.id === selectedSampleId;
-      return <article className="sample-library-card" data-selected={selected || undefined} key={sample.id}>
-        <button type="button" className="sample-library-select" onClick={() => onSelect(sample.id)}>
-          <span className="sample-mark group-sample-mark">H</span><span><strong>{sample.name}</strong>
+      return <article className="sample-library-card" data-template-id={sample.id} tabIndex="-1" aria-label={sample.name}
+        data-selected={selected || undefined} key={sample.id}>
+        <button type="button" className="sample-library-select" aria-pressed={selected} onClick={() => onSelect(sample.id)}>
+          <span className="sample-mark group-sample-mark" aria-hidden="true">H</span><span><strong>{sample.name}</strong>
             <small>{sample.description || t("没有说明")}</small><em>{t("{nodes} 个合并节点 · {conditions} 项条件 · {readiness} 项就绪条件",
               { nodes: sample.nodes.length, conditions, readiness })}</em>
             {(sample.tags?.length > 0 || sample.versionNote) && <span className="sample-library-metadata">
@@ -673,7 +674,9 @@ export function GroupSampleLibrary({ samples, selectedSampleId, onSelect, onCrea
           <button type="button" className="icon-only" aria-label={t("删除范本")} title={t("删除范本")} data-tooltip={t("删除范本")}
             data-tooltip-side="left" onClick={() => onDelete(sample.id)}><Trash2 aria-hidden="true" /></button></footer>
       </article>;
-    })}</div> : <div className="sample-library-empty"><strong>{t("还没有集团范本")}</strong>
+    })}</div> : emptyFiltered ? <div className="sample-library-empty"><strong>{t("没有符合筛选的范本")}</strong>
+      <span>{t("此种类仍有范本；清除搜索或标签筛选即可查看。")}</span>
+      <button type="button" className="button secondary" onClick={onReset}>{t("清除范本筛选")}</button></div> : <div className="sample-library-empty"><strong>{t("还没有集团范本")}</strong>
       <span>{t("可以建立新集团范本，或暂时使用空白合并流程。")}</span>
       <button type="button" className="button primary" onClick={onCreate}>{t("新建集团范本")}</button></div>}</section>;
 }

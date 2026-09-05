@@ -1,0 +1,46 @@
+/* Library-only screen styles. Editors, package previews and reports keep their layouts. */
+@media screen {
+  .template-library-surface { min-width: 0; }
+  .template-library-surface .template-library-tools { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    align-items: end; padding: 16px; gap: 12px; }
+  .template-library-tools label { display: grid; min-width: 0; gap: 6px; font-size: 13px; line-height: 1.4; }
+  .template-library-search > span:last-child { display: flex; min-width: 0; gap: 8px; align-items: center; }
+  .template-library-search svg { width: 16px; height: 16px; flex: 0 0 16px; color: var(--secondary); }
+  .template-library-surface .template-library-filter { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; align-items: end; }
+  .template-library-surface .template-library-filter select { width: 100%; min-width: 0; max-width: 100%; }
+  .template-library-tools .template-transfer-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+  .template-library-tools .template-transfer-actions .button { min-height: 42px; font-size: 13px; gap: 8px; }
+  .template-library-tools .template-transfer-actions .button svg { width: 16px; height: 16px; flex: 0 0 16px; }
+  .template-library-results { display: flex; min-width: 0; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 8px; }
+  .template-library-results > span { color: var(--secondary); font-size: 13px; line-height: 1.5; }
+  .template-library-surface .sample-library { padding: 16px; }
+  .template-library-surface .sample-library-header { align-items: center; flex-wrap: wrap; gap: 12px; }
+  .template-library-surface .sample-library-header > div:first-child { flex: 1 1 180px; min-width: 0; }
+  .template-library-surface .sample-library-header :is(strong, span) { white-space: normal; overflow: visible; overflow-wrap: anywhere; }
+  .template-library-surface .sample-library-header span { font-size: 13px; line-height: 1.5; }
+  .template-library-surface .sample-library-card { display: grid; grid-template-rows: 1fr auto; }
+  .template-library-surface .sample-library-select { height: 100%; align-items: start; grid-template-columns: 34px minmax(0, 1fr);
+    padding: 14px; gap: 10px; text-align: left; }
+  .template-library-surface .sample-library-select > span:nth-child(2) { gap: 6px; }
+  .template-library-surface .sample-library-select > i { grid-column: 2; justify-self: start; margin: 0; font-size: 12px; }
+  .template-library-surface .sample-library-select :is(strong, small, em),
+  .template-library-surface .sample-library-metadata i { white-space: normal; overflow: visible; overflow-wrap: anywhere; line-height: 1.5; }
+  .template-library-surface .sample-library-select strong { font-size: 15px; }
+  .template-library-surface .sample-library-select small { font-size: 13px; }
+  .template-library-surface .sample-library-select em, .template-library-surface .sample-library-metadata i { font-size: 12px; }
+  .template-library-surface .sample-library-metadata { align-items: start; gap: 6px; }
+  .template-library-surface .sample-library-metadata small { flex-basis: 100%; }
+  .template-library-surface .sample-library-card > footer button.icon-only,
+  .template-library-surface .sample-library-actions button.icon-only { min-height: 36px; height: 36px; }
+  .template-library-surface .sample-library-card > footer button.icon-only { display: inline-flex; align-items: center; justify-content: center; }
+  .template-library-surface .template-type-tabs button { min-height: 36px; font-size: 13px; }
+  .template-library-surface .sample-library-card:focus { outline: 2px solid var(--wb-accent); outline-offset: -2px; }
+  .template-library-surface .sample-library-empty span { font-size: 13px; line-height: 1.5; }
+  @container apw-dialog (max-width: 640px) {
+    .template-library-surface .sample-library-list { grid-template-columns: minmax(0, 1fr); }
+    .template-library-surface .template-library-tools { grid-template-columns: minmax(0, 1fr); padding: 12px; }
+    .template-library-surface .template-library-results { justify-content: space-between; }
+    .template-library-surface .template-transfer-actions .button { flex: 1 1 120px; }
+    .template-library-surface .sample-library { padding: 12px; }
+  }
+}

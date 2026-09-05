@@ -1,19 +1,26 @@
 import React from "react";
-import { Download, FileJson2, ShieldCheck, Upload } from "lucide-react";
+import { Download, FileJson2, Search, ShieldCheck, Upload } from "lucide-react";
 import { workstreamCategoryLabel } from "./model.js";
 import { useUiLanguage } from "./i18n.jsx";
 
-export function TemplateLibraryTools({ tags, tag, sort, onTagChange, onSortChange, onImport, onExport }) {
+export function TemplateLibraryTools({ tags, tag, sort, onTagChange, onSortChange, onImport, onExport,
+  query = "", onQueryChange, searchRef, count, total, onClear }) {
   const { t } = useUiLanguage();
   return <div className="template-library-tools">
-    <div className="template-library-filter"><select aria-label={t("按标签筛选")} value={tag} onChange={(event) => onTagChange(event.target.value)}>
-      <option value="all">{t("全部标签")}</option>{tags.map((value) => <option value={value} key={value}>{value}</option>)}</select>
-      <select aria-label={t("范本排序")} value={sort} onChange={(event) => onSortChange(event.target.value)}>
+    <label className="template-library-search"><span>{t("查找当前种类范本")}</span><span><Search aria-hidden="true" />
+      <input ref={searchRef} type="search" value={query} onChange={(event) => onQueryChange(event.target.value)}
+        aria-label={t("查找当前种类范本")} placeholder={t("名称、说明、标签或版本")} /></span></label>
+    <div className="template-library-filter"><label><span>{t("按标签筛选")}</span>
+      <select aria-label={t("按标签筛选")} value={tag} onChange={(event) => onTagChange(event.target.value)}>
+        <option value="all">{t("全部标签")}</option>{tags.map((value) => <option value={value} key={value}>{value}</option>)}</select></label>
+      <label><span>{t("范本排序")}</span><select aria-label={t("范本排序")} value={sort} onChange={(event) => onSortChange(event.target.value)}>
         <option value="updated">{t("最近更新")}</option><option value="name">{t("按名称")}</option>
-        <option value="created">{t("最近建立")}</option></select></div>
+        <option value="created">{t("最近建立")}</option></select></label></div>
     <div className="template-transfer-actions"><button type="button" className="button secondary" onClick={onImport}>
       <Upload aria-hidden="true" />{t("导入范本包")}</button><button type="button" className="button secondary" onClick={onExport}>
       <Download aria-hidden="true" />{t("导出范本包")}</button></div>
+    <div className="template-library-results"><span role="status">{t("当前种类：显示 {visible} / {total} 个范本", { visible: count, total })}</span>
+      {(query || tag !== "all") && <button type="button" className="button secondary" onClick={onClear}>{t("清除范本筛选")}</button>}</div>
   </div>;
 }
 

@@ -1,5 +1,7 @@
 import { useModalDraft } from "./modal-draft.jsx";
 import React from "react";
+import { filterTemplateLibrary } from "./template-library-view.js";
+import { TemplateLibrarySurface } from "./template-library-surface.jsx";
 import { filterOutstandingEntries, outstandingEntryKey, outstandingVisibilityCounts } from "./outstanding-center-model.js";
 import { prepareTaxDeadlineSave, prepareTaxDeadlineRemoval } from "./tax-editor-state.js";
 import { RequiredTextInput } from "./required-text-input.jsx";
@@ -129,6 +131,14 @@ function DashboardWorkbench() {
   const [templateType, setTemplateType] = React.useState("audit");
   const [templateTag, setTemplateTag] = React.useState("all");
   const [templateSort, setTemplateSort] = React.useState("updated");
+  const [templateQuery, setTemplateQuery] = React.useState("");
+  const [templateReveal, setTemplateReveal] = React.useState(null);
+  const templateSearchRef = React.useRef(null);
+  const clearTemplateFilters = () => { setTemplateQuery(""); setTemplateTag("all"); templateSearchRef.current?.focus(); };
+  const revealTemplate = (sample, group = false) => {
+    setTemplateType(group ? "group" : sample.categoryId); setTemplateQuery(""); setTemplateTag("all");
+    setTemplateReveal({ id: sample.id });
+  };
   const [workspaceView, setWorkspaceView] = React.useState(loadInitialWorkspaceView);
   const [modal, setModal] = React.useState(null);
   const [message, setMessage] = React.useState("");
@@ -402,13 +412,10 @@ function DashboardWorkbench() {
   const groupSampleViews = store.groupSamples.map((sample) => localizeGroupSample(sample, language));
   const allTemplateTags = [...new Set([...sampleViews, ...groupSampleViews].flatMap((sample) => sample.tags || []))]
     .sort((left, right) => left.localeCompare(right));
-  const sortTemplateViews = React.useCallback((samples) => [...samples].filter((sample) => templateTag === "all"
-    || sample.tags?.includes(templateTag)).sort((left, right) => templateSort === "name"
-    ? left.name.localeCompare(right.name) : templateSort === "created"
-      ? (right.createdAt || "").localeCompare(left.createdAt || "") : (right.updatedAt || "").localeCompare(left.updatedAt || "")),
-  [templateSort, templateTag]);
-  const visibleSampleViews = sortTemplateViews(sampleViews);
-  const visibleGroupSampleViews = sortTemplateViews(groupSampleViews);
+  const visibleSampleViews = filterTemplateLibrary(sampleViews, { query: templateQuery, tag: templateTag, sort: templateSort });
+  const visibleGroupSampleViews = filterTemplateLibrary(groupSampleViews, { query: templateQuery, tag: templateTag, sort: templateSort });
+  const categoryTemplates = templateType === "group" ? groupSampleViews : sampleViews.filter((item) => item.categoryId === templateType);
+  const matchingTemplates = templateType === "group" ? visibleGroupSampleViews : visibleSampleViews.filter((item) => item.categoryId === templateType);
   const selectedGroupSample = groupSampleViews.find((sample) => sample.id === store.selectedGroupSampleId)
     || groupSampleViews[0] || null;
   const outstandingStatusViews = localizeOutstandingStatuses(store.outstandingStatuses, language);
@@ -605,14 +612,14 @@ function DashboardWorkbench() {
       }
       return { ...current, samples, selectedSampleIdsByCategory: selected };
     });
-    setTemplateType(saved.categoryId); setModal({ type: "template-library" }); notify(t("范本已更新；现有项目不受影响"));
+    revealTemplate(saved); setModal({ type: "template-library" }); notify(t("范本已更新；现有项目不受影响"));
   };
   const saveGroupSample = (sample) => {
     const saved = { ...sample, builtinKey: undefined, updatedAt: new Date().toISOString() };
     setStore((current) => ({ ...current, groupSamples: current.groupSamples.some((item) => item.id === saved.id)
       ? current.groupSamples.map((item) => item.id === saved.id ? saved : item) : [...current.groupSamples, saved],
       selectedGroupSampleId: saved.id }));
-    setTemplateType("group"); setModal({ type: "template-library" }); notify(t("集团范本已更新；现有集团不受影响"));
+    revealTemplate(saved, true); setModal({ type: "template-library" }); notify(t("集团范本已更新；现有集团不受影响"));
   };
   const resetSample = (sampleId) => {
     const current = store.samples.find((sample) => sample.id === sampleId);
@@ -626,12 +633,12 @@ function DashboardWorkbench() {
       const source = store.groupSamples.find((sample) => sample.id === sampleId); if (!source) return;
       const copy = duplicateGroupSample(source, t("（副本）"));
       setStore((current) => ({ ...current, groupSamples: [...current.groupSamples, copy], selectedGroupSampleId: copy.id }));
-      notify(t("集团范本已复制")); return;
+      revealTemplate(copy, true); notify(t("集团范本已复制")); return;
     }
     const source = store.samples.find((sample) => sample.id === sampleId); if (!source) return;
     const copy = duplicateSample(source, t("（副本）"));
     setStore((current) => ({ ...current, samples: [...current.samples, copy], selectedSampleIdsByCategory: {
-      ...current.selectedSampleIdsByCategory, [copy.categoryId]: copy.id } })); notify(t("范本已复制"));
+      ...current.selectedSampleIdsByCategory, [copy.categoryId]: copy.id } })); revealTemplate(copy); notify(t("范本已复制"));
   };
   const deleteSample = (sampleId, groupType = false) => {
     if (groupType) {
@@ -1196,7 +1203,9 @@ function DashboardWorkbench() {
     {modal?.type === "template-library" && <Modal title={t("范本库")} onClose={() => setModal(null)} large>
       <input ref={templateImportRef} type="file" accept="application/json,.apw-template.json" hidden
         onChange={(event) => readTemplatePackage(event.target.files?.[0])} />
-      <TemplateLibraryTools tags={allTemplateTags} tag={templateTag} sort={templateSort}
+      <TemplateLibrarySurface reveal={templateReveal} onRevealed={() => setTemplateReveal(null)}>
+      <TemplateLibraryTools query={templateQuery} onQueryChange={setTemplateQuery} searchRef={templateSearchRef}
+        count={matchingTemplates.length} total={categoryTemplates.length} onClear={clearTemplateFilters} tags={allTemplateTags} tag={templateTag} sort={templateSort}
         onTagChange={setTemplateTag} onSortChange={setTemplateSort}
         onImport={() => templateImportRef.current?.click()}
         onExport={() => setModal({ type: "template-export", initialSelection: templateType === "group"
@@ -1207,12 +1216,12 @@ function DashboardWorkbench() {
         {[...workstreamCategoryViews, { id: "group", label: t("集团范本") }].map((category) => <button type="button" role="tab" key={category.id}
           aria-selected={templateType === category.id} tabIndex={tabIndexFor(templateType === category.id)}
           onClick={() => setTemplateType(category.id)}>{category.label}</button>)}</div></div>
-      {templateType === "group" ? <GroupSampleLibrary samples={visibleGroupSampleViews} selectedSampleId={store.selectedGroupSampleId}
+      {templateType === "group" ? <GroupSampleLibrary samples={visibleGroupSampleViews} emptyFiltered={categoryTemplates.length > 0} onReset={clearTemplateFilters} selectedSampleId={store.selectedGroupSampleId}
         onSelect={(sampleId) => setStore((current) => ({ ...current, selectedGroupSampleId: sampleId }))}
         onCreate={() => setModal({ type: "group-sample-edit", sample: makeBlankGroupSample(language) })}
         onEdit={(sampleId) => setModal({ type: "group-sample-edit", sampleId })} onDuplicate={(sampleId) => copySample(sampleId, true)}
         onDelete={(sampleId) => deleteSample(sampleId, true)} onUse={() => setModal({ type: "create-entity" })} />
-        : <SampleLibrary samples={visibleSampleViews.filter((sample) => sample.categoryId === templateType)}
+        : <SampleLibrary samples={matchingTemplates} emptyFiltered={categoryTemplates.length > 0} onReset={clearTemplateFilters}
           categoryLabel={workstreamCategoryViews.find((category) => category.id === templateType)?.label}
           selectedSampleId={store.selectedSampleIdsByCategory?.[templateType]}
           onSelect={(sampleId) => setStore((current) => ({ ...current, selectedSampleIdsByCategory: {
@@ -1222,6 +1231,7 @@ function DashboardWorkbench() {
           onEdit={(sampleId) => setModal({ type: "sample-edit", sampleId })} onDuplicate={copySample} onDelete={deleteSample}
           onManageCategories={() => setModal({ type: "workstream-categories" })}
           onUse={() => setModal({ type: "create-entity" })} />}
+      </TemplateLibrarySurface>
     </Modal>}
     {modal?.type === "template-export" && <Modal title={t("导出范本包")} onClose={() => setModal({ type: "template-library" })} wide>
       <TemplateExportPanel samples={sampleViews} groupSamples={groupSampleViews} categories={workstreamCategoryViews}
