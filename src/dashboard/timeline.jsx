@@ -1,7 +1,7 @@
 import React from "react";
-import { Building, Building2, CalendarClock, CircleAlert, Eye, EyeOff, LocateFixed, ReceiptText } from "lucide-react";
-import { engagementLatestPeriodEnd, engagementTypesLabel, formatDate, groupProgress, projectStats, taxDeadlineCategoryLabel, taxDeadlineUrgency,
-  workspaceScheduleOrder, yearEndOrPeriodLabel } from "./model.js";
+import { Building, Building2, CalendarClock, CircleAlert, Eye, EyeOff, LocateFixed, ReceiptText, Search } from "lucide-react";
+import { engagementTypesLabel, formatDate, taxDeadlineCategoryLabel, taxDeadlineUrgency } from "./model.js";
+import { filterScheduleRows, scheduleRows } from "./schedule-view-model.js";
 import { useUiLanguage } from "./i18n.jsx";
 import { ReportingPeriodSummary } from "./reporting-period-summary.jsx";
 
@@ -81,86 +81,6 @@ function calendarDayNumber(value) {
   return Date.UTC(value.getFullYear(), value.getMonth(), value.getDate()) / DAY_MS;
 }
 
-function matchesFilter(item, complete, filter) {
-  if (filter === "archived") return item.archived;
-  if (item.archived) return false;
-  if (filter === "completed") return complete;
-  if (filter === "active") return !complete;
-  return true;
-}
-
-function scheduleRows(store, filter, language = "en") {
-  if (Array.isArray(store.entities) && Array.isArray(store.engagements)) {
-    const entityById = new Map(store.entities.map((entity) => [entity.id, entity]));
-    const latestByEntity = new Map();
-    store.engagements.filter((engagement) => !engagement.archived).forEach((engagement) => {
-      const current = latestByEntity.get(engagement.entityId);
-      if (!current || engagementLatestPeriodEnd(engagement) > engagementLatestPeriodEnd(current)) {
-        latestByEntity.set(engagement.entityId, engagement);
-      }
-    });
-    const order = new Map(workspaceScheduleOrder(store).map((key, index) => [key, index]));
-    return store.engagements.flatMap((engagement) => {
-      const entity = entityById.get(engagement.entityId);
-      if (!entity) return [];
-      const kind = entity.kind === "holding_company" ? "group" : "project";
-      const view = kind === "group" ? store.groups.find((group) => group.id === engagement.id)
-        : store.projects.find((project) => project.id === engagement.id);
-      const complete = kind === "group" ? Boolean(view && groupProgress(store, engagement.id).ready)
-        : Boolean(view && projectStats(view).complete);
-      const row = {
-        id: engagement.id,
-        kind,
-        name: entity.legalName,
-        engagement,
-        periodLabel: yearEndOrPeriodLabel(engagement, language),
-        engagementTypes: engagement.engagementTypes || [],
-        engagementType: engagement.engagementType || "",
-        secondaryName: "",
-        owner: engagement.owner,
-        startDate: engagement.startDate,
-        dueDate: engagement.dueDate,
-        taxDeadlines: (entity.taxDeadlines || []).filter((deadline) => deadline.state === "open" && deadline.dueDate
-          && (deadline.linkedEngagementId === engagement.id
-            || (!deadline.linkedEngagementId && latestByEntity.get(entity.id)?.id === engagement.id))),
-        archived: Boolean(entity.archived || engagement.archived),
-        complete,
-      };
-      return matchesFilter(row, complete, filter) ? [row] : [];
-    }).sort((left, right) => (order.get(`${left.kind}:${left.id}`) ?? Number.MAX_SAFE_INTEGER)
-      - (order.get(`${right.kind}:${right.id}`) ?? Number.MAX_SAFE_INTEGER) || left.name.localeCompare(right.name));
-  }
-  const projects = store.projects.map((project) => ({
-    id: project.id,
-    kind: "project",
-    name: project.entity || project.name,
-    secondaryName: project.entity && project.name !== project.entity ? project.name : "",
-    owner: project.owner,
-    startDate: project.startDate,
-    dueDate: project.dueDate,
-    taxDeadlines: (project.taxDeadlines || []).filter((deadline) => deadline.state === "open" && deadline.dueDate),
-    archived: project.archived,
-    complete: projectStats(project).complete,
-  }));
-  const groups = store.groups.map((group) => ({
-    id: group.id,
-    kind: "group",
-    name: group.name,
-    secondaryName: "",
-    owner: group.owner,
-    startDate: group.startDate,
-    dueDate: group.dueDate,
-    taxDeadlines: (group.taxDeadlines || []).filter((deadline) => deadline.state === "open" && deadline.dueDate),
-    archived: group.archived,
-    complete: groupProgress(store, group.id).ready,
-  }));
-  const order = new Map(workspaceScheduleOrder(store).map((key, index) => [key, index]));
-  return [...projects, ...groups].filter((row) => matchesFilter(row, row.complete, filter)).sort((left, right) =>
-    (order.get(`${left.kind}:${left.id}`) ?? Number.MAX_SAFE_INTEGER)
-      - (order.get(`${right.kind}:${right.id}`) ?? Number.MAX_SAFE_INTEGER)
-      || left.name.localeCompare(right.name));
-}
-
 function rangeSegments(rangeStart, rangeEnd, unit, pixelsPerDay) {
   const segments = [];
   const endExclusive = addDays(rangeEnd, 1);
@@ -236,11 +156,17 @@ export function ProjectSchedule({ store, filter, onOpen, onEditSchedule, onOpenT
   const [metaWidth, setMetaWidth] = React.useState(savedMetaWidth);
   const [precision, setPrecision] = React.useState(savedPrecision);
   const [resizingMeta, setResizingMeta] = React.useState(false);
-  const rows = React.useMemo(() => scheduleRows(store, filter, language), [store, filter, language]);
-  const timeline = React.useMemo(() => makeTimeline(rows, precision), [rows, precision]);
+  const [query, setQuery] = React.useState("");
+  const [dateScope, setDateScope] = React.useState("all");
+  const searchRef = React.useRef(null);
+  const scrollHelpId = React.useId();
+  const allRows = React.useMemo(() => scheduleRows(store, filter, language), [store, filter, language]);
+  const rows = React.useMemo(() => filterScheduleRows(allRows, { query, dateScope, language }), [allRows, query, dateScope, language]);
+  const resetFilters = () => { setQuery(""); setDateScope("all"); searchRef.current?.focus(); };
+  const timeline = React.useMemo(() => makeTimeline(allRows, precision), [allRows, precision]);
   const width = timeline.width;
-  const scheduledCount = rows.filter((row) => row.startDate && row.dueDate).length;
-  const incompleteCount = rows.length - scheduledCount;
+  const scheduledCount = allRows.filter((row) => row.startDate && row.dueDate).length;
+  const incompleteCount = allRows.length - scheduledCount;
   const todayLeft = (dayOffset(timeline.today, timeline.rangeStart) + .5) * timeline.pixelsPerDay;
   const locale = language === "en" ? "en-GB" : "zh-HK";
   const weekFormatter = new Intl.DateTimeFormat(locale, { month: "short", day: "numeric" });
@@ -282,7 +208,7 @@ export function ProjectSchedule({ store, filter, onOpen, onEditSchedule, onOpenT
     finishDrag();
   };
   const reorderWithKeyboard = (event, key) => {
-    if (!event.altKey || !["ArrowUp", "ArrowDown"].includes(event.key)) return;
+    if (filter === "archived" || event.isComposing || !event.altKey || !["ArrowUp", "ArrowDown"].includes(event.key)) return;
     const index = rows.findIndex((row) => `${row.kind}:${row.id}` === key);
     const target = rows[index + (event.key === "ArrowUp" ? -1 : 1)];
     if (!target) return;
@@ -354,15 +280,7 @@ export function ProjectSchedule({ store, filter, onOpen, onEditSchedule, onOpenT
     const fixedColumnWidth = viewport.querySelector(".schedule-corner")?.getBoundingClientRect().width || 0;
     const visibleTimelineWidth = Math.max(0, viewport.clientWidth - fixedColumnWidth);
     const requestedLeft = todayLeft - visibleTimelineWidth / 2;
-    viewport.scrollTo({ left: Math.min(Math.max(0, requestedLeft), viewport.scrollWidth - viewport.clientWidth), behavior: "smooth" });
-  };
-  const horizontalWheel = (event) => {
-    const viewport = event.currentTarget;
-    if (viewport.scrollWidth <= viewport.clientWidth || Math.abs(event.deltaX) >= Math.abs(event.deltaY)) return;
-    const maximum = viewport.scrollWidth - viewport.clientWidth;
-    if ((event.deltaY < 0 && viewport.scrollLeft <= 0) || (event.deltaY > 0 && viewport.scrollLeft >= maximum)) return;
-    event.preventDefault();
-    viewport.scrollLeft = Math.min(maximum, Math.max(0, viewport.scrollLeft + event.deltaY));
+    viewport.scrollTo({ left: Math.min(Math.max(0, requestedLeft), viewport.scrollWidth - viewport.clientWidth), behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" });
   };
 
   return <section className="schedule-view">
@@ -385,7 +303,18 @@ export function ProjectSchedule({ store, filter, onOpen, onEditSchedule, onOpenT
       <span><i data-tone="complete" />{t("已完成")}</span><span><i data-tone="overdue" />{t("已逾期")}</span>
       <span><ReceiptText aria-hidden="true" />{t("税务期限")}</span>
       <span><CircleAlert aria-hidden="true" />{t("日期不完整")}</span></div>
-    {rows.length ? <div className="schedule-scroll" ref={scrollRef} tabIndex="0" onWheel={horizontalWheel}
+    <div className="schedule-filters">
+      <label><span>{t("查找排期")}</span><span className="schedule-search"><Search aria-hidden="true" />
+        <input ref={searchRef} type="search" value={query} onChange={(event) => setQuery(event.target.value)}
+          aria-label={t("查找排期")} placeholder={t("公司、报告年度、项目类型或负责人")} /></span></label>
+      <label><span>{t("日期完整性")}</span><select value={dateScope} onChange={(event) => setDateScope(event.target.value)}>
+        <option value="all">{t("全部排期")}</option><option value="incomplete">{t("日期待补")}</option>
+        <option value="scheduled">{t("起止日期已填")}</option></select></label>
+      {(query || dateScope !== "all") && <button type="button" className="button secondary" onClick={resetFilters}>{t("清除筛选")}</button>}
+      <span className="schedule-result-count" role="status">{t("显示 {visible} / {total} 个排期", { visible: rows.length, total: allRows.length })}</span>
+    </div>
+    <p className="schedule-scroll-help" id={scrollHelpId}>{t("上下滚动看项目，左右滚动看日期；筛选不会修改排期。")}</p>
+    {rows.length ? <div className="schedule-scroll" ref={scrollRef} tabIndex="0" aria-describedby={scrollHelpId}
       aria-label={t("可横向滚动的项目排期")}>
       <div className="schedule-grid" data-resizing={resizingMeta || undefined} data-precision={precision}
         data-simplified={simplifiedView || undefined}
@@ -436,7 +365,7 @@ export function ProjectSchedule({ store, filter, onOpen, onEditSchedule, onOpenT
           const openSchedule = () => row.archived || !onEditSchedule
             ? onOpen(row.kind, row.id) : onEditSchedule(row.kind, row.id);
           return <React.Fragment key={rowKey}>
-            <div className="schedule-row-meta" data-dragging={draggingKey === rowKey || undefined}
+            <div className="schedule-row-meta" data-schedule-key={rowKey} data-dragging={draggingKey === rowKey || undefined}
               data-drop-position={dropPosition} draggable={canReorder} title={canReorder ? t("按住项目即可拖动排序") : undefined}
               onDragStart={(event) => beginDrag(event, rowKey)} onDragEnd={finishDrag} onDragOver={(event) => dragOver(event, rowKey)}
               onDrop={(event) => drop(event, rowKey)}>
@@ -452,12 +381,14 @@ export function ProjectSchedule({ store, filter, onOpen, onEditSchedule, onOpenT
                   : <>{row.periodLabel && <ReportingPeriodSummary engagement={row.engagement || row} language={language} t={t}
                       className="schedule-reporting-period" />}
                     {projectTypeOwner && <small className="schedule-project-type">{projectTypeOwner}</small>}
-                    {row.secondaryName && <small>{row.secondaryName}</small>}</>}
+                    {row.secondaryName && <small>{row.secondaryName}</small>}
+                    <small className="schedule-date-summary">{t("项目排期")}：{row.startDate ? formatDate(row.startDate, language) : t("未设置开始日")}
+                      {" → "}{row.dueDate ? formatDate(row.dueDate, language) : t("未设置截止日")}</small></>}
                 </span>
               </button>
               {!row.archived && <button type="button" className="schedule-row-edit"
                 aria-label={t("编辑“{name}”的项目排期", { name: rowAccessibleName })}
-                data-tooltip={t("编辑项目开始日和截止日")}
+                data-tooltip={t("编辑项目开始日和截止日")} data-tooltip-side="left"
                 onClick={() => onEditSchedule?.(row.kind, row.id)}><CalendarClock aria-hidden="true" /></button>}
             </div>
             <div className="schedule-lane" style={{ width }} data-tone={tone} data-drop-position={dropPosition}
@@ -465,20 +396,20 @@ export function ProjectSchedule({ store, filter, onOpen, onEditSchedule, onOpenT
               {todayLeft >= 0 && todayLeft <= width && <span className="schedule-today-line" style={{ left: todayLeft }} aria-hidden="true" />}
               {start && due && !invalid && <button type="button" className="schedule-bar" style={{ left: barLeft, width: barWidth }}
                 data-tone={tone} onClick={openSchedule}
-                aria-label={t("{name}：{start} 至 {deadline}", { name: row.name, start: formatDate(row.startDate, language), deadline: formatDate(row.dueDate, language) })}
+                aria-label={t("{name}：{start} 至 {deadline}", { name: rowAccessibleName, start: formatDate(row.startDate, language), deadline: formatDate(row.dueDate, language) })}
                 title={`${formatDate(row.startDate, language)} → ${formatDate(row.dueDate, language)} · ${durationLabel}`}>
                 {barWidth >= 52 && <span>{durationLabel}</span>}</button>}
               {!invalid && start && !due && <button type="button" className="schedule-milestone" data-kind="start"
                 style={{ left: barLeft }} onClick={openSchedule} data-tooltip={t("只有开始日，尚未设置截止日")}
-                aria-label={t("{name}：只有开始日，尚未设置截止日", { name: row.name })}><CalendarClock aria-hidden="true" /></button>}
+                aria-label={t("{name}：只有开始日，尚未设置截止日", { name: rowAccessibleName })}><CalendarClock aria-hidden="true" /></button>}
               {!invalid && due && !start && <button type="button" className="schedule-milestone" data-kind="deadline"
                 style={{ left: dueLeft }} onClick={openSchedule} data-tooltip={t("只有截止日，尚未设置开始日")}
-                aria-label={t("{name}：只有截止日，尚未设置开始日", { name: row.name })}><CalendarClock aria-hidden="true" /></button>}
+                aria-label={t("{name}：只有截止日，尚未设置开始日", { name: rowAccessibleName })}><CalendarClock aria-hidden="true" /></button>}
               {(!start && !due) && <button type="button" className="schedule-missing" onClick={openSchedule}
-                aria-label={t(row.archived ? "查看“{name}”的归档记录" : "设置“{name}”的项目日期", { name: row.name })}>
+                aria-label={t(row.archived ? "查看“{name}”的归档记录" : "设置“{name}”的项目日期", { name: rowAccessibleName })}>
                 <CircleAlert aria-hidden="true" />{t(row.archived ? "查看归档记录" : "设置项目日期")}</button>}
               {invalid && <button type="button" className="schedule-missing" data-danger onClick={openSchedule}
-                aria-label={t(row.archived ? "查看“{name}”的归档记录" : "{name}：截止日早于开始日", { name: row.name })}>
+                aria-label={t(row.archived ? "查看“{name}”的归档记录" : "{name}：截止日早于开始日", { name: rowAccessibleName })}>
                 <CircleAlert aria-hidden="true" />{t("截止日早于开始日")}</button>}
               {taxMarkers.map((deadlines) => {
                 const markerDate = parseDate(deadlines[0].dueDate);
@@ -491,7 +422,7 @@ export function ProjectSchedule({ store, filter, onOpen, onEditSchedule, onOpenT
                 return <button type="button" className="schedule-tax-marker" key={deadlines[0].dueDate}
                   style={{ left: markerLeft }} data-urgency={urgency}
                   onClick={() => onOpenTaxDeadline?.(row.kind, row.id, deadlines.length === 1 ? deadlines[0].id : null)}
-                  aria-label={t("{name} 在 {date} 有 {count} 项税务期限", { name: row.name,
+                  aria-label={t("{name} 在 {date} 有 {count} 项税务期限", { name: rowAccessibleName,
                     date: formatDate(deadlines[0].dueDate, language), count: deadlines.length })}
                   title={`${formatDate(deadlines[0].dueDate, language)} · ${names}`}>
                   <ReceiptText aria-hidden="true" />{deadlines.length > 1 && <strong>{deadlines.length}</strong>}</button>;
@@ -501,6 +432,7 @@ export function ProjectSchedule({ store, filter, onOpen, onEditSchedule, onOpenT
         })}
       </div>
     </div> : <div className="schedule-empty"><CalendarClock aria-hidden="true" /><strong>{t("这个筛选条件下没有项目")}</strong>
-      <span>{t("在左侧切换状态，或新建公司后设置项目开始日和截止日。")}</span></div>}
+      <span>{t("在左侧切换状态，或新建公司后设置项目开始日和截止日。")}</span>
+      {(query || dateScope !== "all") && <button type="button" className="button secondary" onClick={resetFilters}>{t("清除筛选")}</button>}</div>}
   </section>;
 }

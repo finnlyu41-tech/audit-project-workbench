@@ -4,6 +4,20 @@ import { toTraditional } from "./traditional.js";
 export const LANGUAGE_PREFERENCE_KEY = "audit-progress-workbench:language";
 
 const english = {
+  "滚轮上下查看项目，横向滚动条或触控板左右查看日期；选择“今天”定位到红色虚线。": "Scroll vertically for projects and use the horizontal scrollbar or trackpad for dates. Today locates the red line.",
+  "查找需要补日期的排期": "Find schedules with missing dates",
+  "在排期页组合输入公司、报告年度、项目类型或负责人。": "Combine company, reporting year, project type or owner in the schedule search.",
+  "选择日期待补，只显示缺少开始日或截止日的现有项目；清除筛选恢复当前状态范围。": "Select Missing dates to see existing projects without a start or due date; clear filters to restore the current status scope.",
+  "搜索不改变日期、税务期限归属或已保存顺序，也不搜索备注。": "Search does not change dates, tax links or saved order, and does not index notes.",
+  "按住项目名称所在的排期行拖动可调整显示顺序，键盘可按 Alt 加上下方向键移动；选择日历按钮或工期条可直接修改项目开始日和截止日，归档记录保持只读。": "Drag the project row or use Alt with the arrow keys to reorder. The calendar button or bar opens date settings; archived records remain read-only.",
+  "查找排期": "Find scheduled projects",
+  "公司、报告年度、项目类型或负责人": "Company, reporting year, project type or owner",
+  "日期完整性": "Schedule dates",
+  "全部排期": "All schedules",
+  "日期待补": "Missing dates",
+  "起止日期已填": "Start and due dates entered",
+  "显示 {visible} / {total} 个排期": "Showing {visible} of {total} schedules",
+  "上下滚动看项目，左右滚动看日期；筛选不会修改排期。": "Scroll down for projects or sideways for dates. Filters do not edit schedules.",
   "查找并筛选期限提醒": "Find and filter deadline alerts",
   "打开铃铛后，可组合搜索公司、负责人、期限类型及年度，再按税务／项目和紧急程度筛选。": "Open the bell to search companies, owners, deadline types and years, then filter by tax/project and urgency.",
   "清除提醒筛选会恢复已有提醒；点击某项可打开对应公司或项目。": "Clear alert filters to restore existing alerts. Open an item to visit its source company or engagement.",

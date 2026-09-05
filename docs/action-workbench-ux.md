@@ -121,3 +121,15 @@ Search checks company/source names, owners, visible deadline titles, dates and t
 The existing model remains authoritative: project alerts are overdue only; tax alerts can be overdue, due today or due soon according to each saved reminder window. Selecting a filter never creates a new reminder, completes an item or changes dates, timezone handling or notification behavior. Tax-alert accessible action names now include the company so same-name deadlines from different companies remain distinguishable. Opening an alert uses the existing source-navigation handlers.
 
 `tests/deadline-alert-view.test.js` checks filtering boundaries, source identity, localization, excluded fields and record/order preservation. `e2e/deadline-alert-centre.spec.js` checks source navigation, keyboard return, empty results, combined filters, 480/800/1440px layouts, one scroll region and accessibility. Tests use fixed browser dates and fictional canonical records in isolated browser contexts.
+
+## Schedule usability
+
+Schedule search combines company, reporting years, project type and owner; the date selector narrows the current status scope to missing or entered start/due dates. Filters preserve the supplied row order and never index notes. Timeline bounds and company-level tax associations are computed before view filtering, so searching for an older year cannot move an unlinked deadline onto it or rescale the date axis unexpectedly.
+
+Ordinary mouse-wheel motion now remains vertical. Horizontal wheel/trackpad motion and the horizontal scrollbar remain native. The former vertical-to-horizontal interception was removed; the existing horizontal-navigation regression now explicitly sends horizontal input. Today still centres the marker, respecting reduced-motion preferences.
+
+The detailed metadata column also displays entered schedule dates, including partial ranges. Precision and edit buttons have 36px targets, search/select fields are 42px high, and narrow workspaces retain at least part of the timeline beside the company column. The saved column-width preference is unchanged; its effective width is capped only while the workspace is narrow. Simplified mode still omits owner/date detail. Calendar tick text is contained within its own cell rather than overlapping adjacent labels.
+
+Date bars, missing-date actions and tax markers include the reporting period in their accessible names, distinguishing multiple engagements for one company. Existing guarded editors, source routing, archived read-only access, explicit drag/keyboard reordering, date calculations and tax-marker aggregation remain in use. Filling missing dates can naturally remove a row from the Missing dates view; Clear filters restores the list.
+
+All verification uses fictional records in isolated browser contexts. No schema, persistence, reporting-period, tax-rule or audit-completion changes are included. Unit coverage is in `tests/schedule-view.test.js` and browser coverage is in `e2e/schedule-usability.spec.js`.
