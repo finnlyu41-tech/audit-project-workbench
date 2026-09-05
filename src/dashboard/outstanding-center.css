@@ -1,0 +1,48 @@
+/* Screen-only sidebar controls; the print report continues to use its own layout. */
+@media screen {
+  .audit-workbench .outstanding-center { min-width: 0; overflow: hidden; container: outstanding / inline-size; }
+  .audit-workbench .outstanding-center-tools { flex: 0 0 auto; min-width: 0; position: static; gap: 8px; }
+  .outstanding-search { display: grid; min-width: 0; gap: 5px; font-size: 13px; }
+  .outstanding-search > span:last-child { display: flex; min-width: 0; align-items: center; gap: 7px; }
+  .outstanding-search svg { width: 16px; height: 16px; flex: 0 0 16px; color: var(--secondary); }
+  .outstanding-search input { box-sizing: border-box; width: 100%; min-width: 0; height: 42px; padding: 8px 10px;
+    font: inherit; border: 1px solid var(--border); border-radius: 8px; color: var(--text); background: var(--surface-raised); }
+  .audit-workbench .outstanding-center-tools .outstanding-visibility-tabs button {
+    min-height: 44px; gap: 5px; padding: 6px; font-size: 13px; line-height: 1.3; }
+  .audit-workbench .outstanding-visibility-tabs button span { white-space: normal; overflow: visible; overflow-wrap: anywhere; }
+  .audit-workbench .outstanding-visibility-tabs button strong { flex-shrink: 0; font-size: 12px; }
+  .audit-workbench .outstanding-center-tools .outstanding-filter-selects { grid-template-columns: minmax(0, 1fr); }
+  .audit-workbench .outstanding-center select { box-sizing: border-box; height: 42px; width: 100%; max-width: 100%;
+    min-width: 0; font: inherit; font-size: 13px; padding: 8px 24px 8px 10px; border-radius: 8px; }
+  .audit-workbench .outstanding-center-tools .outstanding-active-filters { display: flex; align-items: center; flex-wrap: wrap; }
+  .outstanding-active-filters small { flex: 1 1 100%; min-width: 0; overflow-wrap: anywhere; font-size: 12px; line-height: 1.4; }
+  .outstanding-active-filters small:empty { display: none; }
+  .outstanding-active-filters button { font-size: 13px; }
+  .audit-workbench .outstanding-center-actions { align-items: center; gap: 6px; }
+  .outstanding-result-count { flex: 1; font-size: 13px; font-weight: 400; color: var(--secondary); }
+  .audit-workbench .outstanding-center .outstanding-list { flex: 1 1 auto; min-width: 0; min-height: 0; overflow: auto;
+    grid-template-columns: minmax(0, 1fr); overscroll-behavior: contain; }
+  .audit-workbench .outstanding-item { min-width: 0; gap: 9px; }
+  .audit-workbench .outstanding-item > header strong { min-width: 0; overflow-wrap: anywhere; font-size: 14px; line-height: 1.5; }
+  .audit-workbench .outstanding-source { display: grid; gap: 4px; justify-items: start; }
+  .audit-workbench .outstanding-source button { white-space: normal; overflow-wrap: anywhere; text-align: left;
+    line-height: 1.5; font-size: 13px; min-height: 24px; }
+  .audit-workbench .outstanding-source span { min-width: 0; max-width: 100%; box-sizing: border-box; font-size: 12px;
+    white-space: normal; overflow-wrap: anywhere; line-height: 1.4; }
+  .outstanding-context { min-width: 0; color: var(--secondary); font-size: 12px; line-height: 1.5; overflow-wrap: anywhere; }
+  .audit-workbench .outstanding-item p { min-width: 0; overflow-wrap: anywhere; font-size: 13px; line-height: 1.5; }
+  .audit-workbench .outstanding-item > footer { display: grid; min-width: 0; gap: 8px; grid-template-columns: minmax(0, 1fr); }
+  .audit-workbench .outstanding-item > footer > .outstanding-status-control { display: grid; min-width: 0; gap: 4px; }
+  .outstanding-status-control small { font-size: 12px; color: var(--secondary); line-height: 1.4; overflow-wrap: anywhere; }
+  .outstanding-status-control { overflow: hidden; } /* Contain native option text on WebKit. */
+  .audit-workbench .outstanding-item > footer > .outstanding-item-actions { display: flex; justify-content: flex-end; gap: 8px; }
+  .audit-workbench .outstanding-item-actions button { display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+    min-height: 36px; padding: 7px 10px; font-size: 13px; line-height: 1.4; border: 1px solid var(--border); border-radius: 8px; }
+  .audit-workbench .outstanding-item-actions button svg { width: 16px; height: 16px; flex: 0 0 16px; }
+  .audit-workbench .outstanding-center .status-color-pill { min-width: 0; white-space: normal; overflow-wrap: anywhere;
+    justify-self: start; color: var(--text); line-height: 1.5; }
+  .audit-workbench .outstanding-center :is(input, select, button):focus-visible { outline: 2px solid var(--wb-accent); outline-offset: -2px; }
+  @media (max-height: 600px) {
+    .audit-workbench .outstanding-center-tools { max-height: 65%; overflow-y: auto; }
+  }
+}

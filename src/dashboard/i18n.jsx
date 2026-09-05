@@ -4,6 +4,16 @@ import { toTraditional } from "./traditional.js";
 export const LANGUAGE_PREFERENCE_KEY = "audit-progress-workbench:language";
 
 const english = {
+  "事项状态已更新": "Item status updated",
+  "在待清中心快速查找和定位": "Find and reveal outstanding items",
+  "按标题、来源公司、业务模块或来源项目负责人组合搜索；备注不会被搜索。": "Combine title, source company, workstream or source project owner to search; notes are not indexed.",
+  "保存表单后会清除遮住事项的面板筛选，并定位刚保存的卡片；取消保留原筛选。": "Saving clears panel filters that hide the item and focuses the saved card; cancelling keeps the filters.",
+  "状态切换仍立即应用。事项离开当前列表后，键盘焦点转到相邻项或搜索框。": "Status changes still apply immediately. When an item leaves the list, keyboard focus moves to a neighbour or the search field.",
+  "搜索只改变显示范围，不保存到业务数据，也不改变审计进度。": "Search only changes the view. It is not stored in business data and does not affect audit progress.",
+  "查找待清事项": "Find outstanding items",
+  "标题、来源、模块或项目负责人": "Title, source, workstream or project owner",
+  "重置为未清事项": "Reset to open items",
+  "显示 {visible} / {total} 项": "Showing {visible} of {total} items",
   "查找公司的历年项目": "Find annual engagements for a company",
   "在公司主档按报告年度、项目类型或负责人组合搜索，也可查看未归档或已归档项目。": "In the company master, combine reporting years, project types or owners to search, or filter unarchived and archived engagements.",
   "历年待清事项会直接打开对应卡片；归档来源仍只能查看。": "Outstanding-item shortcuts reveal the corresponding card. Archived sources remain read-only.",

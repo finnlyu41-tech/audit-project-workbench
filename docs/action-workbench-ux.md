@@ -101,3 +101,13 @@ Annual cards preserve full period labels, owner and both available schedule date
 Outstanding-item shortcuts on the company master reuse the existing exact-item reveal flow. They open the proper record, clear stale navigation filters, expand the outstanding centre and focus the corresponding card; archived sources remain read-only. This does not modify completion status or any saved project fields.
 
 Verification is in `tests/company-overview.test.js` and `e2e/company-overview.spec.js`, with fictional data in `tests/fixtures/company-overview.js`. No schema, persistence, tax-deadline rules or report-printing configuration is changed.
+
+## Outstanding centre search, layout and follow-through
+
+The sidebar now wraps long identifying text and notes, gives common inputs/selects a 42px height, and aligns edit/delete icons with their labels. The full selected status label is also displayed outside the native dropdown. A short viewport keeps both the filter controls and the item list reachable.
+
+Search combines item title, source company/name, workstream label and source-project owner. Notes are intentionally not indexed. Search, status and module filters are conjunctive; visibility-tab totals still refer to the complete current source, while the result count describes the filtered list. Reset returns to the default open-item view. These are temporary view states, not new persisted business fields.
+
+Successful form saves clear panel filters and reveal the saved item, including a subsidiary item edited inside a holding-company view. The reveal key includes source kind, source ID and item ID to distinguish identical item IDs across separate records. Cancel continues to use the existing draft guard and retains filters. Inline status changes still apply immediately; cleared items still leave the open list, with keyboard focus moving to another matching item or search. Deletion keeps its confirmation and restores a usable focus target.
+
+Source buttons use the existing canonical navigation and exact-item reveal path. Archived sources remain read-only. This pass does not alter the storage schema, status open/closed definitions, workflow completion rules, tax deadlines or print reports. Tests use fictional fixtures and isolated browser contexts, never the user's everyday browser profile.
