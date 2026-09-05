@@ -32,6 +32,8 @@ import { CompanyForm, EngagementForm, EntityOverview, HoldingComponentsPanel, Me
 import { applyTemplatePackage, createTemplatePackage, TEMPLATE_PACKAGE_MAX_BYTES,
   templatePackagePreview } from "./template-packages.js";
 import { QuickUpdate } from "./ux-components.jsx";
+import { QuickOpen } from "./quick-open.jsx";
+import { navigationSnapshot, sameNavigationDestination, restoreNavigationSnapshot } from "./navigation-state.js";
 import { RECENT_RECORDS_KEY, nextEngagementAction, prepareQuickUpdate, recentRecordsFor, rememberRecord, resolveWorkspaceTarget, sanitizeRecentRecords } from "./ux-model.js";
 import "./dashboard.css";
 
@@ -146,6 +148,9 @@ function DashboardWorkbench() {
   const deadlineNoticeShownRef = React.useRef(false);
   const shownConflictRef = React.useRef(null);
   const navigationHistoryRef = React.useRef({ entries: [], index: -1, restoring: false });
+  const workspaceRef = React.useRef(null);
+  const pendingScrollRef = React.useRef(null);
+  const pendingWorkspaceFocus = React.useRef(false);
   const navigationResizeRef = React.useRef(null);
   const [, setNavigationHistoryRevision] = React.useState(0);
   const deadlineAlertItems = React.useMemo(() => deadlineAlerts(store, deadlineClock), [store, deadlineClock]);
@@ -224,18 +229,32 @@ function DashboardWorkbench() {
       }
     }
   }, [store, selection, filter, navigationFilters]);
-  React.useEffect(() => {
+  React.useLayoutEffect(() => {
     if (!selection && store.entities.length) return;
     const history = navigationHistoryRef.current;
-    if (history.restoring) { history.restoring = false; return; }
-    const entry = { workspaceView, selection: selection ? { kind: selection.kind, id: selection.id } : null };
+    const entry = navigationSnapshot({ workspaceView, selection, search, filter, navigationFilters,
+      navigationFiltersOpen, navigationView, activeWorkstreamId });
     const current = history.entries[history.index];
-    if (current?.workspaceView === entry.workspaceView && current?.selection?.kind === entry.selection?.kind
-      && current?.selection?.id === entry.selection?.id) return;
+    if (history.restoring || sameNavigationDestination(current, entry)) {
+      history.restoring = false;
+      history.entries[history.index] = { ...entry, scrollTop: current?.scrollTop || 0 };
+      return;
+    }
     history.entries = [...history.entries.slice(0, history.index + 1), entry].slice(-50);
     history.index = history.entries.length - 1;
+    pendingScrollRef.current = 0;
     setNavigationHistoryRevision((value) => value + 1);
-  }, [workspaceView, selection?.kind, selection?.id, store.entities.length]);
+  }, [workspaceView, selection?.kind, selection?.id, store.entities.length, search, filter,
+    navigationFilters, navigationFiltersOpen, navigationView, activeWorkstreamId]);
+  React.useLayoutEffect(() => {
+    if (pendingScrollRef.current === null && !pendingWorkspaceFocus.current) return;
+    const frame = window.requestAnimationFrame(() => {
+      if (workspaceRef.current && pendingScrollRef.current !== null) workspaceRef.current.scrollTop = pendingScrollRef.current;
+      if (!modal && pendingWorkspaceFocus.current) workspaceRef.current?.focus({ preventScroll: true });
+      pendingScrollRef.current = null; pendingWorkspaceFocus.current = false;
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [workspaceView, selection?.kind, selection?.id, activeWorkstreamId, modal]);
   React.useEffect(() => {
     if (selection?.kind !== "project") { setActiveWorkstreamId(null); return; }
     const project = store.projects.find((item) => item.id === selection.id);
@@ -286,6 +305,16 @@ function DashboardWorkbench() {
     window.addEventListener("beforeunload", protectDraft);
     return () => window.removeEventListener("beforeunload", protectDraft);
   }, []);
+  React.useEffect(() => {
+    const quickShortcut = (event) => {
+      if (event.isComposing || event.repeat || event.altKey || !(event.ctrlKey || event.metaKey) || event.key.toLowerCase() !== "k") return;
+      event.preventDefault();
+      if (modal) return;
+      closeMenu(); setModal({ type: "quick-open" });
+    };
+    document.addEventListener("keydown", quickShortcut);
+    return () => document.removeEventListener("keydown", quickShortcut);
+  }, [modal, closeMenu]);
   const notify = (text) => setMessage(text);
   const openWorkspaceRecord = React.useCallback((kind, id) => {
     setSelection({ kind, id });
@@ -750,7 +779,7 @@ function DashboardWorkbench() {
   const nextHistoryIndex = (direction) => {
     const history = navigationHistoryRef.current;
     for (let index = history.index + direction; index >= 0 && index < history.entries.length; index += direction) {
-      if (navigationEntryExists(history.entries[index])) return index;
+      if (navigationEntryExists(history.entries[index]) && restoreNavigationSnapshot(store, history.entries[index])) return index;
     }
     return -1;
   };
@@ -758,9 +787,15 @@ function DashboardWorkbench() {
     const history = navigationHistoryRef.current;
     const index = nextHistoryIndex(direction);
     if (index < 0) return;
-    const entry = history.entries[index];
+    const entry = restoreNavigationSnapshot(store, history.entries[index]);
+    if (!entry) return;
+    history.entries[index] = entry;
     history.index = index;
     history.restoring = true;
+    setSearch(entry.search); setFilter(entry.filter); setNavigationFilters(entry.navigationFilters);
+    setNavigationFiltersOpen(entry.navigationFiltersOpen); setNavigationView(entry.navigationView);
+    setActiveWorkstreamId(entry.activeWorkstreamId); setWorkflowReveal(null); setOutstandingReveal(null);
+    pendingScrollRef.current = entry.scrollTop; pendingWorkspaceFocus.current = true;
     setSelection(entry.selection ? { ...entry.selection } : null);
     setWorkspaceView(entry.workspaceView);
     setModal(null);
@@ -839,6 +874,10 @@ function DashboardWorkbench() {
         <PanelsTopLeft aria-hidden="true" /></button>
       <nav className="app-rail-actions" aria-label={t("工作台操作")} ref={toolbarRef}>
         <div className="app-rail-primary">
+          <button type="button" className="app-rail-button" aria-label={t("快速打开")} aria-haspopup="dialog"
+            aria-keyshortcuts="Meta+K Control+K" data-tooltip={`${t("快速打开")} · ⌘K / Ctrl+K`} data-tooltip-side="right"
+            onClick={(event) => { event.currentTarget.focus(); closeMenu(); setModal({ type: "quick-open" }); }}>
+            <Search aria-hidden="true" /></button>
           <button type="button" className="app-rail-button" data-active={workspaceView === "home" || undefined}
             aria-label={t("首页")} data-tooltip={t("首页")} data-tooltip-side="right"
             onClick={() => { closeMenu(); setModal(null); setWorkspaceView("home"); }}>
@@ -969,7 +1008,10 @@ function DashboardWorkbench() {
           onPointerDown={beginNavigationResize} onPointerMove={resizeNavigation} onPointerUp={finishNavigationResize}
           onPointerCancel={finishNavigationResize} onKeyDown={resizeNavigationWithKeyboard} onDoubleClick={resetNavigationWidth} />}
       </aside>
-      <main className="project-detail" aria-label={t(workspaceView === "home" ? "首页" : workspaceView === "schedule" ? "项目排期"
+      <main className="project-detail" ref={workspaceRef} tabIndex="-1" onScroll={(event) => {
+        const history = navigationHistoryRef.current; const current = history.entries[history.index];
+        if (current && sameNavigationDestination(current, { workspaceView, selection })) current.scrollTop = event.currentTarget.scrollTop;
+      }} aria-label={t(workspaceView === "home" ? "首页" : workspaceView === "schedule" ? "项目排期"
         : workspaceView === "report" ? "管理层报告" : selectedEntitySource ? "公司概览" : selectedGroup ? "集团工作区" : "项目工作区")}>
         <nav className="workspace-history-controls" aria-label={t("查看历史")}>
           <button type="button" disabled={backHistoryIndex < 0} onClick={() => goThroughHistory(-1)}
@@ -993,8 +1035,8 @@ function DashboardWorkbench() {
           : selectedEntitySource ? <EntityOverview store={store} entity={selectedEntitySource}
             onEdit={() => setModal({ type: "edit-entity", entityId: selectedEntitySource.id })}
             onNewEngagement={() => setModal({ type: "create-engagement", entityId: selectedEntitySource.id })}
-            onOpenEngagement={(engagement, childEntity) => childEntity ? openWorkspaceRecord("entity", childEntity.id)
-              : openWorkspaceRecord(selectedEntitySource.kind === "holding_company" ? "group" : "project", engagement.id)}
+            onOpenEngagement={(engagement, childEntity) => childEntity ? revealWorkspaceRecord("entity", childEntity.id)
+              : revealWorkspaceRecord(selectedEntitySource.kind === "holding_company" ? "group" : "project", engagement.id)}
             onEditEngagement={(engagement) => setModal({ type: "edit-engagement", targetKind: selectedEntitySource.kind === "holding_company" ? "group" : "project",
               targetId: engagement.id })}
             onTax={() => openTaxDeadlineCentre("entity", selectedEntitySource.id)}
@@ -1050,6 +1092,11 @@ function DashboardWorkbench() {
       </aside>
     </section>
 
+    {modal?.type === "quick-open" && <Modal title={t("快速打开")} onClose={() => setModal(null)} wide>
+      <QuickOpen store={store} recent={recentVisits} onOpen={(record) => {
+        if (!revealWorkspaceRecord(record.kind, record.id)) return;
+        pendingScrollRef.current = 0; pendingWorkspaceFocus.current = true; setModal(null);
+      }} /></Modal>}
     {modal?.type === "deadline-alerts" && <Modal title={t("期限提醒")} onClose={() => setModal(null)} wide>
       <DeadlineAlertCentre alerts={deadlineAlertItems} onOpen={openDeadlineAlert} /></Modal>}
     {modal?.type === "tax-deadlines" && modalTargetEntity && <Modal title={`${t("税务期限")} · ${modalTargetEntity.legalName}`} onClose={() => setModal(null)} large>

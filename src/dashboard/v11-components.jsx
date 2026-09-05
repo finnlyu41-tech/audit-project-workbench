@@ -427,23 +427,25 @@ export function EntityOverview({ store, entity, onEdit, onNewEngagement, onOpenE
     .map((item) => ({ engagement, item }))).sort((left, right) =>
     (right.item.createdAt || "").localeCompare(left.item.createdAt || ""));
   return <section className="entity-overview">
+    {entity.archived && <div className="archive-banner"><strong>{t("已归档，只读")}</strong><span>{t("归档记录不能编辑；恢复后才可继续更新。")}</span></div>}
     <header className="entity-overview-header"><div className="entity-overview-title"><i>{entity.kind === "holding_company"
       ? <Building2 aria-hidden="true" /> : <Building aria-hidden="true" />}</i><div><span>{t("公司主档")}</span>
       <h2>{entity.legalName}</h2><p>{entity.entityType || t("主体类型未设置")}{entity.kind === "holding_company"
         ? ` · ${t("控股公司架构")}` : ""}</p></div></div>
       <div className="entity-overview-actions">{!entity.archived && <button type="button" className="button primary" onClick={onNewEngagement}>
-        <Plus aria-hidden="true" />{t("新建项目")}</button>}<button type="button" className="icon-only" onClick={onEdit}
-          aria-label={t("编辑公司主档")} data-tooltip={t("编辑公司主档")}><Edit3 aria-hidden="true" /></button>
+        <Plus aria-hidden="true" />{t("新建项目")}</button>}{!entity.archived && <button type="button" className="icon-only" onClick={onEdit}
+          aria-label={t("编辑公司主档")} data-tooltip={t("编辑公司主档")}><Edit3 aria-hidden="true" /></button>}
         {entity.archived ? <><button type="button" className="icon-only" onClick={onRestore} aria-label={t("恢复公司")}
           data-tooltip={t("恢复公司")}><ArchiveRestore aria-hidden="true" /></button>
           <button type="button" className="icon-only danger-quiet" onClick={onDelete} aria-label={t("永久删除公司")}
             data-tooltip={t("永久删除公司")}><Trash2 aria-hidden="true" /></button></>
           : <button type="button" className="icon-only" onClick={onArchive} aria-label={t("归档公司")}
             data-tooltip={t("归档公司")}><Archive aria-hidden="true" /></button>}</div></header>
-    <div className="entity-facts"><button type="button" onClick={() => latestEngagement ? onEditEngagement(latestEngagement) : onNewEngagement()}
+    <div className="entity-facts"><button type="button" disabled={entity.archived && !latestEngagement}
+      onClick={() => latestEngagement ? (entity.archived || latestEngagement.archived ? onOpenEngagement(latestEngagement) : onEditEngagement(latestEngagement)) : onNewEngagement()}
       aria-label={`${t("最新年结／报告期间")}：${latestPeriodLabel}`} title={latestPeriodLabel}>
       <span>{t("最新年结／报告期间")}</span><strong>{latestPeriodLabel}</strong><CalendarDays aria-hidden="true" /></button>
-      <button type="button" onClick={onEdit}><span>{t("所属控股公司")}</span>
+      <button type="button" disabled={entity.archived} onClick={onEdit}><span>{t("所属控股公司")}</span>
         <strong>{parent?.legalName || t("独立公司")}</strong><Settings2 aria-hidden="true" /></button>
       <button type="button" onClick={onTax} data-urgency={taxSummary.urgency}><span>{t("税务期限")}</span>
         <strong>{taxSummary.next ? `${formatDate(taxSummary.next.dueDate, language)} · ${taxSummary.openCount}` : t("没有未完成期限")}</strong>
@@ -467,7 +469,7 @@ export function EntityOverview({ store, entity, onEdit, onNewEngagement, onOpenE
               ? `${formatDate(engagement.startDate, language)} → ${formatDate(engagement.dueDate, language)}` : t("未完整设置")}</strong></span>
             <span className="annual-progress"><ProgressBar value={percentage} compact /></span>
             <ChevronRight aria-hidden="true" /></button>
-          {!engagement.archived && <button type="button" className="icon-only" onClick={() => onEditEngagement(engagement)}
+          {!entity.archived && !engagement.archived && <button type="button" className="icon-only" onClick={() => onEditEngagement(engagement)}
             aria-label={t("编辑年度项目")} data-tooltip={t("编辑年度项目")}><Settings2 aria-hidden="true" /></button>}
         </article>;
       })}</div> : <div className="entity-empty-projects"><CalendarPlus aria-hidden="true" /><strong>{t("这家公司还没有年度项目")}</strong>
@@ -489,8 +491,8 @@ export function EntityOverview({ store, entity, onEdit, onNewEngagement, onOpenE
         <span><strong>{child.legalName}</strong><small>{child.relationshipRole || t("未设置集团角色")}</small></span><ChevronRight aria-hidden="true" /></button>)}</div>
         : <p className="entity-children-empty">{t("目前没有直属成员；可编辑公司主档或在导航中拖动公司来调整层级。")}</p>}
     </section>}
-    <footer className="entity-overview-footer"><button type="button" className="button secondary" onClick={onMerge}><GitMerge aria-hidden="true" />
-      {t("合并重复公司")}</button><span>{t("合并前会预览项目、税务期限和期间冲突，不会按名称自动处理。")}</span></footer>
+    {!entity.archived && <footer className="entity-overview-footer"><button type="button" className="button secondary" onClick={onMerge}><GitMerge aria-hidden="true" />
+      {t("合并重复公司")}</button><span>{t("合并前会预览项目、税务期限和期间冲突，不会按名称自动处理。")}</span></footer>}
   </section>;
 }
 

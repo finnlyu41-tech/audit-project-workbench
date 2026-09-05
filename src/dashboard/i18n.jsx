@@ -4,6 +4,22 @@ import { toTraditional } from "./traditional.js";
 export const LANGUAGE_PREFERENCE_KEY = "audit-progress-workbench:language";
 
 const english = {
+  "快速打开与返回": "Quick open and return",
+  "点击左侧放大镜，或按 Cmd/Ctrl + K，组合输入公司、年度、项目类型和负责人。": "Use the search icon or Cmd/Ctrl + K to combine company, year, engagement type and owner terms.",
+  "使用上下方向键选择、Enter 打开、Esc 取消；历史资料需勾选包含归档记录。": "Use arrow keys to select, Enter to open and Escape to cancel. Include archived records to search historical work.",
+  "工作区前进和返回会保留本次会话的导航筛选、搜索、所选模块和工作区滚动位置，不会撤销业务修改。": "Workbench back and forward preserve navigation filters, search, the selected workstream and workspace scroll for this session. They do not undo business edits.",
+  "切换项目不需要逐层展开公司，也不会自动保存未提交的快速编辑草稿。": "Switch engagements without expanding the hierarchy. Navigation does not automatically save inline drafts.",
+  "快速打开": "Quick open",
+  "查找公司或年度项目": "Find company or engagement",
+  "公司名称、报告年度、项目类型或负责人": "Company, reporting year, engagement type or owner",
+  "包含归档记录": "Include archived records",
+  "找到 {count} 项": "{count} records found",
+  "快速打开结果": "Quick open results",
+  "没有找到匹配记录": "No matching records",
+  "尝试公司名称或报告年度；历史记录可勾选“包含归档记录”。": "Try a company name or reporting year. Include archived records to find historical work.",
+  "仅显示前 {count} 项，请增加关键词缩小范围。": "Showing the first {count} records. Add keywords to narrow the results.",
+  "↑ ↓ 选择，Enter 打开，Esc 取消": "↑ ↓ to select, Enter to open, Esc to cancel",
+  "只搜索当前工作台资料，不上传搜索内容。": "Search stays in this workbench. No search data is uploaded.",
   "搜索指南": "Search guide",
   "搜索功能或操作步骤": "Search features or steps",
   "没有符合搜索的指南内容": "No guide topics match your search.",
