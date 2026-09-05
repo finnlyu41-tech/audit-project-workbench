@@ -209,3 +209,11 @@ test('company-name validation also protects the template-start draft without pre
   page.once('dialog', (prompt) => prompt.accept()); await dialog.getByRole('button', { name: 'Cancel', exact: true }).click();
   expect(await readStoredWorkspace(page)).toEqual(before);
 });
+test('legal-name validation keeps adjacent master inputs on the same baseline', async ({ page }) => {
+  const dialog = await openCompany(page);
+  await dialog.locator('.form-grid input').first().fill('　');
+  await dialog.getByRole('button', { name: 'Create company', exact: true }).click();
+  const first = await dialog.locator('.form-grid input').first().boundingBox();
+  const second = await dialog.getByLabel('Entity type (optional)').boundingBox();
+  expect(Math.abs(first.y - second.y)).toBeLessThanOrEqual(1);
+});

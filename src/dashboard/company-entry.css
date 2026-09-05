@@ -26,3 +26,11 @@
     .workbench-modal .company-master-form .group-batch-builder { padding: 12px; }
   }
 }
+@media screen {
+  @supports (grid-template-rows: subgrid) {
+    .workbench-modal .company-master-form > .form-grid:has(.field-validation) { row-gap: 6px; }
+    .workbench-modal .company-master-form > .form-grid:has(.field-validation) > label {
+      grid-row: span 3; grid-template-rows: subgrid; row-gap: 6px;
+    }
+  }
+}
