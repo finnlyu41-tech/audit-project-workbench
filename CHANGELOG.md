@@ -6,6 +6,12 @@ The project follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Safer configuration editors
+
+- Company, annual-engagement, workstream/group-template, status and category editors now confirm discarding unsaved changes when closing, cancelling or leaving the editor. Restoring initial values removes the warning; structural edits count too.
+- The same editors keep their save/cancel footer visible while scrolling. Shared dialogs include disclosure summaries in keyboard navigation, reveal invalid collapsed fields and ignore IME Escape. Pointer gestures starting inside a dialog cannot dismiss it on release outside.
+- Draft protection does not save unfinished data or guarantee recovery after a forced browser shutdown. Search and immediately applied settings do not receive draft prompts.
+
 ### Quick open and navigation continuity
 
 - Added a Quick open action and Cmd/Ctrl+K for local company/engagement lookup by company, reporting year, type and owner. Recent records rank first, archives require explicit opt-in, and keyboard selection respects IME composition.

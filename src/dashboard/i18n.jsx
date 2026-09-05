@@ -4,6 +4,13 @@ import { toTraditional } from "./traditional.js";
 export const LANGUAGE_PREFERENCE_KEY = "audit-progress-workbench:language";
 
 const english = {
+  "保护未保存的配置": "Protect unsaved configuration",
+  "公司、年度项目、范本、状态和种类编辑器有改动时，会显示未保存标记。": "Company, annual-engagement, template, status and category editors show a marker when changed.",
+  "关闭或取消前，确认框允许保留编辑器；只有确认放弃才会丢弃改动。": "When closing or cancelling, decline the discard prompt to keep editing. Changes are discarded only after confirmation.",
+  "保存按钮固定在长表单底部；刷新或强制关闭不会保证保留未保存草稿。": "Save actions stay visible at the bottom of long forms. Refreshing or force-closing does not guarantee draft recovery.",
+  "保存才会应用改动，返回初始值后不再提示。": "Save to apply changes. Reverting to the initial values removes the warning.",
+  "未保存更改": "Unsaved changes",
+  "有未保存的更改。确定放弃这些更改并离开此编辑器吗？": "You have unsaved changes. Discard them and leave this editor?",
   "快速打开与返回": "Quick open and return",
   "点击左侧放大镜，或按 Cmd/Ctrl + K，组合输入公司、年度、项目类型和负责人。": "Use the search icon or Cmd/Ctrl + K to combine company, year, engagement type and owner terms.",
   "使用上下方向键选择、Enter 打开、Esc 取消；历史资料需勾选包含归档记录。": "Use arrow keys to select, Enter to open and Escape to cancel. Include archived records to search historical work.",

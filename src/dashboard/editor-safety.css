@@ -1,0 +1,17 @@
+@media screen {
+  .workbench-modal > header h2 { flex: 1; }
+  .modal-unsaved { flex: 0 0 auto; padding: 4px 8px; border: 1px solid var(--border); border-radius: 6px;
+    color: var(--secondary); background: var(--surface); font-size: 12px; line-height: 1.4; }
+  .workbench-modal [data-editor-guard] { --editor-gutter: var(--form-gutter, 22px); }
+  .workbench-modal [data-editor-guard] > :is(.modal-actions, .sample-editor-actions) {
+    position: sticky; z-index: 3; bottom: 0;
+    margin: 0 calc(-1 * var(--editor-gutter));
+    padding: 12px var(--editor-gutter); border-top: 1px solid var(--border); background: var(--surface-raised);
+  }
+  .workbench-modal-body { scroll-padding-block: 16px 116px; }
+  .workbench-modal summary:focus-visible { outline: 2px solid var(--wb-accent); outline-offset: -2px; }
+  @media (max-width: 520px) {
+    .workbench-modal :is(.sample-editor, .status-editor, .group-sample-editor)[data-editor-guard] { --editor-gutter: 16px; }
+    .workbench-modal[data-dirty] > header { flex-wrap: wrap; }
+  }
+}

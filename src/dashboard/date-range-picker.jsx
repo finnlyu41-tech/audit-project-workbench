@@ -1,4 +1,5 @@
 import React from "react";
+import { isComposingKey } from "./editor-draft-state.js";
 import { CalendarDays, ChevronLeft, ChevronRight, X } from "lucide-react";
 import { formatDate } from "./model.js";
 import { useUiLanguage } from "./i18n.jsx";
@@ -47,6 +48,7 @@ export function DateRangePicker({ startDate = "", dueDate = "", onChange, autoFo
   const { language, t } = useUiLanguage();
   const calendarId = React.useId();
   const openerRef = React.useRef(null);
+  const calendarRef = React.useRef(null);
   const initialMonth = () => startOfMonth(parseIsoDate(startDate) || parseIsoDate(dueDate) || new Date());
   const [open, setOpen] = React.useState(false);
   const [month, setMonth] = React.useState(initialMonth);
@@ -59,6 +61,13 @@ export function DateRangePicker({ startDate = "", dueDate = "", onChange, autoFo
     const date = new Date(2024, 0, 1 + index, 12);
     return new Intl.DateTimeFormat(locale, { weekday: "short" }).format(date);
   });
+  React.useLayoutEffect(() => {
+    if (!open || !calendarRef.current || calendarRef.current.contains(document.activeElement)) return;
+    const calendar = calendarRef.current;
+    const selected = calendar.querySelector('.schedule-range-days [aria-selected="true"]');
+    const firstDate = calendar.querySelector('.schedule-range-days button:not([data-outside])');
+    (selected || firstDate)?.focus();
+  }, [open, month]);
   const dates = calendarDates(month);
   const preview = anchorDate ? orderedRange(anchorDate, hoverDate || anchorDate)
     : (startDate && dueDate ? orderedRange(startDate, dueDate) : [startDate, dueDate]);
@@ -93,7 +102,7 @@ export function DateRangePicker({ startDate = "", dueDate = "", onChange, autoFo
   };
 
   return <div className="schedule-range-picker" onKeyDown={(event) => {
-    if (event.key !== "Escape" || !open) return;
+    if (event.key !== "Escape" || !open || isComposingKey(event)) return;
     event.preventDefault();
     event.stopPropagation();
     setOpen(false);
@@ -111,7 +120,7 @@ export function DateRangePicker({ startDate = "", dueDate = "", onChange, autoFo
         title={t("选择项目日期范围")} data-tooltip={t("选择项目日期范围")} data-tooltip-side="left" onClick={toggleCalendar}><CalendarDays aria-hidden="true" /></button>
     </div>
     <small className="schedule-range-help">{t("打开一次日历，先选择开始日，再选择截止日。")}</small>
-    {open && <section id={calendarId} className="schedule-range-calendar" role="dialog" aria-label={t("项目日期范围") }>
+    {open && <section ref={calendarRef} id={calendarId} className="schedule-range-calendar" role="dialog" aria-label={t("项目日期范围") }>
       <header><button type="button" className="icon-only" aria-label={t("上个月")} data-tooltip={t("上个月")}
         onClick={() => setMonth((current) => addMonths(current, -1))}><ChevronLeft aria-hidden="true" /></button>
         <strong>{monthFormatter.format(month)}</strong>

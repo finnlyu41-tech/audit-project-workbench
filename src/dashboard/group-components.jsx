@@ -1,4 +1,5 @@
 import React from "react";
+import { useModalDraft } from "./modal-draft.jsx";
 import { ArrowRightLeft, Building, Building2, ChevronsDown, ChevronsUp, Copy, Minus, Pencil, Play, Plus, Trash2 } from "lucide-react";
 import { ProgressBar } from "./components.jsx";
 import { handleTabListKeyDown, tabIndexFor } from "./a11y.js";
@@ -681,9 +682,10 @@ export function GroupSampleEditor({ sample, onSave, onClose, onReset }) {
   const { t } = useUiLanguage();
   const [draft, setDraft] = React.useState(() => JSON.parse(JSON.stringify(sample)));
   const [tags, setTags] = React.useState(() => (sample.tags || []).join(", "));
+  const { closeEditor, confirmTransition } = useModalDraft({ draft, tags }, onClose);
   const updateNode = (nodeId, updater) => setDraft((current) => ({ ...current,
     nodes: current.nodes.map((node) => node.id === nodeId ? updater(node) : node) }));
-  return <form className="group-sample-editor" onSubmit={(event) => {
+  return <form data-editor-guard className="group-sample-editor" onSubmit={(event) => {
     event.preventDefault();
     if (!draft.name.trim() || draft.nodes.some((node) => !node.title.trim())) return;
     onSave({ ...draft, builtinKey: undefined, name: draft.name.trim(), description: draft.description.trim(),
@@ -739,8 +741,8 @@ export function GroupSampleEditor({ sample, onSave, onClose, onReset }) {
         <button type="button" onClick={() => setDraft((current) => ({ ...current, readinessTemplates: { ...current.readinessTemplates,
           [auditType]: [...current.readinessTemplates[auditType], { id: uid("readiness-condition"), label: "", done: false }] } }))}>
           {t("＋ 添加就绪条件")}</button></section>)}</div></section>
-    <footer className="sample-editor-actions">{onReset ? <button type="button" className="button secondary" onClick={onReset}>{t("恢复基础范本")}</button> : <span />}
-      <span /><span /><button type="button" className="button secondary" onClick={onClose}>{t("取消")}</button>
+    <footer className="sample-editor-actions">{onReset ? <button type="button" className="button secondary" onClick={() => confirmTransition(onReset)}>{t("恢复基础范本")}</button> : <span />}
+      <span /><span /><button type="button" className="button secondary" onClick={closeEditor}>{t("取消")}</button>
       <button type="submit" className="button primary">{t("保存集团范本")}</button></footer>
   </form>;
 }
