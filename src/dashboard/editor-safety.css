@@ -15,3 +15,22 @@
     .workbench-modal[data-dirty] > header { flex-wrap: wrap; }
   }
 }
+
+@media screen {
+  .workbench-modal .field-validation { color: var(--wb-danger); font-size: 13px; line-height: 1.45; }
+  .workbench-modal input[aria-invalid="true"] { border-color: var(--wb-danger); }
+  .workbench-modal .group-sample-editor .readiness-template-grid button.icon-only {
+    width: 32px; min-width: 32px; height: 32px; min-height: 32px; padding: 0;
+  }
+  .workbench-modal .group-sample-editor .sample-edit-node > footer button > svg,
+  .workbench-modal .group-sample-editor .readiness-add > svg {
+    width: 16px; height: 16px; flex: 0 0 16px;
+  }
+}
+@media screen {
+  .workbench-modal .group-sample-section > header { flex-wrap: wrap; align-items: baseline; gap: 6px 12px; }
+  .workbench-modal .group-sample-section > header strong { font-size: 14px; }
+  .workbench-modal .group-sample-section > header span { font-size: 13px; line-height: 1.45; }
+  .workbench-modal .group-sample-editor .readiness-template-grid h4 { font-size: 13px; line-height: 1.4; }
+  .workbench-modal .group-sample-editor .readiness-add { font-size: 13px; text-align: left; }
+}

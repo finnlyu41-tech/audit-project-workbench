@@ -4,6 +4,15 @@ import { toTraditional } from "./traditional.js";
 export const LANGUAGE_PREFERENCE_KEY = "audit-progress-workbench:language";
 
 const english = {
+  "保护日常小表单": "Protect everyday form edits",
+  "节点、完成条件、待清事项和业务模块表单也会提示未保存更改；取消不会自动提交。": "Stage, criterion, outstanding-item and workstream forms also warn about unsaved changes; Cancel does not save them.",
+  "名称或内容不能为空，也不能只输入空格；出现提示后修正原输入即可保存。": "Names and content must not be empty or contain only spaces. Correct the field after a warning, then save.",
+  "草稿仍只在打开的编辑器中，刷新或强制关闭不保证恢复。": "Drafts stay in the open editor only. Reloading or force-closing does not guarantee recovery.",
+  "请填写内容，不能只输入空格。": "Enter a value; it cannot contain only spaces.",
+  "添加合并节点": "Add consolidation stage",
+  "添加就绪条件": "Add readiness criterion",
+  "删除就绪条件": "Delete readiness criterion",
+  "{type}就绪条件 {index}": "{type} readiness criterion {index}",
   "保护未保存的配置": "Protect unsaved configuration",
   "公司、年度项目、范本、状态和种类编辑器有改动时，会显示未保存标记。": "Company, annual-engagement, template, status and category editors show a marker when changed.",
   "关闭或取消前，确认框允许保留编辑器；只有确认放弃才会丢弃改动。": "When closing or cancelling, decline the discard prompt to keep editing. Changes are discarded only after confirmation.",

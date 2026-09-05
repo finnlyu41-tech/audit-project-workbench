@@ -6,6 +6,12 @@ The project follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Daily editors and group-template alignment
+
+- Stage, completion-criterion, outstanding-item and workstream forms now share the existing unsaved-draft guard.
+- Required text fields explain blank or whitespace-only input, focus the invalid field, and clear feedback after correction without rewriting the draft.
+- Group-template editors use consistent labeled icon actions and named fields for stages, conditions and readiness criteria; narrow layouts and save isolation have regression coverage.
+
 ### Safer configuration editors
 
 - Company, annual-engagement, workstream/group-template, status and category editors now confirm discarding unsaved changes when closing, cancelling or leaving the editor. Restoring initial values removes the warning; structural edits count too.
