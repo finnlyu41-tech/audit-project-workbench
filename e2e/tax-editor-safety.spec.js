@@ -61,15 +61,15 @@ for (const exit of ["header", "footer", "backdrop"]) {
     page.off("dialog", reject); page.once("dialog", (prompt) => prompt.accept());
     await dialog.locator(".tax-deadline-form > footer").getByRole("button", { name: "Cancel" }).click();
     await expect(dialog.locator(".tax-deadline-manager")).toBeVisible();
-    await expect(dialog.getByRole("status")).toHaveCount(0);
+    await expect(dialog.locator(".modal-unsaved")).toHaveCount(0);
     expect(await readStoredWorkspace(page)).toEqual(before);
   });
 }
 test("numeric lead time changed back to its initial value does not produce a false dirty state", async ({ page }) => {
   const dialog = await openTax(page); const before = await readStoredWorkspace(page);
   const lead = dialog.getByLabel("Reminder lead time (days)");
-  await lead.fill("60"); await expect(dialog.getByRole("status")).toHaveText("Unsaved changes");
-  await lead.fill("30"); await expect(dialog.getByRole("status")).toHaveCount(0);
+  await lead.fill("60"); await expect(dialog.locator(".modal-unsaved")).toHaveText("Unsaved changes");
+  await lead.fill("30"); await expect(dialog.locator(".modal-unsaved")).toHaveCount(0);
   let prompts = 0; page.on("dialog", async (prompt) => { prompts++; await prompt.dismiss(); });
   await dialog.locator(".tax-deadline-form > footer").getByRole("button", { name: "Cancel" }).click();
   await expect(dialog.locator(".tax-deadline-manager")).toBeVisible(); expect(prompts).toBe(0);
@@ -114,7 +114,7 @@ test("new custom deadline validates its name and remains visible despite the pre
 test("tax list filters are not drafts and can be cleared without a discard dialog", async ({ page }) => {
   const dialog = await openTax(page, { edit: false }); const before = await readStoredWorkspace(page);
   await dialog.getByRole("combobox", { name: "Filter by urgency" }).selectOption("completed");
-  await expect(dialog.getByRole("status")).toHaveCount(0);
+  await expect(dialog.locator(".modal-unsaved")).toHaveCount(0);
   await dialog.getByRole("button", { name: "Clear filters", exact: true }).click();
   await expect(dialog.locator(".tax-deadline-row")).toHaveCount(1);
   let prompts = 0; page.on("dialog", async (prompt) => { prompts++; await prompt.dismiss(); });
@@ -128,7 +128,7 @@ test("discard confirmation and deletion confirmation each protect the saved tax 
   const handler = async (prompt) => { prompts++; if (prompts === 1) await prompt.accept(); else await prompt.dismiss(); };
   page.on("dialog", handler);
   await dialog.getByRole("button", { name: "Delete deadline", exact: true }).click();
-  expect(prompts).toBe(2); await expect(dialog.getByRole("status")).toHaveText("Unsaved changes");
+  expect(prompts).toBe(2); await expect(dialog.locator(".modal-unsaved")).toHaveText("Unsaved changes");
   expect(await readStoredWorkspace(page)).toEqual(before);
   page.off("dialog", handler); page.on("dialog", (prompt) => prompt.accept());
   await dialog.getByRole("button", { name: "Delete deadline", exact: true }).click();
@@ -194,14 +194,14 @@ test("instant tax completion stays immediate and does not change workflow condit
   const after = await readStoredWorkspace(page);
   expect(after.entities[0].taxDeadlines[0].state).toBe("completed");
   expect(after.entities[0].taxDeadlines[0].revisions).toEqual(before.entities[0].taxDeadlines[0].revisions);
-  expect(after.engagements).toEqual(before.engagements); await expect(dialog.getByRole("status")).toHaveCount(0);
+  expect(after.engagements).toEqual(before.engagements); await expect(dialog.locator(".modal-unsaved")).toHaveCount(0);
 });
 test("reverting a changed date removes the irrelevant revision reason from the dirty state", async ({ page }) => {
   const dialog = await openTax(page); const before = await readStoredWorkspace(page);
   await dialog.getByLabel("Current due date *", { exact: true }).fill("2026-11-30");
   await dialog.getByLabel("Reason for date change *", { exact: true }).fill("Unused reason");
   await dialog.getByLabel("Current due date *", { exact: true }).fill("2026-10-31");
-  await expect(dialog.getByRole("status")).toHaveCount(0);
+  await expect(dialog.locator(".modal-unsaved")).toHaveCount(0);
   expect(await page.evaluate(() => !window.dispatchEvent(new Event("beforeunload", { cancelable: true })))).toBe(false);
   await dialog.locator(".tax-deadline-form > footer").getByRole("button", { name: "Cancel" }).click();
   expect(await readStoredWorkspace(page)).toEqual(before);

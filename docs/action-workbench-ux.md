@@ -177,3 +177,13 @@ New company details are held in memory only. The final action validates the curr
 Both company and annual forms retain their standard behaviour elsewhere. New optional props apply only to this dedicated flow. The flow and its forms share the existing dirty-state registry; changing company or closing a dirty flow requires confirmation. This is not a cross-refresh draft backup. The company kind is fixed by the chosen template to prevent incompatible conversions. This flow creates a new project only; it does not replace an existing project's workflow or sign off any work.
 
 The regression suites `tests/template-start.test.js` and `e2e/template-start.spec.js` cover explicit nondefault templates, custom categories, holding templates, atomic draft creation, duplicate/archived periods, stale sources, no-write cancellation, default preservation and keyboard/layout behaviour. All fixtures are synthetic.
+
+## Non-blocking operation feedback
+
+Ordinary notifications now occupy an in-flow area above the workbench or between the active dialog header and body, rather than a fixed layer above its footer. The same message moves with the active surface; only one surface exposes it at a time. Long copy wraps and can be keyboard-scrolled within a bounded reading area, without covering editor actions.
+
+Messages receive a fresh identity even when their wording repeats. Reading time is at least 8 seconds and grows with length up to 20 seconds. Hover, keyboard focus and document-hidden state pause the remaining timer independently. Obsolete timers cannot clear a newer notice. Dismissing a notice restores the preceding applicable control when possible and never submits, discards or closes the editor. New messages do not actively move focus.
+
+Feedback remains session-only, latest-message-only and is not included in backups, reports or storage. These are ordinary operation messages, not a new confirmation of file persistence. The original backup status, validation, unsaved-draft prompts and storage-conflict controls remain authoritative and unchanged.
+
+Tests cover the export-then-import overlap, dirty-editor dismissal, keyboard containment, repeated messages, overlapping pauses, hidden-page events, long-name operation feedback, print suppression and accessible roles. Test data are fictional and browser contexts are isolated. The live-region design follows W3C ARIA22 and the APG modal-dialog pattern; automated checks do not replace hands-on assistive-technology testing.

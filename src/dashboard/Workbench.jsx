@@ -43,6 +43,7 @@ import { QuickUpdate } from "./ux-components.jsx";
 import { QuickOpen } from "./quick-open.jsx";
 import { navigationSnapshot, sameNavigationDestination, restoreNavigationSnapshot } from "./navigation-state.js";
 import { RECENT_RECORDS_KEY, nextEngagementAction, prepareQuickUpdate, recentRecordsFor, rememberRecord, resolveWorkspaceTarget, sanitizeRecentRecords } from "./ux-model.js";
+import { FeedbackContext, FeedbackSlot, useFeedbackController } from "./feedback.jsx";
 import "./dashboard.css";
 
 const SIDEBAR_PREFERENCE_KEY = "audit-progress-workbench:sidebar-collapsed";
@@ -143,7 +144,8 @@ function DashboardWorkbench() {
   };
   const [workspaceView, setWorkspaceView] = React.useState(loadInitialWorkspaceView);
   const [modal, setModal] = React.useState(null);
-  const [message, setMessage] = React.useState("");
+  const feedback = useFeedbackController();
+  const setMessage = feedback.publish;
   const [deadlineClock, setDeadlineClock] = React.useState(() => new Date());
   const [sidebarCollapsed, setSidebarCollapsed] = React.useState(() => {
     try { return localStorage.getItem(SIDEBAR_PREFERENCE_KEY) === "true"; } catch { return false; }
@@ -276,11 +278,6 @@ function DashboardWorkbench() {
     const project = store.projects.find((item) => item.id === selection.id);
     if (activeWorkstreamId && !project?.workstreams.some((workstream) => workstream.id === activeWorkstreamId)) setActiveWorkstreamId(null);
   }, [selection, store.projects, activeWorkstreamId]);
-  React.useEffect(() => {
-    if (!message) return undefined;
-    const timer = window.setTimeout(() => setMessage(""), 2600);
-    return () => window.clearTimeout(timer);
-  }, [message]);
   React.useEffect(() => {
     if (!persistence.conflict) { shownConflictRef.current = null; return; }
     if (!modal && shownConflictRef.current !== persistence.conflict) {
@@ -874,8 +871,8 @@ function DashboardWorkbench() {
     };
   }, [resizingNavigation]);
 
-  return <article className="audit-workbench" onMouseOver={revealOverflowText} onFocusCapture={revealOverflowText}>
-    {message && <div className="save-toast" role="status">{message}</div>}
+  return <FeedbackContext.Provider value={feedback}><article className="audit-workbench" onMouseOver={revealOverflowText} onFocusCapture={revealOverflowText}>
+    <FeedbackSlot surface="workspace" active={!modal} />
     <h1 className="visually-hidden">{t("审计项目工作台")}</h1>
     <aside className="app-rail" aria-label={t("工作台操作")}>
       <button type="button" className="app-mark" aria-expanded={!sidebarCollapsed}
@@ -1320,7 +1317,7 @@ function DashboardWorkbench() {
         }));
         setSelection(null); setModal(null); notify(t("公司及其年度项目已永久删除"));
       }} /></Modal>}
-  </article>;
+  </article></FeedbackContext.Provider>;
 }
 
 function CompanyCreateForm({ initialKind = "project", samples, workstreamCategories, selectedSampleIdsByCategory,

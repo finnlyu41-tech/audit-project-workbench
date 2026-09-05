@@ -4,6 +4,13 @@ import { toTraditional } from "./traditional.js";
 export const LANGUAGE_PREFERENCE_KEY = "audit-progress-workbench:language";
 
 const english = {
+  "阅读操作提示": "Reading operation notifications",
+  "普通操作提示显示在工作台顶部；打开弹窗时显示在标题下方，不会盖住保存或取消按钮。": "Operation notifications appear above the workbench or below the active dialog title, without covering Save or Cancel.",
+  "提示显示 8–20 秒；悬停、键盘焦点停留或页面隐藏时暂停计时，也可以单独关闭提示。": "Notifications last 8\u201320 seconds. Hover, keyboard focus or a hidden page pauses the timer; the notification can also be dismissed.",
+  "只显示最近一条提示，不建立额外历史；新提示会重新计时。": "Only the latest notification is shown, with a fresh timer. No additional history is stored.",
+  "关闭提示不会关闭编辑器或保存草稿；实际保存和同步状态仍以备份菜单为准。": "Dismissing feedback does not close the editor or save a draft. Check the backup menu for actual save and sync status.",
+  "操作提示": "Operation notification",
+  "关闭提示": "Dismiss notification",
   "将建立控股公司主档。": "A holding company master will be created.",
   "将建立普通公司主档。": "An ordinary company master will be created.",
   "重新选择公司": "Change company",
