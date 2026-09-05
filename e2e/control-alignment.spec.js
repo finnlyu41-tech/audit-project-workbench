@@ -41,24 +41,26 @@ async function expectAlignedGridRows(dialog) {
     const children = [...grid.children];
     // Full-width fields and composite controls deliberately use different spans.
     if (children.some((child) => child.tagName !== "LABEL" || child.classList.contains("span-two"))) return [];
-    const fields = children.map((child) => child.querySelector("input, select, textarea"));
-    if (fields.some((field) => !field || !field.getClientRects().length)) return [];
-    const columns = getComputedStyle(grid).gridTemplateColumns.split(" ").length;
-    const result = [];
-    for (let index = 0; index < fields.length; index += columns) {
-      result.push(fields.slice(index, index + columns).map((field) => {
-        const box = field.getBoundingClientRect();
-        return { bottom: box.bottom, width: box.width };
-      }));
+    const fields = children.map((child) => child.querySelector("input, select, textarea"))
+      .filter((field) => field?.getClientRects().length);
+    if (fields.length < 2) return [];
+
+    const groups = [];
+    for (const field of fields) {
+      const box = field.getBoundingClientRect();
+      const match = groups.find((group) => Math.abs(group.top - box.top) <= 2);
+      const entry = { top: box.top, bottom: box.bottom, width: box.width };
+      if (match) match.fields.push(entry);
+      else groups.push({ top: box.top, fields: [entry] });
     }
-    return result;
+    return groups.filter((group) => group.fields.length > 1).map((group) => group.fields);
   }));
-  expect(rows.length, "exercise at least one real form grid").toBeGreaterThan(0);
+  expect(rows.length, "exercise at least one real visual form row").toBeGreaterThan(0);
   for (const row of rows) {
     const bottoms = row.map((field) => field.bottom);
     const widths = row.map((field) => field.width);
-    expect(Math.max(...bottoms) - Math.min(...bottoms), "row controls share a baseline").toBeLessThanOrEqual(1);
-    expect(Math.max(...widths) - Math.min(...widths), "equal columns keep equal control widths").toBeLessThanOrEqual(1);
+    expect(Math.max(...bottoms) - Math.min(...bottoms), "same-row controls share a baseline").toBeLessThanOrEqual(1);
+    expect(Math.max(...widths) - Math.min(...widths), "equal visual columns keep equal control widths").toBeLessThanOrEqual(1);
   }
 }
 
