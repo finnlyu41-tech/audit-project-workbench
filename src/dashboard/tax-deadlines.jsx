@@ -1,4 +1,6 @@
 import React from "react";
+import { useModalDraft } from "./modal-draft.jsx";
+import { RequiredTextInput } from "./required-text-input.jsx";
 import { Ban, Check, ExternalLink, History, Pencil, Plus, ReceiptText, Trash2 } from "lucide-react";
 import { TAX_DEADLINE_CATEGORIES, TAX_DEADLINE_STATES, collectGroupTaxDeadlineEntries, formatDate,
   taxDeadlineCategoryLabel, taxDeadlineStateLabel, taxDeadlineSummary, taxDeadlineUrgency,
@@ -50,8 +52,10 @@ export function TaxDeadlineSummaryButton({ deadlines = [], now = new Date(), onC
   </button>;
 }
 
-function TaxDeadlineForm({ initial, engagements = [], initialEngagementId = "", onSubmit, onDelete, onCancel }) {
+function TaxDeadlineForm({ initial: initialValue, engagements = [], initialEngagementId = "", onSubmit, onDelete, onCancel }) {
   const { language, t } = useUiLanguage();
+  const initial = React.useRef(initialValue).current;
+  const [saveError, setSaveError] = React.useState("");
   const [values, setValues] = React.useState(() => ({
     category: initial?.category || "profits_tax_filing",
     customName: initial?.customName || "",
@@ -68,28 +72,38 @@ function TaxDeadlineForm({ initial, engagements = [], initialEngagementId = "", 
   const [revisionReason, setRevisionReason] = React.useState("");
   const update = (field) => (event) => setValues((current) => ({ ...current, [field]: event.target.value }));
   const dateChanged = Boolean(initial?.dueDate && values.dueDate && initial.dueDate !== values.dueDate);
+  const { closeEditor, confirmTransition } = useModalDraft({ ...values,
+    reminderDays: String(values.reminderDays), revisionReason: dateChanged ? revisionReason : "" }, onCancel);
+  const describeError = (result) => {
+    if (!result?.error) return;
+    const messages = { source: "来源已归档或不存在，无法保存。", missing: "这项期限已不存在，请取消编辑后重新检查。",
+      changed: "期限已在别处更新，请取消并重新编辑，避免覆盖新内容。", reason: "请填写改期原因。" };
+    setSaveError(t(messages[result.error] || "未能保存期限，更改仍保留在此编辑器中。"));
+  };
   const linkedEngagement = engagements.find((engagement) => engagement.id === values.linkedEngagementId);
   const workstreams = linkedEngagement?.workstreams || [];
-  return <form className="tax-deadline-form" onSubmit={(event) => {
+  return <form data-editor-guard className="tax-deadline-form" onSubmit={(event) => {
     event.preventDefault();
     if (values.category === "custom" && !values.customName.trim()) return;
     if (dateChanged && !revisionReason.trim()) return;
-    onSubmit({ ...values, reminderDays: Number(values.reminderDays),
+    setSaveError("");
+    const result = onSubmit({ ...values, reminderDays: Number(values.reminderDays),
       linkedEngagementId: values.linkedEngagementId || null,
-      linkedWorkstreamId: values.linkedWorkstreamId || null }, revisionReason.trim());
+      linkedWorkstreamId: values.linkedWorkstreamId || null }, revisionReason.trim(), initial);
+    describeError(result);
   }}>
     <header><div><span>{t(initial ? "编辑税务期限" : "新增税务期限")}</span>
       <strong>{initial ? taxDeadlineCategoryLabel(initial, language) : t("建立一项合规期限")}</strong></div>
-      <button type="button" className="text-button" onClick={onCancel}>{t("取消")}</button></header>
+      <button type="button" className="text-button" onClick={closeEditor}>{t("取消")}</button></header>
     <div className="tax-deadline-form-grid">
       <div className="tax-deadline-category-control"><label><span>{t("期限种类 *")}</span>
-        <select value={values.category} onChange={update("category")}>
+        <select autoFocus value={values.category} onChange={update("category")}>
           {TAX_DEADLINE_CATEGORIES.map((category) => <option value={category} key={category}>
             {taxDeadlineCategoryLabel(category, language)}</option>)}</select></label>
         {values.category !== "custom" && <button type="button" className="text-button"
           onClick={() => setValues((current) => ({ ...current, category: "custom", customName: "" }))}>
           <Plus aria-hidden="true" />{t("使用自定义种类")}</button>}</div>
-      {values.category === "custom" && <label><span>{t("自定义期限名称 *")}</span><input required value={values.customName}
+      {values.category === "custom" && <label><span>{t("自定义期限名称 *")}</span><RequiredTextInput aria-label={t("自定义期限名称 *")} value={values.customName}
         onChange={update("customName")} placeholder={t("例如：物业税报税")} /></label>}
       <label><span>{t("课税年度")}</span><input value={values.taxYear} onChange={update("taxYear")}
         placeholder={t("例如：2025/26")} /></label>
@@ -113,7 +127,7 @@ function TaxDeadlineForm({ initial, engagements = [], initialEngagementId = "", 
       <label className="tax-deadline-wide-field"><span>{t("备注")}</span><textarea rows="2" value={values.note}
         onChange={update("note")} placeholder={t("记录申报范围、付款期数或跟进信息")} /></label>
       {dateChanged && <label className="tax-deadline-wide-field revision-reason"><span>{t("改期原因 *")}</span>
-        <input autoFocus required value={revisionReason} onChange={(event) => setRevisionReason(event.target.value)}
+        <RequiredTextInput autoFocus aria-label={t("改期原因 *")} value={revisionReason} onChange={(event) => setRevisionReason(event.target.value)}
           placeholder={t("说明延期、通知更正或其他变更依据")} /></label>}
     </div>
     {initial?.originalDueDate && <div className="tax-deadline-origin"><span>{t("原期限")}</span>
@@ -123,9 +137,10 @@ function TaxDeadlineForm({ initial, engagements = [], initialEngagementId = "", 
         key={`${revision.changedAt}-${index}`}><span><time>{formatDate(revision.fromDueDate, language)}</time>
           <b aria-hidden="true">→</b><time>{formatDate(revision.toDueDate, language)}</time></span>
         <small>{revision.reason || t("没有填写原因")} · {formatDate(revision.changedAt?.slice(0, 10), language)}</small></div>)}</section>}
+    {saveError && <p role="alert" className="form-error">{saveError}</p>}
     <footer className="modal-actions">{initial && onDelete && <button type="button" className="button danger-quiet"
-      onClick={onDelete}><Trash2 aria-hidden="true" />{t("删除期限")}</button>}<span className="modal-action-spacer" />
-      <button type="button" className="button secondary" onClick={onCancel}>{t("取消")}</button>
+      onClick={() => confirmTransition(() => describeError(onDelete(initial)))}><Trash2 aria-hidden="true" />{t("删除期限")}</button>}<span className="modal-action-spacer" />
+      <button type="button" className="button secondary" onClick={closeEditor}>{t("取消")}</button>
       <button type="submit" className="button primary">{t(initial ? "保存期限" : "新增期限")}</button></footer>
   </form>;
 }
@@ -142,6 +157,16 @@ export function TaxDeadlineManager({ store, targetKind, targetId, focusDeadlineI
   const [editing, setEditing] = React.useState(() => !readOnly && initialEditDeadlineId !== undefined
     ? { sourceType: targetKind, sourceId: targetId, deadlineId: initialEditDeadlineId } : null);
   const focusRef = React.useRef(null);
+  const managerRef = React.useRef(null);
+  const pendingFocus = React.useRef(null);
+  const [savedKey, setSavedKey] = React.useState("");
+  const resetFilters = () => { setUrgencyFilter("all"); setCategoryFilter("all"); setOwnerFilter("all"); };
+  const finishEditing = (deadlineId, saved = false) => {
+    const key = deadlineId ? `${editing.sourceType}:${editing.sourceId}:${deadlineId}` : "";
+    pendingFocus.current = { key, saved };
+    if (saved) { resetFilters(); setSavedKey(key); }
+    setEditing(null);
+  };
   const ownEntries = React.useMemo(() => directEntries(target, targetKind), [target, targetKind]);
   const groupEntries = React.useMemo(() => targetKind === "entity" && holdingTarget
     ? collectEntityTaxEntries(store, targetId) : targetKind === "group"
@@ -180,22 +205,42 @@ export function TaxDeadlineManager({ store, targetKind, targetId, focusDeadlineI
     focusRef.current.scrollIntoView({ block: "nearest" });
   }, [focusDeadlineId, visible.length]);
 
+  React.useLayoutEffect(() => {
+    if (editing || !pendingFocus.current) return;
+    const request = pendingFocus.current;
+    const frame = window.requestAnimationFrame(() => {
+      const manager = managerRef.current;
+      const row = [...(manager?.querySelectorAll("[data-tax-key]") || [])].find((entry) => entry.dataset.taxKey === request.key);
+      const control = (request.saved ? row : row?.querySelector("[data-tax-edit]"))
+        || manager?.querySelector("[data-tax-add]") || manager;
+      control?.focus({ preventScroll: true }); control?.scrollIntoView({ block: "nearest", inline: "nearest" });
+      pendingFocus.current = null;
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [editing, rawEntries]);
+
   if (!target) return null;
   if (editing) return <TaxDeadlineForm key={`${editing.sourceType}-${editing.sourceId}-${editing.deadlineId || "new"}`}
-    initial={activeEdit} engagements={engagements} initialEngagementId={initialEngagementId} onCancel={() => setEditing(null)}
-    onSubmit={(values, reason) => { onSave(editing.sourceType, editing.sourceId, activeEdit, values, reason); setEditing(null); }}
-    onDelete={activeEdit && !readOnly ? () => {
+    initial={activeEdit} engagements={engagements} initialEngagementId={initialEngagementId} onCancel={() => finishEditing(editing.deadlineId)}
+    onSubmit={(values, reason, baseline) => {
+      const result = onSave(editing.sourceType, editing.sourceId, baseline || (editing.deadlineId ? { id: editing.deadlineId } : null), values, reason);
+      if (!result?.error) finishEditing(result?.deadline?.id || baseline?.id, true);
+      return result;
+    }}
+    onDelete={activeEdit && !readOnly ? (baseline) => {
       if (!window.confirm(t("删除税务期限“{name}”？此操作会同时删除相关改期记录。",
         { name: taxDeadlineCategoryLabel(activeEdit, language) }))) return;
-      onDelete(editing.sourceType, editing.sourceId, activeEdit.id); setEditing(null);
+      const result = onDelete(editing.sourceType, editing.sourceId, activeEdit.id, baseline);
+      if (!result?.error) finishEditing(null);
+      return result;
     } : null} />;
 
   const summary = taxDeadlineSummary(rawEntries.map((entry) => entry.deadline));
-  return <section className="tax-deadline-manager">
+  return <section className="tax-deadline-manager" ref={managerRef} tabIndex="-1" aria-label={t("税务期限")}>
     <header className="tax-deadline-manager-summary"><div><span><ReceiptText aria-hidden="true" /></span><div>
       <strong>{t("税务期限")}</strong><small>{t("{open} 项未完成 · {attention} 项需要关注",
         { open: summary.openCount, attention: summary.attentionCount })}</small></div></div>
-      {!readOnly && <button type="button" className="button primary" onClick={() => setEditing({ sourceType: targetKind,
+      {!readOnly && <button type="button" className="button primary" data-tax-add onClick={() => setEditing({ sourceType: targetKind,
         sourceId: targetId, deadlineId: null })}><Plus aria-hidden="true" />{t("新增期限")}</button>}</header>
     {holdingTarget && <div className="tax-deadline-scope-tabs" role="tablist" aria-label={t("税务期限范围")}
       onKeyDown={handleTabListKeyDown}>
@@ -214,12 +259,15 @@ export function TaxDeadlineManager({ store, targetKind, targetId, focusDeadlineI
           {taxDeadlineCategoryLabel(category, language)}</option>)}</select>
       <select value={ownerFilter} onChange={(event) => setOwnerFilter(event.target.value)} aria-label={t("按负责人筛选")}>
         <option value="all">{t("全部负责人")}</option>{owners.map((owner) => <option value={owner} key={owner}>{owner}</option>)}</select></div>
+    {(urgencyFilter !== "all" || categoryFilter !== "all" || ownerFilter !== "all") &&
+      <div className="tax-filter-reset"><button type="button" className="text-button" onClick={resetFilters}>{t("清除筛选")}</button></div>}
     {visible.length ? <div className="tax-deadline-list">{visible.map((entry) => {
       const deadline = entry.deadline;
       const source = sourceRecord(store, entry.sourceType, entry.sourceId);
       const sourceReadOnly = readOnly || Boolean(source?.archived);
       return <article className="tax-deadline-row" key={`${entry.sourceType}-${entry.sourceId}-${deadline.id}`}
-        data-urgency={entry.urgency.level} data-focused={deadline.id === focusDeadlineId || undefined}
+        data-urgency={entry.urgency.level} data-tax-key={`${entry.sourceType}:${entry.sourceId}:${deadline.id}`} tabIndex="-1"
+        data-focused={deadline.id === focusDeadlineId || savedKey === `${entry.sourceType}:${entry.sourceId}:${deadline.id}` || undefined}
         ref={deadline.id === focusDeadlineId ? focusRef : null}>
         <i><ReceiptText aria-hidden="true" /></i><div className="tax-deadline-row-copy"><header><strong>
           {taxDeadlineCategoryLabel(deadline, language)}</strong>{deadline.taxYear && <span>{deadline.taxYear}</span>}</header>
@@ -234,7 +282,7 @@ export function TaxDeadlineManager({ store, targetKind, targetId, focusDeadlineI
           {!sourceReadOnly && deadline.state === "open" && <button type="button" className="icon-only" aria-label={t("标记为已完成")}
             data-tooltip={t("标记为已完成")} onClick={() => onSave(entry.sourceType, entry.sourceId, deadline,
               { ...deadline, state: "completed" }, "")}><Check aria-hidden="true" /></button>}
-          {!sourceReadOnly && <button type="button" className="icon-only" aria-label={t("编辑税务期限")}
+          {!sourceReadOnly && <button type="button" className="icon-only" aria-label={t("编辑税务期限")} data-tax-edit
             data-tooltip={t("编辑税务期限")} onClick={() => setEditing({ sourceType: entry.sourceType,
               sourceId: entry.sourceId, deadlineId: deadline.id })}><Pencil aria-hidden="true" /></button>}
         </div>

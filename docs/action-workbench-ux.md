@@ -67,3 +67,13 @@ The seventh pass extends the explicit modal draft registry to stage, completion-
 Required single-line names and content keep the existing trimmed non-empty constraint, now backed by a browser pattern and a visible error linked with aria-describedby. Errors are marked only after validation, clear after correction and do not rewrite the entered text. The browser's own invalid-field navigation remains available.
 
 Group-template stage sorting, deletion, condition deletion and readiness deletion now have consistent icons, sizes, tooltips and accessible names. Field names identify the stage or readiness category. Edits stay in the template draft until Save; existing engagements are not rewritten. UI tests cover 480/800/1440px, cancellation, correction, template order and data isolation. Existing legacy-view saves may update company timestamps, as before; business fields and audit completion rules are unchanged.
+
+## Tax deadline editing
+
+Tax deadline creation and editing use the existing explicit draft registry. Cancel buttons, outer-window close/Escape and deletion transitions share the discard decision. The registry normalizes only the numeric lead-time representation for comparison; it does not write drafts to storage. Revision reasons are ignored for dirty-state comparison when the date is reverted. List filters and instant Mark completed actions remain immediate, not drafts.
+
+The editor retains the original record snapshot for revision validation. Save and deletion preparation reject missing, archived or stale sources; a deleted deadline is not recreated as a new one. Custom names and date-change reasons use the existing non-whitespace validator. The underlying date/history normalization functions and the audit completion model are unchanged.
+
+The form scrolls in the outer modal body, its footer stays visible, and fields reflow by actual dialog width. Cancel returns focus to the source edit button; save clears list filters and focuses the saved record. Subsidiary edits from the holding-company list target only the owning company. The current holding-component panel uses immediate updates, so legacy, unreachable member forms were not modified in this pass.
+
+Coverage: `tests/tax-editor-state.test.js` and `e2e/tax-editor-safety.spec.js`. Tests use fictional records only. As before, browser warnings do not guarantee draft recovery after refresh, forced shutdown or application replacement. No schema, legal-date calculation, report period, print layout or audit-signoff rules are added.
