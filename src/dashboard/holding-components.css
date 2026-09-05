@@ -1,0 +1,86 @@
+/* Screen-only component controls; audit calculations and print layouts are unchanged. */
+@media screen {
+  .audit-workbench .holding-components-panel { container: holding-panel / inline-size; }
+  .audit-workbench .holding-components-panel > header { flex-wrap: wrap; gap: 12px; padding: 14px; }
+  .audit-workbench .holding-components-panel > header > div { flex: 1 1 280px; gap: 6px; }
+  .audit-workbench .holding-components-panel > header > .button { flex: 0 1 auto; min-height: 36px; }
+  .audit-workbench .holding-components-panel .structure-difference { padding: 10px 14px; font-size: 13px; line-height: 1.45; }
+  .component-filters { display: grid; grid-template-columns: minmax(180px, 1fr) auto; align-items: end; gap: 10px;
+    padding: 14px; border-bottom: 1px solid var(--border); background: var(--surface); }
+  .component-search { display: grid; min-width: 0; gap: 6px; font-size: 13px; }
+  .component-search > span:last-child { display: grid; grid-template-columns: 18px minmax(0, 1fr); align-items: center; gap: 6px; }
+  .component-search svg { width: 18px; height: 18px; color: var(--secondary); }
+  .component-search input { box-sizing: border-box; min-width: 0; width: 100%; height: 42px; padding: 8px 10px;
+    font: inherit; font-size: 14px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface-raised); color: var(--text); }
+  .component-filter-options { display: flex; flex-wrap: wrap; gap: 6px; grid-column: 1 / -1; }
+  .component-filter-options > button { display: inline-flex; min-height: 36px; align-items: center; justify-content: center; gap: 8px;
+    padding: 7px 10px; border: 1px solid var(--border); border-radius: 8px; cursor: pointer;
+    font: inherit; font-size: 13px; background: var(--surface-raised); color: var(--text); }
+  .component-filter-options > button[aria-pressed="true"] { border-color: var(--wb-accent); background: var(--wb-accent-soft); color: var(--wb-accent-dark); }
+  .component-result-count { grid-column: 2; grid-row: 1; font-size: 13px; color: var(--secondary); align-self: center; }
+  .component-filters > small { grid-column: 1 / -1; font-size: 13px; color: var(--secondary); line-height: 1.45; }
+  .component-filters > .button { justify-self: start; }
+  .component-filter-empty { display: grid; gap: 8px; padding: 24px 14px; justify-items: start; font-size: 14px; }
+  .component-filter-empty > span { color: var(--secondary); }
+  .audit-workbench .holding-components-panel .holding-component-rows > article {
+    grid-template-columns: minmax(0, 1.1fr) minmax(0, 1.3fr) 90px 76px 32px;
+    grid-template-areas: "identity assignment progress readiness open" "notice notice notice notice notice" "checks checks checks checks checks";
+    align-items: center; gap: 12px; padding: 16px 14px;
+  }
+  .audit-workbench .holding-components-panel .component-identity { grid-area: identity; gap: 10px; }
+  .audit-workbench .holding-components-panel .component-identity > i { width: 32px; height: 32px; }
+  .audit-workbench .holding-components-panel .component-identity > i svg { width: 18px; height: 18px; }
+  .audit-workbench .holding-components-panel .component-identity :is(strong, small) { white-space: normal; overflow-wrap: anywhere; line-height: 1.45; }
+  .audit-workbench .holding-components-panel .component-identity strong { font-size: 15px; }
+  .audit-workbench .holding-components-panel .component-identity small { font-size: 13px; }
+  .audit-workbench .holding-components-panel .component-assignment { grid-area: assignment; gap: 6px; }
+  .audit-workbench .holding-components-panel .component-assignment > span { font-size: 13px; line-height: 1.4; }
+  .audit-workbench .holding-components-panel .component-assignment select {
+    box-sizing: border-box; width: 100%; max-width: 100%; height: 42px; padding: 8px 24px 8px 10px; border-radius: 8px; font-size: 14px;
+  }
+  .audit-workbench .holding-components-panel .component-progress { grid-area: progress; display: flex; gap: 8px; align-items: center; }
+  .audit-workbench .holding-components-panel .component-progress > span { font-size: 13px; line-height: 1.4; }
+  .audit-workbench .holding-components-panel .component-readiness { grid-area: readiness; gap: 4px; }
+  .audit-workbench .holding-components-panel .component-readiness > span,
+  .audit-workbench .holding-components-panel .component-readiness small { font-size: 13px; line-height: 1.4; color: var(--secondary); }
+  .audit-workbench .holding-components-panel .component-readiness strong { font-size: 16px; font-variant-numeric: tabular-nums; }
+  .audit-workbench .holding-components-panel .component-open { grid-area: open; width: 32px; height: 32px; justify-self: end; }
+  .component-period-message { grid-area: notice; display: flex; min-width: 0; align-items: start; gap: 8px;
+    font-size: 13px; line-height: 1.5; color: var(--secondary); }
+  .component-period-message > svg { flex: 0 0 16px; width: 16px; height: 16px; margin-top: 2px; }
+  .component-period-message small { display: block; font-size: inherit; overflow-wrap: anywhere; }
+  [data-match="mismatch"] > .component-period-message { color: var(--wb-danger); }
+  .audit-workbench .holding-components-panel .component-readiness-checks {
+    grid-area: checks; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px 16px; padding: 10px 0 0;
+    border-top: 1px solid var(--border);
+  }
+  .audit-workbench .holding-components-panel .component-readiness-checks label { min-width: 0; align-items: start; gap: 8px; font-size: 14px; line-height: 1.5; }
+  .audit-workbench .holding-components-panel .component-readiness-checks input {
+    width: 16px; height: 16px; min-width: 16px; flex: 0 0 16px; margin: 3px 0 0;
+  }
+  .component-readiness-checks label > span { min-width: 0; overflow-wrap: anywhere; }
+  .holding-components-panel :is(input, select, button):focus-visible { outline: 2px solid var(--wb-accent); outline-offset: 2px; }
+  .audit-workbench .group-status-strip { grid-template-columns: repeat(auto-fit, minmax(min(140px, 100%), 1fr)); }
+  .audit-workbench .group-status-strip > article > span { overflow: visible; white-space: normal; font-size: 13px; line-height: 1.4; }
+  .audit-workbench .group-status-strip > article > div { flex-wrap: wrap; }
+  @container holding-panel (max-width: 820px) {
+    .audit-workbench .holding-components-panel .holding-component-rows > article {
+      grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) 32px;
+      grid-template-areas: "identity identity open" "assignment assignment assignment" "progress readiness readiness" "notice notice notice" "checks checks checks";
+    }
+    .audit-workbench .holding-components-panel .component-readiness-checks { grid-template-columns: minmax(0, 1fr); }
+    .audit-workbench .holding-components-panel > header { flex-direction: column; align-items: stretch; }
+    .audit-workbench .holding-components-panel > header > div { flex-basis: auto; }
+    .audit-workbench .holding-components-panel > header > .button { align-self: start; }
+  }
+  @container holding-panel (max-width: 420px) {
+    .component-filters { grid-template-columns: minmax(0, 1fr); }
+    .component-result-count { grid-column: 1; grid-row: auto; }
+  }
+}
+@media print { .component-filters, .component-filter-empty { display: none !important; } }
+@media screen {
+  /* WebKit can include native option text in the label's scrollable overflow.
+     The complete selected period is also rendered in the message below. */
+  .audit-workbench .holding-components-panel .component-assignment select { overflow: hidden; text-overflow: ellipsis; }
+}
