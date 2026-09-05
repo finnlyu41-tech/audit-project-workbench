@@ -108,14 +108,14 @@ export function DateRangePicker({ startDate = "", dueDate = "", onChange, autoFo
         value={dueDate} min={startDate || undefined} onChange={(event) => onChange(startDate, event.target.value)} /></label>
       <button ref={openerRef} type="button" className="schedule-range-open icon-only"
         aria-label={t("选择项目日期范围")} aria-expanded={open} aria-controls={calendarId}
-        title={t("选择项目日期范围")} onClick={toggleCalendar}><CalendarDays aria-hidden="true" /></button>
+        title={t("选择项目日期范围")} data-tooltip={t("选择项目日期范围")} data-tooltip-side="left" onClick={toggleCalendar}><CalendarDays aria-hidden="true" /></button>
     </div>
     <small className="schedule-range-help">{t("打开一次日历，先选择开始日，再选择截止日。")}</small>
     {open && <section id={calendarId} className="schedule-range-calendar" role="dialog" aria-label={t("项目日期范围") }>
-      <header><button type="button" className="icon-only" aria-label={t("上个月")}
+      <header><button type="button" className="icon-only" aria-label={t("上个月")} data-tooltip={t("上个月")}
         onClick={() => setMonth((current) => addMonths(current, -1))}><ChevronLeft aria-hidden="true" /></button>
         <strong>{monthFormatter.format(month)}</strong>
-        <button type="button" className="icon-only" aria-label={t("下个月")}
+        <button type="button" className="icon-only" aria-label={t("下个月")} data-tooltip={t("下个月")} data-tooltip-side="left"
           onClick={() => setMonth((current) => addMonths(current, 1))}><ChevronRight aria-hidden="true" /></button></header>
       <p aria-live="polite">{anchorDate
         ? t("已选择开始日 {date}，请选择截止日。", { date: formatDate(anchorDate, language) })

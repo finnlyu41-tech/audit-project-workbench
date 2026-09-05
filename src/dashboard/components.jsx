@@ -1,5 +1,5 @@
 import React from "react";
-import { ArrowDown, ArrowLeft, ArrowRight, ArrowRightLeft, ArrowUp, Copy, Pencil, Play, Plus, Settings2, Trash2, X } from "lucide-react";
+import { ArrowDown, ArrowLeft, ArrowRight, ArrowRightLeft, ArrowUp, Copy, Pencil, Play, Plus, Search, Settings2, Trash2, X } from "lucide-react";
 import { GROUP_AUDIT_TYPES, GROUP_AUDIT_TYPE_KEYS, createDefaultWorkstreamCategories, dueTone, formatDate,
   nodeStatus, normalizeTemplateTags, outstandingIsOpen, projectStats, reportingPeriodLabel, uid, workstreamCategoryLabel, workstreamStats,
   workstreamTypeLabel } from "./model.js";
@@ -598,16 +598,26 @@ export function UserGuide() {
     ] },
   ];
   const [activeId, setActiveId] = React.useState(sections[0].id);
-  const active = sections.find((section) => section.id === activeId) || sections[0];
-  return <div className="user-guide"><aside><header><strong>{t("功能目录")}</strong>
-    <span>{t("按实际工作顺序查看每项操作。")}</span></header><nav aria-label={t("使用指南目录")}>{sections.map((section, index) =>
+  const [query, setQuery] = React.useState("");
+  const normalizedQuery = query.trim().toLocaleLowerCase();
+  const matchesTopic = (topic) => !normalizedQuery || [topic.title, topic.result, ...topic.steps]
+    .some((value) => `${t(value)} ${value}`.toLocaleLowerCase().includes(normalizedQuery));
+  const matchingSections = sections.map((section) => ({ ...section, topics: section.topics.filter(matchesTopic) }))
+    .filter((section) => section.topics.length);
+  const active = (normalizedQuery ? matchingSections : sections).find((section) => section.id === activeId)
+    || matchingSections[0] || sections[0];
+  return <div className="user-guide"><div className="user-guide-search"><Search aria-hidden="true" />
+    <input autoFocus type="search" value={query} aria-label={t("搜索指南")} placeholder={t("搜索功能或操作步骤")}
+      onChange={(event) => setQuery(event.target.value)} /></div><aside><header><strong>{t("功能目录")}</strong>
+    <span>{t("按实际工作顺序查看每项操作。")}</span></header><nav aria-label={t("使用指南目录")}>{(normalizedQuery ? matchingSections : sections).map((section, index) =>
       <button type="button" aria-current={active.id === section.id ? "page" : undefined} key={section.id}
         onClick={() => setActiveId(section.id)}><span>{index + 1}</span><strong>{t(section.title)}</strong></button>)}</nav></aside>
-    <article><header><span>{t("使用指南")}</span><h3>{t(active.title)}</h3><p>{t(active.summary)}</p></header>
-      <div className="guide-topic-list">{active.topics.map((topic, index) => <section key={topic.title}>
+    <article tabIndex="0">{normalizedQuery && !matchingSections.length ? <div className="guide-search-empty"><strong>{t("没有符合搜索的指南内容")}</strong>
+      <span>{t("尝试搜索功能名称、按钮或操作步骤。")}</span></div> : <><header><span>{t("使用指南")}</span><h3>{t(active.title)}</h3><p>{t(active.summary)}</p></header>
+      <div className="guide-topic-list">{(normalizedQuery ? active.topics.filter(matchesTopic) : active.topics).map((topic, index) => <section key={topic.title}>
         <span className="guide-topic-number">{index + 1}</span><div><h4>{t(topic.title)}</h4><ol>{topic.steps.map((step) =>
           <li key={step}>{t(step)}</li>)}</ol><p><strong>{t("完成后：")}</strong>{t(topic.result)}</p></div></section>)}</div>
-      <footer><strong>{t("建议")}</strong><span>{t("首次使用时，先用没有客户资料的测试项目走完一次流程，再建立正式项目。")}</span></footer>
+      <footer><strong>{t("建议")}</strong><span>{t("首次使用时，先用没有客户资料的测试项目走完一次流程，再建立正式项目。")}</span></footer></>}
     </article></div>;
 }
 

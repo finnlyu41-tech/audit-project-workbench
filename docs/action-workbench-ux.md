@@ -35,3 +35,9 @@ Home outstanding-item links expand the outstanding centre even in compact layout
 The status editor now gives the actual native color selector its own column and aligns its 42px field with the name input. At narrow dialog widths, the checkbox and icon actions move to a separate row. Layout tests measure both horizontal containment and non-overlap, because containment alone did not catch the old color/name collision.
 
 `tests/action-navigation.test.js` covers identity resolution and archived/missing sources. `e2e/action-navigation.spec.js` and `e2e/editor-layout.spec.js` cover target focus, draft preservation, stale filters, empty workflows, native color editing, status ordering, accessibility and 480/800/1440px configuration dialogs. Existing broader regression tests remain in place. This pass does not change the workspace schema, audit completion rules, reporting periods or tax-deadline data.
+
+## Guide and icon affordances
+
+The built-in guide now starts with a focused search field. Search checks localized display text and the source guide wording so English, simplified Chinese and traditional Chinese users can find workflows even when terminology differs slightly. Matching feature sections stay in the directory and only matching topics are shown; no-match searches render a dedicated empty state.
+
+The guide search is part of the modal focus order and the scrollable guide article remains keyboard focusable. The narrow layout keeps the search above the horizontal feature directory without introducing horizontal page overflow. Date-range calendar controls now use the same accessible names and hover/focus tooltip attributes as other icon-only actions.
