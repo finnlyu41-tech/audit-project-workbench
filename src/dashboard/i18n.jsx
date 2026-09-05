@@ -4,6 +4,21 @@ import { toTraditional } from "./traditional.js";
 export const LANGUAGE_PREFERENCE_KEY = "audit-progress-workbench:language";
 
 const english = {
+  "检查范本包选择和导入决策": "Review package selection and import decisions",
+  "导出时可以搜索范本名称、说明、标签、版本和种类；隐藏的已选范本仍会导出，底部会显示数量。": "Export search covers template names, descriptions, tags, versions and categories. Hidden selected templates are still exported and counted in the footer.",
+  "全选全部范本和选择筛选结果是不同操作；清除搜索不会取消选择。": "Select all templates and Select matching templates are different actions. Clearing search does not change the selection.",
+  "修改导入方式、替换目标或种类后关闭，会先确认是否放弃。只有确认导入才会应用决策。": "Closing after changing import actions, replacement targets or categories asks before discarding. Only Import templates applies those choices.",
+  "导入决策只在当前窗口保留；刷新或强制关闭不保证恢复。": "Import choices stay in the current dialog only; refreshing or force-closing does not guarantee recovery.",
+  "清除搜索": "Clear search",
+  "查找可导出范本": "Find templates to export",
+  "名称、说明、标签、版本或种类": "Name, description, tag, version or category",
+  "全选全部范本": "Select all templates",
+  "清除全部选择": "Clear all selections",
+  "筛选结果：{visible} / {total} 个范本": "Matching templates: {visible} of {total}",
+  "选择筛选结果": "Select matching templates",
+  "取消选择筛选结果": "Deselect matching templates",
+  "其中 {count} 个已选范本不在当前筛选中，仍会导出。": "{count} selected templates are hidden by the filter and will still be exported.",
+  "另存 {copy} · 替换 {replace} · 跳过 {skip}": "Copy {copy} · Replace {replace} · Skip {skip}",
   "在范本库查找和继续编辑": "Find templates and continue editing",
   "在当前种类按名称、说明、标签和版本组合搜索，标签筛选与排序仍可叠加。": "Combine name, description, tag and version terms within the current category, alongside tag filters and sorting.",
   "没有匹配不代表范本被删除；清除搜索和标签即可查看当前种类全部范本。": "No matches does not mean templates were deleted. Clear the search and tag to see this category.",

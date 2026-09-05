@@ -1,0 +1,62 @@
+/* Package decisions and export selection use one modal scroll surface. */
+@media screen {
+  .workbench-modal .template-transfer-panel {
+    max-height: none; overflow: visible; grid-template-rows: none; min-width: 0;
+  }
+  .workbench-modal .template-transfer-panel :is(.template-export-list, .template-import-list) {
+    overflow: visible; min-width: 0; scrollbar-gutter: auto; padding: 12px 18px;
+  }
+  .template-transfer-panel .template-package-note { align-items: center; }
+  .template-transfer-panel .template-package-note strong { font-size: 14px; line-height: 1.4; }
+  .template-transfer-panel .template-package-note span { font-size: 13px; line-height: 1.5; overflow-wrap: anywhere; }
+  .template-transfer-panel .template-export-choice { grid-template-columns: 16px 28px minmax(0, 1fr); gap: 10px; padding: 12px; align-items: start; }
+  .template-transfer-panel .template-export-choice input { width: 16px; height: 16px; min-height: 16px; margin: 2px 0 0; padding: 0; }
+  .template-transfer-panel .template-export-choice :is(strong, small, em) {
+    overflow: visible; white-space: normal; overflow-wrap: anywhere; line-height: 1.45;
+  }
+  .template-transfer-panel .template-export-choice strong { font-size: 14px; }
+  .template-transfer-panel .template-export-choice :is(small, em) { font-size: 13px; }
+  .template-transfer-panel .template-export-choice:has(input:checked) { border-color: var(--wb-accent); }
+  .template-export-search { display: flex; min-width: 0; align-items: end; gap: 10px; padding: 12px 18px; }
+  .template-export-search label { display: grid; flex: 1; min-width: 0; gap: 6px; font-size: 13px; }
+  .template-export-search label > span:last-child { display: flex; align-items: center; min-width: 0; gap: 8px; }
+  .template-export-search svg { width: 16px; height: 16px; flex: 0 0 16px; color: var(--secondary); }
+  .template-transfer-panel .template-transfer-summary { flex-wrap: wrap; justify-content: space-between; gap: 10px; }
+  .template-transfer-panel .template-transfer-summary > strong { font-size: 14px; }
+  .template-selection-actions, .template-filter-selection { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+  .template-filter-selection { padding: 0 18px 10px; font-size: 13px; color: var(--secondary); }
+  .template-transfer-panel .template-transfer-summary .button { min-height: 36px; font-size: 13px; padding: 7px 10px; border: 1px solid var(--border); }
+  .workbench-modal .template-transfer-panel > .modal-actions {
+    position: sticky; bottom: 0; z-index: 4; margin: 0; flex-wrap: wrap; gap: 8px;
+    padding: 12px 18px; border-top: 1px solid var(--border); background: var(--surface-raised);
+  }
+  .template-export-count { display: grid; flex: 1 1 170px; min-width: 0; gap: 4px; font-size: 13px; }
+  .template-export-count small { color: var(--secondary); font-size: 13px; line-height: 1.4; overflow-wrap: anywhere; }
+  .template-import-decision-summary { padding: 10px 18px; font-size: 14px; color: var(--secondary); border-bottom: 1px solid var(--border); }
+  .template-transfer-panel .template-import-controls { grid-template-columns: repeat(3, minmax(0, 1fr)); align-items: start; gap: 12px; }
+  .template-transfer-panel .template-import-controls label { display: flex; flex-direction: column; min-width: 0; gap: 6px; }
+  .template-transfer-panel .template-import-controls label > span { font-size: 13px; line-height: 1.4; }
+  .template-transfer-panel .template-import-row > header { grid-template-columns: 28px minmax(0, 1fr); gap: 8px 10px; }
+  .template-transfer-panel .template-import-row > header :is(strong, small) { overflow: visible; white-space: normal; overflow-wrap: anywhere; line-height: 1.45; }
+  .template-transfer-panel .template-import-row > header strong { font-size: 14px; }
+  .template-transfer-panel .template-import-row > header :is(small, em) { font-size: 13px; }
+  .template-transfer-panel .template-import-row > header em { grid-column: 2; justify-self: start; }
+  .template-transfer-panel .template-import-row > footer { font-size: 13px; gap: 6px; line-height: 1.45; }
+  .template-transfer-panel .template-import-row > footer span { overflow: visible; white-space: normal; overflow-wrap: anywhere; }
+  .template-transfer-panel .template-import-count { font-size: 14px; }
+  .template-replace-target { margin: 0; min-width: 0; font-size: 13px; line-height: 1.45; color: var(--secondary); overflow-wrap: anywhere; }
+  .template-transfer-empty { display: grid; justify-items: start; gap: 10px; padding: 20px 18px; font-size: 14px; }
+  @container apw-dialog (max-width: 680px) {
+    .template-transfer-panel .template-export-list { grid-template-columns: minmax(0, 1fr); }
+    .template-transfer-panel .template-import-controls { grid-template-columns: minmax(0, 1fr); }
+  }
+  @container apw-dialog (max-width: 480px) {
+    .template-export-search { flex-wrap: wrap; }
+    .template-transfer-panel > .modal-actions .template-export-count,
+    .template-transfer-panel > .modal-actions .template-import-count { flex-basis: 100%; }
+  }
+}
+@media screen {
+  /* Native select text stays inside its field; the full replacement name is below. */
+  .workbench-modal .template-import-controls select { overflow: hidden; }
+}
