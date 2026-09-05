@@ -1,0 +1,348 @@
+/* Shared screen controls, loaded after the legacy dashboard and theme styles.
+ * Keep layout cards and progress/chart SVGs out of the action-button rules.
+ * The print stylesheet, data model, and interaction behavior are unchanged.
+ */
+@media screen {
+  .audit-workbench {
+    --wb-action-height: 36px;
+    --wb-field-height: 42px;
+    --wb-control-radius: 8px;
+    --wb-control-gap: 8px;
+  }
+
+  .audit-workbench :is(button, input, select, textarea),
+  .workbench-modal :is(button, input, select, textarea) {
+    box-sizing: border-box;
+  }
+
+  .audit-workbench .button:not(.icon-only),
+  .workbench-modal .button:not(.icon-only) {
+    display: inline-flex;
+    min-width: 0;
+    min-height: var(--wb-action-height, 36px);
+    align-items: center;
+    justify-content: center;
+    gap: var(--wb-control-gap, 8px);
+    padding: 8px 12px;
+    border-radius: var(--wb-control-radius, 8px);
+    line-height: 1.4;
+    text-align: center;
+    vertical-align: middle;
+    white-space: normal;
+    overflow-wrap: anywhere;
+  }
+
+  .audit-workbench :is(button, summary) > svg.lucide {
+    display: block;
+    flex-shrink: 0;
+  }
+
+  .audit-workbench .button > svg.lucide,
+  .workbench-modal .button > svg.lucide {
+    width: 18px;
+    height: 18px;
+    flex: 0 0 18px;
+  }
+
+  .audit-workbench .icon-only > svg.lucide,
+  .workbench-modal .icon-only > svg.lucide {
+    display: block;
+    width: 16px;
+    height: 16px;
+    flex: 0 0 16px;
+    margin: 0;
+  }
+
+  .audit-workbench :is(.toolbar-action-button, .project-panel-new,
+    .navigation-filter-clear, .add-custom-workstream, .status-add-button,
+    .sample-add-node, .readiness-add),
+  .workbench-modal .sample-edit-node > footer button {
+    display: inline-flex;
+    min-height: 32px;
+    align-items: center;
+    justify-content: center;
+    gap: var(--wb-control-gap, 8px);
+    line-height: 1.4;
+  }
+
+  .audit-workbench :is(.add-custom-workstream, .status-add-button,
+    .sample-add-node, .readiness-add) > svg.lucide {
+    width: 16px;
+    height: 16px;
+    flex: 0 0 16px;
+  }
+
+  /* Preserve the card grids; center their progress graphics against the copy. */
+  .audit-workbench .workstream-card-top,
+  .audit-workbench .sample-library-select {
+    align-items: center;
+  }
+
+  .audit-workbench .workstream-card-top > .progress-track {
+    align-self: center;
+  }
+
+  .audit-workbench .progress-track {
+    flex-shrink: 0;
+  }
+
+  .workbench-modal {
+    --wb-action-height: 42px;
+    --wb-field-height: 42px;
+    --wb-control-radius: 8px;
+    --wb-control-gap: 8px;
+    width: min(640px, 100%);
+    min-width: 0;
+  }
+
+  /* Reflow according to the actual dialog, not the much wider desktop. */
+  .workbench-modal-body {
+    container: apw-dialog / inline-size;
+    min-width: 0;
+  }
+
+  .workbench-modal > header h2 {
+    min-width: 0;
+    line-height: 1.3;
+    overflow-wrap: anywhere;
+  }
+
+  .workbench-modal > header > button {
+    flex-shrink: 0;
+  }
+
+  .workbench-modal :is(input:not([type="checkbox"], [type="radio"], [type="file"],
+    [type="hidden"], [type="range"], [type="color"], [type="button"],
+    [type="submit"], [type="reset"], [type="image"]), select, textarea) {
+    min-width: 0;
+    max-width: 100%;
+    width: 100%;
+    margin-block: 0;
+    padding: 9px 12px;
+    border: 1px solid var(--border);
+    border-radius: var(--wb-control-radius);
+    background: var(--control);
+    color: var(--text);
+    font-family: inherit;
+    font-size: 15px;
+    line-height: 1.4;
+  }
+
+  .workbench-modal :is(input:not([type="checkbox"], [type="radio"], [type="file"],
+    [type="hidden"], [type="range"], [type="color"], [type="button"],
+    [type="submit"], [type="reset"], [type="image"]), select:not([multiple])) {
+    height: var(--wb-field-height);
+    min-height: var(--wb-field-height);
+  }
+
+  .workbench-modal select {
+    padding-inline-end: 32px;
+  }
+
+  .workbench-modal select[multiple] {
+    height: auto;
+    min-height: 112px;
+  }
+
+  .workbench-modal textarea {
+    height: auto;
+    min-height: 96px;
+    resize: vertical;
+  }
+
+  /* Native switches and custom radio/pill controls retain their own geometry. */
+  .workbench-modal :is(.check-option, .workstream-option-toggle,
+    .status-closed-option, .readiness-edit-row) input:is([type="checkbox"], [type="radio"]) {
+    width: 16px;
+    min-width: 16px;
+    height: 16px;
+    min-height: 16px;
+    flex: 0 0 16px;
+    margin: 0;
+    padding: 0;
+    accent-color: var(--wb-accent);
+    vertical-align: middle;
+  }
+
+  .workbench-modal :is(input, select, textarea):focus-visible {
+    outline: 2px solid var(--wb-accent);
+    outline-offset: 2px;
+    border-color: var(--wb-accent);
+  }
+
+  .workbench-modal :is(input, select, textarea):disabled {
+    cursor: not-allowed;
+    opacity: .65;
+  }
+
+  .workbench-modal :is(label, fieldset, .form-grid > *,
+    .project-identity-row > *, .period-builder-controls > *) {
+    min-width: 0;
+  }
+
+  .workbench-modal .form-grid {
+    align-items: end;
+    gap: 16px;
+  }
+
+  .workbench-modal .form-grid[data-columns="1"] {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .workbench-modal :is(.form-grid, .project-identity-row,
+    .period-builder-controls, .sample-editor-summary) > label {
+    gap: 6px;
+  }
+
+  .workbench-modal .project-date-groups fieldset > div {
+    align-items: end;
+  }
+
+  .workbench-modal .sample-editor-summary {
+    grid-template-columns: repeat(3, minmax(0, 1fr)) auto;
+    align-items: end;
+    gap: 12px;
+  }
+
+  .workbench-modal .status-editor-row {
+    grid-template-columns: 8px minmax(0, 1fr) auto auto auto;
+    align-items: end;
+  }
+
+  .workbench-modal .status-editor-dot {
+    align-self: end;
+    margin-bottom: 17px;
+  }
+
+  .workbench-modal .status-editor-row > :is(.status-closed-option, small, div) {
+    display: flex;
+    min-height: var(--wb-field-height);
+    align-items: center;
+  }
+
+  .workbench-modal .status-editor-row > small {
+    justify-content: flex-end;
+  }
+
+  .workbench-modal .status-closed-option {
+    white-space: normal;
+  }
+
+  .workbench-modal .readiness-edit-row {
+    grid-template-columns: 18px minmax(0, 1fr) 32px;
+    align-items: center;
+  }
+
+  .workbench-modal .sample-condition-editor > div {
+    grid-template-columns: 20px minmax(0, 1fr) 32px;
+  }
+
+  .workbench-modal .readiness-template-grid > section > div {
+    grid-template-columns: minmax(0, 1fr) 32px;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .workbench-modal .custom-workstream-row {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) 32px;
+    align-items: end;
+    gap: 12px;
+  }
+
+  .workbench-modal .workstream-option-row {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    align-items: center;
+    gap: 12px;
+  }
+
+  .workbench-modal .button:not(.icon-only) {
+    min-height: var(--wb-field-height);
+    font-size: 15px;
+  }
+
+  .workbench-modal .modal-actions > .button:not(.icon-only) {
+    min-width: 96px;
+  }
+
+  @container apw-dialog (max-width: 680px) {
+    .workbench-modal :is(.project-identity-row, .project-date-groups) {
+      grid-template-columns: minmax(0, 1fr);
+    }
+
+    .workbench-modal :is(.form-grid[data-columns="3"],
+      .period-builder-controls, .sample-editor-summary) {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .workbench-modal .sample-editor-summary > small {
+      grid-column: 1 / -1;
+      padding-bottom: 0;
+    }
+
+    .workbench-modal .status-editor-row {
+      grid-template-columns: 8px minmax(0, 1fr) auto;
+    }
+
+    .workbench-modal .status-editor-row > label:first-of-type {
+      grid-column: 2 / -1;
+    }
+
+    .workbench-modal .status-closed-option { grid-column: 2; }
+    .workbench-modal .status-editor-row > small { grid-column: 3; }
+    .workbench-modal .status-editor-row > div {
+      grid-column: 2 / -1;
+      justify-content: flex-end;
+    }
+
+    .workbench-modal .group-batch-list > article {
+      grid-template-columns: 24px minmax(0, 1fr) 32px;
+    }
+
+    .workbench-modal .group-batch-list > article > label { grid-column: 2; }
+    .workbench-modal .group-batch-list > article > .icon-button {
+      grid-column: 3;
+      grid-row: 1;
+    }
+  }
+
+  @container apw-dialog (max-width: 480px) {
+    .workbench-modal :is(.form-grid, .form-grid[data-columns="3"],
+      .period-builder-controls, .sample-editor-summary, .workstream-option-row,
+      .readiness-template-grid) {
+      grid-template-columns: minmax(0, 1fr);
+    }
+
+    .workbench-modal .custom-workstream-row {
+      grid-template-columns: minmax(0, 1fr) 32px;
+    }
+
+    .workbench-modal .custom-workstream-row > label { grid-column: 1; }
+    .workbench-modal .custom-workstream-row > button {
+      grid-column: 2;
+      grid-row: 1 / 3;
+      align-self: center;
+    }
+
+    .workbench-modal :is(.modal-actions, .sample-editor-actions, .member-settings-actions) {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+
+    .workbench-modal :is(.modal-actions, .sample-editor-actions, .member-settings-actions) > .button {
+      flex: 1 1 140px;
+    }
+
+    .workbench-modal :is(.modal-action-spacer, .sample-editor-actions > span) {
+      display: none;
+    }
+  }
+}
+
+@media screen and (max-width: 520px) {
+  .workbench-modal .workbench-form { --form-gutter: 16px; }
+  .workbench-modal > header { padding: 16px; }
+  .workbench-modal :is(.sample-editor, .status-editor, .group-sample-editor) {
+    padding: 16px;
+  }
+}
