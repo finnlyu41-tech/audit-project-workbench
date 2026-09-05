@@ -27,3 +27,13 @@
 .workspace-recovery .button.primary { background: #294c31; color: white; border-color: #294c31; }
 .workspace-recovery .button:disabled { opacity: .55; cursor: not-allowed; }
 .workspace-recovery .button:focus-visible { outline: 2px solid #386641; outline-offset: 3px; }
+
+@media screen {
+  /* A short desktop can scroll the document as well as its workspace panes. */
+  .workbench-notices:has(.persistence-safety-alert) {
+    position: sticky; top: 0; align-self: start; z-index: 60; background: var(--surface-raised);
+  }
+  .audit-workbench:has(.persistence-safety-alert) :is(input, textarea, button, summary, [tabindex]) {
+    scroll-margin-top: 32dvh;
+  }
+}

@@ -52,6 +52,7 @@ test('restoring a backup invalidates old quick drafts even when record IDs match
   expect(await readStoredWorkspace(page)).toEqual(before);
 });
 test('browser write failure stays visible and exports current memory, not the stale saved copy', async ({ page }) => {
+  await page.setViewportSize({ width: 800, height: 560 });
   await openWorkbench(page, holdingWorkspace()); await openHolding(page);
   const before = await readStoredWorkspace(page);
   await page.evaluate((key) => {
@@ -68,6 +69,7 @@ test('browser write failure stays visible and exports current memory, not the st
   await expect(page.locator('.persistence-safety-alert')).toBeVisible();
   expect(await readStoredWorkspace(page)).toEqual(before);
   const notice = page.locator('.persistence-safety-alert');
+  await expect(notice).toBeInViewport({ ratio: 1 });
   await notice.getByRole('button', { name: 'Retry saving' }).click();
   await expect(notice).toContainText('The latest applied changes');
   await page.locator('.app-rail-button[aria-label="Home"]').click(); await expect(notice).toBeVisible();
