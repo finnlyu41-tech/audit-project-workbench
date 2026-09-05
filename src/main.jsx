@@ -12,6 +12,8 @@ import "./dashboard/company-overview.css";
 import "./dashboard/outstanding-center.css";
 import "./dashboard/deadline-alerts.css";
 
+import "./dashboard/schedule-usability.css";
+
 createRoot(document.getElementById("root")).render(
   <React.StrictMode>
     <App />

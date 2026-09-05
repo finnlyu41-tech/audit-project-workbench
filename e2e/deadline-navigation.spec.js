@@ -35,7 +35,7 @@ test("deadline alerts navigate to the source and the schedule aggregates same-da
   await expect.poll(() => schedule.evaluate((element) => element.scrollLeft)).toBeGreaterThan(0);
   const centredPosition = await schedule.evaluate((element) => element.scrollLeft);
   await schedule.hover();
-  await page.mouse.wheel(0, 240);
+  await page.mouse.wheel(240, 0);
   await expect.poll(() => schedule.evaluate((element) => element.scrollLeft)).toBeGreaterThan(centredPosition);
   const marker = page.locator(".schedule-tax-marker").filter({ has: page.locator("strong", { hasText: "2" }) });
   await expect(marker).toHaveCount(1);
@@ -59,7 +59,7 @@ test("schedule rows can be dragged into a saved order and open focused date sett
   const secondRow = page.locator(".schedule-row-meta").filter({ hasText: "Second Company Limited" });
   await expect(secondRow.locator(".schedule-project-type")).toContainText(second.owner);
   await expect(secondRow.locator(".schedule-delivery-period")).toHaveCount(0);
-  await expect(page.getByRole("button", { name: /Second Company Limited: 1 Nov 2026 to 15 Dec 2026/ }))
+  await expect(page.getByRole("button", { name: /Second Company Limited.*YE December 31, 2026: 1 Nov 2026 to 15 Dec 2026/ }))
     .toHaveAttribute("title", /1 Nov 2026 → 15 Dec 2026/);
   await secondRow.dragTo(firstRow, { targetPosition: { x: 120, y: 3 } });
 

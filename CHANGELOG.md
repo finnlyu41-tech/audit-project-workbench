@@ -6,6 +6,12 @@ The project follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Schedule usability
+
+- Add local company/year/type/owner search and date-completeness filters without changing saved schedules, order or tax associations.
+- Restore native vertical and horizontal scrolling; make precision and edit controls readable, and include the reporting period in date-action names.
+- Keep entered schedule dates visible in detailed row metadata, with narrow-workspace reflow and preserved simplified mode.
+
 ### Deadline alert readability and search
 
 - Alert titles, sources and dates wrap in narrow dialogs; one modal body handles scrolling. Search and urgency fields share the 42px control height.

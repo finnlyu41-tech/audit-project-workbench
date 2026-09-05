@@ -1,0 +1,56 @@
+/* Screen-only schedule controls. */
+@media screen {
+  .audit-workbench .schedule-view { gap: 12px; }
+  .audit-workbench .schedule-heading { align-items: flex-start; flex-wrap: wrap; gap: 12px; }
+  .audit-workbench .schedule-heading > div:first-child { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 10px; }
+  .audit-workbench .schedule-heading p { flex: 1 1 100%; display: block; font-size: 13px; line-height: 1.5; white-space: normal; overflow: visible; }
+  .audit-workbench .schedule-heading-actions { min-width: 0; flex: 1 1 260px; flex-wrap: wrap; justify-content: flex-end; gap: 8px; }
+  .audit-workbench .schedule-heading-actions .button { min-height: 36px; font-size: 13px; line-height: 1.4; }
+  .audit-workbench .schedule-heading-actions .button svg { width: 16px; height: 16px; flex: 0 0 16px; }
+  .audit-workbench .schedule-precision button { min-height: 36px; min-width: 36px; font-size: 13px; }
+  .audit-workbench .schedule-summary { display: flex; flex-wrap: wrap; gap: 6px; }
+  .audit-workbench .schedule-summary span { display: inline-block; font-size: 12px; line-height: 1.4; white-space: normal; }
+  .audit-workbench .schedule-detail-toggle { min-width: 36px; }
+  .audit-workbench .schedule-legend { flex-wrap: wrap; overflow: visible; font-size: 13px; }
+  .schedule-filters { display: flex; min-width: 0; flex-wrap: wrap; align-items: end; gap: 10px 12px; }
+  .schedule-filters > label { display: grid; min-width: 0; gap: 6px; flex: 1 1 115px; font-size: 13px; }
+  .schedule-filters > label:first-child { flex: 3 1 180px; }
+  .schedule-search { display: flex; min-width: 0; align-items: center; gap: 7px; }
+  .schedule-search svg { width: 16px; height: 16px; flex: 0 0 16px; color: var(--secondary); }
+  .schedule-filters input, .schedule-filters select { box-sizing: border-box; width: 100%; min-width: 0; max-width: 100%; height: 42px;
+    padding: 9px 10px; border: 1px solid var(--border); border-radius: 8px; font: inherit;
+    background: var(--surface-raised); color: var(--text); }
+  .schedule-filters select { padding-inline-end: 28px; }
+  .schedule-result-count { flex: 1 1 100%; color: var(--secondary); font-size: 13px; line-height: 1.4; }
+  .schedule-scroll-help { margin: 0; font-size: 13px; line-height: 1.5; color: var(--secondary); }
+  .audit-workbench .schedule-scroll { max-height: max(240px, calc(100dvh - 340px)); scroll-padding-top: 70px; }
+  .audit-workbench .schedule-row-meta { grid-template-columns: minmax(0, 1fr) 36px; padding: 10px 8px; gap: 8px; }
+  .audit-workbench .schedule-row-edit { width: 36px; height: 36px; border: 1px solid var(--border); }
+  .audit-workbench .schedule-row-edit svg { width: 18px; height: 18px; }
+  .audit-workbench .schedule-row-open > span { gap: 4px; }
+  .audit-workbench .schedule-row-open strong { line-height: 1.4; white-space: normal; overflow-wrap: anywhere; }
+  .audit-workbench .schedule-row-open small { font-size: 13px; line-height: 1.45; }
+  .audit-workbench .schedule-row-open .schedule-date-summary { color: var(--secondary); }
+  .audit-workbench .schedule-row-open > i { flex-shrink: 0; }
+  .audit-workbench .schedule-lane .schedule-bar { height: 22px; }
+  .audit-workbench .schedule-bar span { font-size: 12px; }
+  .audit-workbench .schedule-missing { min-height: 32px; height: auto; font-size: 13px; }
+  .audit-workbench .schedule-view :focus-visible { outline: 2px solid var(--wb-accent); outline-offset: -2px; }
+  @container workspace (max-width: 540px) {
+    .audit-workbench .schedule-grid { grid-template-columns: min(var(--schedule-meta-width, 310px), 190px) var(--timeline-width); }
+    .audit-workbench .schedule-heading-actions { flex-basis: 100%; justify-content: flex-start; }
+  }
+}
+@media screen {
+  .audit-workbench .schedule-weeks span { font-size: 12px; line-height: 1.15; white-space: normal; overflow: hidden; text-align: center; }
+  @container workspace (max-width: 540px) {
+    .audit-workbench .schedule-heading { padding-left: 0; }
+    .audit-workbench .schedule-heading > div:first-child { padding-left: 66px; }
+    .audit-workbench .schedule-heading p, .audit-workbench .schedule-heading .workspace-label,
+    .audit-workbench .schedule-summary { display: none; }
+    .audit-workbench .schedule-row-meta { grid-template-columns: minmax(0, 1fr); gap: 6px; }
+    .audit-workbench .schedule-row-edit { justify-self: end; }
+    .audit-workbench .schedule-row-open { grid-template-columns: minmax(0, 1fr); }
+    .audit-workbench .schedule-row-open > i { display: none; }
+  }
+}
