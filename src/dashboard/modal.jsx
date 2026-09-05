@@ -3,6 +3,7 @@ import { X } from "lucide-react";
 import { useUiLanguage } from "./i18n.jsx";
 import { createDraftRegistry, isComposingKey } from "./editor-draft-state.js";
 import { ModalDraftContext } from "./modal-draft.jsx";
+import { FeedbackSlot } from "./feedback.jsx";
 
 const FOCUSABLE = 'button, a[href], input:not([type="hidden"]), select, textarea, summary, [tabindex]';
 function visibleControls(dialog) {
@@ -37,7 +38,7 @@ export function Modal({ title, onClose, children, wide = false, large = false })
       const controls = visibleControls(dialog);
       const preferred = controls.find((element) => element.hasAttribute("data-dialog-initial-focus"))
         || controls.find((element) => element.matches("input,select,textarea"));
-      (preferred || controls.find((element) => !element.hasAttribute("data-modal-close")) || dialog).focus();
+      (preferred || controls.find((element) => !element.hasAttribute("data-modal-close") && !element.closest(".feedback-slot")) || dialog).focus();
     });
     const escape = (event) => {
       if (event.key !== "Escape" || event.defaultPrevented || isComposingKey(event)) return;
@@ -91,6 +92,7 @@ export function Modal({ title, onClose, children, wide = false, large = false })
         <header><h2 id={titleId}>{title}</h2>{dirty && <span className="modal-unsaved" role="status">{t("未保存更改")}</span>}
           <button type="button" className="icon-button icon-only" onClick={() => context.requestClose()} data-modal-close
             aria-label={t("关闭")} data-tooltip={t("关闭")} data-tooltip-side="left"><X aria-hidden="true" /></button></header>
+        <FeedbackSlot surface="dialog" />
         <div className="workbench-modal-body">{children}</div>
       </section>
     </div>

@@ -6,6 +6,11 @@ The project follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Non-blocking operation feedback
+
+- Replace bottom overlays with reserved workbench/dialog feedback space, readable wrapping and a separate dismiss action.
+- Give repeated messages fresh reading time; pause expiry during hover, keyboard focus and hidden-page time. Ordinary feedback stays separate from save-state and draft guards.
+
 ### Explicit template-to-project creation
 
 - The template-card Use action now carries the chosen template into a company chooser and annual-engagement review instead of discarding it at the company form.

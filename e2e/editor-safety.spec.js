@@ -58,9 +58,9 @@ test("reverting values removes both the unsaved badge and page-leave protection"
   const isProtected = () => page.evaluate(() => !window.dispatchEvent(new Event("beforeunload", { cancelable: true })));
   expect(await isProtected()).toBe(false);
   await dialog.getByLabel("Legal entity *").fill("Temporary");
-  await expect(dialog.getByRole("status")).toHaveText("Unsaved changes"); expect(await isProtected()).toBe(true);
+  await expect(dialog.locator(".modal-unsaved")).toHaveText("Unsaved changes"); expect(await isProtected()).toBe(true);
   await dialog.getByLabel("Legal entity *").fill("");
-  await expect(dialog.getByRole("status")).toHaveCount(0); expect(await isProtected()).toBe(false);
+  await expect(dialog.locator(".modal-unsaved")).toHaveCount(0); expect(await isProtected()).toBe(false);
   let prompts = 0; page.on("dialog", async (prompt) => { prompts++; await prompt.dismiss(); });
   await dialog.getByRole("button", { name: "Cancel", exact: true }).click();
   await expect(dialog).toBeHidden(); expect(prompts).toBe(0);
@@ -70,7 +70,7 @@ test("status reorder is protected without typing and discard preserves stored st
   await page.locator(".outstanding-center-actions > button").first().click();
   const dialog = page.getByRole("dialog");
   await dialog.getByRole("button", { name: "Move status down" }).first().click();
-  await expect(dialog.getByRole("status")).toHaveText("Unsaved changes");
+  await expect(dialog.locator(".modal-unsaved")).toHaveText("Unsaved changes");
   page.once("dialog", (prompt) => prompt.accept()); await page.keyboard.press("Escape");
   await expect(dialog).toBeHidden(); expect(await readStoredWorkspace(page)).toEqual(before);
 });
@@ -79,7 +79,7 @@ test("failed save stays protected and a successful save clears the draft guard",
   const dialog = await companyDialog(page); const before = await readStoredWorkspace(page);
   await dialog.getByLabel("Entity type (optional)").fill("Fictional type");
   await dialog.getByRole("button", { name: "Create company", exact: true }).click();
-  await expect(dialog.getByRole("status")).toHaveText("Unsaved changes");
+  await expect(dialog.locator(".modal-unsaved")).toHaveText("Unsaved changes");
   await expect(dialog.getByLabel("Legal entity *")).toBeFocused();
   expect(await readStoredWorkspace(page)).toEqual(before);
   await dialog.getByLabel("Legal entity *").fill("Saved Example Limited");
@@ -130,7 +130,7 @@ for (const editor of ["template", "group", "categories"]) {
     await dialog.locator('form input:not([type="checkbox"])').first().fill("Changed example configuration");
     let prompts = 0; const reject = async (prompt) => { prompts++; await prompt.dismiss(); };
     page.on("dialog", reject); await dialog.getByRole("button", { name: "Cancel", exact: true }).click();
-    await expect(dialog.getByRole("status")).toHaveText("Unsaved changes"); expect(prompts).toBe(1);
+    await expect(dialog.locator(".modal-unsaved")).toHaveText("Unsaved changes"); expect(prompts).toBe(1);
     page.off("dialog", reject); page.once("dialog", (prompt) => prompt.accept());
     await dialog.getByRole("button", { name: "Cancel", exact: true }).click();
     await expect(page.getByRole("dialog", { name: "Template library" })).toBeVisible();
