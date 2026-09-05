@@ -4,6 +4,15 @@ import { toTraditional } from "./traditional.js";
 export const LANGUAGE_PREFERENCE_KEY = "audit-progress-workbench:language";
 
 const english = {
+  "查找并筛选期限提醒": "Find and filter deadline alerts",
+  "打开铃铛后，可组合搜索公司、负责人、期限类型及年度，再按税务／项目和紧急程度筛选。": "Open the bell to search companies, owners, deadline types and years, then filter by tax/project and urgency.",
+  "清除提醒筛选会恢复已有提醒；点击某项可打开对应公司或项目。": "Clear alert filters to restore existing alerts. Open an item to visit its source company or engagement.",
+  "筛选不会新增提醒或修改日期、提醒天数、完成状态；备注和参考编号不参与搜索。": "Filtering does not add alerts or change dates, reminder days or completion. Notes and references are not searched.",
+  "查找期限提醒": "Find deadline alerts",
+  "公司、负责人、期限类型或年度": "Company, owner, deadline type or year",
+  "提醒紧急程度": "Alert urgency",
+  "清除提醒筛选": "Clear alert filters",
+  "清除筛选可查看其他提醒；筛选不会修改期限。": "Clear the filters to see other alerts. Filtering does not change deadlines.",
   "事项状态已更新": "Item status updated",
   "在待清中心快速查找和定位": "Find and reveal outstanding items",
   "按标题、来源公司、业务模块或来源项目负责人组合搜索；备注不会被搜索。": "Combine title, source company, workstream or source project owner to search; notes are not indexed.",

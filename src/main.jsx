@@ -10,6 +10,7 @@ import "./dashboard/tax-editor.css";
 import "./dashboard/holding-components.css";
 import "./dashboard/company-overview.css";
 import "./dashboard/outstanding-center.css";
+import "./dashboard/deadline-alerts.css";
 
 createRoot(document.getElementById("root")).render(
   <React.StrictMode>
