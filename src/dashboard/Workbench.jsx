@@ -1025,7 +1025,8 @@ function DashboardWorkbench() {
           simplifiedView={simplifiedView} onToggleSimplifiedView={() => setSimplifiedView((current) => !current)} />
           : workspaceView === "report" ? <ManagementReport store={store} selection={selection} now={deadlineClock}
             onOpen={revealWorkspaceRecord} />
-          : selectedEntitySource ? <EntityOverview store={store} entity={selectedEntitySource}
+          : selectedEntitySource ? <EntityOverview key={selectedEntitySource.id} store={store} entity={selectedEntitySource}
+            onOpenOutstanding={(engagement, item) => revealOutstandingItem(selectedEntitySource.kind === "holding_company" ? "group" : "project", engagement.id, item.id)}
             onEdit={() => setModal({ type: "edit-entity", entityId: selectedEntitySource.id })}
             onNewEngagement={() => setModal({ type: "create-engagement", entityId: selectedEntitySource.id })}
             onOpenEngagement={(engagement, childEntity) => childEntity ? revealWorkspaceRecord("entity", childEntity.id)

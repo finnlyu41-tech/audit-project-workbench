@@ -6,6 +6,12 @@ The project follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Company master annual overview
+
+- Annual cards use the existing holding-company progress calculation instead of a fixed zero, while company progress continues to use project statistics.
+- Annual lists support local year/type/owner search and explicit archive filters, with all records shown by default. Owner and partial schedule dates remain visible in narrow workspaces.
+- Company outstanding-item shortcuts reveal their exact source cards, including archived read-only sources.
+
 ### Holding component workspace
 
 - Reflow annual-component controls by panel width, retain full company/period labels and align 42px selectors, progress graphics and readiness criteria.
