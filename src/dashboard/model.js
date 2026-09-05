@@ -1168,6 +1168,8 @@ export function engagementMatchesNavigationFilters(engagement = {}, filters = {}
 }
 
 function normalizeReportingPeriods(engagement = {}) {
+  const suppliedIds = new Set(rawReportingPeriods(engagement).map((period) => period?.id)
+    .filter((id) => typeof id === "string" && id));
   const seen = new Set();
   return engagementReportingPeriods(engagement).filter((period) => {
     const key = `${period.periodStart}|${period.periodEnd}`;
@@ -1175,7 +1177,7 @@ function normalizeReportingPeriods(engagement = {}) {
     seen.add(key);
     return true;
   }).map((period) => ({ ...period,
-    id: period.id.startsWith("reporting-period-") ? uid("reporting-period") : period.id }));
+    id: suppliedIds.has(period.id) ? period.id : uid("reporting-period") }));
 }
 
 function reportingPeriodKey(period = {}) {
@@ -1878,13 +1880,14 @@ export function makeEngagement(values = {}, options = {}) {
       workstreamSelections: values.workstreamSelections || [] }, true, options.samples || [], options.workstreamCategories || []);
     workstreams = project.workstreams;
   }
-  const reportingPeriods = engagementReportingPeriods(values);
+  let reportingPeriods = engagementReportingPeriods(values);
   if (!reportingPeriods.length || reportingPeriods.some((period) => !validIsoDate(period.periodStart)
     || !validIsoDate(period.periodEnd) || period.periodEnd < period.periodStart)) {
     throw new Error("A complete valid reporting period is required.");
   }
   const periodKeys = reportingPeriods.map(reportingPeriodKey);
   if (new Set(periodKeys).size !== periodKeys.length) throw new Error("Duplicate reporting periods are not allowed.");
+  reportingPeriods = normalizeReportingPeriods(values);
   const periodStart = reportingPeriods[0].periodStart;
   const periodEnd = reportingPeriods.at(-1).periodEnd;
   const entity = options.entity;

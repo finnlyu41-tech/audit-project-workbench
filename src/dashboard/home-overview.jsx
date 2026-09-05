@@ -4,6 +4,7 @@ import { ProgressBar } from "./components.jsx";
 import { engagementTypesLabel, formatDate, homeOverviewData, outstandingStatusLabel,
   taxDeadlineCategoryLabel, yearEndOrPeriodLabel } from "./model.js";
 import { useUiLanguage } from "./i18n.jsx";
+import { PRIORITY_FILTERS, nextEngagementAction, priorityItemsFor, recentRecordsFor } from "./ux-model.js";
 
 function overviewDate(value, language) {
   return new Intl.DateTimeFormat(language === "en" ? "en-US" : "zh-HK", {
@@ -18,9 +19,26 @@ function deadlineBadge(item, t) {
 }
 
 export function HomeOverview({ store, now, onOpen, onOpenDeadline, onNewCompany, onNewEngagement,
-  onShowDeadlines, onShowProjects, onShowSchedule }) {
+  onShowDeadlines, onShowProjects, onShowSchedule, recentVisits = [], onClearRecent }) {
   const { language, t } = useUiLanguage();
-  const overview = React.useMemo(() => homeOverviewData(store, now), [store, now]);
+  const overview = React.useMemo(() => {
+    const data = homeOverviewData(store, now);
+    const priorityItems = priorityItemsFor(data);
+    return { ...data, priorityItems,
+      deadlineAttentionCount: priorityItems.filter((item) => ["deadline", "upcoming"].includes(item.category)).length,
+      immediateDeadlineCount: priorityItems.filter((item) => ["overdue", "due_today"].includes(item.urgency)).length };
+  }, [store, now]);
+  const [priorityFilter, setPriorityFilter] = React.useState("all");
+  const [owner, setOwner] = React.useState("");
+  const [priorityLimit, setPriorityLimit] = React.useState(5);
+  const recent = recentRecordsFor(store, recentVisits);
+  const owners = [...new Set([...overview.records.map((record) => record.engagement.owner),
+    ...overview.alerts.map((alert) => alert.owner)].filter(Boolean))].sort();
+  const filteredPriorities = priorityItemsFor(overview, priorityFilter, owner);
+  const activeRecords = overview.activeRecords.filter((record) => !owner || record.engagement.owner === owner)
+    .sort((a, b) => (a.engagement.dueDate || "9999").localeCompare(b.engagement.dueDate || "9999"));
+  const filterLabels = { all: "全部事项", today: "今天到期", overdue: "已逾期", week: "未来 7 天", outstanding: "待清事项", setup: "待完善" };
+  const changeFilter = (value) => { setPriorityFilter(value); setPriorityLimit(5); };
   const priorityRef = React.useRef(null);
   const summary = overview.immediateDeadlineCount
     ? t("先处理 {count} 项今天到期或已经逾期的工作。", { count: overview.immediateDeadlineCount })
@@ -33,7 +51,7 @@ export function HomeOverview({ store, now, onOpen, onOpenDeadline, onNewCompany,
           : store.entities.some((entity) => !entity.archived)
             ? t("公司主档已经建立，下一步可以建立年度项目。")
             : t("先建立第一家公司，再开始安排年度项目。");
-  const visiblePriorities = overview.priorityItems.slice(0, 7);
+  const visiblePriorities = filteredPriorities.slice(0, priorityLimit);
 
   const priorityPresentation = (item) => {
     if (item.category === "deadline" || item.category === "upcoming") {
@@ -87,13 +105,29 @@ export function HomeOverview({ store, now, onOpen, onOpenDeadline, onNewCompany,
         <span>{t("需关注期限")}</span><strong>{overview.deadlineAttentionCount}</strong><small>{overview.immediateDeadlineCount
           ? t("{count} 项今天到期或已逾期", { count: overview.immediateDeadlineCount }) : t("没有今天到期或逾期")}</small></button>
       <button type="button" data-alert={overview.openOutstanding.length > 0 || undefined}
-        onClick={() => priorityRef.current?.scrollIntoView({ behavior: "smooth", block: "start" })}><i><ListTodo aria-hidden="true" /></i>
+        onClick={() => { changeFilter("outstanding"); setOwner("");
+          window.requestAnimationFrame(() => { priorityRef.current?.focus(); priorityRef.current?.scrollIntoView({ block: "nearest" }); });
+        }}><i><ListTodo aria-hidden="true" /></i>
         <span>{t("待清事项")}</span><strong>{overview.openOutstanding.length}</strong><small>{t("来自所有活跃项目")}</small></button>
     </section>
 
+    {recent.length > 0 && <section className="home-recent" aria-label={t("最近访问")}><header><h3>{t("最近访问")}</h3>
+      <button type="button" className="text-button" onClick={onClearRecent}>{t("清除访问记录")}</button></header>
+      <div>{recent.slice(0, 4).map((record) => <button type="button" key={`${record.kind}:${record.id}`} onClick={() => onOpen(record.kind, record.id)}>
+        <span><strong>{record.entity.legalName}</strong><small>{record.engagement
+          ? `${engagementTypesLabel(record.engagement, language)} · ${yearEndOrPeriodLabel(record.engagement, language)}` : t("公司主档")}</small></span>
+        <ChevronRight aria-hidden="true" /></button>)}</div></section>}
+    <div className="home-action-filters"><label><span>{t("行动清单负责人")}</span><select value={owner}
+      onChange={(event) => { setOwner(event.target.value); setPriorityLimit(5); }}>
+      <option value="">{t("全部负责人")}</option>{owners.map((name) => <option key={name} value={name}>{name}</option>)}</select></label>
+      {(owner || priorityFilter !== "all") && <button type="button" className="button secondary"
+        onClick={() => { setOwner(""); changeFilter("all"); }}>{t("清除筛选")}</button>}</div>
     <div className="home-overview-columns">
       <section className="home-overview-panel home-priority-panel" ref={priorityRef} tabIndex="-1"><header><div><span>{t("下一步")}</span>
-        <h3>{t("优先处理")}</h3></div><strong>{overview.priorityItems.length}</strong></header>
+        <h3>{t("优先处理")}</h3></div><strong aria-live="polite">{filteredPriorities.length}</strong></header>
+        <div className="home-priority-filters" role="group" aria-label={t("优先事项筛选")}>{PRIORITY_FILTERS.map((value) =>
+          <button type="button" key={value} aria-pressed={priorityFilter === value} onClick={() => changeFilter(value)}>
+            <span>{t(filterLabels[value])}</span><strong>{priorityItemsFor(overview, value, owner).length}</strong></button>)}</div>
         {visiblePriorities.length ? <div className="home-priority-list">{visiblePriorities.map((item, index) => {
           const presentation = priorityPresentation(item);
           return <button type="button" key={`${item.category}:${item.alert?.id || item.record?.id || item.entity?.id}:${item.item?.id || index}`}
@@ -101,17 +135,19 @@ export function HomeOverview({ store, now, onOpen, onOpenDeadline, onNewCompany,
             <i aria-hidden="true" /><span><strong>{presentation.title}</strong><small>{presentation.context}</small>
               <small>{presentation.detail}</small></span><em>{presentation.badge}</em><ChevronRight aria-hidden="true" /></button>;
         })}</div> : <div className="home-overview-empty"><CheckCircle2 aria-hidden="true" /><strong>{t("目前没有需要优先处理的事项")}</strong>
-          <span>{t("可以从右侧选择一个项目继续推进。")}</span></div>}
-        {overview.priorityItems.length > visiblePriorities.length && <footer>{t("另外还有 {count} 项，可在项目列表中继续查看。", {
-          count: overview.priorityItems.length - visiblePriorities.length })}</footer>}
+          <span>{t(owner || priorityFilter !== "all" ? "当前筛选没有事项；清除筛选可查看其他工作。" : "可以从右侧选择一个项目继续推进。")}</span></div>}
+        {filteredPriorities.length > visiblePriorities.length && <footer><button type="button" className="button secondary"
+          onClick={() => setPriorityLimit((value) => value + 5)}>{t("显示更多（剩余 {count} 项）", { count: filteredPriorities.length - visiblePriorities.length })}</button></footer>}
+        {priorityLimit > 5 && <footer><button type="button" className="text-button" onClick={() => setPriorityLimit(5)}>{t("只显示前 5 项")}</button></footer>}
       </section>
 
       <section className="home-overview-panel home-active-panel"><header><div><span>{t("进行中")}</span><h3>{t("进行中的项目")}</h3></div>
         <button type="button" onClick={() => onShowProjects("active")}>{t("查看全部")}<ChevronRight aria-hidden="true" /></button></header>
-        {overview.activeRecords.length ? <div className="home-project-list">{overview.activeRecords.slice(0, 6).map((record) =>
+        {activeRecords.length ? <div className="home-project-list">{activeRecords.slice(0, 6).map((record) =>
           <button type="button" className="home-project-row" key={record.id} onClick={() => onOpen(record.kind, record.id)}>
-            <ProgressBar value={record.percentage} compact /><span><strong>{engagementTypesLabel(record.engagement, language) || t("项目类型未设置")}</strong>
-              <small>{record.entity.legalName}</small></span><span><strong>{yearEndOrPeriodLabel(record.engagement, language)}</strong>
+            <ProgressBar value={record.percentage} compact /><span><strong>{record.entity.legalName}</strong>
+              <small>{engagementTypesLabel(record.engagement, language) || t("项目类型未设置")}</small>
+              {nextEngagementAction(record.engagement)?.node && <small className="home-card-next">{t("下一步")}：{nextEngagementAction(record.engagement).node.title}</small>}</span><span><strong>{yearEndOrPeriodLabel(record.engagement, language)}</strong>
                 <small>{record.engagement.owner || t("未设置负责人")}</small></span><time>{record.engagement.dueDate
                   ? t("截止：{date}", { date: formatDate(record.engagement.dueDate, language) }) : t("未设置截止日")}</time>
             <ChevronRight aria-hidden="true" /></button>)}</div>

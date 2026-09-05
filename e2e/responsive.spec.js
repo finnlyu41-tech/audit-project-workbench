@@ -139,6 +139,7 @@ test("simplified view compacts navigation and schedule while retaining core proj
   await expect(page.locator(".workspace-tree .tree-progress")).toHaveCount(0);
   await expect.poll(async () => (await page.locator(".project-panel").boundingBox()).width)
     .toBeLessThan(detailedNavigationWidth - 50);
+  await expect.poll(async () => (await page.locator(".project-panel").boundingBox()).width).toBe(250);
   const compactNavigationWidth = (await page.locator(".project-panel").boundingBox()).width;
   await expect(page.locator(".project-panel-resizer")).toBeHidden();
   expect(await page.locator(".filter-tabs").evaluate((element) => getComputedStyle(element).gridTemplateColumns.split(" ").length)).toBe(4);

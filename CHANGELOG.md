@@ -6,6 +6,18 @@ The project follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Changed
+
+- Home now has focused action filters, an owner filter, expandable priority lists and recent-record shortcuts. Home uses the space previously occupied by the empty outstanding panel.
+- Project cards keep company identity, reporting period, owner, deadline and the next unfinished stage readable across desktop widths.
+- Company relationships and annual-engagement template/framework options use expandable sections while preserving existing values and defaults.
+- Added inline owner, schedule and project-note updates with explicit save/cancel, session drafts, conflict checks and archived-record protection.
+
+### Fixed
+
+- Reporting-period IDs remain stable during unrelated updates and reloads; new records still receive separate IDs and duplicate-period validation remains enforced.
+- Added regression coverage for UI alignment, partial updates, optional fields, recent history, accessibility and narrow layouts. See `docs/action-workbench-ux.md` for scope and data boundaries.
+
 ## [0.6.7] - 2026-09-04
 
 ### Changed

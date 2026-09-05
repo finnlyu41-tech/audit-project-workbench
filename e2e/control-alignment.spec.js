@@ -160,7 +160,8 @@ test("tax deadline selects, text and date fields use the same control height", a
 test("settings checkboxes retain their native geometry and keyboard focus returns", async ({ page }) => {
   await openWorkbench(page, workspaceFixture());
   const settingsButton = page.locator(".app-rail-button[aria-label='Settings']");
-  await settingsButton.click();
+  await settingsButton.focus();
+  await settingsButton.press("Enter");
   const dialog = page.getByRole("dialog", { name: "Settings" });
   const warning = dialog.getByRole("checkbox", { name: "Warn before leaving when data is unsynced" });
   await expect(warning).toBeChecked();
