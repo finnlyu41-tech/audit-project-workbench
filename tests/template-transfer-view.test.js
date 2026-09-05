@@ -55,3 +55,17 @@ test('draft comparison ignores inactive replacement targets and skipped mapping 
   a.x.action = b.x.action = 'skip'; b.x.categoryId = 'tax';
   assert.deepEqual(templateImportDraft(a), templateImportDraft(b));
 });
+
+test('holding-company kind search uses the visible localized label without rewriting template metadata', () => {
+  const store = fixture();
+  store.groupSamples[0].name = 'Consolidation workflow';
+  store.groupSamples[0].description = 'Fictional stages';
+  store.groupSamples[0].tags = [];
+  const before = JSON.stringify(store);
+  for (const [language, label] of [['en', 'Holding company template'], ['zh-Hans', '控股公司范本'], ['zh-Hant', '控股公司範本']]) {
+    const rows = templateExportRows(store.samples, store.groupSamples, store.workstreamCategories, language, label);
+    assert.equal(rows.find((row) => row.kind === 'holding_company').categoryName, label);
+    assert.deepEqual(filterTemplateExportRows(rows, label).map((row) => row.key), ['holding_company:library-group']);
+  }
+  assert.equal(JSON.stringify(store), before);
+});

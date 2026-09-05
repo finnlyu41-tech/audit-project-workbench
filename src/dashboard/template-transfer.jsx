@@ -42,7 +42,7 @@ export function TemplateExportPanel({ samples, groupSamples, categories, initial
   const [selected, setSelected] = React.useState(() => new Set(initialSelection || []));
   const [query, setQuery] = React.useState('');
   const searchRef = React.useRef(null);
-  const all = templateExportRows(samples, groupSamples, categories, language);
+  const all = templateExportRows(samples, groupSamples, categories, language, t("控股公司范本"));
   const visible = filterTemplateExportRows(all, query);
   const selectedRows = all.filter((row) => selected.has(row.key));
   const visibleSelected = visible.filter((row) => selected.has(row.key)).length;
