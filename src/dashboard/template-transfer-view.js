@@ -3,10 +3,10 @@ const normalized = (value) => String(value || '').normalize('NFKC').toLocaleLowe
 export const templateSelectionKey = (kind, sample) => `${kind}:${sample.id}`;
 
 // Search metadata only. Stage, criterion and source text stay out of the index.
-export function templateExportRows(samples, groupSamples, categories, language = 'en') {
+export function templateExportRows(samples, groupSamples, categories, language = 'en', holdingCategoryName = 'Holding-company template') {
   return [...samples.map((sample) => ({ kind: 'workstream', sample,
     categoryName: workstreamCategoryLabel(categories.find((item) => item.id === sample.categoryId), language) })),
-  ...groupSamples.map((sample) => ({ kind: 'holding_company', sample, categoryName: '' }))]
+  ...groupSamples.map((sample) => ({ kind: 'holding_company', sample, categoryName: holdingCategoryName }))]
     .map((row) => ({ ...row, key: templateSelectionKey(row.kind, row.sample) }));
 }
 export function filterTemplateExportRows(rows, query = '') {

@@ -166,3 +166,20 @@ test('package export and import remain accessible with long selected replacement
   await expect(importDialog(page).locator('.template-replace-target')).toContainText('Alpha Annual Assurance');
   expect(seriousViolations(await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa']).analyze())).toEqual([]);
 });
+
+test('export kind search finds holding templates even when the name omits that kind', async ({ page }) => {
+  const store = templateLibraryFixture();
+  store.groupSamples[0].name = 'Consolidation workflow';
+  store.groupSamples[0].description = 'Fictional stages';
+  store.groupSamples[0].tags = [];
+  await openWorkbench(page, store);
+  const before = await readStoredWorkspace(page);
+  await page.getByRole('button', { name: 'Template library', exact: true }).click();
+  await page.getByRole('button', { name: 'Export package', exact: true }).click();
+  const dialog = exportDialog(page);
+  await dialog.getByRole('searchbox').fill('Holding company template');
+  await expect(dialog.locator('.template-export-choice')).toHaveCount(1);
+  await expect(dialog.locator('.template-export-choice')).toContainText('Consolidation workflow');
+  await dialog.getByRole('button', { name: 'Cancel', exact: true }).click();
+  expect(await readStoredWorkspace(page)).toEqual(before);
+});
