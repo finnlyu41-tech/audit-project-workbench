@@ -6,6 +6,12 @@ The project follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Report usability and complete risks
+
+- Align report controls and long labels; add named keyboard-scrollable regions to report tables.
+- Expose all portfolio risks after the first 20 with counts and screen disclosure. Print includes the complete scoped risk lists and fits all detail columns.
+- Open tax and outstanding risks at their exact source through existing navigation; preserve original calculations, filters and privacy exclusions.
+
 ### Schedule usability
 
 - Add local company/year/type/owner search and date-completeness filters without changing saved schedules, order or tax associations.
