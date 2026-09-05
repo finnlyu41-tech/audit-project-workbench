@@ -6,6 +6,12 @@ The project follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Tax deadline editing
+
+- Tax deadline drafts now require confirmation before cancellation, closing or deletion; whitespace-only custom names and revision reasons show field errors.
+- Tax forms use one scroll container, aligned controls and a visible save/cancel footer. Returning to the list restores focus; saving reveals the saved deadline and clears stale filters.
+- Save/delete preparation rejects archived, missing or changed sources without replacing current records. Original dates, revision rules and audit progress remain unchanged.
+
 ### Daily editors and group-template alignment
 
 - Stage, completion-criterion, outstanding-item and workstream forms now share the existing unsaved-draft guard.

@@ -1,5 +1,6 @@
 import { useModalDraft } from "./modal-draft.jsx";
 import React from "react";
+import { prepareTaxDeadlineSave, prepareTaxDeadlineRemoval } from "./tax-editor-state.js";
 import { RequiredTextInput } from "./required-text-input.jsx";
 import { Archive, ArchiveRestore, ArrowLeft, ArrowRight, BarChart3, BellRing, BookOpen, Building, Building2, CalendarRange, Copy, DatabaseBackup, Eye, EyeOff, House, Languages, LibraryBig, ListPlus, Palette,
   ListFilter, PanelRightClose, PanelRightOpen, PanelsTopLeft, Pencil, Plus, ReceiptText, Search, Settings, Settings2, Trash2, X } from "lucide-react";
@@ -15,10 +16,10 @@ import { activeOutstandingItems,
   convertGroupToProject, convertProjectToGroup, deadlineAlerts, duplicateSample, emptyStore, engagementsForEntity,
   engagementMatchesNavigationFilters, engagementReportingYears, engagementTypeLabel, engagementTypeValues, engagementTypesLabel, entityForEngagement, findParentMembership, formatDate, groupProgress, isValidStore, loadStore, localizeGroupSample,
   localizeGroupWorkflowNodes, localizeOutstandingStatuses, localizeReadinessConditions, localizeSample, localizeWorkstream, makeBlankGroupSample,
-  makeBlankSample, makeEngagement, makeEntity, makeGroup, makeGroupMember, makeNode, makeOutstandingItem, makeProject, makeTaxDeadline, makeWorkstream,
+  makeBlankSample, makeEngagement, makeEntity, makeGroup, makeGroupMember, makeNode, makeOutstandingItem, makeProject, makeWorkstream,
   mergeEntities, moveEntity, moveWorkspaceItem,
   engagementNavigationStatusCounts, navigationStatusCounts, normalizeStore, outstandingIsOpen, preserveLegacyRecovery, projectStats, reconcileWorkbenchStore, redactSampleCompanies, reorderWorkstreams, reorderWorkspaceSchedule, reportingPeriodLabel, syncEngagementToCurrentStructure, taxDeadlineSummary, uid, V10_RECOVERY_KEY,
-  workstreamStats, reviseTaxDeadline, workstreamCategoryLabel, workstreamTypeLabel } from "./model.js";
+  workstreamStats, workstreamCategoryLabel, workstreamTypeLabel } from "./model.js";
 import { LanguageProvider, useUiLanguage } from "./i18n.jsx";
 import { DeadlineAlertCentre } from "./deadline-alerts.jsx";
 import { ProjectSchedule } from "./timeline.jsx";
@@ -459,32 +460,22 @@ function DashboardWorkbench() {
     return result;
   };
   const saveTaxDeadline = React.useCallback((kind, targetId, existing, values, revisionReason = "") => {
-    const engagement = kind === "entity" ? null : store.engagements.find((item) => item.id === targetId);
-    const entityId = kind === "entity" ? targetId : engagement?.entityId;
-    if (!entityId) return;
-    updateEntity(entityId, (target) => {
-      const linkedEngagement = store.engagements.find((item) => item.id === values.linkedEngagementId
-        && item.entityId === entityId);
-      const cleanedValues = { ...values,
-        linkedEngagementId: linkedEngagement?.id || null,
-        linkedWorkstreamId: linkedEngagement?.workstreams.some((workstream) => workstream.id === values.linkedWorkstreamId)
-          ? values.linkedWorkstreamId : null };
-      const taxDeadlines = existing
-        ? (target.taxDeadlines || []).map((deadline) => deadline.id === existing.id
-          ? reviseTaxDeadline(deadline, cleanedValues, revisionReason) : deadline)
-        : [...(target.taxDeadlines || []), makeTaxDeadline(cleanedValues)];
-      return { ...target, taxDeadlines };
-    });
+    const result = prepareTaxDeadlineSave(store, kind, targetId, existing, values, revisionReason);
+    if (result.error) { notify(t("未能保存期限，请检查来源记录及编辑内容。")); return result; }
+    updateEntity(result.entityId, (target) => ({ ...target, taxDeadlines: existing
+      ? (target.taxDeadlines || []).map((deadline) => deadline.id === existing.id ? result.deadline : deadline)
+      : [...(target.taxDeadlines || []), result.deadline] }));
     notify(t(existing ? "税务期限已更新" : "税务期限已新增"));
-  }, [store.engagements, t, updateEntity]);
-  const deleteTaxDeadline = React.useCallback((kind, targetId, deadlineId) => {
-    const engagement = kind === "entity" ? null : store.engagements.find((item) => item.id === targetId);
-    const entityId = kind === "entity" ? targetId : engagement?.entityId;
-    if (!entityId) return;
-    updateEntity(entityId, (target) => ({ ...target,
+    return result;
+  }, [store, t, updateEntity]);
+  const deleteTaxDeadline = React.useCallback((kind, targetId, deadlineId, baseline) => {
+    const result = prepareTaxDeadlineRemoval(store, kind, targetId, deadlineId, baseline);
+    if (result.error) { notify(t("未能删除期限，请检查来源记录。")); return result; }
+    updateEntity(result.entityId, (target) => ({ ...target,
       taxDeadlines: (target.taxDeadlines || []).filter((deadline) => deadline.id !== deadlineId) }));
     notify(t("税务期限已删除"));
-  }, [store.engagements, t, updateEntity]);
+    return result;
+  }, [store, t, updateEntity]);
   const moveNavigationItem = (kind, refId, parentGroupId) => {
     if (kind === "entity") {
       if (!canMoveEntity(store, refId, parentGroupId)) { notify(t("无法移动到这个控股公司")); return; }

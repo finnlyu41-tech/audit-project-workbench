@@ -4,6 +4,17 @@ import { toTraditional } from "./traditional.js";
 export const LANGUAGE_PREFERENCE_KEY = "audit-progress-workbench:language";
 
 const english = {
+  "保护税务期限编辑": "Protect tax deadline edits",
+  "编辑税务期限后取消或关闭，会先确认是否放弃；清单筛选不算未保存更改。": "Cancelling or closing a changed tax deadline asks before discarding. List filters are not unsaved edits.",
+  "修改期限必须填写改期原因；保存后清除旧筛选并定位到该期限，原期限和历史继续保留。": "Changing a saved date requires a reason. Saving clears old filters and focuses the deadline; the original date and history remain.",
+  "草稿只在当前编辑器中，刷新或强制关闭不保证恢复。": "Drafts stay in the current editor. Recovery after a refresh or forced shutdown is not guaranteed.",
+  "来源已归档或不存在，无法保存。": "The source is archived or missing. Changes cannot be saved.",
+  "这项期限已不存在，请取消编辑后重新检查。": "This deadline no longer exists. Cancel editing and check the list.",
+  "期限已在别处更新，请取消并重新编辑，避免覆盖新内容。": "This deadline changed elsewhere. Cancel and reopen it to avoid overwriting newer data.",
+  "请填写改期原因。": "Enter a reason for changing the date.",
+  "未能保存期限，更改仍保留在此编辑器中。": "The deadline could not be saved. Your changes remain in this editor.",
+  "未能保存期限，请检查来源记录及编辑内容。": "The deadline could not be saved. Check the source and your edits.",
+  "未能删除期限，请检查来源记录。": "The deadline could not be deleted. Check the source record.",
   "保护日常小表单": "Protect everyday form edits",
   "节点、完成条件、待清事项和业务模块表单也会提示未保存更改；取消不会自动提交。": "Stage, criterion, outstanding-item and workstream forms also warn about unsaved changes; Cancel does not save them.",
   "名称或内容不能为空，也不能只输入空格；出现提示后修正原输入即可保存。": "Names and content must not be empty or contain only spaces. Correct the field after a warning, then save.",
