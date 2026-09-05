@@ -6,6 +6,13 @@ The project follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Explicit annual-engagement starting choices
+
+- Separate-engagement and copy shortcuts now use the selected starting method and source year, not the original shortcut source.
+- Added a workflow-source summary with complete source labels, workflow counts, archive markers and reset boundaries.
+- New annual creation validates current source records, retains edited form values and reveals the saved project despite old navigation filters.
+- Starting-method controls and template selectors reflow in narrow dialogs; custom-type entry respects IME composition.
+
 ### Company entry and batch completeness
 
 - Complete add/remove focus during the committed layout so a delayed animation frame cannot redirect typing intended for another member field.

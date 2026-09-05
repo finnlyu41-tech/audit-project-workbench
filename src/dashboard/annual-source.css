@@ -1,0 +1,35 @@
+/* Annual creation source controls: no changes to print or ordinary quick editors. */
+@media screen {
+  .workbench-modal .engagement-source { gap: 14px; padding: 14px; }
+  .workbench-modal .engagement-source > header { display: grid; gap: 6px; }
+  .workbench-modal .engagement-source > header > span {
+    overflow: visible; white-space: normal; line-height: 1.5; overflow-wrap: anywhere;
+  }
+  .workbench-modal .engagement-source .choice-tabs {
+    display: grid; width: 100%; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 6px;
+  }
+  .workbench-modal .engagement-source .choice-tabs button {
+    min-width: 0; min-height: 42px; padding: 8px 10px; line-height: 1.4; white-space: normal;
+  }
+  .workbench-modal .engagement-source .choice-tabs button[aria-pressed="true"] {
+    background: var(--surface-raised); color: var(--wb-accent-dark); box-shadow: var(--shadow-sm);
+  }
+  .workbench-modal .annual-source-summary { display: grid; min-width: 0; gap: 8px;
+    padding: 12px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface-raised);
+  }
+  .annual-source-summary :is(p, ul) { margin: 0; line-height: 1.5; overflow-wrap: anywhere; }
+  .annual-source-summary ul { padding-left: 20px; }
+  .annual-source-summary small { color: var(--secondary); }
+  .annual-source-archived { display: inline-block; margin-inline-start: 8px; color: var(--secondary); font-size: 13px; }
+  .workbench-modal .annual-template-picker { grid-template-columns: minmax(0, 1fr); gap: 10px; }
+  .workbench-modal .annual-template-picker > div { align-items: center; gap: 10px; }
+  .workbench-modal .annual-template-picker label span { overflow: visible; white-space: normal; overflow-wrap: anywhere; }
+  @container apw-dialog (max-width: 520px) {
+    .workbench-modal .engagement-source .choice-tabs,
+    .workbench-modal .annual-template-picker > div { grid-template-columns: minmax(0, 1fr); }
+  }
+}
+@media screen {
+  /* Native select text is clipped to the control; the full source is repeated in the summary. */
+  .workbench-modal .engagement-source select { overflow: hidden; }
+}

@@ -4,6 +4,15 @@ import { toTraditional } from "./traditional.js";
 export const LANGUAGE_PREFERENCE_KEY = "audit-progress-workbench:language";
 
 const english = {
+  "这家公司已归档或不存在，请关闭后重新选择。": "This company is archived or unavailable. Close the editor and choose again.",
+  "来源项目已不存在或不属于这家公司，请重新选择来源年度。": "The source engagement is unavailable or belongs to another company. Choose the source year again.",
+  "所选范本或种类已不可用，请重新选择起始范本。": "A selected template or category is unavailable. Choose the starting templates again.",
+  "本次流程来源": "Workflow source for this engagement",
+  "不复制节点或完成条件；可在建立后添加业务模块。": "No stages or completion criteria will be copied. Add workstreams after creation.",
+  "将建立 {modules} 个业务模块、{nodes} 个节点、{conditions} 项完成条件。": "Will create {modules} workstreams, {nodes} stages and {conditions} completion criteria.",
+  "只复制流程结构，完成勾选、模块负责人和模块截止日重新开始。项目负责人和排期以本次填写为准。": "Only workflow structure is copied. Completion checks, workstream owners and workstream deadlines start fresh. The engagement owner and schedule use the values entered here.",
+  "不会复制待清事项、税务期限或原项目备注。": "Outstanding items, tax deadlines and source engagement notes are not copied.",
+  "选择本次项目的起始方式，以下摘要会随选择更新。": "Choose how this engagement starts. The summary below follows your selection.",
   "切换为单个公司会清除本次填写的集团成员。是否继续？": "Switching to a single company will discard the member-company entries in this draft. Continue?",
   "每行都需填写公司名称；不用的行请移除。所有成员都归属于上方集团。": "Every row needs a company name. Remove unused rows. All members belong to the holding company above.",
   "成员公司 {number}": "Member company {number}",
