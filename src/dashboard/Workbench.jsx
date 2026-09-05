@@ -1,5 +1,7 @@
 import { useModalDraft } from "./modal-draft.jsx";
 import React from "react";
+import { TemplateStartFlow } from "./template-start.jsx";
+import { buildTemplateStart } from "./template-start-model.js";
 import { filterTemplateLibrary } from "./template-library-view.js";
 import { TemplateLibrarySurface } from "./template-library-surface.jsx";
 import { filterOutstandingEntries, outstandingEntryKey, outstandingVisibilityCounts } from "./outstanding-center-model.js";
@@ -599,6 +601,14 @@ function DashboardWorkbench() {
         ? { ...deadline, linkedWorkstreamId: null, updatedAt: new Date().toISOString() } : deadline) }));
     setActiveWorkstreamId(project.workstreams.find((workstream) => workstream.id !== workstreamId)?.id || null);
     setModal(null); notify(t("业务模块已移除"));
+  };
+
+  const commitTemplateStart = (request, values) => {
+    const result = buildTemplateStart(store, request, values, language);
+    setStore(result.store);
+    setSearch(""); clearNavigationFilters(); setFilter("active");
+    setSelection({ kind: result.kind, id: result.engagement.id }); setWorkspaceView("detail");
+    setActiveWorkstreamId(null); setModal(null); notify(t("年度项目已建立并自动保存"));
   };
 
   const saveSample = (sample) => {
@@ -1220,7 +1230,7 @@ function DashboardWorkbench() {
         onSelect={(sampleId) => setStore((current) => ({ ...current, selectedGroupSampleId: sampleId }))}
         onCreate={() => setModal({ type: "group-sample-edit", sample: makeBlankGroupSample(language) })}
         onEdit={(sampleId) => setModal({ type: "group-sample-edit", sampleId })} onDuplicate={(sampleId) => copySample(sampleId, true)}
-        onDelete={(sampleId) => deleteSample(sampleId, true)} onUse={() => setModal({ type: "create-entity" })} />
+        onDelete={(sampleId) => deleteSample(sampleId, true)} onUse={(id) => setModal({ type: "template-start", templateRef: { kind: "holding_company", id } })} />
         : <SampleLibrary samples={matchingTemplates} emptyFiltered={categoryTemplates.length > 0} onReset={clearTemplateFilters}
           categoryLabel={workstreamCategoryViews.find((category) => category.id === templateType)?.label}
           selectedSampleId={store.selectedSampleIdsByCategory?.[templateType]}
@@ -1230,9 +1240,12 @@ function DashboardWorkbench() {
             if (category) setModal({ type: "sample-edit", sample: makeBlankSample(language, category.builtinType || "custom", category.id) }); }}
           onEdit={(sampleId) => setModal({ type: "sample-edit", sampleId })} onDuplicate={copySample} onDelete={deleteSample}
           onManageCategories={() => setModal({ type: "workstream-categories" })}
-          onUse={() => setModal({ type: "create-entity" })} />}
+          onUse={(id) => setModal({ type: "template-start", templateRef: { kind: "workstream", id } })} />}
       </TemplateLibrarySurface>
     </Modal>}
+    {modal?.type === "template-start" && <Modal title={t("从范本新建项目")} onClose={() => setModal({ type: "template-library" })} large>
+      <TemplateStartFlow store={store} templateRef={modal.templateRef} onClose={() => setModal({ type: "template-library" })}
+        onCommit={commitTemplateStart} /></Modal>}
     {modal?.type === "template-export" && <Modal title={t("导出范本包")} onClose={() => setModal({ type: "template-library" })} wide>
       <TemplateExportPanel samples={sampleViews} groupSamples={groupSampleViews} categories={workstreamCategoryViews}
         initialSelection={modal.initialSelection} onExport={exportTemplatePackage}

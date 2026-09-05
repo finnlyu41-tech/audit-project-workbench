@@ -167,3 +167,13 @@ Both panels use the modal body's scroll area and a sticky action footer. Long na
 Regression coverage in `template-transfer-view.test.js` and `template-transfer-safety.spec.js` checks independent filter/selection state, actual downloaded contents, composite keys, reversible import choices, refused and confirmed discard, required replacement selection, successful copy/replace/skip, narrow layouts and accessibility. Package format, validation, de-identification, saved templates and existing engagement workflows retain their previous rules.
 
 Export kind search also uses the visible localized holding-company label, even when the template name contains no kind wording. This label is view metadata only and is not added to the stored template or the exported package.
+
+## Explicit template-to-project creation
+
+The Use action on a template card now opens a dedicated creation flow. It lists only compatible non-archived company masters, supports local name search, and also permits a new master to be drafted. The user reviews the normal reporting periods, engagement types and schedule before confirming. This path intentionally starts with exactly the clicked workflow template, not the previous year or the global default. Additional workstreams can be added normally after creation.
+
+New company details are held in memory only. The final action validates the current template/category fingerprint, company identity/type/archive state and any new-company parent, then builds the company and engagement as a single candidate update. A failure or cancellation does not persist an empty master. Existing reporting-period validation, node-reset logic and current-structure component generation are reused without changing their algorithms. The global selected-template preferences and existing work are not rewritten.
+
+Both company and annual forms retain their standard behaviour elsewhere. New optional props apply only to this dedicated flow. The flow and its forms share the existing dirty-state registry; changing company or closing a dirty flow requires confirmation. This is not a cross-refresh draft backup. The company kind is fixed by the chosen template to prevent incompatible conversions. This flow creates a new project only; it does not replace an existing project's workflow or sign off any work.
+
+The regression suites `tests/template-start.test.js` and `e2e/template-start.spec.js` cover explicit nondefault templates, custom categories, holding templates, atomic draft creation, duplicate/archived periods, stale sources, no-write cancellation, default preservation and keyboard/layout behaviour. All fixtures are synthetic.

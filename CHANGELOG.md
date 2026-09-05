@@ -6,6 +6,13 @@ The project follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Explicit template-to-project creation
+
+- The template-card Use action now carries the chosen template into a company chooser and annual-engagement review instead of discarding it at the company form.
+- Existing compatible, non-archived companies can receive a new independent project; a new company remains a draft until company and project are committed together.
+- Creation uses the clicked template, resets completion conditions and preserves global default templates and existing engagements. Changed or missing sources are rejected rather than silently falling back.
+- The shared forms retain their normal entrypoint defaults, duplicate-period validation and unsaved-edit protection. Changing the destination or cancelling protects unfinished drafts.
+
 ### Template-package selection and import safety
 
 - Export kind search includes the localized holding-company template label without changing saved template metadata.
