@@ -1,5 +1,6 @@
 import { useModalDraft } from "./modal-draft.jsx";
 import React from "react";
+import { filterOutstandingEntries, outstandingEntryKey, outstandingVisibilityCounts } from "./outstanding-center-model.js";
 import { prepareTaxDeadlineSave, prepareTaxDeadlineRemoval } from "./tax-editor-state.js";
 import { RequiredTextInput } from "./required-text-input.jsx";
 import { Archive, ArchiveRestore, ArrowLeft, ArrowRight, BarChart3, BellRing, BookOpen, Building, Building2, CalendarRange, Copy, DatabaseBackup, Eye, EyeOff, House, Languages, LibraryBig, ListPlus, Palette,
@@ -1075,11 +1076,11 @@ function DashboardWorkbench() {
           {workspaceView === "home" ? <div className="outstanding-center-empty">{t("首页已经汇总所有活跃项目的优先事项；打开项目后可处理该项目的待清事项。")}</div>
             : selectedProject ? <OutstandingCenter key={selectedProjectSource.id} revealRequest={outstandingReveal}
             onRevealHandled={() => setOutstandingReveal(null)} store={store} target={selectedProjectSource} targetKind="project" statuses={outstandingStatusViews}
-            updateProject={updateProject} updateGroup={updateGroup} setModal={setModal} setSelection={(next) => openWorkspaceRecord(next.kind, next.id)} notify={notify}
+            updateProject={updateProject} updateGroup={updateGroup} setModal={setModal} onOpenItem={revealOutstandingItem} notify={notify}
             readOnly={selectedProjectSource.archived} activeWorkstreamId={activeWorkstreamId} />
             : selectedGroup ? <OutstandingCenter key={selectedGroupSource.id} revealRequest={outstandingReveal}
               onRevealHandled={() => setOutstandingReveal(null)} store={store} target={selectedGroupSource} targetKind="group" statuses={outstandingStatusViews}
-              updateProject={updateProject} updateGroup={updateGroup} setModal={setModal} setSelection={(next) => openWorkspaceRecord(next.kind, next.id)} notify={notify}
+              updateProject={updateProject} updateGroup={updateGroup} setModal={setModal} onOpenItem={revealOutstandingItem} notify={notify}
               readOnly={selectedGroupSource.archived} />
               : selectedEntitySource ? <div className="outstanding-center-empty">{t("公司概览会汇总历年项目；进入某一年度查看该年度待清事项。")}</div>
                 : <div className="outstanding-center-empty">{t("选择项目或集团后查看待清事项。")}</div>}</>}
@@ -1183,9 +1184,14 @@ function DashboardWorkbench() {
         workstreams={modalTargetProject?.workstreams.map((workstream) => localizeWorkstream(workstream, language)) || []}
         defaultWorkstreamId={modal.defaultWorkstreamId} onClose={() => setModal(null)} onSubmit={(values) => {
           const updateTarget = modal.targetKind === "group" ? updateGroup : updateProject;
+          const saved = modal.item ? { ...modal.item, ...values, updatedAt: new Date().toISOString() }
+            : makeOutstandingItem(values, store.outstandingStatuses);
           updateTarget(modal.targetId, (target) => ({ ...target, outstandingItems: modal.item
-            ? target.outstandingItems.map((item) => item.id === modal.item.id ? { ...item, ...values, updatedAt: new Date().toISOString() } : item)
-            : [...target.outstandingItems, makeOutstandingItem(values, store.outstandingStatuses)] }));
+            ? target.outstandingItems.map((item) => item.id === modal.item.id ? { ...item, ...values, updatedAt: saved.updatedAt } : item)
+            : [...target.outstandingItems, saved] }));
+          setOutstandingCollapsed(false); setCompactOutstandingOpen(true);
+          setOutstandingReveal({ targetId: selectedGroupSource?.id || selectedProjectSource?.id || modal.targetId,
+            sourceId: modal.targetId, itemId: saved.id, sequence: ++revealSequence.current });
           setModal(null); notify(t(modal.item ? "待清事项已更新" : "待清事项已添加")); }} /></Modal>}
     {modal?.type === "template-library" && <Modal title={t("范本库")} onClose={() => setModal(null)} large>
       <input ref={templateImportRef} type="file" accept="application/json,.apw-template.json" hidden
@@ -1562,103 +1568,152 @@ function WorkflowNodes({ targetKind, targetId, workstreamId = null, nodes, updat
     description={description} percentage={percentage} />;
 }
 
-function OutstandingCenter({ store, target, targetKind, statuses, updateProject, updateGroup, setModal, setSelection,
+function OutstandingCenter({ store, target, targetKind, statuses, updateProject, updateGroup, setModal, onOpenItem,
   notify, readOnly = false, activeWorkstreamId = null, revealRequest = null, onRevealHandled }) {
   const { language, t } = useUiLanguage();
   const [visibilityFilter, setVisibilityFilter] = React.useState("open");
   const [statusFilter, setStatusFilter] = React.useState("all");
   const [moduleFilter, setModuleFilter] = React.useState("all");
-  const [revealedItemId, setRevealedItemId] = React.useState(null);
+  const [query, setQuery] = React.useState("");
+  const [revealedItemKey, setRevealedItemKey] = React.useState(null);
+  const [pendingFocus, setPendingFocus] = React.useState(null);
+  const searchRef = React.useRef(null);
   const cardsRef = React.useRef(new Map());
   const rawEntries = targetKind === "group"
     ? collectGroupOutstandingEntries(store, target.id, new Set(), 0, readOnly)
     : (target.outstandingItems || []).map((item) => ({ item, sourceType: "project", sourceId: target.id,
       sourceName: target.name, depth: 0 }));
-  const decorate = (entry) => {
+  const entries = rawEntries.map((entry) => {
     const source = entry.sourceType === "project" ? store.projects.find((item) => item.id === entry.sourceId)
       : store.groups.find((item) => item.id === entry.sourceId);
+    const engagement = store.engagements.find((item) => item.id === entry.sourceId);
+    const entity = store.entities.find((item) => item.id === engagement?.entityId);
     const workstream = entry.item.workstreamId && entry.sourceType === "project"
       ? source?.workstreams.find((item) => item.id === entry.item.workstreamId) : null;
-    return { ...entry, source, workstream, moduleKey: workstream ? `${entry.sourceId}:${workstream.id}` : `${entry.sourceId}:project`,
+    return { ...entry, source, workstream, companyName: entity?.legalName || source?.entity || entry.sourceName,
+      sourceOwner: source?.owner || "", periodLabel: reportingPeriodLabel(engagement || source, language),
+      readOnly: readOnly || !source || Boolean(source.archived || entity?.archived),
+      moduleKey: workstream ? `${entry.sourceId}:${workstream.id}` : `${entry.sourceId}:project`,
       moduleLabel: workstream ? workstreamTypeLabel(workstream.type, language, workstream.customName)
         : t(entry.sourceType === "group" ? "集团级" : "项目级") };
-  };
-  const entries = rawEntries.map(decorate);
-  const moduleOptions = [...new Map(entries.map((entry) => [entry.moduleKey,
-    targetKind === "group" ? `${entry.sourceName} · ${entry.moduleLabel}` : entry.moduleLabel])).entries()];
-  const visibilityCounts = entries.reduce((counts, entry) => {
-    const open = outstandingIsOpen(entry.item, store.outstandingStatuses);
-    return { all: counts.all + 1, open: counts.open + (open ? 1 : 0), closed: counts.closed + (open ? 0 : 1) };
-  }, { all: 0, open: 0, closed: 0 });
-  const visible = entries.filter((entry) => {
-    if (moduleFilter !== "all" && entry.moduleKey !== moduleFilter) return false;
-    const open = outstandingIsOpen(entry.item, store.outstandingStatuses);
-    if (visibilityFilter === "open" && !open) return false;
-    if (visibilityFilter === "closed" && open) return false;
-    return statusFilter === "all" || entry.item.status === statusFilter;
   });
+  const moduleOptions = [...new Map(entries.map((entry) => [entry.moduleKey,
+    targetKind === "group" ? `${entry.companyName} · ${entry.moduleLabel}` : entry.moduleLabel])).entries()];
+  const visibilityCounts = outstandingVisibilityCounts(entries, store.outstandingStatuses);
+  const filters = { query, visibility: visibilityFilter, status: statusFilter, module: moduleFilter };
+  const visible = filterOutstandingEntries(entries, store.outstandingStatuses, filters);
+  const filtered = Boolean(query || visibilityFilter !== "open" || statusFilter !== "all" || moduleFilter !== "all");
+  const clearFilters = () => {
+    setQuery(""); setVisibilityFilter("open"); setStatusFilter("all"); setModuleFilter("all"); searchRef.current?.focus();
+  };
   React.useEffect(() => {
     if (!revealRequest || revealRequest.targetId !== target.id) return;
-    const entry = entries.find((item) => item.sourceId === target.id && item.item.id === revealRequest.itemId);
+    const entry = entries.find((item) => item.sourceId === (revealRequest.sourceId || target.id)
+      && item.item.id === revealRequest.itemId);
     if (!entry) { onRevealHandled?.(); return; }
     setVisibilityFilter(outstandingIsOpen(entry.item, store.outstandingStatuses) ? "open" : "closed");
-    setStatusFilter("all"); setModuleFilter("all"); setRevealedItemId(entry.item.id);
+    setQuery(""); setStatusFilter("all"); setModuleFilter("all"); setRevealedItemKey(outstandingEntryKey(entry));
   }, [revealRequest, target.id]);
   React.useEffect(() => {
-    if (!revealRequest || revealRequest.targetId !== target.id || revealedItemId !== revealRequest.itemId
-      || statusFilter !== "all" || moduleFilter !== "all") return;
-    const card = cardsRef.current.get(`${target.id}:${revealRequest.itemId}`);
+    if (!revealRequest || revealRequest.targetId !== target.id || query || statusFilter !== "all" || moduleFilter !== "all") return;
+    const entry = visible.find((item) => item.sourceId === (revealRequest.sourceId || target.id)
+      && item.item.id === revealRequest.itemId && outstandingEntryKey(item) === revealedItemKey);
+    const card = entry && cardsRef.current.get(outstandingEntryKey(entry));
     if (!card) return;
     const frame = window.requestAnimationFrame(() => {
-      card.focus({ preventScroll: true }); card.scrollIntoView({ block: "nearest", inline: "nearest" });
-      onRevealHandled?.();
+      card.focus({ preventScroll: true }); card.scrollIntoView({ block: "nearest", inline: "nearest" }); onRevealHandled?.();
     });
     return () => window.cancelAnimationFrame(frame);
-  }, [revealRequest, revealedItemId, visibilityFilter, statusFilter, moduleFilter, target.id, onRevealHandled]);
+  }, [revealRequest, revealedItemKey, query, visibilityFilter, statusFilter, moduleFilter, target.id, onRevealHandled]);
+  React.useEffect(() => {
+    if (!pendingFocus) return;
+    const frame = window.requestAnimationFrame(() => {
+      const card = cardsRef.current.get(pendingFocus.key);
+      const control = (pendingFocus.status ? card?.querySelector("select") : card) || searchRef.current;
+      control?.focus({ preventScroll: true }); control?.scrollIntoView({ block: "nearest", inline: "nearest" });
+      setPendingFocus(null);
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [pendingFocus]);
+  const focusAfterChange = (entry, nextEntries, status = false) => {
+    const next = filterOutstandingEntries(nextEntries, store.outstandingStatuses, filters);
+    const key = outstandingEntryKey(entry);
+    const index = visible.findIndex((item) => outstandingEntryKey(item) === key);
+    const selected = next.find((item) => outstandingEntryKey(item) === key) || next[Math.min(index, next.length - 1)];
+    setPendingFocus({ key: selected ? outstandingEntryKey(selected) : null, status });
+  };
   const statusById = (id) => statuses.find((status) => status.id === id) || statuses[0];
-  const updateSource = (entry, updater) => (entry.sourceType === "group" ? updateGroup : updateProject)(entry.sourceId,
-    (source) => ({ ...source, outstandingItems: updater(source.outstandingItems || []) }));
-  const updateStatus = (entry, status) => updateSource(entry, (items) => items.map((item) => item.id === entry.item.id
-    ? { ...item, status, updatedAt: new Date().toISOString() } : item));
+  const updateSource = (entry, updater) => {
+    if (entry.readOnly) return;
+    (entry.sourceType === "group" ? updateGroup : updateProject)(entry.sourceId,
+      (source) => ({ ...source, outstandingItems: updater(source.outstandingItems || []) }));
+  };
+  const updateStatus = (entry, status) => {
+    if (entry.readOnly) return;
+    updateSource(entry, (items) => items.map((item) => item.id === entry.item.id ? { ...item, status, updatedAt: new Date().toISOString() } : item));
+    focusAfterChange(entry, entries.map((item) => outstandingEntryKey(item) === outstandingEntryKey(entry)
+      ? { ...item, item: { ...item.item, status } } : item), true);
+    notify(t("事项状态已更新"));
+  };
   const removeItem = (entry) => {
-    if (!window.confirm(t("删除待清事项“{name}”？", { name: entry.item.title }))) return;
-    updateSource(entry, (items) => items.filter((item) => item.id !== entry.item.id)); notify(t("待清事项已删除"));
+    if (entry.readOnly || !window.confirm(t("删除待清事项“{name}”？", { name: entry.item.title }))) return;
+    updateSource(entry, (items) => items.filter((item) => item.id !== entry.item.id));
+    focusAfterChange(entry, entries.filter((item) => outstandingEntryKey(item) !== outstandingEntryKey(entry)));
+    notify(t("待清事项已删除"));
   };
   return <div className="outstanding-center"><div className="outstanding-center-tools">
+    <label className="outstanding-search"><span>{t("查找待清事项")}</span><span><Search aria-hidden="true" />
+      <input ref={searchRef} type="search" value={query} onChange={(event) => setQuery(event.target.value)}
+        aria-label={t("查找待清事项")} placeholder={t("标题、来源、模块或项目负责人")} /></span></label>
     <div className="outstanding-visibility-tabs" role="group" aria-label={t("待清事项显示范围")}>
       {["open", "closed", "all"].map((value) => <button type="button" key={value}
         aria-pressed={visibilityFilter === value} onClick={() => { setVisibilityFilter(value); setStatusFilter("all"); }}>
         <span>{t(value === "open" ? "未清" : value === "closed" ? "已清／归档" : "全部")}</span>
         <strong>{visibilityCounts[value]}</strong></button>)}
     </div>
-    <div><select value={moduleFilter} onChange={(event) => setModuleFilter(event.target.value)} aria-label={t("按业务模块筛选")}>
+    <div className="outstanding-filter-selects"><select value={moduleFilter} onChange={(event) => setModuleFilter(event.target.value)} aria-label={t("按业务模块筛选")}>
       <option value="all">{t("全部层级与模块")}</option>{moduleOptions.map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select>
       <select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)} aria-label={t("按待清状态筛选")}>
         <option value="all">{t("全部状态")}</option>
         {statuses.map((status) => <option value={status.id} key={status.id}>{status.label}</option>)}</select></div>
-    {!readOnly && <div className="outstanding-center-actions"><button type="button" className="icon-only" aria-label={t("状态与颜色")}
-      data-tooltip={t("状态与颜色")} onClick={() => setModal({ type: "outstanding-statuses" })}><Palette aria-hidden="true" /></button>
-      <button type="button" className="button primary icon-only" aria-label={t("添加待清")}
-        data-tooltip={t("添加待清")} data-tooltip-side="left" onClick={() => setModal({ type: "outstanding", targetKind,
-          targetId: target.id, defaultWorkstreamId: targetKind === "project" ? activeWorkstreamId : null })}><ListPlus aria-hidden="true" /></button></div>}</div>
+    {filtered && <div className="outstanding-active-filters"><small>{[
+      moduleFilter !== "all" ? moduleOptions.find(([key]) => key === moduleFilter)?.[1] : "",
+      statusFilter !== "all" ? statusById(statusFilter)?.label : ""].filter(Boolean).join(" · ")}</small>
+      <button type="button" onClick={clearFilters}>{t("重置为未清事项")}</button></div>}
+    <div className="outstanding-center-actions"><span className="outstanding-result-count" role="status">
+      {t("显示 {visible} / {total} 项", { visible: visible.length, total: entries.length })}</span>
+      {!readOnly && <><button type="button" className="icon-only" aria-label={t("状态与颜色")}
+        data-tooltip={t("状态与颜色")} data-tooltip-side="left" onClick={() => setModal({ type: "outstanding-statuses" })}><Palette aria-hidden="true" /></button>
+        <button type="button" className="button primary icon-only" aria-label={t("添加待清")}
+          data-tooltip={t("添加待清")} data-tooltip-side="left" onClick={() => setModal({ type: "outstanding", targetKind,
+            targetId: target.id, defaultWorkstreamId: targetKind === "project" ? activeWorkstreamId : null })}><ListPlus aria-hidden="true" /></button></>}
+    </div></div>
     <div className="outstanding-list">{visible.map((entry) => {
-      const status = statusById(entry.item.status);
+      const status = statusById(entry.item.status); const key = outstandingEntryKey(entry);
       return <article className="outstanding-item" tabIndex="-1" aria-label={entry.item.title}
-        data-revealed={entry.item.id === revealedItemId || undefined}
-        ref={(element) => { const key = `${entry.sourceId}:${entry.item.id}`;
-          if (element) cardsRef.current.set(key, element); else cardsRef.current.delete(key); }} style={{ "--status-color": status?.color || "#778078" }} key={`${entry.sourceId}-${entry.item.id}`}>
+        data-outstanding-key={key} data-revealed={key === revealedItemKey || undefined}
+        ref={(element) => { if (element) cardsRef.current.set(key, element); else cardsRef.current.delete(key); }}
+        style={{ "--status-color": status?.color || "#778078" }} key={key}>
         <header><span className="status-color-dot" aria-hidden="true" /><strong>{entry.item.title}</strong></header>
-        <div className="outstanding-source"><button type="button" onClick={() => setSelection({ kind: entry.sourceType, id: entry.sourceId })}>{entry.sourceName}</button>
-          <span>{entry.moduleLabel}</span></div>{entry.item.note && <p>{entry.item.note}</p>}
-        <footer>{readOnly ? <span className="status-color-pill">{status?.label || entry.item.status}</span> : <select value={entry.item.status}
-          aria-label={t("待清事项状态：{name}", { name: entry.item.title })}
-          style={{ "--status-color": status?.color || "#778078" }} onChange={(event) => updateStatus(entry, event.target.value)}>
-          {statuses.map((option) => <option value={option.id} key={option.id}>{option.label}</option>)}</select>}
-          {!readOnly && <div><button type="button" onClick={() => setModal({ type: "outstanding", targetKind: entry.sourceType,
-            targetId: entry.sourceId, item: entry.item })}>{t("编辑")}</button><button type="button" onClick={() => removeItem(entry)}>{t("删除")}</button></div>}</footer>
+        <div className="outstanding-source"><button type="button" onClick={() => onOpenItem(entry.sourceType, entry.sourceId, entry.item.id)}>
+          {entry.companyName}</button><span>{entry.moduleLabel}</span></div>
+        <small className="outstanding-context">{[entry.periodLabel, entry.sourceOwner].filter(Boolean).join(" · ")}</small>
+        {entry.item.note && <p>{entry.item.note}</p>}
+        <footer>{entry.readOnly ? <span className="status-color-pill">{status?.label || entry.item.status}</span> :
+          <div className="outstanding-status-control"><select value={entry.item.status}
+            aria-label={t("待清事项状态：{name}", { name: entry.item.title })} title={status?.label || entry.item.status}
+            style={{ "--status-color": status?.color || "#778078" }} onChange={(event) => updateStatus(entry, event.target.value)}>
+            {statuses.map((option) => <option value={option.id} key={option.id}>{option.label}</option>)}</select>
+            <small aria-hidden="true">{status?.label || entry.item.status}</small></div>}
+          {!entry.readOnly && <div className="outstanding-item-actions"><button type="button" className="button secondary"
+            onClick={() => setModal({ type: "outstanding", targetKind: entry.sourceType, targetId: entry.sourceId, item: entry.item })}>
+            <Pencil aria-hidden="true" />{t("编辑")}</button><button type="button" className="button danger-quiet"
+              onClick={() => removeItem(entry)}><Trash2 aria-hidden="true" />{t("删除")}</button></div>}</footer>
       </article>;
     })}{!visible.length && <div className="outstanding-center-empty"><strong>{t("没有符合筛选的待清事项")}</strong>
-      <span>{t("待清事项会独立于业务节点持续更新。")}</span></div>}</div>
+      <span>{t("待清事项会独立于业务节点持续更新。")}</span>
+      {filtered && <button type="button" className="button secondary" onClick={clearFilters}>{t("重置为未清事项")}</button>}
+    </div>}</div>
   </div>;
 }
 

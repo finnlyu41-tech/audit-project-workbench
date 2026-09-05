@@ -6,6 +6,12 @@ The project follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Outstanding centre usability
+
+- Long item titles, source details, notes and status controls fit the sidebar; common fields are 42px high and icon/text actions stay aligned.
+- Added view-only identifying-field search, a reset action and result counts without changing status semantics or indexing notes.
+- Saved items are revealed even under stale filters. Inline status changes and deletion retain usable keyboard focus; source links open the exact canonical item.
+
 ### Company master annual overview
 
 - Annual cards use the existing holding-company progress calculation instead of a fixed zero, while company progress continues to use project statistics.
