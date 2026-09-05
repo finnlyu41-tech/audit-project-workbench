@@ -35,14 +35,14 @@ function presetLabel(value, t) {
     custom: "每个项目自定义日期", doi_year_end: "成立日（DOI）→ 年结日" }[value] || "每个项目自定义日期");
 }
 
-export function CompanyForm({ store, initial = null, onSubmit, onClose }) {
+export function CompanyForm({ store, initial = null, onSubmit, onClose, creationKind = null, submitLabel = null }) {
   const { t } = useUiLanguage();
   const [creationMode, setCreationMode] = React.useState("single");
   const [values, setValues] = React.useState(() => ({
     legalName: initial?.legalName || "",
     entityType: initial?.entityType || "",
     incorporationDate: initial?.incorporationDate || "",
-    kind: initial?.kind || "company",
+    kind: initial?.kind || creationKind || "company",
     parentEntityId: initial?.parentEntityId || "",
     relationshipRole: initial?.relationshipRole || "",
     fiscalYearPreset: initial?.fiscalYearPreset || "calendar",
@@ -83,7 +83,7 @@ export function CompanyForm({ store, initial = null, onSubmit, onClose }) {
   }}>
     <div className="company-master-lead"><FolderTree aria-hidden="true" /><div><strong>{t(initial ? "编辑公司主档" : "建立公司主档")}</strong>
       <span>{t("公司主档保存长期资料；报告期间、项目排期和业务模块在年度项目中设置。")}</span></div></div>
-    {!initial && <div className="company-creation-mode choice-tabs" role="group" aria-label={t("新建模式")}>
+    {!initial && !creationKind && <div className="company-creation-mode choice-tabs" role="group" aria-label={t("新建模式")}>
       <button type="button" data-active={creationMode === "single" || undefined} onClick={() => {
         setCreationMode("single"); setValues((current) => ({ ...current, kind: "company" }));
       }}>{t("单个公司")}</button>
@@ -111,7 +111,7 @@ export function CompanyForm({ store, initial = null, onSubmit, onClose }) {
       {values.parentEntityId && <label className="span-two"><span>{t("控股公司归属角色")}</span>
         <input value={values.relationshipRole} onChange={update("relationshipRole")}
           placeholder={t("例如：子公司、联营公司或中间控股公司")} /></label>}</div>
-    {(!initial || creationMode === "single") && creationMode !== "group" && <label className="check-option company-holding-toggle"><input type="checkbox" role="switch"
+    {!creationKind && (!initial || creationMode === "single") && creationMode !== "group" && <label className="check-option company-holding-toggle"><input type="checkbox" role="switch"
       checked={values.kind === "holding_company"} onChange={(event) => setValues((current) => ({ ...current,
         kind: event.target.checked ? "holding_company" : "company" }))} />
       <span><strong>{t("启用控股公司架构")}</strong><small>{t("允许在此主体下建立公司层级和合并年度项目。")}</small></span></label>}
@@ -141,7 +141,7 @@ export function CompanyForm({ store, initial = null, onSubmit, onClose }) {
     </AdvancedSection>
     <footer className="modal-actions"><button type="button" className="button secondary" onClick={closeEditor}>{t("取消")}</button>
       <button type="submit" className="button primary" disabled={values.kind === "company" && children.length > 0}>
-        {t(initial ? "保存公司主档" : creationMode === "group" ? "建立集团及公司" : "建立公司")}</button></footer>
+        {submitLabel || t(initial ? "保存公司主档" : creationMode === "group" ? "建立集团及公司" : "建立公司")}</button></footer>
   </form>;
 }
 
@@ -155,7 +155,7 @@ function initialSelections(categories, selectedIds) {
 }
 
 export function EngagementForm({ store, entity, initial = null, preferredSourceId = "", quickField = null,
-  onCreateAnotherYear = null, onSubmit, onClose }) {
+  onCreateAnotherYear = null, onSubmit, onClose, templateStarter = null }) {
   const { language, t } = useUiLanguage();
   const existing = engagementsForEntity(store, entity.id);
   const firstInitialPeriod = engagementReportingPeriods(initial)[0] || initial || {};
@@ -164,7 +164,7 @@ export function EngagementForm({ store, entity, initial = null, preferredSourceI
   const initialPreset = firstInitialPeriod?.periodPreset || entity.fiscalYearPreset || "calendar";
   const generated = initial ? { periodStart: firstInitialPeriod.periodStart, periodEnd: firstInitialPeriod.periodEnd }
     : fiscalPeriodForYear(initialPreset, suggestedYear);
-  const inheritedEngagementTypes = engagementTypeValues(initial || existing[0] || {
+  const inheritedEngagementTypes = templateStarter?.engagementTypes || engagementTypeValues(initial || existing[0] || {
     engagementType: entity.kind === "holding_company" ? "Group consolidation" : "Audit",
   });
   const [values, setValues] = React.useState(() => ({
@@ -184,9 +184,9 @@ export function EngagementForm({ store, entity, initial = null, preferredSourceI
     consolidationEnabled: initial?.consolidation?.enabled !== false,
   }));
   const previousDefault = existing.find((engagement) => !initial || engagement.id !== initial.id) || null;
-  const [sourceMode, setSourceMode] = React.useState(previousDefault ? "previous" : "template");
+  const [sourceMode, setSourceMode] = React.useState(templateStarter ? "template" : previousDefault ? "previous" : "template");
   const [sourceEngagementId, setSourceEngagementId] = React.useState(preferredSourceId || previousDefault?.id || "");
-  const [selections, setSelections] = React.useState(() => initialSelections(store.workstreamCategories,
+  const [selections, setSelections] = React.useState(() => templateStarter?.selections || initialSelections(store.workstreamCategories,
     store.selectedSampleIdsByCategory));
   const [customEngagementType, setCustomEngagementType] = React.useState("");
   const [error, setError] = React.useState("");
@@ -359,7 +359,7 @@ export function EngagementForm({ store, entity, initial = null, preferredSourceI
       </article>)}</div>
       {!initial && <em>{t("公司默认：{preset}", { preset: presetLabel(entity.fiscalYearPreset, t) })}</em>}
     </section>
-    {!initial && <section className="engagement-source"><header><strong>{t("起始方式")}</strong>
+    {!initial && !templateStarter && <section className="engagement-source"><header><strong>{t("起始方式")}</strong>
       <span>{t("新年度默认复制最近项目的结构，并清空所有完成状态、负责人和日期。")}</span></header>
       <div className="choice-tabs" role="group">{previousDefault && <button type="button" data-active={sourceMode === "previous" || undefined}
         onClick={() => setSourceMode("previous")}>{t("复制上一年度")}</button>}

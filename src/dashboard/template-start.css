@@ -1,0 +1,28 @@
+@media screen {
+  .template-start-flow { min-width: 0; }
+  .template-start-summary { display: grid; gap: 6px; padding: 16px 22px; border-bottom: 1px solid var(--border); background: var(--surface); }
+  .template-start-summary strong { font-size: 16px; line-height: 1.45; overflow-wrap: anywhere; }
+  .template-start-summary :is(span, small) { color: var(--secondary); font-size: 13px; line-height: 1.5; }
+  .template-start-chooser { display: grid; min-width: 0; gap: 14px; padding: 18px 22px; }
+  .template-start-search { display: grid; gap: 6px; min-width: 0; }
+  .template-start-search > span:last-child { display: grid; grid-template-columns: 18px minmax(0, 1fr); align-items: center; gap: 8px; }
+  .template-start-search svg { width: 18px; height: 18px; color: var(--secondary); }
+  .template-start-chooser p { margin: 0; color: var(--secondary); line-height: 1.5; }
+  .template-start-companies { display: grid; gap: 8px; }
+  .template-start-companies button { display: grid; grid-template-columns: 20px minmax(0, 1fr) 18px; gap: 10px; align-items: center;
+    min-width: 0; min-height: 48px; padding: 12px; border: 1px solid var(--border); border-radius: 8px;
+    background: var(--surface-raised); color: var(--text); text-align: left; cursor: pointer; font: inherit; }
+  .template-start-companies button span { overflow-wrap: anywhere; line-height: 1.45; }
+  .template-start-companies svg { width: 18px; height: 18px; }
+  .template-start-companies button:hover { background: var(--control-hover); }
+  .template-start-chooser > footer { display: flex; justify-content: space-between; flex-wrap: wrap; gap: 8px; }
+  .template-start-empty { display: grid; gap: 12px; padding: 22px; }
+  .template-start-error { margin: 12px 22px; }
+  @container apw-dialog (max-width: 480px) {
+    .template-start-summary, .template-start-chooser { padding: 16px; }
+    .template-start-chooser > footer > button { flex: 1 1 150px; }
+    .template-start-error { margin-inline: 16px; }
+  }
+}
+
+@media screen { .template-start-back { justify-self: start; } }

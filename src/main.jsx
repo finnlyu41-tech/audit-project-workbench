@@ -15,6 +15,7 @@ import "./dashboard/deadline-alerts.css";
 import "./dashboard/schedule-usability.css";
 import "./dashboard/report-usability.css";
 import "./dashboard/template-library.css";
+import "./dashboard/template-start.css";
 import "./dashboard/template-transfer.css";
 
 createRoot(document.getElementById("root")).render(
