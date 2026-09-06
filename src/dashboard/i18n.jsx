@@ -4,6 +4,32 @@ import { toTraditional } from "./traditional.js";
 export const LANGUAGE_PREFERENCE_KEY = "audit-progress-workbench:language";
 
 const english = {
+  "客户跟进草稿": "Client follow-up draft",
+  "切换将清除当前手工修改的草稿，是否继续？": "Switching will discard your manual draft edits. Continue?",
+  "草稿已复制；尚未发送。": "Draft copied; nothing has been sent.",
+  "已请求下载草稿；尚未发送，请检查下载文件。": "Draft download requested; nothing has been sent. Check the downloaded file.",
+  "复制未完成，请手动复制选中的草稿或下载文本。": "Copy did not complete. Copy the selected draft manually or download the text.",
+  "下载未完成，请保留此窗口并手动复制草稿。": "Download did not complete. Keep this window open and copy the draft manually.",
+  "每份草稿只包含一个公司和年度项目。仅使用明确勾选的事项标题，不包含内部备注、负责人、税务编号或审计结论。": "Each draft covers one company and engagement only. It uses selected item titles, excluding internal notes, owners, tax references and audit conclusions.",
+  "来源公司与年度项目": "Source company and engagement",
+  "请选择单一来源": "Select one source",
+  "草稿语言": "Draft language",
+  "以下为所选来源的全部未清事项，不受列表搜索筛选影响。标题也可能包含内部资料，请逐项检查。": "These are all open items for the selected source, independent of list search filters. Titles may also contain internal information; review each item.",
+  "选择跟进事项": "Select follow-up items",
+  "全选此来源的未清事项": "Select all open items in this source",
+  "清除选择": "Clear selection",
+  "已选 {count} 项": "{count} items selected",
+  "此来源没有可跟进的未清事项。": "This source has no open items to follow up.",
+  "查看原事项": "View source item",
+  "请选择未归档的公司和年度项目，不会自动混合集团内不同来源。": "Select an unarchived company and engagement. Different group sources are never combined automatically.",
+  "外发预览": "Client-facing preview",
+  "请核对公司、报告期间和每一项内容。只生成草稿，不会自动发送或上传；关闭窗口后不保留草稿。": "Check the company, reporting periods and every item. This is a draft only; nothing is sent or uploaded. Drafts are not retained after closing.",
+  "来源或选择已变化，旧草稿不能输出。请重新选择并生成预览。": "The source or selection changed. This old draft cannot be exported. Re-select the items and generate a new preview.",
+  "跟进草稿（可修改）": "Follow-up draft (editable)",
+  "生成跟进草稿": "Generate follow-up draft",
+  "复制草稿": "Copy draft",
+  "下载文本草稿": "Download text draft",
+
 
   "目标公司或报告期间已变化，请保留草稿并重新选择来源。": "The target company or reporting period has changed. Keep your draft and select the source again.",
   "此公司或年度项目已归档，无法添加或修改待清事项。": "This company or engagement is archived. Outstanding items cannot be added or edited.",

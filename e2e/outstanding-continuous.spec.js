@@ -135,3 +135,25 @@ test('editing an existing item has only the regular save action and does not cre
   const after = await readStoredWorkspace(page);
   expect(after.engagements[0].outstandingItems.length).toBe(before.engagements[0].outstandingItems.length);
 });
+test('paired three-item paths produce the same content with six versus four button activations', async ({ browser }, info) => {
+  const fixture = annualSourceFixture(); const results = [];
+  for (const continuous of [false, true]) {
+    const context = await browser.newContext({ viewport: { width: 1440, height: 900 } });
+    try {
+      const page = await context.newPage(); await openWorkbench(page, fixture.store);
+      const before = await readStoredWorkspace(page); let clicks = 0; let editorVisits = 0;
+      for (const [index, value] of ['Fictional bank confirmation', 'Fictional signed accounts', 'Fictional sales reconciliation'].entries()) {
+        if (!continuous || index === 0) {
+          await page.getByRole('button', { name: 'Add outstanding item', exact: true }).click(); clicks++; editorVisits++;
+        }
+        await title(page).fill(value); await (continuous && index < 2 ? next(page) : save(page)).click(); clicks++;
+        if (continuous && index < 2) await expect(title(page)).toHaveValue(''); else await expect(modal(page)).toHaveCount(0);
+      }
+      const after = await readStoredWorkspace(page); unchangedOutsideItems(after, before, fixture.currentId);
+      results.push({ clicks, editorVisits, values: added(after, before, fixture.currentId).map(({ title, note, status, workstreamId }) => ({ title, note, status, workstreamId })) });
+    } finally { await context.close(); }
+  }
+  expect(results.map(({ clicks, editorVisits }) => ({ clicks, editorVisits }))).toEqual([{ clicks: 6, editorVisits: 3 }, { clicks: 4, editorVisits: 1 }]);
+  expect(results[1].values).toEqual(results[0].values);
+  await info.attach('paired-operation-counts', { body: JSON.stringify({ results, humanTime: null }), contentType: 'application/json' });
+});

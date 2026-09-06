@@ -1,5 +1,7 @@
 import { useModalDraft } from "./modal-draft.jsx";
 import React from "react";
+import { FileText } from "lucide-react";
+import { ClientFollowup } from "./client-followup.jsx";
 import { OutstandingEntry } from "./outstanding-entry.jsx";
 import { WorkspaceBootstrap, PersistenceSafetyAlert } from "./workspace-recovery.jsx";
 import { TemplateStartFlow } from "./template-start.jsx";
@@ -1234,6 +1236,11 @@ function DashboardWorkbench({ initialSnapshot }) {
           else { revealSavedOutstanding(modal.targetId, saved.id); setModal(null);
             notify(t(modal.item ? "待清事项已更新" : "待清事项已添加")); }
         }} /></Modal>}
+    {modal?.type === "client-followup" && <Modal title={t("客户跟进草稿")} onClose={() => setModal(null)} wide>
+      <ClientFollowup store={store} sourceIds={modal.sourceIds} initialSourceId={modal.initialSourceId}
+        onClose={() => setModal(null)} onOpenSource={(kind, id, itemId) => {
+          setModal(null); revealOutstandingItem(kind, id, itemId);
+        }} /></Modal>}
     {modal?.type === "template-library" && <Modal title={t("范本库")} onClose={() => setModal(null)} large>
       <input ref={templateImportRef} type="file" accept="application/json,.apw-template.json" hidden
         onChange={(event) => readTemplatePackage(event.target.files?.[0])} />
@@ -1731,6 +1738,10 @@ function OutstandingCenter({ store, target, targetKind, statuses, updateProject,
       {t("显示 {visible} / {total} 项", { visible: visible.length, total: entries.length })}</span>
       {!readOnly && <><button type="button" className="icon-only" aria-label={t("状态与颜色")}
         data-tooltip={t("状态与颜色")} data-tooltip-side="left" onClick={() => setModal({ type: "outstanding-statuses" })}><Palette aria-hidden="true" /></button>
+        <button type="button" className="button secondary icon-only" data-followup-open aria-label={t("客户跟进草稿")}
+          data-tooltip={t("客户跟进草稿")} data-tooltip-side="left" onClick={(event) => { event.currentTarget.focus({ preventScroll: true }); setModal({ type: "client-followup",
+            sourceIds: [...new Set([target.id, ...entries.filter((entry) => !entry.readOnly).map((entry) => entry.sourceId)])],
+            initialSourceId: targetKind === "project" ? target.id : "" }); }}><FileText aria-hidden="true" /></button>
         <button type="button" className="button primary icon-only" aria-label={t("添加待清")}
           data-tooltip={t("添加待清")} data-tooltip-side="left" onClick={() => setModal({ type: "outstanding", targetKind,
             targetId: target.id, defaultWorkstreamId: targetKind === "project" ? activeWorkstreamId : null })}><ListPlus aria-hidden="true" /></button></>}

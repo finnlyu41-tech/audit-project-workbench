@@ -33,3 +33,10 @@ Do not publish if any item fails. Attach the Playwright report, screenshots and 
 ## Stability and recovery
 
 Run `pnpm test:stability` for the focused dual-engine gate and follow `docs/stability-recovery.md`. Verify full-payload backup restoration in a clean context, explicit failure/retry behaviour, blocked startup preservation and no draft carry-over across a confirmed replacement. Preserve failing results; never remove a failing case or relax its assertion merely to publish.
+
+## Entry and client-output gate
+
+- Run the six-file dual-engine stability gate, including continuous outstanding entry and client follow-up previews.
+- Compare the same three-item ordinary-save and continue-save paths and verify identical item content, no change to other project records, and cancellation preserving already submitted items.
+- Generate a single-source follow-up with internal sentinel notes present; download the actual text and compare it to the preview. Verify that unselected, cleared and other-company items are absent.
+- Verify clipboard rejection, source selection, manual draft guards and narrow-window controls. Native clipboard permissions and human time measurements remain separate from automated stubs.

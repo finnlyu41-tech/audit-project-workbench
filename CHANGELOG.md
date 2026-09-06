@@ -6,6 +6,13 @@ The project follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Workflow reduction and local client drafts
+
+- Add Save and add another for outstanding-item creation with per-item confirmation, independent next-item drafts and canonical source validation.
+- Reduce the prescribed three-item path from six button activations / three editor visits to four / one; this is not a human-time measurement.
+- Add explicit single-source client follow-up previews, editable plain text, copy/download and source-item navigation. Internal notes and tax references are excluded; no automatic sending or upload is added.
+- Extend the permanent WebKit stability gate to both new workflows, including actual text downloads and continued-entry-to-draft coverage.
+
 ### Stability and recovery
 
 - Block unsafe startup after unreadable, unparseable or future-version data; retain exact original bytes and provide explicit recovery actions.

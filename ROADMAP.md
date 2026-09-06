@@ -13,11 +13,11 @@ Continue the stability gate across ordinary projects, annual changes, holding co
 
 Before adding more controls, establish a baseline for four repeatable tasks: create the next annual engagement, record missing client information, change a schedule and identify the component blocking a consolidation. Record elapsed active time, clicks, repeated entries and mistakes using synthetic or locally de-identified examples; compare against the user's existing method. Automated test duration is not a substitute for human task time.
 
-Only then remove redundant steps and duplicate entry. Keep ordinary-company defaults simple, reveal holding-company options only when needed, and preserve the actual work location after edits. This phase is planned, not implemented by the recovery release.
+Only then remove redundant steps and duplicate entry. Keep ordinary-company defaults simple, reveal holding-company options only when needed, and preserve the actual work location after edits. The first implementation now provides consecutive outstanding entry: the paired three-title path is six versus four button activations and three versus one editor visits. Human active time, error rates and comparison to the user’s previous method remain unmeasured; do not substitute test duration.
 
 ## 3. Produce useful work / 让记录直接用于工作
 
-First candidate: selected outstanding items → client follow-up draft with an explicit company/year preview and links back to source records. Default to excluding internal notes, tax references and audit judgements. Output is a draft only; no automatic sending or uploading client data. Design review and tests must precede implementation. This phase is planned, not implemented by the recovery release.
+First candidate: selected outstanding items → client follow-up draft with an explicit company/year preview and links back to source records. Default to excluding internal notes, tax references and audit judgements. Output is a draft only; no automatic sending or uploading client data. The first implementation now provides one-source selection, an editable local plain-text preview, copy/download and exact source navigation. It does not insert internal notes or tax references, send messages, upload data, or use AI. See docs/client-followup.md. Final publication evidence belongs in the release PR.
 
 ## Deferred / 暂缓
 
