@@ -47,3 +47,9 @@ Run `pnpm test:stability` for the focused dual-engine gate and follow `docs/stab
 - After dependency changes, refresh public/legal/ notices from the frozen installation and review their licenses.
 - New external contributions require documented rights suitable for the intended distribution; a PR alone is not copyright assignment.
 - Do not describe proprietary additions as MIT/open source. Check hosting terms separately before a paid-service launch.
+
+## Lightweight outstanding list
+
+- Compare default row density with fixed fictional text and viewport; do not reduce type size.
+- Check folded filters remain apparent, More opens the existing tools, and long notes are available through accessible disclosures.
+- Verify source grouping, shared IDs, native status focus, archive read-only, save/reveal and cancelled editing with unchanged business records.

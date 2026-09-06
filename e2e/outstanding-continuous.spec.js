@@ -1,3 +1,4 @@
+import { openOutstandingFilters, openOutstandingMore, expandOutstandingItem } from './outstanding-helpers.js';
 import fs from 'node:fs/promises';
 import { STORAGE_KEY } from '../src/dashboard/model.js';
 import { expect, test } from '@playwright/test';
@@ -114,7 +115,7 @@ for (const [language, label] of [['en', 'Save and add another'], ['zh-Hans', 'ä¿
   test(`continuous entry is readable and keeps focus at 480px in ${language}`, async ({ page }, info) => {
     await openWorkbench(page, annualSourceFixture().store);
     await page.evaluate((value) => localStorage.setItem('audit-progress-workbench:language', value), language);
-    await page.reload(); await page.locator('.outstanding-center-actions button').last().click();
+    await page.reload(); await page.locator('.outstanding-add').click();
     await page.setViewportSize({ width: 480, height: 640 });
     const dialog = modal(page); const field = dialog.locator('input[required]');
     const button = dialog.locator('button[value=continue]'); await expect(button).toHaveAccessibleName(label);
@@ -132,6 +133,7 @@ for (const [language, label] of [['en', 'Save and add another'], ['zh-Hans', 'ä¿
 test('editing an existing item has only the regular save action and does not create a new item', async ({ page }) => {
   await openNew(page); await title(page).fill('Existing item'); await save(page).click();
   const before = await readStoredWorkspace(page);
+  await expandOutstandingItem(page.locator('.outstanding-item').filter({ hasText: 'Existing item' }));
   await page.locator('.outstanding-item').filter({ hasText: 'Existing item' }).getByRole('button', { name: 'Edit', exact: true }).click();
   await expect(next(page)).toHaveCount(0); await title(page).fill('Edited item'); await save(page).click();
   const after = await readStoredWorkspace(page);

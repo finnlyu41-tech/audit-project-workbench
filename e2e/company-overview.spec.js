@@ -75,7 +75,7 @@ test("archived outstanding source remains read-only while opening the exact card
   const card = page.locator(".outstanding-item").filter({ hasText: "Archived fictional query" });
   await expect(page.locator(".archive-banner")).toBeVisible(); await expect(card).toBeFocused();
   await expect(card.getByRole("combobox")).toHaveCount(0);
-  await expect(card.locator(".status-color-pill")).toBeVisible();
+  await expect(card.locator(".outstanding-status-chip.readonly")).toBeVisible();
   await expect(card.getByRole("button", { name: /^(Edit|Delete)$/ })).toHaveCount(0);
   expect(await readStoredWorkspace(page)).toEqual(before);
 });

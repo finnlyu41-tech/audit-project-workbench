@@ -1,3 +1,4 @@
+import { openOutstandingFilters, openOutstandingMore, expandOutstandingItem } from './outstanding-helpers.js';
 import fs from 'node:fs/promises';
 import { expect, test } from '@playwright/test';
 import AxeBuilder from '@axe-core/playwright';
@@ -12,7 +13,7 @@ async function open(page, group = false) {
   await query.fill(group ? 'overview holding 2026' : 'overview 2025'); await query.press('Enter');
   if (await page.locator('.outstanding-rail-toggle').isVisible()) await page.locator('.outstanding-rail-toggle').click();
   const before = await readStoredWorkspace(page);
-  await page.getByRole('button', { name: 'Client follow-up draft', exact: true }).click();
+  await openOutstandingMore(page); await page.getByRole('button', { name: 'Client follow-up draft', exact: true }).click();
   return before;
 }
 async function generate(page) {
@@ -99,7 +100,7 @@ for (const [language, label] of [['en', 'Client follow-up draft'], ['zh-Hans', '
     await open(page); await page.getByRole('dialog').locator('[data-modal-close]').click();
     await page.locator('.language-summary').click();
     await page.locator('.language-menu > button').nth({ 'zh-Hans': 0, 'zh-Hant': 1, en: 2 }[language]).click();
-    await page.locator('.outstanding-followup-trigger').click();
+    await openOutstandingMore(page); await page.locator('.outstanding-followup-trigger').click();
     await page.setViewportSize({ width: 480, height: 640 }); const surface = page.getByRole('dialog', { name: label, exact: true });
     await surface.locator('.follow-up-items > header button').first().click();
     await surface.locator('.follow-up-preview-action').click();

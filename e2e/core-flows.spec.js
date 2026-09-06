@@ -1,3 +1,4 @@
+import { openOutstandingFilters, openOutstandingMore, expandOutstandingItem } from './outstanding-helpers.js';
 import fs from "node:fs/promises";
 import { expect, test } from "@playwright/test";
 import { emptyStore } from "../src/dashboard/model.js";
@@ -383,7 +384,7 @@ test("progress, outstanding items and tax deadlines remain independent", async (
   const outstandingItem = page.locator(".outstanding-item").filter({ hasText: "Signed representation letter missing" });
   await outstandingItem.locator("select").selectOption("resolved");
   await expect(outstandingItem).toHaveCount(0);
-  await page.getByRole("button", { name: /Cleared \/ archived/ }).click();
+  await openOutstandingFilters(page); await page.getByRole("button", { name: /Cleared \/ archived/ }).click();
   await expect(page.locator(".outstanding-item").filter({ hasText: "Signed representation letter missing" })).toBeVisible();
 
   await page.locator(".tax-deadline-fact").getByRole("button", { name: "Add tax deadline" }).click();

@@ -4,6 +4,16 @@ import { toTraditional } from "./traditional.js";
 export const LANGUAGE_PREFERENCE_KEY = "audit-progress-workbench:language";
 
 const english = {
+  "新增": "Add",
+  "搜索与筛选待清事项": "Search and filter outstanding items",
+  "更多待清操作": "More outstanding actions",
+  "筛选已启用": "Filters active",
+  "更多事项操作": "More item actions",
+  "有补充说明": "Has notes",
+  "查看原事项": "View source item",
+  "当前没有未清事项": "No open outstanding items",
+  "尚无待清事项": "No outstanding items yet",
+
   "多窗口保护未启用：请只保留这一个 APW 窗口，不要在其他窗口或浏览器同时编辑同一份资料。": "Multi-window protection is off. Keep only this APW window open; do not edit the same data in another window or browser.",
   "工作台已在另一窗口打开": "Workbench is open in another window",
   "当前浏览器没有多窗口保护": "Multi-window protection is unavailable",
