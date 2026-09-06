@@ -58,7 +58,7 @@ for (const kind of ["stage", "criterion", "outstanding"]) {
     const dialog = await openEditor(page, kind);
     const before = await readStoredWorkspace(page);
     const field = dialog.locator("form input").first();
-    const save = dialog.locator('button[type="submit"]');
+    const save = kind === "outstanding" ? dialog.getByRole("button", { name: "Save outstanding item", exact: true }) : dialog.locator('button[type="submit"]');
     await field.fill("   "); await save.click();
     await expect(field).toBeFocused();
     await expect(field).toHaveAttribute("aria-invalid", "true");
@@ -155,7 +155,7 @@ test("daily validation remains readable, linked and accessible in a narrow dialo
   const dialog = await openEditor(page, "outstanding");
   await page.setViewportSize({ width: 480, height: 640 });
   const input = dialog.locator('input[required]');
-  await input.fill("   "); await dialog.locator('button[type="submit"]').click();
+  await input.fill("   "); await dialog.getByRole('button', { name: 'Save outstanding item', exact: true }).click();
   await expect(input).toHaveAttribute("aria-invalid", "true");
   const errorId = await input.getAttribute("aria-describedby");
   expect(errorId).toBe(await dialog.getByRole("alert").getAttribute("id"));

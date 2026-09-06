@@ -1,5 +1,7 @@
 import { useModalDraft } from "./modal-draft.jsx";
 import React from "react";
+import { OutstandingEntry } from "./outstanding-entry.jsx";
+import { FollowUpComposer } from "./follow-up.jsx";
 import { WorkspaceBootstrap, PersistenceSafetyAlert } from "./workspace-recovery.jsx";
 import { TemplateStartFlow } from "./template-start.jsx";
 import { buildTemplateStart } from "./template-start-model.js";
@@ -24,7 +26,7 @@ import { activeOutstandingItems,
   convertGroupToProject, convertProjectToGroup, deadlineAlerts, duplicateSample, emptyStore, engagementsForEntity,
   engagementMatchesNavigationFilters, engagementReportingYears, engagementTypeLabel, engagementTypeValues, engagementTypesLabel, entityForEngagement, findParentMembership, formatDate, groupProgress, isValidStore, localizeGroupSample,
   localizeGroupWorkflowNodes, localizeOutstandingStatuses, localizeReadinessConditions, localizeSample, localizeWorkstream, makeBlankGroupSample,
-  makeBlankSample, makeEngagement, makeEntity, makeGroup, makeGroupMember, makeNode, makeOutstandingItem, makeProject, makeWorkstream,
+  makeBlankSample, makeEngagement, makeEntity, makeGroup, makeGroupMember, makeNode, makeProject, makeWorkstream,
   mergeEntities, moveEntity, moveWorkspaceItem,
   engagementNavigationStatusCounts, navigationStatusCounts, normalizeStore, outstandingIsOpen, preserveLegacyRecovery, projectStats, reconcileWorkbenchStore, redactSampleCompanies, reorderWorkstreams, reorderWorkspaceSchedule, reportingPeriodLabel, syncEngagementToCurrentStructure, taxDeadlineSummary, uid, V10_RECOVERY_KEY,
   workstreamStats, workstreamCategoryLabel, workstreamTypeLabel } from "./model.js";
@@ -745,6 +747,15 @@ function DashboardWorkbench({ initialSnapshot }) {
     clearNavigationFilters(); setActiveWorkstreamId(null); setWorkflowReveal(null); setOutstandingReveal(null);
     setModal(null);
   };
+  const revealSavedOutstanding = (sourceId, itemId) => {
+    setOutstandingCollapsed(false); setCompactOutstandingOpen(true);
+    setOutstandingReveal({ targetId: selectedGroupSource?.id || selectedProjectSource?.id || sourceId,
+      sourceId, itemId, sequence: ++revealSequence.current });
+  };
+  const closeOutstandingEditor = () => {
+    if (modal?.lastSavedId) revealSavedOutstanding(modal.targetId, modal.lastSavedId);
+    setModal(null);
+  };
   const importBackup = async (file) => {
     if (!file) return;
     try {
@@ -1212,20 +1223,23 @@ function DashboardWorkbench({ initialSnapshot }) {
             ? node.conditions.map((condition) => condition.id === modal.condition.id ? { ...condition, label } : condition)
             : [...node.conditions, { id: uid("condition"), label, done: false }] }));
         setModal(null); notify(t(modal.condition ? "条件已修改" : "条件已添加")); }} /></Modal>}
-    {modal?.type === "outstanding" && (modalTargetProject || modalTargetGroup) && <Modal title={t(modal.item ? "编辑待清事项" : "添加待清事项")} onClose={() => setModal(null)}>
-      <OutstandingForm initial={modal.item} statuses={outstandingStatusViews}
+    {modal?.type === "outstanding" && <Modal title={t(modal.item ? "编辑待清事项" : "添加待清事项")} onClose={closeOutstandingEditor}>
+      <OutstandingEntry key={`${modal.targetKind}:${modal.targetId}:${modal.item?.id || "new"}`} store={store}
+        targetKind={modal.targetKind} targetId={modal.targetId} initial={modal.item} statuses={outstandingStatusViews}
         workstreams={modalTargetProject?.workstreams.map((workstream) => localizeWorkstream(workstream, language)) || []}
-        defaultWorkstreamId={modal.defaultWorkstreamId} onClose={() => setModal(null)} onSubmit={(values) => {
-          const updateTarget = modal.targetKind === "group" ? updateGroup : updateProject;
-          const saved = modal.item ? { ...modal.item, ...values, updatedAt: new Date().toISOString() }
-            : makeOutstandingItem(values, store.outstandingStatuses);
-          updateTarget(modal.targetId, (target) => ({ ...target, outstandingItems: modal.item
-            ? target.outstandingItems.map((item) => item.id === modal.item.id ? { ...item, ...values, updatedAt: saved.updatedAt } : item)
+        defaultWorkstreamId={modal.defaultWorkstreamId} onClose={closeOutstandingEditor} onSave={(saved, { continueAdding }) => {
+          updateEngagement(modal.targetId, (target) => ({ ...target, outstandingItems: modal.item
+            ? target.outstandingItems.map((item) => item.id === saved.id ? saved : item)
             : [...target.outstandingItems, saved] }));
-          setOutstandingCollapsed(false); setCompactOutstandingOpen(true);
-          setOutstandingReveal({ targetId: selectedGroupSource?.id || selectedProjectSource?.id || modal.targetId,
-            sourceId: modal.targetId, itemId: saved.id, sequence: ++revealSequence.current });
-          setModal(null); notify(t(modal.item ? "待清事项已更新" : "待清事项已添加")); }} /></Modal>}
+          if (continueAdding) setModal((current) => ({ ...current, lastSavedId: saved.id }));
+          else { revealSavedOutstanding(modal.targetId, saved.id); setModal(null);
+            notify(t(modal.item ? "待清事项已更新" : "待清事项已添加")); }
+        }} /></Modal>}
+    {modal?.type === "client-follow-up" && <Modal title={t("客户跟进草稿")} onClose={() => setModal(null)} wide>
+      <FollowUpComposer key={`${modal.targetKind}:${modal.targetId}`} store={store} targetKind={modal.targetKind}
+        targetId={modal.targetId} onClose={() => setModal(null)} onOpenItem={(kind, id, itemId) => {
+          setModal(null); revealOutstandingItem(kind, id, itemId);
+        }} /></Modal>}
     {modal?.type === "template-library" && <Modal title={t("范本库")} onClose={() => setModal(null)} large>
       <input ref={templateImportRef} type="file" accept="application/json,.apw-template.json" hidden
         onChange={(event) => readTemplatePackage(event.target.files?.[0])} />
@@ -1726,7 +1740,11 @@ function OutstandingCenter({ store, target, targetKind, statuses, updateProject,
         <button type="button" className="button primary icon-only" aria-label={t("添加待清")}
           data-tooltip={t("添加待清")} data-tooltip-side="left" onClick={() => setModal({ type: "outstanding", targetKind,
             targetId: target.id, defaultWorkstreamId: targetKind === "project" ? activeWorkstreamId : null })}><ListPlus aria-hidden="true" /></button></>}
-    </div></div>
+    </div>
+    {!readOnly && <button type="button" className="button secondary outstanding-followup-trigger"
+      disabled={!entries.some(entry => !entry.readOnly && outstandingIsOpen(entry.item, store.outstandingStatuses))}
+      onClick={() => setModal({ type: "client-follow-up", targetKind, targetId: target.id })}>{t("客户跟进草稿")}</button>}
+    </div>
     <div className="outstanding-list">{visible.map((entry) => {
       const status = statusById(entry.item.status); const key = outstandingEntryKey(entry);
       return <article className="outstanding-item" tabIndex="-1" aria-label={entry.item.title}
@@ -1765,28 +1783,6 @@ function ConditionForm({ initial, onSubmit, onClose }) {
       placeholder={t("说明可客观确认的达成条件")} /></label>
     <footer className="modal-actions"><button type="button" className="button secondary" onClick={closeEditor}>{t("取消")}</button>
       <button type="submit" className="button primary">{t("保存条件")}</button></footer></form>;
-}
-
-function OutstandingForm({ initial, statuses, workstreams, defaultWorkstreamId, onSubmit, onClose }) {
-  const { language, t } = useUiLanguage();
-  const [values, setValues] = React.useState(() => ({ title: initial?.title || "", note: initial?.note || "",
-    status: initial?.status || statuses.find((status) => !status.closed)?.id || statuses[0]?.id || "",
-    workstreamId: initial?.workstreamId || defaultWorkstreamId || "" }));
-  const { closeEditor } = useModalDraft(values, onClose);
-  const update = (field) => (event) => setValues((current) => ({ ...current, [field]: event.target.value }));
-  return <form data-editor-guard className="workbench-form" onSubmit={(event) => { event.preventDefault(); if (values.title.trim()) onSubmit({ ...values,
-    title: values.title.trim(), note: values.note.trim(), workstreamId: values.workstreamId || null }); }}>
-    <label><span>{t("待清事项 *")}</span><RequiredTextInput autoFocus aria-label={t("待清事项 *")} value={values.title} onChange={update("title")}
-      placeholder={t("例如：尚欠银行月结单")} /></label>
-    {workstreams.length > 0 && <label><span>{t("所属层级或业务模块")}</span><select value={values.workstreamId} onChange={update("workstreamId")}>
-      <option value="">{t("项目级")}</option>{workstreams.map((workstream) => <option value={workstream.id} key={workstream.id}>
-        {workstreamTypeLabel(workstream.type, language, workstream.customName)}</option>)}</select></label>}
-    <label><span>{t("待清状态")}</span><select value={values.status} onChange={update("status")}>{statuses.map((status) =>
-      <option value={status.id} key={status.id}>{status.label}</option>)}</select></label>
-    <label><span>{t("说明")}</span><textarea rows="4" value={values.note} onChange={update("note")}
-      placeholder={t("记录缺少内容、负责方或下一步跟进")} /></label>
-    <footer className="modal-actions"><button type="button" className="button secondary" onClick={closeEditor}>{t("取消")}</button>
-      <button type="submit" className="button primary">{t("保存待清事项")}</button></footer></form>;
 }
 
 function SampleRedactionForm({ language, onSubmit, onClose }) {

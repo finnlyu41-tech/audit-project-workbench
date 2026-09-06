@@ -6,6 +6,14 @@ The project follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Continuous outstanding entry and local follow-up drafts
+
+- Add Save and add another for new items, with explicit source validation, reset boundaries, canonical writes and preserved earlier submissions.
+- Generate reviewed, editable, local-only client follow-up text from one company and annual source; exclude internal notes and other sources by construction. No sending or uploads.
+- Protect manual drafts and invalidate stale previews; expose truthful clipboard/download feedback and source navigation.
+- Observe the same three-item task as six versus four button activations and three versus one dialog visits; human task time is not inferred.
+- Extend the zero-retry dual-engine stability gate and preserve the existing startup/recovery protections.
+
 ### Stability and recovery
 
 - Block unsafe startup after unreadable, unparseable or future-version data; retain exact original bytes and provide explicit recovery actions.
