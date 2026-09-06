@@ -6,6 +6,14 @@ The project follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Stability and recovery
+
+- Block unsafe startup after unreadable, unparseable or future-version data; retain exact original bytes and provide explicit recovery actions.
+- Keep browser-write failures visible with current-memory backup and retry actions, without confusing linked-file success with browser persistence.
+- Clear pre-replacement drafts and navigation on confirmed workspace replacement; preserve them when replacement is cancelled.
+- Add clean-context complete-backup recovery and fault-injection tests; run the WebKit stability gate in CI and before Pages publication with automatic retries disabled.
+- Order the roadmap around reliability, measured task-time reduction and reviewed client-follow-up drafts.
+
 ### Holding quick-update identity fix
 
 - Give the quick-update editor and holding-components panel distinct, stable sibling keys. Holding views no longer accumulate duplicate quick-update cards during re-renders.

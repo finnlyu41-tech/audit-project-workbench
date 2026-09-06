@@ -4,7 +4,7 @@ export default defineConfig({
   testDir: "./e2e",
   fullyParallel: true,
   forbidOnly: Boolean(process.env.CI),
-  retries: process.env.CI ? 2 : 0,
+  retries: 0,
   workers: process.env.CI ? 2 : undefined,
   reporter: process.env.CI
     ? [["line"], ["html", { open: "never", outputFolder: "playwright-report" }]]
@@ -24,6 +24,11 @@ export default defineConfig({
     reuseExistingServer: !process.env.CI,
     timeout: 120_000,
   },
-  projects: [{ name: "chromium", use: { ...devices["Desktop Chrome"], viewport: { width: 1440, height: 900 } } }],
+  projects: [
+    { name: "chromium", use: { ...devices["Desktop Chrome"], viewport: { width: 1440, height: 900 } } },
+    { name: "webkit-stability", testMatch: ["**/stability-recovery.spec.js", "**/group-quick-update.spec.js",
+        "**/action-workbench.spec.js", "**/holding-components.spec.js"],
+      use: { browserName: "webkit", viewport: { width: 1440, height: 900 } } },
+  ],
   outputDir: "test-results",
 });

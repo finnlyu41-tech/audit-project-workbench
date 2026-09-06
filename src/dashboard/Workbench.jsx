@@ -1,5 +1,6 @@
 import { useModalDraft } from "./modal-draft.jsx";
 import React from "react";
+import { WorkspaceBootstrap, PersistenceSafetyAlert } from "./workspace-recovery.jsx";
 import { TemplateStartFlow } from "./template-start.jsx";
 import { buildTemplateStart } from "./template-start-model.js";
 import { buildAnnualEngagement } from "./annual-source-model.js";
@@ -21,7 +22,7 @@ import { activeOutstandingItems,
   createDefaultGroupSample, createDefaultSample, duplicateGroupSample,
   canonicalStorePayload,
   convertGroupToProject, convertProjectToGroup, deadlineAlerts, duplicateSample, emptyStore, engagementsForEntity,
-  engagementMatchesNavigationFilters, engagementReportingYears, engagementTypeLabel, engagementTypeValues, engagementTypesLabel, entityForEngagement, findParentMembership, formatDate, groupProgress, isValidStore, loadStore, localizeGroupSample,
+  engagementMatchesNavigationFilters, engagementReportingYears, engagementTypeLabel, engagementTypeValues, engagementTypesLabel, entityForEngagement, findParentMembership, formatDate, groupProgress, isValidStore, localizeGroupSample,
   localizeGroupWorkflowNodes, localizeOutstandingStatuses, localizeReadinessConditions, localizeSample, localizeWorkstream, makeBlankGroupSample,
   makeBlankSample, makeEngagement, makeEntity, makeGroup, makeGroupMember, makeNode, makeOutstandingItem, makeProject, makeWorkstream,
   mergeEntities, moveEntity, moveWorkspaceItem,
@@ -82,7 +83,7 @@ function loadInitialWorkspaceView() {
 }
 
 export function DashboardContent() {
-  return <LanguageProvider><DashboardWorkbench /></LanguageProvider>;
+  return <LanguageProvider><WorkspaceBootstrap>{(snapshot) => <DashboardWorkbench initialSnapshot={snapshot} />}</WorkspaceBootstrap></LanguageProvider>;
 }
 
 function revealOverflowText(event) {
@@ -105,9 +106,10 @@ function revealOverflowText(event) {
   }
 }
 
-function DashboardWorkbench() {
+function DashboardWorkbench({ initialSnapshot }) {
   const { language, setLanguage, t } = useUiLanguage();
-  const [store, setRawStore] = React.useState(loadStore);
+  const [store, setRawStore] = React.useState(() => initialSnapshot.store);
+  React.useEffect(() => { if (initialSnapshot.raw !== null) preserveLegacyRecovery(initialSnapshot.raw); }, [initialSnapshot]);
   const setStore = React.useCallback((action) => setRawStore((current) => reconcileWorkbenchStore(current,
     typeof action === "function" ? action(current) : action)), []);
   const persistence = useWorkbenchPersistence({ store, setStore });
@@ -734,6 +736,15 @@ function DashboardWorkbench() {
       URL.revokeObjectURL(url); setModal({ type: "template-library" }); notify(t("范本包已导出"));
     } catch (error) { window.alert(templatePackageErrorText(error)); }
   };
+  const resetReplacedWorkspaceSession = () => {
+    quickDrafts.current.clear(); setRecentVisits([]);
+    pendingScrollRef.current = null; pendingWorkspaceFocus.current = false;
+    navigationHistoryRef.current = { entries: [], index: -1, restoring: false };
+    setNavigationHistoryRevision((value) => value + 1);
+    setSelection(null); setWorkspaceView("home"); setFilter("active"); setSearch("");
+    clearNavigationFilters(); setActiveWorkstreamId(null); setWorkflowReveal(null); setOutstandingReveal(null);
+    setModal(null);
+  };
   const importBackup = async (file) => {
     if (!file) return;
     try {
@@ -746,7 +757,7 @@ function DashboardWorkbench() {
       const entityCount = Array.isArray(parsed.entities) ? parsed.entities.length : engagementCount;
       if (!window.confirm(t(confirmKey, { entities: entityCount, engagements: engagementCount }))) return;
       preserveLegacyRecovery(parsed);
-      const normalized = normalizeStore(parsed); setStore(normalized); setSelection(null); setWorkspaceView("home"); setFilter("active"); notify(t("备份已恢复"));
+      const normalized = normalizeStore(parsed); resetReplacedWorkspaceSession(); setStore(normalized); notify(t("备份已恢复"));
     } catch { window.alert(t("这不是有效的工作台备份文件。")); }
     finally { if (importRef.current) importRef.current.value = ""; closeMenu(); }
   };
@@ -876,7 +887,9 @@ function DashboardWorkbench() {
   }, [resizingNavigation]);
 
   return <FeedbackContext.Provider value={feedback}><article className="audit-workbench" onMouseOver={revealOverflowText} onFocusCapture={revealOverflowText}>
-    <FeedbackSlot surface="workspace" active={!modal} />
+    <div className="workbench-notices"><PersistenceSafetyAlert persistence={persistence} onExport={exportBackup}
+      onRetry={async () => { const saved = await persistence.saveNow(); if (saved) toolbarMenuRefs.current[0]?.querySelector("summary")?.focus(); }} />
+      <FeedbackSlot surface="workspace" active={!modal && persistence.failure !== "browser_write_failed"} /></div>
     <h1 className="visually-hidden">{t("审计项目工作台")}</h1>
     <aside className="app-rail" aria-label={t("工作台操作")}>
       <button type="button" className="app-mark" aria-expanded={!sidebarCollapsed}
@@ -975,7 +988,10 @@ function DashboardWorkbench() {
                 {simplifiedView ? <Eye aria-hidden="true" /> : <EyeOff aria-hidden="true" />}<span>{t("简化")}</span></button>
               <button type="button" className="project-panel-new"
               aria-label={t("新建公司")} data-tooltip={t("新建公司")} data-tooltip-side="left"
-              onClick={() => setModal({ type: "create-entity" })}><Plus aria-hidden="true" /><span>{t("新建公司")}</span></button></div></div>
+              onClick={(event) => {
+                // Safari pointer activation need not focus its trigger; capture a real return target.
+                event.currentTarget.focus({ preventScroll: true }); setModal({ type: "create-entity" });
+              }}><Plus aria-hidden="true" /><span>{t("新建公司")}</span></button></div></div>
             <div className="navigation-view-tabs" role="tablist" aria-label={t("公司与项目视图")} onKeyDown={handleTabListKeyDown}>
               {["companies", "projects"].map((value) => <button type="button" role="tab" key={value}
                 aria-selected={navigationView === value} tabIndex={tabIndexFor(navigationView === value)}
@@ -1271,14 +1287,14 @@ function DashboardWorkbench() {
       <OpenWorkspaceFileConfirm candidate={modal.candidate} onClose={() => setModal({ type: "persistence-settings" })}
         onConfirm={async (candidate) => {
           const opened = await persistence.activateExistingFile(candidate);
-          if (opened) { setModal(null); notify(t("本地工作台文件已关联")); }
+          if (opened) { resetReplacedWorkspaceSession(); notify(t("本地工作台文件已关联")); }
           return opened;
         }} /></Modal>}
     {modal?.type === "persistence-conflict" && persistence.conflict && <Modal title={t("处理版本冲突")} onClose={() => setModal(null)} wide>
       <PersistenceConflictDialog conflict={persistence.conflict} onClose={() => setModal(null)}
         onResolve={async (choice) => {
           const resolved = await persistence.resolveConflict(choice);
-          if (resolved) { setModal(null); notify(t("版本冲突已处理并恢复自动保存")); }
+          if (resolved) { if (choice === "file") resetReplacedWorkspaceSession(); else setModal(null); notify(t("版本冲突已处理并恢复自动保存")); }
           return resolved;
         }} /></Modal>}
     {modal?.type === "initialize-workbench" && <Modal title={t("初始化工作台")} onClose={() => setModal(null)}>

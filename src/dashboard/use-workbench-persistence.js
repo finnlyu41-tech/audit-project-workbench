@@ -49,6 +49,7 @@ export function useWorkbenchPersistence({ store, setStore }) {
   const [lastSavedAt, setLastSavedAt] = React.useState(settings.mode === "linked_file"
     ? initialMetaRef.current.lastSyncedAt : initialMetaRef.current.lastBrowserSavedAt);
   const [failure, setFailure] = React.useState("");
+  const [browserWriteFailed, setBrowserWriteFailed] = React.useState(false);
   const [conflict, setConflict] = React.useState(null);
   const supported = supportsFileSystemAccess();
   const mountedRef = React.useRef(true);
@@ -232,9 +233,10 @@ export function useWorkbenchPersistence({ store, setStore }) {
     const browserSavedAt = new Date().toISOString();
     try {
       localStorage.setItem(STORAGE_KEY, payload);
+      setBrowserWriteFailed(false);
       persistMeta({ lastBrowserSavedAt: browserSavedAt });
     } catch (error) {
-      if (mountedRef.current) { setFailure("browser_write_failed"); setStatus("error"); }
+      if (mountedRef.current) setBrowserWriteFailed(true);
       return;
     }
 
@@ -255,7 +257,7 @@ export function useWorkbenchPersistence({ store, setStore }) {
   }, [enqueueLinkedPayload, persistMeta, store]);
 
   React.useEffect(() => {
-    const shouldWarn = shouldWarnBeforeUnload(settings, status);
+    const shouldWarn = shouldWarnBeforeUnload(settings, browserWriteFailed ? "error" : status);
     if (!shouldWarn) return undefined;
     const warn = (event) => {
       event.preventDefault();
@@ -263,7 +265,7 @@ export function useWorkbenchPersistence({ store, setStore }) {
     };
     window.addEventListener("beforeunload", warn);
     return () => window.removeEventListener("beforeunload", warn);
-  }, [settings.warnBeforeUnsyncedLeave, status]);
+  }, [settings.warnBeforeUnsyncedLeave, status, browserWriteFailed]);
 
   React.useEffect(() => {
     const flushWhenHidden = () => {
@@ -358,8 +360,10 @@ export function useWorkbenchPersistence({ store, setStore }) {
 
   const saveNow = React.useCallback(async () => {
     const payload = currentPayloadRef.current;
+    try { localStorage.setItem(STORAGE_KEY, payload); }
+    catch { setBrowserWriteFailed(true); return false; }
+    setBrowserWriteFailed(false);
     try {
-      localStorage.setItem(STORAGE_KEY, payload);
       const savedAt = new Date().toISOString();
       persistMeta({ lastBrowserSavedAt: savedAt });
       if (settingsRef.current.mode === "browser") {
@@ -382,14 +386,12 @@ export function useWorkbenchPersistence({ store, setStore }) {
     lastSyncedPayloadRef.current = null;
     setConflict(null);
     applySettings({ mode: "browser" });
-    const meta = persistMeta({ linkedFileName: "", lastSyncedDigest: "", lastSyncedAt: "" });
+    persistMeta({ linkedFileName: "", lastSyncedDigest: "", lastSyncedAt: "" });
     setLinkedFileName("");
-    setLastSavedAt(meta.lastBrowserSavedAt || new Date().toISOString());
-    setFailure("");
-    setStatus("saved");
+    const saved = await saveNow();
     try { await deleteStoredFileHandle(); } catch { /* the external file is never deleted */ }
-    return true;
-  }, [applySettings, persistMeta, retireWriterSession]);
+    return saved;
+  }, [applySettings, persistMeta, retireWriterSession, saveNow]);
 
   const setWarnBeforeUnsyncedLeave = React.useCallback((enabled) => {
     applySettings({ warnBeforeUnsyncedLeave: Boolean(enabled) });
@@ -433,13 +435,13 @@ export function useWorkbenchPersistence({ store, setStore }) {
 
   return {
     settings,
-    status,
-    failure,
+    status: browserWriteFailed ? "error" : status,
+    failure: browserWriteFailed ? "browser_write_failed" : failure,
     conflict,
     linkedFileName,
     lastSavedAt,
     supported,
-    unsynced: persistenceStatusIsUnsynced(status),
+    unsynced: browserWriteFailed || persistenceStatusIsUnsynced(status),
     connectCurrentToNewFile,
     chooseExistingFile,
     activateExistingFile,

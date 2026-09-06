@@ -58,7 +58,7 @@ test("storage settings stay in the slim rail and expose compact save state", () 
 });
 
 test("leave protection and local-file sync are conditional on real unsaved state", () => {
-  assert.match(persistenceHook, /shouldWarnBeforeUnload\(settings, status\)/);
+  assert.match(persistenceHook, /shouldWarnBeforeUnload\(settings, browserWriteFailed \? "error" : status\)/);
   assert.match(persistenceHook, /window\.addEventListener\("beforeunload", warn\)/);
   assert.match(persistenceHook, /document\.visibilityState === "hidden"[\s\S]*?writerRef\.current\?\.flush\(\)/);
   assert.match(persistenceHook, /localStorage\.setItem\(STORAGE_KEY, payload\)/);
