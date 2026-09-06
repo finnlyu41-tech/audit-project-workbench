@@ -4,3 +4,6 @@
 *.jpeg binary
 *.gif binary
 *.ico binary
+
+# Preserve the upstream notice verbatim, including its Markdown blank-line spaces.
+public/legal/vite-LICENSE.txt -whitespace

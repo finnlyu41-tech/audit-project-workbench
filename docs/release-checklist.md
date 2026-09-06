@@ -40,3 +40,10 @@ Run `pnpm test:stability` for the focused dual-engine gate and follow `docs/stab
 - Verify that owner refresh and backgrounding do not create a second editor, and Back cannot resume stale state while another owner is active.
 - Missing API: no implicit startup, explicit single-window acknowledgement, persistent warning. Rejected API: no compatibility bypass.
 - Save and close old-version tabs before production use; this lock does not coordinate other profiles, devices or external file writers.
+
+## Licensing
+
+- Keep root LICENSE and the shipped public/legal/APW-LICENSE.txt identical. Preserve legacy MIT and third-party notices.
+- After dependency changes, refresh public/legal/ notices from the frozen installation and review their licenses.
+- New external contributions require documented rights suitable for the intended distribution; a PR alone is not copyright assignment.
+- Do not describe proprietary additions as MIT/open source. Check hosting terms separately before a paid-service launch.

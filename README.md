@@ -1,5 +1,7 @@
 # APW — Audit Project Workbench
 
+> **Licensing change / 授权变更 (0.7.0):** New original material uses the [APW Proprietary License](LICENSE), with free non-production evaluation and separately authorized commercial use. Previously MIT-licensed material remains MIT. 本次只改变后续原创新增内容的授权，不收回旧 MIT 权利。See [许可边界与个人使用](docs/licensing.md).
+
 一个以英文为默认界面、面向电脑窗口并以本机数据为主的专业服务项目进度工作台。公司主档长期保存法律实体、控股层级、税务期限和默认会计年度；项目可保存一个或多个报告年度，并统一管理负责人、排期、模块、节点、待清事项和进度。
 
 **[直接打开在线工作台](https://finnlyu41-tech.github.io/audit-project-workbench/)**
@@ -43,6 +45,8 @@
 「客户跟进草稿」一次只处理一个来源公司与年度，明确勾选事项后预览、检查，再复制或下载纯文本；不自动发送或上传，不自动带入内部备注或税务编号。标题本身仍须检查是否适合外发。英文／简体／繁体仅改变系统措辞，不翻译用户资料。详见 [使用与边界](docs/client-follow-up.md)。
 
 ## 快速开始
+
+以下开发命令仅用于权利人、获书面授权的开发者或 LICENSE 允许的私人非生产评估。
 
 需要 Node.js 20.19 或以上版本，并建议使用 Corepack 提供的 pnpm。
 
@@ -112,6 +116,8 @@ Audit Project Workbench (APW) is an English-first, desktop-first and local-first
 
 ### Local development
 
+These commands are for the rights holder, separately authorized developers, or private non-production evaluation permitted by LICENSE.
+
 ```bash
 corepack enable
 pnpm install
@@ -125,7 +131,7 @@ This tool supports progress tracking only. Audit judgement, evidence assessment,
 
 ## License
 
-[MIT](LICENSE)
+[APW Proprietary License 1.0](LICENSE) for new covered material. Historical MIT and third-party rights remain unchanged; see [licensing transition](docs/licensing.md), [legacy MIT notice](licenses/MIT-legacy.txt), and [third-party notices](THIRD_PARTY_NOTICES.md). The repository is source-visible, not an open-source grant for future additions.
 
 ### Continuous entry and client follow-up
 

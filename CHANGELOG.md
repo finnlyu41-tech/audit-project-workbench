@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.7.0] - 2026-09-06
+
+### Licensing
+
+- Introduce APW Proprietary License 1.0 for new covered material; preserve all earlier MIT grants, baseline notices and third-party licenses.
+- Set custom npm license metadata and block accidental npm publication without changing repository visibility or Pages configuration.
+- Publish legal notices with static builds and clarify external contribution permissions. No application logic, data format, URL, billing or access-control changes.
+
+
 ## Window-safety stabilization
 
 - Reproduced and prevented stale-snapshot overwrites between participating updated windows using an exclusive browser session before startup.
