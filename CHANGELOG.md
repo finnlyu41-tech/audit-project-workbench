@@ -1,5 +1,12 @@
 # Changelog
 
+## Build and release maintenance
+
+- Separate stable runtime, workspace core and translations into statically preloaded chunks; retain synchronous app behavior and all business data boundaries.
+- Enforce emitted asset graph and JavaScript size budgets at build time instead of raising or hiding bundle warnings.
+- Pin inspected Node24-based GitHub Actions releases, including the Pages artifact uploader; keep application Node22, pnpm11.19.0 and existing release checks.
+- This changes build packaging, not a measured reduction in first-load bytes or user task time.
+
 ## Linked-file conflict stabilization
 
 - Recheck linked file contents before writes and before stream commit; preserve detected external changes and refresh conflict decisions instead of overwriting stale versions.
