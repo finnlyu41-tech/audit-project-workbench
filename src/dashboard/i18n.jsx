@@ -4,6 +4,19 @@ import { toTraditional } from "./traditional.js";
 export const LANGUAGE_PREFERENCE_KEY = "audit-progress-workbench:language";
 
 const english = {
+
+  "目标公司或报告期间已变化，请保留草稿并重新选择来源。": "The target company or reporting period has changed. Keep your draft and select the source again.",
+  "此公司或年度项目已归档，无法添加或修改待清事项。": "This company or engagement is archived. Outstanding items cannot be added or edited.",
+  "所选待清状态已不存在，请重新选择。": "The selected outstanding status no longer exists. Select it again.",
+  "所选业务模块已不存在，请重新选择。": "The selected workstream no longer exists. Select it again.",
+  "此待清事项已被删除，无法保存。": "This outstanding item was deleted and cannot be saved.",
+  "此事项已在别处更新，请保留草稿并重新打开。": "This item changed elsewhere. Keep your draft and reopen it.",
+  "事项归属": "Item destination",
+  "仅更新此年度项目；不会改变流程完成状态。": "Updates this engagement only; workflow completion is unchanged.",
+  "本次已添加 {count} 项；上一项：{title}": "Added {count} items in this session; last item: {title}",
+  "已提交事项不会因取消下一项而删除；实际保存状态见备份菜单。": "Cancelling the next item does not delete submitted items. Check the backup menu for save status.",
+  "保存并继续新增": "Save and add another",
+
   "工作台资料需要恢复": "Workspace recovery required",
   "无法读取浏览器资料。已暂停启动和自动保存，请检查浏览器权限后重新读取。": "Browser data could not be read. Startup and autosave are paused. Check browser access, then retry reading.",
   "资料来自较新版本。已暂停启动和自动保存，不会用空白工作台覆盖它。": "These data come from a newer version. Startup and autosave are paused; no empty workspace will overwrite them.",
