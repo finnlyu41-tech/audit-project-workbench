@@ -21,7 +21,7 @@
     "test:e2e": "playwright test",
     "test:e2e:headed": "playwright test --headed",
     "check": "pnpm test && pnpm test:e2e && pnpm build",
-    "test:stability": "playwright test e2e/operation-boundaries.spec.js e2e/stability-recovery.spec.js e2e/group-quick-update.spec.js e2e/action-workbench.spec.js e2e/holding-components.spec.js e2e/outstanding-continuous.spec.js e2e/client-follow-up.spec.js e2e/workflow-effort.spec.js e2e/workspace-session.spec.js e2e/edge-safety.spec.js"
+    "test:stability": "playwright test e2e/linked-file-safety.spec.js e2e/operation-boundaries.spec.js e2e/stability-recovery.spec.js e2e/group-quick-update.spec.js e2e/action-workbench.spec.js e2e/holding-components.spec.js e2e/outstanding-continuous.spec.js e2e/client-follow-up.spec.js e2e/workflow-effort.spec.js e2e/workspace-session.spec.js e2e/edge-safety.spec.js"
   },
   "dependencies": {
     "lucide-react": "^1.39.0",

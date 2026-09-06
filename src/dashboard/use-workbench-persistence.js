@@ -1,3 +1,4 @@
+import { readUnchangedFile, writeUnchangedFile, fileConflictSnapshot } from './linked-file-guard.js';
 import React from "react";
 import { STORAGE_KEY, isValidStore, normalizeStore, preserveLegacyRecovery } from "./model.js";
 import {
@@ -53,13 +54,24 @@ export function useWorkbenchPersistence({ store, setStore }) {
   const [conflict, setConflict] = React.useState(null);
   const supported = supportsFileSystemAccess();
   const mountedRef = React.useRef(true);
-  const currentPayloadRef = React.useRef(serializeStore(store));
+  const serialized = React.useMemo(() => serializeStore(store), [store]);
+  const currentPayloadRef = React.useRef(serialized);
+  React.useLayoutEffect(() => { currentPayloadRef.current = serialized; }, [serialized]);
   const lastSyncedPayloadRef = React.useRef(null);
+  const lastSyncedFileRef = React.useRef(null);
   const fileHandleRef = React.useRef(null);
   const fileReadyRef = React.useRef(false);
   const writerSessionRef = React.useRef(0);
   const writerRef = React.useRef(null);
   const callbackRef = React.useRef({});
+  const fileOperationRef = React.useRef(false);
+  const [fileOperationBusy, setFileOperationBusy] = React.useState(false);
+  const withFileOperation = React.useCallback(async action => {
+    if (fileOperationRef.current || !mountedRef.current) return false;
+    fileOperationRef.current = true; setFileOperationBusy(true);
+    try { return await action(); }
+    finally { fileOperationRef.current = false; if (mountedRef.current) setFileOperationBusy(false); }
+  }, []);
 
   const persistMeta = React.useCallback((patch) => {
     const next = { ...metaRef.current, ...patch };
@@ -78,6 +90,7 @@ export function useWorkbenchPersistence({ store, setStore }) {
 
   const markFailure = React.useCallback((error, fallback = "unknown_error") => {
     const code = errorCode(error) || fallback;
+    if (code === "operation_cancelled") return;
     fileReadyRef.current = false;
     if (!mountedRef.current) return;
     setFailure(code);
@@ -85,9 +98,12 @@ export function useWorkbenchPersistence({ store, setStore }) {
   }, []);
 
   const markLinkedSaved = React.useCallback(async (payload, handle = fileHandleRef.current) => {
+    const session = writerSessionRef.current;
     const savedAt = new Date().toISOString();
     const digest = await digestText(payload);
+    if (!mountedRef.current || session !== writerSessionRef.current) return;
     lastSyncedPayloadRef.current = payload;
+    lastSyncedFileRef.current = payload;
     const fileName = handle?.name || metaRef.current.linkedFileName || "audit-project-workbench.apw.json";
     persistMeta({ linkedFileName: fileName, lastSyncedDigest: digest, lastSyncedAt: savedAt });
     if (!mountedRef.current) return;
@@ -97,15 +113,22 @@ export function useWorkbenchPersistence({ store, setStore }) {
     setStatus(currentPayloadRef.current === payload ? "saved" : "unsynced");
   }, [persistMeta]);
 
-  callbackRef.current = { markFailure, markLinkedSaved };
+  const markConflict = React.useCallback((handle, snapshot, changedSincePreview = false) => {
+    fileReadyRef.current = false;
+    if (!mountedRef.current) return;
+    setConflict(fileConflictSnapshot(handle, snapshot, currentPayloadRef.current, workspaceSummary, changedSincePreview));
+    setFailure(""); setStatus("conflict");
+  }, []);
+  callbackRef.current = { markFailure, markLinkedSaved, markConflict };
 
   const enqueueLinkedPayload = React.useCallback((payload) => {
     const handle = fileHandleRef.current;
-    if (!handle) return;
+    if (!handle || !fileReadyRef.current) return;
     writerRef.current?.enqueue({ payload, handle, session: writerSessionRef.current });
   }, []);
 
   const retireWriterSession = React.useCallback(async () => {
+    fileReadyRef.current = false;
     writerSessionRef.current += 1;
     writerRef.current?.clear();
     await writerRef.current?.flush();
@@ -116,7 +139,10 @@ export function useWorkbenchPersistence({ store, setStore }) {
     writerRef.current = createLatestWriteQueue(async (job) => {
       if (!job?.handle) throw new PersistenceError("missing_handle");
       if (await fileHandlePermission(job.handle) !== "granted") throw new PersistenceError("permission_required");
-      await writeStoreToFileHandle(job.handle, job.payload);
+      const assertCurrent = () => { if (!mountedRef.current || job.session !== writerSessionRef.current
+        || job.handle !== fileHandleRef.current) throw new PersistenceError("operation_cancelled"); };
+      await writeUnchangedFile(job.handle, job.payload, lastSyncedFileRef.current || lastSyncedPayloadRef.current,
+        { isValidStore, normalizeStore }, assertCurrent);
     }, {
       onQueued: (job) => job.session === writerSessionRef.current && mountedRef.current && setStatus("unsynced"),
       onStart: (job) => job.session === writerSessionRef.current && mountedRef.current && setStatus("saving"),
@@ -128,6 +154,8 @@ export function useWorkbenchPersistence({ store, setStore }) {
       },
       onError: (error, job) => {
         if (job.session === writerSessionRef.current && job.handle === fileHandleRef.current) {
+          if (error.code === "operation_cancelled") return;
+          if (error.code === "file_changed" && error.snapshot) return callbackRef.current.markConflict(job.handle, error.snapshot);
           return callbackRef.current.markFailure(error);
         }
         return undefined;
@@ -140,9 +168,12 @@ export function useWorkbenchPersistence({ store, setStore }) {
     };
   }, []);
 
-  const updateLinkedMetaFromPayload = React.useCallback(async (payload, handle, savedAt = new Date().toISOString()) => {
+  const updateLinkedMetaFromPayload = React.useCallback(async (payload, handle, savedAt = new Date().toISOString(), fileSnapshot = null) => {
+    const session = writerSessionRef.current;
     const digest = await digestText(payload);
+    if (!mountedRef.current || session !== writerSessionRef.current) return;
     lastSyncedPayloadRef.current = payload;
+    lastSyncedFileRef.current = fileSnapshot || payload;
     const fileName = handle?.name || metaRef.current.linkedFileName || "audit-project-workbench.apw.json";
     persistMeta({ linkedFileName: fileName, lastSyncedDigest: digest, lastSyncedAt: savedAt });
     if (mountedRef.current) {
@@ -154,32 +185,32 @@ export function useWorkbenchPersistence({ store, setStore }) {
   }, [persistMeta]);
 
   const reconcileHandle = React.useCallback(async (handle) => {
+    const session = writerSessionRef.current;
+    const assertCurrent = () => { if (!mountedRef.current || session !== writerSessionRef.current
+      || settingsRef.current.mode !== "linked_file") throw new PersistenceError("operation_cancelled"); };
+    assertCurrent();
     if (!handle) throw new PersistenceError("missing_handle");
     if (await fileHandlePermission(handle) !== "granted") throw new PersistenceError("permission_required");
+    assertCurrent();
     if (mountedRef.current) setStatus("saving");
     const snapshot = await readStoreFromFileHandle(handle, { isValidStore, normalizeStore });
     const browserPayload = currentPayloadRef.current;
     const [browserDigest, fileDigest] = await Promise.all([digestText(browserPayload), digestText(snapshot.payload)]);
+    assertCurrent();
     if (browserPayload !== currentPayloadRef.current) return reconcileHandle(handle);
     const resolution = classifyWorkspaceVersions({ browserDigest, fileDigest,
       lastSyncedDigest: metaRef.current.lastSyncedDigest });
     fileHandleRef.current = handle;
     if (mountedRef.current) setLinkedFileName(snapshot.fileName);
 
-    if (resolution === "conflict") {
-      fileReadyRef.current = false;
-      if (mountedRef.current) {
-        setConflict({ handle, browserPayload, browserSummary: workspaceSummary(JSON.parse(browserPayload)),
-          filePayload: snapshot.payload, fileStore: snapshot.store, fileSummary: snapshot.summary,
-          fileName: snapshot.fileName, fileLastModified: snapshot.lastModified });
-        setFailure("");
-        setStatus("conflict");
-      }
-      return "conflict";
-    }
+    if (resolution === "conflict") { markConflict(handle, snapshot); return "conflict"; }
 
     if (resolution === "browser_newer") {
-      await writeStoreToFileHandle(handle, browserPayload);
+      try { await writeUnchangedFile(handle, browserPayload, snapshot, { isValidStore, normalizeStore }, assertCurrent); }
+      catch (error) {
+        if (error.code === "file_changed" && error.snapshot) { markConflict(handle, error.snapshot, true); return "conflict"; }
+        throw error;
+      }
       fileReadyRef.current = true;
       await updateLinkedMetaFromPayload(browserPayload, handle);
       if (currentPayloadRef.current !== browserPayload) enqueueLinkedPayload(currentPayloadRef.current);
@@ -190,9 +221,9 @@ export function useWorkbenchPersistence({ store, setStore }) {
     if (resolution === "file_newer") {
       preserveLegacyRecovery(snapshot.sourcePayload);
       lastSyncedPayloadRef.current = snapshot.payload;
-      await updateLinkedMetaFromPayload(snapshot.payload, handle,
-        snapshot.lastModified ? new Date(snapshot.lastModified).toISOString() : new Date().toISOString());
       setStore(snapshot.store);
+      await updateLinkedMetaFromPayload(snapshot.payload, handle,
+        snapshot.lastModified ? new Date(snapshot.lastModified).toISOString() : new Date().toISOString(), snapshot);
       return resolution;
     }
 
@@ -200,12 +231,14 @@ export function useWorkbenchPersistence({ store, setStore }) {
       metaRef.current.lastSyncedAt || new Date().toISOString());
     if (currentPayloadRef.current !== browserPayload) enqueueLinkedPayload(currentPayloadRef.current);
     return resolution;
-  }, [enqueueLinkedPayload, setStore, updateLinkedMetaFromPayload]);
+  }, [enqueueLinkedPayload, markConflict, setStore, updateLinkedMetaFromPayload]);
 
   React.useEffect(() => {
     let cancelled = false;
     const restoreLinkedFile = async () => {
-      if (settingsRef.current.mode !== "linked_file") return;
+      const session = writerSessionRef.current;
+      const active = () => !cancelled && session === writerSessionRef.current && settingsRef.current.mode === "linked_file";
+      if (!active()) return;
       if (!supported) {
         applySettings({ mode: "browser" });
         if (!cancelled) { setStatus("saved"); setFailure("unsupported"); }
@@ -213,14 +246,14 @@ export function useWorkbenchPersistence({ store, setStore }) {
       }
       try {
         const handle = await loadStoredFileHandle();
-        if (cancelled) return;
+        if (!active()) return;
         if (!handle) throw new PersistenceError("missing_handle");
         fileHandleRef.current = handle;
         setLinkedFileName(handle.name || metaRef.current.linkedFileName);
         if (await fileHandlePermission(handle) !== "granted") throw new PersistenceError("permission_required");
-        if (!cancelled) await reconcileHandle(handle);
+        if (active()) await reconcileHandle(handle);
       } catch (error) {
-        if (!cancelled) markFailure(error);
+        if (active()) markFailure(error);
       }
     };
     restoreLinkedFile();
@@ -228,7 +261,7 @@ export function useWorkbenchPersistence({ store, setStore }) {
   }, [applySettings, markFailure, reconcileHandle, supported]);
 
   React.useEffect(() => {
-    const payload = serializeStore(store);
+    const payload = serialized;
     currentPayloadRef.current = payload;
     const browserSavedAt = new Date().toISOString();
     try {
@@ -254,7 +287,7 @@ export function useWorkbenchPersistence({ store, setStore }) {
       return;
     }
     enqueueLinkedPayload(payload);
-  }, [enqueueLinkedPayload, persistMeta, store]);
+  }, [enqueueLinkedPayload, persistMeta, serialized]);
 
   React.useEffect(() => {
     const shouldWarn = shouldWarnBeforeUnload(settings, browserWriteFailed ? "error" : status);
@@ -277,7 +310,7 @@ export function useWorkbenchPersistence({ store, setStore }) {
     return () => document.removeEventListener("visibilitychange", flushWhenHidden);
   }, []);
 
-  const connectCurrentToNewFile = React.useCallback(async () => {
+  const connectCurrentToNewFile = React.useCallback(async () => withFileOperation(async () => {
     if (!supported) { setFailure("unsupported"); return false; }
     try {
       const handle = await window.showSaveFilePicker({ suggestedName: "audit-project-workbench.apw.json",
@@ -299,49 +332,47 @@ export function useWorkbenchPersistence({ store, setStore }) {
       markFailure(error);
       return false;
     }
-  }, [applySettings, enqueueLinkedPayload, markFailure, retireWriterSession, supported, updateLinkedMetaFromPayload]);
+  }), [withFileOperation, applySettings, enqueueLinkedPayload, markFailure, retireWriterSession, supported, updateLinkedMetaFromPayload]);
 
-  const chooseExistingFile = React.useCallback(async () => {
+  const chooseExistingFile = React.useCallback(async () => withFileOperation(async () => {
     if (!supported) { setFailure("unsupported"); return null; }
     try {
       const handles = await window.showOpenFilePicker({ multiple: false, types: WORKSPACE_FILE_TYPES });
       const handle = handles?.[0];
       if (!handle) return null;
       const snapshot = await readStoreFromFileHandle(handle, { isValidStore, normalizeStore });
-      return { ...snapshot, handle, currentSummary: workspaceSummary(JSON.parse(currentPayloadRef.current)) };
+      setFailure("");
+      return { ...snapshot, handle, browserPayload: currentPayloadRef.current, currentSummary: workspaceSummary(JSON.parse(currentPayloadRef.current)) };
     } catch (error) {
       if (pickerWasCancelled(error)) return null;
       markFailure(error);
       return null;
     }
-  }, [markFailure, supported]);
+  }), [withFileOperation, markFailure, supported]);
 
-  const activateExistingFile = React.useCallback(async (candidate) => {
+  const activateExistingFile = React.useCallback(async (candidate) => withFileOperation(async () => {
     if (!candidate?.handle || !candidate?.store) return false;
     try {
-      if (await fileHandlePermission(candidate.handle, true) !== "granted") {
-        throw new PersistenceError("permission_required");
-      }
-      setStatus("saving");
-      await retireWriterSession();
+      if (await fileHandlePermission(candidate.handle, true) !== "granted") throw new PersistenceError("permission_required");
+      const verify = async () => {
+        const snapshot = await readUnchangedFile(candidate.handle, candidate, { isValidStore, normalizeStore });
+        if (candidate.browserPayload !== currentPayloadRef.current) throw new PersistenceError("preview_changed");
+        return snapshot;
+      };
+      await verify(); setStatus("saving"); await retireWriterSession();
+      const snapshot = await verify();
       await saveStoredFileHandle(candidate.handle);
-      fileHandleRef.current = candidate.handle;
-      fileReadyRef.current = true;
-      lastSyncedPayloadRef.current = candidate.payload;
-      applySettings({ mode: "linked_file" });
-      setConflict(null);
-      preserveLegacyRecovery(candidate.sourcePayload);
-      await updateLinkedMetaFromPayload(candidate.payload, candidate.handle,
-        candidate.lastModified ? new Date(candidate.lastModified).toISOString() : new Date().toISOString());
-      setStore(candidate.store);
+      fileHandleRef.current = candidate.handle; fileReadyRef.current = true;
+      lastSyncedPayloadRef.current = snapshot.payload;
+      applySettings({ mode: "linked_file" }); setConflict(null); preserveLegacyRecovery(snapshot.sourcePayload);
+      setStore(snapshot.store);
+      await updateLinkedMetaFromPayload(snapshot.payload, candidate.handle,
+        snapshot.lastModified ? new Date(snapshot.lastModified).toISOString() : new Date().toISOString(), snapshot);
       return true;
-    } catch (error) {
-      markFailure(error);
-      return false;
-    }
-  }, [applySettings, markFailure, retireWriterSession, setStore, updateLinkedMetaFromPayload]);
+    } catch (error) { markFailure(error); return false; }
+  }), [withFileOperation, applySettings, markFailure, retireWriterSession, setStore, updateLinkedMetaFromPayload]);
 
-  const reconnect = React.useCallback(async () => {
+  const reconnect = React.useCallback(async () => withFileOperation(async () => {
     if (!supported) { setFailure("unsupported"); return false; }
     try {
       const handle = fileHandleRef.current || await loadStoredFileHandle();
@@ -356,7 +387,7 @@ export function useWorkbenchPersistence({ store, setStore }) {
       markFailure(error);
       return false;
     }
-  }, [applySettings, markFailure, reconcileHandle, retireWriterSession, supported]);
+  }), [withFileOperation, applySettings, markFailure, reconcileHandle, retireWriterSession, supported]);
 
   const saveNow = React.useCallback(async () => {
     const payload = currentPayloadRef.current;
@@ -379,7 +410,7 @@ export function useWorkbenchPersistence({ store, setStore }) {
     }
   }, [enqueueLinkedPayload, markFailure, persistMeta, status]);
 
-  const disconnect = React.useCallback(async () => {
+  const disconnect = React.useCallback(async () => withFileOperation(async () => {
     await retireWriterSession();
     fileHandleRef.current = null;
     fileReadyRef.current = false;
@@ -391,50 +422,53 @@ export function useWorkbenchPersistence({ store, setStore }) {
     const saved = await saveNow();
     try { await deleteStoredFileHandle(); } catch { /* the external file is never deleted */ }
     return saved;
-  }, [applySettings, persistMeta, retireWriterSession, saveNow]);
+  }), [withFileOperation, applySettings, persistMeta, retireWriterSession, saveNow]);
 
   const setWarnBeforeUnsyncedLeave = React.useCallback((enabled) => {
     applySettings({ warnBeforeUnsyncedLeave: Boolean(enabled) });
   }, [applySettings]);
 
-  const resolveConflict = React.useCallback(async (choice) => {
-    if (!conflict) return false;
+  const resolveConflict = React.useCallback(async (choice) => withFileOperation(async () => {
+    if (!conflict || !['browser', 'file'].includes(choice)) return false;
     const handle = conflict.handle;
     try {
       await retireWriterSession();
-      if (choice === "browser") {
-        downloadStorePayload(conflict.filePayload, recoveryFileName("file"));
-        if (await fileHandlePermission(handle, true) !== "granted") throw new PersistenceError("permission_required");
-        setStatus("saving");
-        await writeStoreToFileHandle(handle, conflict.browserPayload);
+      if (await fileHandlePermission(handle, true) !== 'granted') throw new PersistenceError('permission_required');
+      const snapshot = await readUnchangedFile(handle, { payload: conflict.filePayload,
+        sourcePayload: conflict.fileSourcePayload, store: conflict.fileStore }, { isValidStore, normalizeStore });
+      const browserPayload = currentPayloadRef.current;
+      if (snapshot.payload !== conflict.filePayload || browserPayload !== conflict.browserPayload) {
+        markConflict(handle, snapshot, true); return false;
+      }
+      if (choice === 'browser') {
+        downloadStorePayload(snapshot.sourcePayload, recoveryFileName('file'));
+        setStatus('saving');
+        await writeUnchangedFile(handle, browserPayload, snapshot, { isValidStore, normalizeStore });
         await saveStoredFileHandle(handle);
-        fileHandleRef.current = handle;
-        fileReadyRef.current = true;
-        applySettings({ mode: "linked_file" });
-        setConflict(null);
-        await updateLinkedMetaFromPayload(conflict.browserPayload, handle);
-        if (currentPayloadRef.current !== conflict.browserPayload) enqueueLinkedPayload(currentPayloadRef.current);
+        fileHandleRef.current = handle; fileReadyRef.current = true; applySettings({ mode: 'linked_file' }); setConflict(null);
+        await updateLinkedMetaFromPayload(browserPayload, handle);
+        if (currentPayloadRef.current !== browserPayload) enqueueLinkedPayload(currentPayloadRef.current);
         return true;
       }
-      downloadStorePayload(conflict.browserPayload, recoveryFileName("browser"));
       await saveStoredFileHandle(handle);
-      fileHandleRef.current = handle;
-      fileReadyRef.current = true;
-      lastSyncedPayloadRef.current = conflict.filePayload;
-      applySettings({ mode: "linked_file" });
-      setConflict(null);
-      await updateLinkedMetaFromPayload(conflict.filePayload, handle,
-        conflict.fileLastModified ? new Date(conflict.fileLastModified).toISOString() : new Date().toISOString());
-      setStore(conflict.fileStore);
+      const final = await readUnchangedFile(handle, snapshot, { isValidStore, normalizeStore });
+      if (browserPayload !== currentPayloadRef.current) { markConflict(handle, final, true); return false; }
+      downloadStorePayload(browserPayload, recoveryFileName('browser'));
+      fileHandleRef.current = handle; fileReadyRef.current = true; lastSyncedPayloadRef.current = final.payload;
+      applySettings({ mode: 'linked_file' }); setConflict(null); setStore(final.store);
+      await updateLinkedMetaFromPayload(final.payload, handle,
+        final.lastModified ? new Date(final.lastModified).toISOString() : new Date().toISOString(), final);
       return true;
     } catch (error) {
-      markFailure(error);
+      if (error.code === 'file_changed' && error.snapshot) markConflict(handle, error.snapshot, true);
+      else markFailure(error);
       return false;
     }
-  }, [applySettings, conflict, enqueueLinkedPayload, markFailure, retireWriterSession, setStore, updateLinkedMetaFromPayload]);
+  }), [withFileOperation, applySettings, conflict, enqueueLinkedPayload, markConflict, markFailure, retireWriterSession, setStore, updateLinkedMetaFromPayload]);
 
   return {
     settings,
+    busy: fileOperationBusy,
     status: browserWriteFailed ? "error" : status,
     failure: browserWriteFailed ? "browser_write_failed" : failure,
     conflict,

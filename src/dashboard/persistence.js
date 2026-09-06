@@ -187,14 +187,16 @@ export async function readStoreFromFileHandle(handle, { isValidStore, normalizeS
   }
 }
 
-export async function writeStoreToFileHandle(handle, payload) {
+export async function writeStoreToFileHandle(handle, payload, { beforeCommit } = {}) {
   let writable;
   try {
     writable = await handle.createWritable();
     await writable.write(formatStorePayload(payload));
+    await beforeCommit?.();
     await writable.close();
   } catch (error) {
     try { await writable?.abort?.(); } catch { /* best effort */ }
+    if (error instanceof PersistenceError) throw error;
     throw new PersistenceError("write_failed", error);
   }
 }

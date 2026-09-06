@@ -1314,19 +1314,19 @@ function DashboardWorkbench({ initialSnapshot }) {
         onSave={saveWorkstreamCategories} onClose={() => setModal({ type: "template-library" })} /></Modal>}
     {modal?.type === "user-guide" && <Modal title={t("使用指南")} onClose={() => setModal(null)} large>
       <UserGuide /></Modal>}
-    {modal?.type === "persistence-settings" && <Modal title={t("设置")} onClose={() => setModal(null)} wide>
+    {modal?.type === "persistence-settings" && <Modal closeDisabled={persistence.busy} title={t("设置")} onClose={() => setModal(null)} wide>
       <PersistenceSettingsPanel persistence={persistence} onClose={() => setModal(null)}
         onOpenExisting={openExistingWorkspaceFile}
         onResolveConflict={() => setModal({ type: "persistence-conflict" })} /></Modal>}
-    {modal?.type === "open-workspace-file" && <Modal title={t("打开工作台文件")} onClose={() => setModal({ type: "persistence-settings" })} wide>
-      <OpenWorkspaceFileConfirm candidate={modal.candidate} onClose={() => setModal({ type: "persistence-settings" })}
+    {modal?.type === "open-workspace-file" && <Modal closeDisabled={persistence.busy} title={t("打开工作台文件")} onClose={() => setModal({ type: "persistence-settings" })} wide>
+      <OpenWorkspaceFileConfirm operationBusy={persistence.busy} failure={persistence.failure} candidate={modal.candidate} onClose={() => setModal({ type: "persistence-settings" })}
         onConfirm={async (candidate) => {
           const opened = await persistence.activateExistingFile(candidate);
           if (opened) { resetReplacedWorkspaceSession(); notify(t("本地工作台文件已关联")); }
           return opened;
         }} /></Modal>}
-    {modal?.type === "persistence-conflict" && persistence.conflict && <Modal title={t("处理版本冲突")} onClose={() => setModal(null)} wide>
-      <PersistenceConflictDialog conflict={persistence.conflict} onClose={() => setModal(null)}
+    {modal?.type === "persistence-conflict" && persistence.conflict && <Modal closeDisabled={persistence.busy} title={t("处理版本冲突")} onClose={() => setModal(null)} wide>
+      <PersistenceConflictDialog operationBusy={persistence.busy} failure={persistence.failure} conflict={persistence.conflict} onClose={() => setModal(null)}
         onResolve={async (choice) => {
           const resolved = await persistence.resolveConflict(choice);
           if (resolved) { if (choice === "file") resetReplacedWorkspaceSession(); else setModal(null); notify(t("版本冲突已处理并恢复自动保存")); }

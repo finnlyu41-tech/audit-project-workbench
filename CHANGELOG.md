@@ -1,5 +1,12 @@
 # Changelog
 
+## Linked-file conflict stabilization
+
+- Recheck linked file contents before writes and before stream commit; preserve detected external changes and refresh conflict decisions instead of overwriting stale versions.
+- Reject outdated file-opening previews, retain the latest browser recovery copy, and serialize explicit file operations with pending-dialog protection.
+- Cancel delayed startup reconciliation after an explicit disconnect; keep valid legacy file identities stable across verification and the first save.
+- Add isolated file-interface integration tests and a separate Chromium native private-file probe. No new business features, schema changes or cross-device locking guarantee.
+
 ## Operation-boundary stabilization
 
 - Preserve complete historical holding scope and current company relationships during ordinary workflow and outstanding-item edits.
