@@ -42,7 +42,7 @@ import { handleTabListKeyDown, tabIndexFor } from "./a11y.js";
 import { ManagementReport } from "./management-report.jsx";
 import { HomeOverview } from "./home-overview.jsx";
 import { TemplateExportPanel, TemplateImportPreview, TemplateLibraryTools } from "./template-transfer.jsx";
-import { CompanyForm, EngagementForm, EntityOverview, HoldingComponentsPanel, MergeEntitiesForm } from "./v11-components.jsx";
+import { ENTITY_MERGE_ERRORS, CompanyForm, EngagementForm, EntityOverview, HoldingComponentsPanel, MergeEntitiesForm } from "./v11-components.jsx";
 import { applyTemplatePackage, createTemplatePackage, TEMPLATE_PACKAGE_MAX_BYTES,
   templatePackagePreview } from "./template-packages.js";
 import { QuickUpdate } from "./ux-components.jsx";
@@ -1215,8 +1215,12 @@ function DashboardWorkbench({ initialSnapshot }) {
         }} /></Modal>}
     {modal?.type === "merge-entities" && <Modal title={t("合并重复公司")} onClose={() => setModal(null)} wide>
       <MergeEntitiesForm store={store} initialEntityId={modal.entityId} onClose={() => setModal(null)} onSubmit={(sourceId, targetId) => {
-        try { setStore((current) => mergeEntities(current, sourceId, targetId)); setSelection({ kind: "entity", id: targetId });
-          setModal(null); notify(t("重复公司已合并")); } catch (error) { window.alert(t("公司无法合并，请先处理相同报告期间。")); }
+        try {
+          // Prepare/validate before enqueueing React state; updater errors cannot be caught here.
+          const merged = mergeEntities(store, sourceId, targetId); setStore(merged);
+          setSearch(""); clearNavigationFilters(); setFilter("all"); setSelection({ kind: "entity", id: targetId });
+          setModal(null); notify(t("重复公司已合并"));
+        } catch (error) { return { error: t(ENTITY_MERGE_ERRORS[error.code] || "公司无法合并，请先处理相同报告期间。") }; }
       }} /></Modal>}
     {modal?.type === "workstream-add" && modalTargetProject && <Modal title={t("添加业务模块")} onClose={() => setModal(null)}>
       <WorkstreamForm availableCategories={workstreamCategoryViews.filter((category) => !category.builtinType

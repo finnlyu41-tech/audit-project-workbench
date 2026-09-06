@@ -1,3 +1,4 @@
+import { calendarDate } from "./workspace-validation.js";
 import { makeTaxDeadline, reviseTaxDeadline } from "./model.js";
 
 // Resolve company ownership without changing the reporting-period or workflow records.
@@ -13,6 +14,7 @@ export function prepareTaxDeadlineSave(store, kind, id, baseline, values, reason
   const entity = taxEditorSource(store, kind, id);
   if (!entity) return { error: "source" };
   const current = baseline ? entity.taxDeadlines?.find((entry) => entry.id === baseline.id) : null;
+  if (!calendarDate(values?.dueDate)) return { error: "date" };
   if (baseline && !current) return { error: "missing" };
   if (baseline && JSON.stringify(current) !== JSON.stringify(baseline)) return { error: "changed" };
   const revisionReason = typeof reason === "string" ? reason.trim() : "";

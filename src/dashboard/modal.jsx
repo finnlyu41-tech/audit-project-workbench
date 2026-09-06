@@ -17,6 +17,8 @@ export function Modal({ title, onClose, children, wide = false, large = false })
   const dialogRef = React.useRef(null);
   const lastFieldRef = React.useRef(null);
   const backdropStart = React.useRef(false);
+  const composing = React.useRef(false);
+  const submitting = React.useRef(new WeakSet());
   const invalidFrame = React.useRef(null);
   const returnFocusRef = React.useRef(typeof document === "undefined" ? null : document.activeElement);
   const closeRef = React.useRef(onClose);
@@ -41,7 +43,7 @@ export function Modal({ title, onClose, children, wide = false, large = false })
       (preferred || controls.find((element) => !element.hasAttribute("data-modal-close") && !element.closest(".feedback-slot")) || dialog).focus();
     });
     const escape = (event) => {
-      if (event.key !== "Escape" || event.defaultPrevented || isComposingKey(event)) return;
+      if (event.key !== "Escape" || event.defaultPrevented || composing.current || isComposingKey(event)) return;
       event.preventDefault(); context.requestClose();
     };
     window.addEventListener("keydown", escape);
@@ -87,6 +89,19 @@ export function Modal({ title, onClose, children, wide = false, large = false })
       }}>
       <section className="workbench-modal" data-wide={wide || undefined} data-large={large || undefined}
         data-dirty={dirty || undefined} ref={dialogRef} role="dialog" aria-modal="true" aria-labelledby={titleId}
+        onCompositionStart={() => { composing.current = true; }} onCompositionEnd={() => { composing.current = false; }}
+        onKeyDownCapture={event => {
+          if (event.key === "Enter" && (composing.current || isComposingKey(event))) {
+            event.preventDefault(); event.stopPropagation();
+          }
+        }}
+        onSubmitCapture={event => {
+          const form = event.target;
+          if (composing.current || submitting.current.has(form)) { event.preventDefault(); event.stopPropagation(); return; }
+          submitting.current.add(form);
+          // Coalesce duplicate events in one activation, not later corrected submissions.
+          queueMicrotask(() => submitting.current.delete(form));
+        }}
         tabIndex="-1" onKeyDown={trapFocus} onInvalidCapture={revealInvalidField}
         onFocusCapture={(event) => { if (event.target.matches("input,select,textarea")) lastFieldRef.current = event.target; }}>
         <header><h2 id={titleId}>{title}</h2>{dirty && <span className="modal-unsaved" role="status">{t("未保存更改")}</span>}

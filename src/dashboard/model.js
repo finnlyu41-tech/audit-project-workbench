@@ -1,4 +1,5 @@
 import { toTraditional } from "./traditional.js";
+import { validWorkspaceRecords, calendarDate } from "./workspace-validation.js";
 
 export const STORAGE_KEY = "audit-progress-workbench:v1";
 export const V10_RECOVERY_KEY = "audit-progress-workbench:v10-recovery";
@@ -873,7 +874,7 @@ export function taxDeadlineStateLabel(state, language = "zh") {
 }
 
 function utcDay(value) {
-  if (!value) return null;
+  if (!validIsoDate(value)) return null;
   const parsed = Date.parse(`${value}T00:00:00Z`);
   return Number.isNaN(parsed) ? null : parsed;
 }
@@ -1097,11 +1098,7 @@ function normalizeLegacyStore(value) {
   };
 }
 
-function validIsoDate(value) {
-  if (typeof value !== "string" || !/^\d{4}-\d{2}-\d{2}$/u.test(value)) return false;
-  const parsed = new Date(`${value}T00:00:00Z`);
-  return !Number.isNaN(parsed.getTime()) && parsed.toISOString().slice(0, 10) === value;
-}
+function validIsoDate(value) { return calendarDate(value); }
 
 export function normalizeFiscalYearPreset(value, fallback = "calendar") {
   return FISCAL_YEAR_PRESETS.includes(value) ? value
@@ -1185,8 +1182,11 @@ function reportingPeriodKey(period = {}) {
 }
 
 export function engagementReportingPeriodsMatch(left, right) {
-  const leftKeys = engagementReportingPeriods(left).map(reportingPeriodKey);
-  const rightKeys = engagementReportingPeriods(right).map(reportingPeriodKey);
+  const leftPeriods = engagementReportingPeriods(left); const rightPeriods = engagementReportingPeriods(right);
+  if (!leftPeriods.length || !rightPeriods.length || [...leftPeriods, ...rightPeriods].some(period =>
+    !validIsoDate(period.periodStart) || !validIsoDate(period.periodEnd) || period.periodEnd < period.periodStart)) return false;
+  const leftKeys = leftPeriods.map(reportingPeriodKey);
+  const rightKeys = rightPeriods.map(reportingPeriodKey);
   return leftKeys.length === rightKeys.length && leftKeys.every((key, index) => key === rightKeys[index]);
 }
 
@@ -2014,39 +2014,63 @@ export function syncEngagementToCurrentStructure(store, engagementId, groupSampl
   } : item) });
 }
 
-export function mergeEntities(store, sourceEntityId, targetEntityId) {
-  if (!sourceEntityId || !targetEntityId || sourceEntityId === targetEntityId) throw new Error("Two different entities are required.");
-  const source = store.entities.find((entity) => entity.id === sourceEntityId);
-  const target = store.entities.find((entity) => entity.id === targetEntityId);
-  if (!source || !target) throw new Error("Entity not found.");
-  const sourceEngagements = engagementsForEntity(store, sourceEntityId);
-  const targetEngagements = engagementsForEntity(store, targetEntityId);
-  if (sourceEngagements.some((engagement) => engagementReportingPeriods(engagement).some((period) =>
-    targetEngagements.some((candidate) => engagementReportingPeriods(candidate).some((targetPeriod) =>
-      reportingPeriodKey(targetPeriod) === reportingPeriodKey(period)))))) {
-    throw new Error("The entities have duplicate reporting periods.");
+// Destructive merging must reject ambiguity before deleting the source master.
+export function entityMergeProblem(store, sourceEntityId, targetEntityId) {
+  if (!sourceEntityId || !targetEntityId || sourceEntityId === targetEntityId) return 'selection';
+  const source = store.entities.find(e => e.id === sourceEntityId);
+  const target = store.entities.find(e => e.id === targetEntityId);
+  if (!source || !target) return 'missing';
+  if (source.archived || target.archived) return 'archived';
+  if (source.kind !== target.kind) return 'kind';
+  const historicalContains = (from, to) => {
+    const visited = new Set(); const pending = [from];
+    while (pending.length) {
+      const id = pending.pop(); if (id === to) return true;
+      if (visited.has(id)) continue; visited.add(id);
+      for (const job of store.engagements.filter(e => e.entityId === id)) {
+        for (const part of job.consolidation?.components || []) if (part.entityId) pending.push(part.entityId);
+      }
+    }
+    return false;
+  };
+  if (holdingEntityContains(store.entities, source.id, target.id) || holdingEntityContains(store.entities, target.id, source.id)
+    || historicalContains(source.id, target.id) || historicalContains(target.id, source.id)) return 'relationship';
+  for (const key of ['entityType', 'incorporationDate', 'fiscalYearPreset', 'notes', 'parentEntityId', 'relationshipRole']) {
+    if (String(source[key] || '').trim() && String(target[key] || '').trim() && source[key] !== target[key]) return 'metadata';
   }
+  const sourceJobs = engagementsForEntity(store, source.id); const targetJobs = engagementsForEntity(store, target.id);
+  if (sourceJobs.some(e => engagementReportingPeriods(e).some(p => targetJobs.some(other =>
+    engagementReportingPeriods(other).some(q => reportingPeriodKey(p) === reportingPeriodKey(q)))))) return 'periods';
+  return null;
+}
+
+export function mergeEntities(store, sourceEntityId, targetEntityId) {
+  const problem = entityMergeProblem(store, sourceEntityId, targetEntityId);
+  if (problem) {
+    const error = new Error(problem === 'periods' ? 'The entities have duplicate reporting periods.' : `Unsafe company merge: ${problem}.`);
+    error.code = problem; throw error;
+  }
+  const source = store.entities.find(entity => entity.id === sourceEntityId);
+  const target = store.entities.find(entity => entity.id === targetEntityId);
   const now = new Date().toISOString();
   const taxIds = new Set((target.taxDeadlines || []).map((deadline) => deadline.id));
   const sourceTax = (source.taxDeadlines || []).map((deadline) => taxIds.has(deadline.id)
     ? { ...deadline, id: uid("tax-deadline") } : deadline);
   const entities = store.entities.filter((entity) => entity.id !== sourceEntityId).map((entity) => {
     if (entity.id === targetEntityId) return { ...entity,
-      entityType: entity.entityType || source.entityType,
+      ...Object.fromEntries(['entityType', 'incorporationDate', 'notes', 'parentEntityId', 'relationshipRole'].map(key =>
+        [key, String(entity[key] || '').trim() ? entity[key] : source[key]])),
       taxDeadlines: [...entity.taxDeadlines, ...sourceTax], updatedAt: now };
     if (entity.parentEntityId === sourceEntityId) return { ...entity, parentEntityId: targetEntityId, updatedAt: now };
     return entity;
   });
-  const engagements = store.engagements.map((engagement) => engagement.entityId === sourceEntityId
-    ? { ...engagement, entityId: targetEntityId, updatedAt: now } : {
-      ...engagement,
-      consolidation: engagement.consolidation ? { ...engagement.consolidation,
-        components: engagement.consolidation.components.map((component) => component.entityId === sourceEntityId
-          ? { ...component, entityId: targetEntityId,
-            entitySnapshot: { ...component.entitySnapshot, id: targetEntityId, legalName: target.legalName,
-              entityType: target.entityType, kind: target.kind } }
-          : component) } : null,
-    });
+  const engagements = store.engagements.map(engagement => ({
+    ...engagement,
+    ...(engagement.entityId === sourceEntityId ? { entityId: targetEntityId, updatedAt: now } : {}),
+    consolidation: engagement.consolidation ? { ...engagement.consolidation,
+      components: engagement.consolidation.components.map(component => component.entityId === sourceEntityId
+        ? { ...component, entityId: targetEntityId } : component) } : null,
+  }));
   return normalizeCanonicalStore({ ...store, entities, engagements,
     entityOrder: (store.entityOrder || []).filter((id) => id !== sourceEntityId) });
 }
@@ -2225,10 +2249,11 @@ export function emptyStore() {
 
 export function isValidStore(value) {
   const version = Number(value?.version);
-  if (!Number.isInteger(version) || version < 1 || version > STORE_VERSION) return false;
+  if (!["number", "string"].includes(typeof value?.version)
+    || !Number.isInteger(version) || version < 1 || version > STORE_VERSION) return false;
   return version >= STORE_VERSION
-    ? Array.isArray(value.entities) && Array.isArray(value.engagements)
-    : Array.isArray(value.projects);
+    ? Array.isArray(value.entities) && Array.isArray(value.engagements) && validWorkspaceRecords(value)
+    : Array.isArray(value.projects) && validWorkspaceRecords(value, true);
 }
 
 export function outstandingStatusLabel(value, statuses = createDefaultOutstandingStatuses(), language = "zh") {
@@ -2505,7 +2530,7 @@ export function deadlineAlerts(store, now = new Date()) {
 }
 
 function overviewDay(value) {
-  if (!value) return null;
+  if (!validIsoDate(value)) return null;
   const parsed = Date.parse(`${value}T00:00:00Z`);
   return Number.isNaN(parsed) ? null : parsed;
 }
@@ -2751,7 +2776,8 @@ export function groupProgress(store, groupId, visited = new Set()) {
     const results = components.map((component) => {
       const target = store.engagements.find((item) => item.id === component.engagementId);
       const targetEntity = entityForEngagement(store, target);
-      if (!target || !targetEntity || target.archived || targetEntity.archived) {
+      if (!target || !targetEntity || target.archived || targetEntity.archived
+        || target.entityId !== component.entityId || !engagementReportingPeriodsMatch(target, engagement)) {
         return { percentage: 0, ready: false, readyCompanies: 0, totalCompanies: 1 };
       }
       if (targetEntity.kind === "holding_company") {

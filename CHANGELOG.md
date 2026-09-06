@@ -30,6 +30,15 @@ The project follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Edge-case safety
+
+- Reject structurally invalid workspace payloads before startup, restore or linked-file normalization can discard records; retain raw recovery and supported legacy migration.
+- Preserve source-only master metadata in safe company merges; reject conflicting or cyclic/destructive combinations before deleting a source, and keep failures in the editor.
+- Require valid full reporting-period and company matches before component readiness contributes to group completion; never auto-check conditions.
+- Guard modal IME confirmation/cancellation and duplicate same-activation submissions, while preserving corrected submissions and continuous entry.
+- Treat impossible dates as invalid rather than rolling them into another day. Add deterministic malformed-input, merge, text safety and cross-browser regressions.
+
+
 ### Lightweight outstanding centre
 
 - Replace full default cards with expandable rows and native status chips; group holding items by exact source engagement.
