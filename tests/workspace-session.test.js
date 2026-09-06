@@ -51,3 +51,28 @@ test('cooperating sessions grant one owner and require an explicit retry after r
   const stopSecond = requestWorkspaceSession(manager, s => second.push(s));
   assert.deepEqual(second, ['occupied', 'ready']); stopSecond(); await tick(); assert.equal(held, false);
 });
+test('explicit retry waits on one abortable request and cancels waiting rather than stealing', async () => {
+  let expire; let options; let callback; const states = [];
+  const timers = { setTimeout(run, delay) { assert.equal(delay, 2000); expire = run; return 1; }, clearTimeout() {} };
+  const stop = requestWorkspaceSession({ request(name, received, run) {
+    options = received; callback = run;
+    return new Promise((resolve, reject) => received.signal.addEventListener('abort', () => reject(new DOMException('expired', 'AbortError'))));
+  } }, s => states.push(s), { waitMs: 2000, timers });
+  assert.equal(options.mode, 'exclusive'); assert.equal('ifAvailable' in options, false); assert.equal('steal' in options, false);
+  assert.deepEqual(states, []); expire(); await tick(); assert.equal(options.signal.aborted, true);
+  assert.ok(states.every(s => s === 'occupied')); assert.equal(callback({ name: WORKSPACE_SESSION_LOCK }), undefined); stop();
+});
+test('queued acquisition cancels its waiting deadline and keeps ownership until cleanup', async () => {
+  let callback; let cleared = 0; const states = [];
+  const stop = requestWorkspaceSession({ request(name, options, run) { callback = run; return new Promise(() => {}); } }, s => states.push(s),
+    { waitMs: 2000, timers: { setTimeout() { return 7; }, clearTimeout(id) { assert.equal(id, 7); cleared++; } } });
+  const held = callback({ name: WORKSPACE_SESSION_LOCK }); assert.deepEqual(states, ['ready']); assert.equal(cleared, 1);
+  stop(); await held; assert.deepEqual(states, ['ready']);
+});
+test('unmount aborts a queued acquisition without publishing a late occupied message', async () => {
+  let signal; const states = [];
+  const stop = requestWorkspaceSession({ request(name, options) { signal = options.signal;
+    return new Promise((resolve, reject) => signal.addEventListener('abort', () => reject(new DOMException('cancelled', 'AbortError'))));
+  } }, s => states.push(s), { waitMs: 2000 });
+  stop(); await tick(); assert.equal(signal.aborted, true); assert.deepEqual(states, []);
+});

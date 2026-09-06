@@ -13,7 +13,7 @@ export function WorkspaceSession({ children }) {
     let dispose = () => {};
     // Defer the acquisition, not field focus, so StrictMode's rehearsal cannot self-lock.
     const timer = window.setTimeout(() => {
-      try { dispose = requestWorkspaceSession(navigator.locks, setState); }
+      try { dispose = requestWorkspaceSession(navigator.locks, setState, { waitMs: attempt > 0 ? 2000 : 0 }); }
       catch { setState('error'); }
     }, 0);
     return () => { window.clearTimeout(timer); dispose(); };

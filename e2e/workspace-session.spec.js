@@ -127,3 +127,20 @@ test('opening another window does not discard a draft or hand over its active se
   await page.close(); await retry(other).click(); await expect(other.locator('.audit-workbench')).toBeVisible();
   expect(await readStoredWorkspace(other)).toEqual(saved); await other.close();
 });
+test('manual retry waits for an in-flight native release without stealing the live owner', async ({ context, baseURL }) => {
+  const holder = await context.newPage();
+  await holder.route('**/lock-holder.html', route => route.fulfill({ contentType: 'text/html', body: '<!doctype html><title>Fictional lock holder</title>' }));
+  await holder.goto(new URL('lock-holder.html', baseURL).href);
+  await holder.evaluate(name => {
+    navigator.locks.request(name, () => { window.holderReady = true; return new Promise(resolve => { window.releaseHolder = resolve; }); });
+  }, WORKSPACE_SESSION_LOCK);
+  await expect.poll(() => holder.evaluate(() => Boolean(window.holderReady))).toBe(true);
+  const other = await newBlocked(context, { instrument: true }); await retry(other).click();
+  await expect.poll(() => holder.evaluate(async name => (await navigator.locks.query()).pending.filter(lock => lock.name === name).length,
+    WORKSPACE_SESSION_LOCK)).toBe(1);
+  await expect(other.locator('.audit-workbench')).toHaveCount(0);
+  expect(await other.evaluate(() => window.workspaceCalls)).toEqual({ reads: 0, writes: 0, pickers: 0 });
+  await holder.evaluate(() => window.releaseHolder());
+  await expect(other.locator('.audit-workbench')).toBeVisible();
+  await other.close(); await holder.close();
+});

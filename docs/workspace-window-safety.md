@@ -27,3 +27,7 @@ Permanent tests cover actual same-context windows, latest-data handover, competi
 Native window coordination is exercised in Chromium and WebKit; denied/missing API paths are injected. This is not every Safari/iOS device or a real user file-permission test.
 
 References: https://developer.mozilla.org/en-US/docs/Web/API/LockManager/request ; https://www.w3.org/TR/web-locks/#termination-of-locks .
+
+## Release-handover timing
+
+Linux WebKit CI caught an immediate retry arriving before the closed document had finished releasing its native lock. The blocked state was safe but required an unnecessary second retry. Initial visits still use `ifAvailable`; an explicit retry now queues one normal exclusive request for at most two seconds. If the owner is still active, only the waiting request is cancelled. No lock is stolen and no automatic polling is introduced. A deterministic native-holder test verifies the queue before releasing the holder, without extending test timeouts.
