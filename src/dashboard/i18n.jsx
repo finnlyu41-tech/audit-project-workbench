@@ -4,6 +4,20 @@ import { toTraditional } from "./traditional.js";
 export const LANGUAGE_PREFERENCE_KEY = "audit-progress-workbench:language";
 
 const english = {
+  "多窗口保护未启用：请只保留这一个 APW 窗口，不要在其他窗口或浏览器同时编辑同一份资料。": "Multi-window protection is off. Keep only this APW window open; do not edit the same data in another window or browser.",
+  "工作台已在另一窗口打开": "Workbench is open in another window",
+  "当前浏览器没有多窗口保护": "Multi-window protection is unavailable",
+  "无法确认工作台编辑权限": "Workspace access could not be checked",
+  "正在检查工作台窗口": "Checking workspace windows",
+  "为避免旧资料覆盖新更改，此窗口尚未载入工作台，也不会自动保存。请先在原窗口保存并关闭，再在这里重新检查。": "To prevent older data from overwriting changes, this window has not loaded the workbench and will not autosave. Save and close the original window, then check again here.",
+  "当前环境不提供浏览器窗口锁。尚未载入工作台；确认没有其他 APW 窗口后，可以按原来的单窗口方式继续，但不会获得多窗口保护。": "This environment has no browser window-lock API. The workbench has not loaded. After confirming that no other APW window is open, you may continue in single-window mode without multi-window protection.",
+  "浏览器未能完成窗口保护检查，已暂停启动，不会覆盖现有资料。请检查浏览器权限后重试；不要清除网站数据。": "The browser could not complete the window-safety check. Startup is paused and existing data will not be overwritten. Check browser access and retry; do not clear website data.",
+  "检查完成后才会读取业务资料并启动自动保存。": "Business data are read and autosave starts only after this check completes.",
+  "此保护只协调同一浏览器配置中的新版 APW，不是云同步，也不能锁定其他浏览器、设备或外部文件。": "This protection coordinates updated APW windows in the same browser profile only. It is not cloud sync and cannot lock other browsers, devices or external files.",
+  "我已确认没有其他 APW 窗口，按单窗口方式继续。": "I have confirmed that no other APW window is open and will continue in single-window mode.",
+  "重新检查并打开": "Check again and open",
+  "仅单窗口继续": "Continue with one window",
+
   "繁体中文": "Traditional Chinese",
   "客户跟进草稿": "Client follow-up draft",
   "请选择当前公司及至少一条未清事项。": "Select a current company and at least one open item.",

@@ -33,3 +33,10 @@ Do not publish if any item fails. Attach the Playwright report, screenshots and 
 ## Stability and recovery
 
 Run `pnpm test:stability` for the focused dual-engine gate and follow `docs/stability-recovery.md`. Verify full-payload backup restoration in a clean context, explicit failure/retry behaviour, blocked startup preservation and no draft carry-over across a confirmed replacement. Preserve failing results; never remove a failing case or relax its assertion merely to publish.
+
+## Window ownership
+
+- Open two updated tabs in the same browser context: only one may mount the workspace; the other must not read or write the business payload or trigger local-file restoration. Save in the owner, close it, then retry and confirm all latest data are retained.
+- Verify that owner refresh and backgrounding do not create a second editor, and Back cannot resume stale state while another owner is active.
+- Missing API: no implicit startup, explicit single-window acknowledgement, persistent warning. Rejected API: no compatibility bypass.
+- Save and close old-version tabs before production use; this lock does not coordinate other profiles, devices or external file writers.
