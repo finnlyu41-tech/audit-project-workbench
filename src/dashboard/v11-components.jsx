@@ -5,7 +5,7 @@ import { useModalDraft } from "./modal-draft.jsx";
 import { Archive, ArchiveRestore, Building, Building2, CalendarDays, CalendarPlus, ChevronRight, CircleAlert,
   Edit3, FolderTree, GitMerge, Plus, ReceiptText, Search, Settings2, Trash2, X } from "lucide-react";
 import { ProgressBar } from "./components.jsx";
-import { engagementPeriodExists, engagementReportingPeriods, engagementReportingPeriodsMatch, engagementsForEntity, engagementTypeLabel,
+import { entityMergeProblem, engagementPeriodExists, engagementReportingPeriods, engagementReportingPeriodsMatch, engagementsForEntity, engagementTypeLabel,
   engagementTypeValues, engagementTypesLabel, fiscalPeriodForYear,
   fiscalPeriodShortLabel, fiscalPeriodFromIncorporation, formalReportingPeriodLabel, formatDate, groupProgress,
   outstandingIsOpen, outstandingStatusLabel, projectStats, suggestNextFiscalYear, taxDeadlineSummary,
@@ -556,6 +556,15 @@ export function EntityOverview({ store, entity, onEdit, onNewEngagement, onOpenE
   </section>;
 }
 
+export const ENTITY_MERGE_ERRORS = {
+  selection: "请选择两个不同的公司主档。", missing: "公司主档已不存在，请重新选择。",
+  archived: "归档公司不能参与合并；请先核对并恢复公司主档。",
+  kind: "普通公司和控股公司不能直接合并；请先核对主体种类。",
+  relationship: "这两家公司存在当前或历史控股关系，不能合并为同一主体。",
+  metadata: "长期资料存在冲突，请先核对主体类型、成立日期、会计年度、备注及控股归属；合并尚未执行。",
+  periods: "两家公司有相同报告期间。请先修改或归档并删除重复项目后再合并。",
+};
+
 export function MergeEntitiesForm({ store, initialEntityId, onSubmit, onClose }) {
   const { t } = useUiLanguage();
   const normalizedName = (name) => String(name || "").trim().toLocaleLowerCase();
@@ -565,6 +574,8 @@ export function MergeEntitiesForm({ store, initialEntityId, onSubmit, onClose })
   const defaultSet = duplicateSets.find((entities) => entities.some((entity) => entity.id === initialEntityId)) || duplicateSets[0] || [];
   const [sourceId, setSourceId] = React.useState(defaultSet.find((entity) => entity.id !== initialEntityId)?.id || defaultSet[1]?.id || "");
   const [targetId, setTargetId] = React.useState(defaultSet.find((entity) => entity.id === initialEntityId)?.id || defaultSet[0]?.id || "");
+  const [saveError, setSaveError] = React.useState("");
+  const problem = entityMergeProblem(store, sourceId, targetId);
   const source = store.entities.find((entity) => entity.id === sourceId);
   const target = store.entities.find((entity) => entity.id === targetId);
   const sourceProjects = source ? engagementsForEntity(store, source.id) : [];
@@ -573,21 +584,23 @@ export function MergeEntitiesForm({ store, initialEntityId, onSubmit, onClose })
     engagementReportingPeriods(project).some((period) => engagementReportingPeriods(candidate).some((candidatePeriod) =>
       candidatePeriod.periodStart === period.periodStart && candidatePeriod.periodEnd === period.periodEnd))));
   return <form className="workbench-form merge-entities-form" onSubmit={(event) => { event.preventDefault();
-    if (source && target && source.id !== target.id && !conflicts.length) onSubmit(source.id, target.id); }}>
+    if (!problem) { const result = onSubmit(source.id, target.id); if (result?.error) setSaveError(result.error); } }}>
     <div className="company-master-lead"><GitMerge aria-hidden="true" /><div><strong>{t("合并重复公司")}</strong>
       <span>{t("选择要并入的公司和保留的公司；系统不会自动按名称合并。")}</span></div></div>
     {!duplicateSets.length ? <div className="inline-warning"><CircleAlert aria-hidden="true" />{t("没有找到同名的重复公司。")}</div>
-      : <><div className="form-grid" data-columns="2"><label><span>{t("并入这家公司")}</span><select value={sourceId} onChange={(event) => setSourceId(event.target.value)}>
+      : <><div className="form-grid" data-columns="2"><label><span>{t("并入这家公司")}</span><select value={sourceId} onChange={(event) => { setSourceId(event.target.value); setSaveError(""); }}>
         {store.entities.map((entity) => <option key={entity.id} value={entity.id}>{entity.legalName} · {engagementsForEntity(store, entity.id).length}</option>)}</select></label>
-        <label><span>{t("保留这家公司")}</span><select value={targetId} onChange={(event) => setTargetId(event.target.value)}>
+        <label><span>{t("保留这家公司")}</span><select value={targetId} onChange={(event) => { setTargetId(event.target.value); setSaveError(""); }}>
           {store.entities.map((entity) => <option key={entity.id} value={entity.id}>{entity.legalName} · {engagementsForEntity(store, entity.id).length}</option>)}</select></label></div>
         <div className="merge-preview"><div><span>{t("将移动的年度项目")}</span><strong>{sourceProjects.length}</strong></div>
           <div><span>{t("将合并的税务期限")}</span><strong>{source?.taxDeadlines.length || 0}</strong></div>
           <div data-danger={conflicts.length > 0 || undefined}><span>{t("相同期间冲突")}</span><strong>{conflicts.length}</strong></div></div>
-        {conflicts.length > 0 && <div className="form-error"><CircleAlert aria-hidden="true" />
-          {t("两家公司有相同报告期间。请先修改或归档并删除重复项目后再合并。")}</div>}</>}
+        {problem && <div className="form-error" role="alert"><CircleAlert aria-hidden="true" />
+          {t(ENTITY_MERGE_ERRORS[problem])}</div>}
+        <p className="form-help">{t("来源独有的主档资料会保留；有冲突时不会删除来源公司。")}</p></>}
+    {saveError && <p className="form-error" role="alert">{saveError}</p>}
     <footer className="modal-actions"><button type="button" className="button secondary" onClick={onClose}>{t("取消")}</button>
-      <button type="submit" className="button primary" disabled={!source || !target || source.id === target.id || conflicts.length > 0}>{t("确认合并")}</button></footer>
+      <button type="submit" className="button primary" disabled={Boolean(problem)}>{t("确认合并")}</button></footer>
   </form>;
 }
 

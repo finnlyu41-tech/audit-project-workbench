@@ -4,6 +4,14 @@ import { toTraditional } from "./traditional.js";
 export const LANGUAGE_PREFERENCE_KEY = "audit-progress-workbench:language";
 
 const english = {
+  "请选择两个不同的公司主档。": "Select two different company masters.",
+  "公司主档已不存在，请重新选择。": "A company master no longer exists. Choose again.",
+  "归档公司不能参与合并；请先核对并恢复公司主档。": "Archived companies cannot be merged. Review and restore their masters first.",
+  "普通公司和控股公司不能直接合并；请先核对主体种类。": "Ordinary and holding companies cannot be merged directly. Review their kinds first.",
+  "这两家公司存在当前或历史控股关系，不能合并为同一主体。": "These companies have a current or historical ownership relationship and cannot be merged into one entity.",
+  "长期资料存在冲突，请先核对主体类型、成立日期、会计年度、备注及控股归属；合并尚未执行。": "Master data conflict. Review entity type, incorporation date, fiscal year, notes and parent relationship before merging. Nothing has been merged.",
+  "来源独有的主档资料会保留；有冲突时不会删除来源公司。": "Source-only master information is retained. Conflicts prevent deletion of the source company.",
+
   "请先恢复公司主档，再恢复此年度项目。": "Restore the company master before restoring this annual engagement.",
   "新增": "Add",
   "搜索与筛选待清事项": "Search and filter outstanding items",

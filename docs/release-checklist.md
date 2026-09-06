@@ -60,3 +60,11 @@ Run `pnpm test:stability` for the focused dual-engine gate and follow `docs/stab
 - Edit an owner behind an active owner filter and retain the edited annual record. Owner/framework/date quick dialogs must not write hidden fields.
 - Keep an explicitly blank framework blank; reject annual restoration while its company remains archived, and retain the restored record in Active or Completed as appropriate.
 - Export after mixed operations and restore in a clean context; compare full canonical records, not only counts.
+
+
+## Edge-case safety
+
+- Confirm malformed nested data/duplicate IDs/orphan primary links cannot overwrite the original; valid legacy backups and missing historical scope slots still restore.
+- Confirm source-only merge information survives reload, conflicts cannot delete a source, and current/historical ownership cycles are refused.
+- Verify wrong/partial/multi-period component links cannot show ready, and matching periods do not auto-check conditions.
+- Exercise IME Enter/Escape, duplicate submits, corrected validation, literal HTML-like text, and continuous entry across both browser engines.

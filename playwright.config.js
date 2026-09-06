@@ -26,7 +26,7 @@ export default defineConfig({
   },
   projects: [
     { name: "chromium", use: { ...devices["Desktop Chrome"], viewport: { width: 1440, height: 900 } } },
-    { name: "webkit-stability", testMatch: ["**/operation-boundaries.spec.js", "**/outstanding-light.spec.js", "**/outstanding-center.spec.js", "**/workspace-session.spec.js", "**/stability-recovery.spec.js", "**/group-quick-update.spec.js",
+    { name: "webkit-stability", testMatch: ["**/edge-safety.spec.js", "**/operation-boundaries.spec.js", "**/outstanding-light.spec.js", "**/outstanding-center.spec.js", "**/workspace-session.spec.js", "**/stability-recovery.spec.js", "**/group-quick-update.spec.js",
         "**/action-workbench.spec.js", "**/holding-components.spec.js", "**/outstanding-continuous.spec.js",
         "**/client-follow-up.spec.js", "**/workflow-effort.spec.js"],
       use: { browserName: "webkit", viewport: { width: 1440, height: 900 } } },
