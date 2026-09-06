@@ -68,3 +68,10 @@ Run `pnpm test:stability` for the focused dual-engine gate and follow `docs/stab
 - Confirm source-only merge information survives reload, conflicts cannot delete a source, and current/historical ownership cycles are refused.
 - Verify wrong/partial/multi-period component links cannot show ready, and matching periods do not auto-check conditions.
 - Exercise IME Enter/Escape, duplicate submits, corrected validation, literal HTML-like text, and continuous entry across both browser engines.
+
+## Linked-file async boundaries
+
+- An external file change before or during a delayed write must be preserved; malformed files and revoked permissions must not be overwritten.
+- Stale opening/decision previews must stay uncommitted; refreshed conflict downloads must contain the latest replaced side.
+- Duplicate activation, cancelled pickers and delayed startup after disconnect must not launch another file operation.
+- Validate unchanged legacy opening and the first canonical write. Keep mocked file APIs separate from native browser-private-file and OS-picker coverage.

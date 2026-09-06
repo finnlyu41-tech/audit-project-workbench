@@ -12,7 +12,7 @@ function visibleControls(dialog) {
     && getComputedStyle(element).visibility !== "hidden" && !element.closest('[inert]'));
 }
 
-export function Modal({ title, onClose, children, wide = false, large = false }) {
+export function Modal({ title, onClose, children, wide = false, large = false, closeDisabled = false }) {
   const { t } = useUiLanguage();
   const dialogRef = React.useRef(null);
   const lastFieldRef = React.useRef(null);
@@ -22,11 +22,13 @@ export function Modal({ title, onClose, children, wide = false, large = false })
   const invalidFrame = React.useRef(null);
   const returnFocusRef = React.useRef(typeof document === "undefined" ? null : document.activeElement);
   const closeRef = React.useRef(onClose);
+  const closeDisabledRef = React.useRef(closeDisabled); closeDisabledRef.current = closeDisabled;
   const textRef = React.useRef(t);
   closeRef.current = onClose; textRef.current = t;
   const [dirty, setDirty] = React.useState(false);
   const registry = React.useMemo(() => createDraftRegistry(setDirty), []);
   const context = React.useMemo(() => ({ registry, requestClose: (action) => {
+    if (closeDisabledRef.current) return false;
     if (registry.isDirty() && !window.confirm(textRef.current("有未保存的更改。确定放弃这些更改并离开此编辑器吗？"))) {
       lastFieldRef.current?.focus({ preventScroll: true }); return false;
     }
@@ -105,7 +107,7 @@ export function Modal({ title, onClose, children, wide = false, large = false })
         tabIndex="-1" onKeyDown={trapFocus} onInvalidCapture={revealInvalidField}
         onFocusCapture={(event) => { if (event.target.matches("input,select,textarea")) lastFieldRef.current = event.target; }}>
         <header><h2 id={titleId}>{title}</h2>{dirty && <span className="modal-unsaved" role="status">{t("未保存更改")}</span>}
-          <button type="button" className="icon-button icon-only" onClick={() => context.requestClose()} data-modal-close
+          <button type="button" className="icon-button icon-only" onClick={() => context.requestClose()} data-modal-close disabled={closeDisabled}
             aria-label={t("关闭")} data-tooltip={t("关闭")} data-tooltip-side="left"><X aria-hidden="true" /></button></header>
         <FeedbackSlot surface="dialog" />
         <div className="workbench-modal-body">{children}</div>

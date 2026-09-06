@@ -24,6 +24,8 @@ const STATUS_LABELS = {
 };
 
 const FAILURE_LABELS = {
+  file_changed: "所选文件在核对后已变化，请取消并重新选择文件。",
+  preview_changed: "当前工作台已变化，请取消并重新核对后再打开文件。",
   unsupported: "当前浏览器不支持关联本地文件。",
   permission_required: "浏览器需要你重新授权访问本地文件。",
   missing_handle: "找不到此前关联的文件，请重新选择文件。",
@@ -56,7 +58,7 @@ export function persistenceStatusLabel(status, t) {
 export function PersistenceSettingsPanel({ persistence, onOpenExisting, onResolveConflict, onClose }) {
   const { language, t } = useUiLanguage();
   const linked = persistence.settings.mode === "linked_file";
-  const busy = persistence.status === "saving";
+  const busy = persistence.status === "saving" || persistence.busy;
   const savedAt = formatSavedAt(persistence.lastSavedAt, language);
   const failureText = persistence.failure ? t(FAILURE_LABELS[persistence.failure] || FAILURE_LABELS.unknown_error) : "";
 
@@ -117,7 +119,7 @@ export function PersistenceSettingsPanel({ persistence, onOpenExisting, onResolv
 
     <p className="persistence-privacy"><ShieldCheck aria-hidden="true" />
       <span>{t("工作台不会上传项目或税务资料；本地文件也不会自动成为多人协作文件。")}</span></p>
-    <footer className="modal-actions"><button type="button" className="button primary" onClick={onClose}>{t("完成")}</button></footer>
+    <footer className="modal-actions"><button type="button" className="button primary" disabled={persistence.busy} onClick={onClose}>{t("完成")}</button></footer>
   </div>;
 }
 
@@ -132,24 +134,25 @@ function SummaryCard({ label, summary, timestamp }) {
     {time && <time dateTime={timestamp}>{time}</time>}</article>;
 }
 
-export function OpenWorkspaceFileConfirm({ candidate, onConfirm, onClose }) {
+export function OpenWorkspaceFileConfirm({ candidate, onConfirm, onClose, failure, operationBusy = false }) {
   const { t } = useUiLanguage();
   const [busy, setBusy] = React.useState(false);
   return <div className="workspace-file-confirm"><p>{t("将打开“{name}”并替换当前工作台资料。文件通过验证后才会建立关联。",
     { name: candidate.fileName })}</p>
+    {failure && <p className="form-error" role="alert">{t(FAILURE_LABELS[failure] || FAILURE_LABELS.unknown_error)}</p>}
     <div className="workspace-version-grid"><SummaryCard label="当前浏览器资料" summary={candidate.currentSummary} />
       <SummaryCard label="所选文件" summary={candidate.summary}
         timestamp={candidate.lastModified ? new Date(candidate.lastModified).toISOString() : ""} /></div>
     <p className="workspace-file-warning"><CircleAlert aria-hidden="true" />
       {t("如需保留当前资料，请先取消并从备份菜单导出备份。")}</p>
-    <footer className="modal-actions"><button type="button" className="button secondary" disabled={busy} onClick={onClose}>{t("取消")}</button>
-      <button type="button" className="button primary" disabled={busy} onClick={async () => {
+    <footer className="modal-actions"><button type="button" className="button secondary" disabled={busy || operationBusy} onClick={onClose}>{t("取消")}</button>
+      <button type="button" className="button primary" disabled={busy || operationBusy} onClick={async () => {
         setBusy(true); const completed = await onConfirm(candidate); if (!completed) setBusy(false);
       }}>{busy ? t("正在连接") : t("打开并关联")}</button></footer>
   </div>;
 }
 
-export function PersistenceConflictDialog({ conflict, onResolve, onClose }) {
+export function PersistenceConflictDialog({ conflict, onResolve, onClose, failure, operationBusy = false }) {
   const { t } = useUiLanguage();
   const [busy, setBusy] = React.useState(false);
   const resolve = async (choice) => {
@@ -159,15 +162,17 @@ export function PersistenceConflictDialog({ conflict, onResolve, onClose }) {
   };
   return <div className="persistence-conflict"><p>{t("浏览器副本和“{name}”都在上次同步后发生了变化，系统已暂停自动保存。",
     { name: conflict.fileName })}</p>
+    {conflict.changedSincePreview && <p className="form-error" role="alert">{t("版本在预览后已变化，已更新比较资料；请重新核对并选择。")}</p>}
+    {failure && <p className="form-error" role="alert">{t(FAILURE_LABELS[failure] || FAILURE_LABELS.unknown_error)}</p>}
     <div className="workspace-version-grid"><SummaryCard label="浏览器副本" summary={conflict.browserSummary} />
       <SummaryCard label="本地文件" summary={conflict.fileSummary}
         timestamp={conflict.fileLastModified ? new Date(conflict.fileLastModified).toISOString() : ""} /></div>
     <p className="workspace-file-warning"><ShieldCheck aria-hidden="true" />
       {t("选择一个版本继续；被替换的版本会先下载为恢复备份。")}</p>
-    <div className="conflict-actions"><button type="button" className="button secondary" disabled={busy}
+    <div className="conflict-actions"><button type="button" className="button secondary" disabled={busy || operationBusy}
       onClick={() => resolve("file")}><HardDrive aria-hidden="true" />{t("使用本地文件")}</button>
-      <button type="button" className="button primary" disabled={busy}
+      <button type="button" className="button primary" disabled={busy || operationBusy}
         onClick={() => resolve("browser")}><Database aria-hidden="true" />{t("使用浏览器副本")}</button></div>
-    <footer className="modal-actions"><button type="button" className="button secondary" disabled={busy} onClick={onClose}>{t("稍后处理")}</button></footer>
+    <footer className="modal-actions"><button type="button" className="button secondary" disabled={busy || operationBusy} onClick={onClose}>{t("稍后处理")}</button></footer>
   </div>;
 }
