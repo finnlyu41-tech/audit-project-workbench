@@ -573,8 +573,13 @@ function DashboardWorkbench({ initialSnapshot }) {
     notify(t("年度项目已归档"));
   };
   const restoreTarget = (kind, id) => {
+    const entity = entityForEngagement(store, id);
+    if (!entity || entity.archived) { notify(t("请先恢复公司主档，再恢复此年度项目。")); return; }
+    const restored = { ...store, engagements: store.engagements.map(item => item.id === id ? { ...item, archived: false } : item) };
+    const complete = entity.kind === "holding_company" ? groupProgress(restored, id).ready
+      : projectStats(restored.engagements.find(item => item.id === id)).complete;
     updateEngagement(id, (item) => ({ ...item, archived: false }));
-    setFilter("active"); notify(t("年度项目已恢复"));
+    setSearch(""); clearNavigationFilters(); setFilter(complete ? "completed" : "active"); notify(t("年度项目已恢复"));
   };
   const permanentlyDeleteTarget = (kind, id) => {
     setStore((current) => ({ ...current, engagements: current.engagements.filter((engagement) => engagement.id !== id),
@@ -1092,7 +1097,7 @@ function DashboardWorkbench({ initialSnapshot }) {
             onRestore={() => { updateEntity(selectedEntitySource.id, (entity) => ({ ...entity, archived: false })); setFilter("all"); notify(t("公司已恢复")); }}
             onDelete={() => setModal({ type: "delete-entity", targetId: selectedEntitySource.id, name: selectedEntitySource.legalName })}
             onMerge={() => setModal({ type: "merge-entities", entityId: selectedEntitySource.id })} />
-          : selectedProject ? <ProjectDetail project={selectedProject} rawProject={selectedProjectSource} statuses={outstandingStatusViews}
+          : selectedProject ? <ProjectDetail project={selectedProject} rawProject={selectedProjectSource} entityArchived={Boolean(selectedRecordEntity?.archived)} statuses={outstandingStatusViews}
           parentMembership={selectedProjectMembership} onWorkflowRevealed={() => setWorkflowReveal(null)} workflowReveal={workflowReveal?.targetId === selectedProjectSource.id ? workflowReveal : null}
           quickUpdate={selectedEngagement && <QuickUpdate key={`quick-update:${selectedEngagement.id}`} engagement={selectedEngagement}
             readOnly={Boolean(selectedEngagement.archived || selectedRecordEntity?.archived)} drafts={quickDrafts.current}
@@ -1123,11 +1128,11 @@ function DashboardWorkbench({ initialSnapshot }) {
             : selectedProject ? <OutstandingCenter key={selectedProjectSource.id} revealRequest={outstandingReveal}
             onRevealHandled={() => setOutstandingReveal(null)} store={store} target={selectedProjectSource} targetKind="project" statuses={outstandingStatusViews}
             updateProject={updateProject} updateGroup={updateGroup} setModal={setModal} onOpenItem={revealOutstandingItem} notify={notify}
-            readOnly={selectedProjectSource.archived} activeWorkstreamId={activeWorkstreamId} />
+            readOnly={Boolean(selectedProjectSource.archived || selectedRecordEntity?.archived)} activeWorkstreamId={activeWorkstreamId} />
             : selectedGroup ? <OutstandingCenter key={selectedGroupSource.id} revealRequest={outstandingReveal}
               onRevealHandled={() => setOutstandingReveal(null)} store={store} target={selectedGroupSource} targetKind="group" statuses={outstandingStatusViews}
               updateProject={updateProject} updateGroup={updateGroup} setModal={setModal} onOpenItem={revealOutstandingItem} notify={notify}
-              readOnly={selectedGroupSource.archived} />
+              readOnly={Boolean(selectedGroupSource.archived || selectedRecordEntity?.archived)} />
               : selectedEntitySource ? <div className="outstanding-center-empty">{t("公司概览会汇总历年项目；进入某一年度查看该年度待清事项。")}</div>
                 : <div className="outstanding-center-empty">{t("选择项目或集团后查看待清事项。")}</div>}</>}
       </aside>
@@ -1186,7 +1191,11 @@ function DashboardWorkbench({ initialSnapshot }) {
         onCreateAnotherYear={!modal.quickField ? () => setModal({ type: "create-engagement", entityId: modalTargetEntity.id,
           sourceEngagementId: modalTargetEngagement.id }) : null}
         onClose={() => setModal(null)} onSubmit={(values) => {
-          updateEngagement(modalTargetEngagement.id, (engagement) => ({ ...engagement,
+          if (modalTargetEntity.archived || modalTargetEngagement.archived) return { error: t("归档记录不能编辑；恢复后才可继续更新。") };
+          const quickFields = { owner: ["owner"], schedule: ["startDate", "dueDate"], framework: ["reportingFramework"] }[modal.quickField];
+          updateEngagement(modalTargetEngagement.id, (engagement) => quickFields
+            ? { ...engagement, ...Object.fromEntries(quickFields.map(field => [field, values[field]])) }
+            : ({ ...engagement,
             internalName: values.internalName, engagementTypes: values.engagementTypes, engagementType: values.engagementType,
             periodPreset: values.periodPreset, periodStart: values.periodStart,
             periodEnd: values.periodEnd, reportingPeriods: values.reportingPeriods,
@@ -1194,6 +1203,13 @@ function DashboardWorkbench({ initialSnapshot }) {
             startDate: values.startDate, dueDate: values.dueDate, notes: values.notes,
             consolidation: engagement.consolidation ? { ...engagement.consolidation,
               enabled: values.consolidationEnabled !== false } : engagement.consolidation }));
+          const identityChanged = ["owner", "internalName", "engagementTypes", "reportingPeriods"].some(field =>
+            (!quickFields || quickFields.includes(field)) && JSON.stringify(values[field]) !== JSON.stringify(modalTargetEngagement[field]));
+          if (identityChanged) {
+            setSearch("");
+            setNavigationFilters(current => Object.fromEntries(Object.entries(current).map(([field, value]) =>
+              [field, engagementMatchesNavigationFilters({ ...modalTargetEngagement, ...values }, { [field]: value }) ? value : ""])));
+          }
           setModal(null); notify(t(modal.quickField === "schedule" ? "项目排期已更新"
               : modal.quickField === "owner" ? "负责人已更新" : modal.quickField === "framework" ? "财务报告准则／框架已更新" : "年度项目已更新"));
         }} /></Modal>}
@@ -1382,14 +1398,14 @@ function DetailFactAction({ label, children, onClick, actionLabel, icon: Icon = 
   </div>;
 }
 
-function ProjectDetail({ project, rawProject, statuses, parentMembership, activeWorkstreamId, setActiveWorkstreamId,
+function ProjectDetail({ project, rawProject, entityArchived = false, statuses, parentMembership, activeWorkstreamId, setActiveWorkstreamId,
   updateWorkflowNodes, setModal, duplicateProject, archiveTarget, restoreTarget, onReorderWorkstreams, deadlineClock, quickUpdate, workflowReveal, onWorkflowRevealed }) {
   const { language, t } = useUiLanguage();
   const draggingWorkstreamRef = React.useRef(null);
   const [draggingWorkstreamId, setDraggingWorkstreamId] = React.useState(null);
   const [workstreamDropTarget, setWorkstreamDropTarget] = React.useState(null);
   const stats = projectStats(project);
-  const readOnly = Boolean(rawProject.archived);
+  const readOnly = Boolean(rawProject.archived || entityArchived);
   const activeWorkstream = project.workstreams.find((workstream) => workstream.id === activeWorkstreamId) || null;
   const activeRawWorkstream = rawProject.workstreams.find((workstream) => workstream.id === activeWorkstream?.id) || null;
   const taxSummary = taxDeadlineSummary(rawProject.taxDeadlines, deadlineClock);
@@ -1525,7 +1541,7 @@ function GroupDetail({ store, group, statuses, updateWorkflowNodes, setModal, on
   const [tab, setTab] = React.useState("overview");
   const rawGroup = store.groups.find((item) => item.id === group.id);
   const engagement = store.engagements.find((item) => item.id === group.id);
-  const readOnly = Boolean(rawGroup?.archived);
+  const readOnly = Boolean(rawGroup?.archived || entityForEngagement(store, engagement)?.archived);
   const stats = groupProgress(store, group.id);
   const openItems = collectGroupOutstandingEntries(store, group.id, new Set(), 0, readOnly)
     .filter((entry) => outstandingIsOpen(entry.item, statuses)).length;

@@ -1,5 +1,13 @@
 # Changelog
 
+## Operation-boundary stabilization
+
+- Preserve complete historical holding scope and current company relationships during ordinary workflow and outstanding-item edits.
+- Keep annual editing on the correct source after owner changes, preserve intentionally blank frameworks, and restrict quick dialogs to their displayed fields.
+- Require restoration of an archived company before its annual work and keep restored completed engagements in the appropriate view.
+- Add cross-record invariants, real backup round trips, lifecycle and three-language regressions. No new features or data-format migration.
+
+
 ## [0.7.0] - 2026-09-06
 
 ### Licensing

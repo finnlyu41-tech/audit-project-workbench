@@ -205,7 +205,7 @@ export function EngagementForm({ store, entity, initial = null, preferredSourceI
       periodStart: generated.periodStart || "", periodEnd: generated.periodEnd || "",
     }]).map((period, index) => ({ ...period, id: period.id || uid("reporting-period"),
       baseYear: Number(period.periodStart?.slice(0, 4)) || suggestedYear + index })),
-    reportingFramework: initial?.reportingFramework || existing[0]?.reportingFramework || "",
+    reportingFramework: initial ? initial.reportingFramework || "" : existing[0]?.reportingFramework || "",
     owner: initial?.owner || "",
     startDate: initial?.startDate || "",
     dueDate: initial?.dueDate || "",

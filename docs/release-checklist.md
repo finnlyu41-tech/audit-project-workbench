@@ -53,3 +53,10 @@ Run `pnpm test:stability` for the focused dual-engine gate and follow `docs/stab
 - Compare default row density with fixed fictional text and viewport; do not reduce type size.
 - Check folded filters remain apparent, More opens the existing tools, and long notes are available through accessible disclosures.
 - Verify source grouping, shared IDs, native status focus, archive read-only, save/reveal and cancelled editing with unchanged business records.
+
+## Operation boundaries
+
+- With current company hierarchy differing from historical annual scope, change an outstanding status and a workflow criterion; unmatched/missing components, other years and company masters must remain identical.
+- Edit an owner behind an active owner filter and retain the edited annual record. Owner/framework/date quick dialogs must not write hidden fields.
+- Keep an explicitly blank framework blank; reject annual restoration while its company remains archived, and retain the restored record in Active or Completed as appropriate.
+- Export after mixed operations and restore in a clean context; compare full canonical records, not only counts.
