@@ -36,6 +36,12 @@
 - V1–V10 浏览器资料、备份和本地文件会无损迁移为 V11；迁移不会按名称自动合并公司，并会保留一份可下载的迁移前 V10 恢复副本。重复公司可通过预览工具由使用者确认合并。
 - 默认使用本机浏览器自动保存，也可关联持续同步的 `.apw.json` 本地文件；浏览器安全副本、明确的同步状态、重新授权、双向冲突保护、未同步离开提醒、JSON 备份及安全初始化共同防止静默遗失资料。
 
+## 连续录入与客户跟进
+
+在待清中心新增事项时，可选择「保存并继续新增」，逐项保存而不用反复打开表单。取消下一条不会删除先前已提交的事项。
+
+「客户跟进草稿」一次只处理一个来源公司与年度，明确勾选事项后预览、检查，再复制或下载纯文本；不自动发送或上传，不自动带入内部备注或税务编号。标题本身仍须检查是否适合外发。英文／简体／繁体仅改变系统措辞，不翻译用户资料。详见 [使用与边界](docs/client-follow-up.md)。
+
 ## 快速开始
 
 需要 Node.js 20.19 或以上版本，并建议使用 Corepack 提供的 pnpm。
@@ -116,3 +122,7 @@ This tool supports progress tracking only. Audit judgement, evidence assessment,
 ## License
 
 [MIT](LICENSE)
+
+### Continuous entry and client follow-up
+
+New outstanding items support **Save and add another**. A reviewed **Client follow-up draft** uses explicitly selected titles from one company and annual engagement, with editable local text and copy/download only. It does not send, upload or automatically include internal notes. Read [workflow boundaries and verification](docs/client-follow-up.md).

@@ -1,6 +1,7 @@
 import { useModalDraft } from "./modal-draft.jsx";
 import React from "react";
 import { OutstandingEntry } from "./outstanding-entry.jsx";
+import { FollowUpComposer } from "./follow-up.jsx";
 import { WorkspaceBootstrap, PersistenceSafetyAlert } from "./workspace-recovery.jsx";
 import { TemplateStartFlow } from "./template-start.jsx";
 import { buildTemplateStart } from "./template-start-model.js";
@@ -1234,6 +1235,11 @@ function DashboardWorkbench({ initialSnapshot }) {
           else { revealSavedOutstanding(modal.targetId, saved.id); setModal(null);
             notify(t(modal.item ? "待清事项已更新" : "待清事项已添加")); }
         }} /></Modal>}
+    {modal?.type === "client-follow-up" && <Modal title={t("客户跟进草稿")} onClose={() => setModal(null)} wide>
+      <FollowUpComposer key={`${modal.targetKind}:${modal.targetId}`} store={store} targetKind={modal.targetKind}
+        targetId={modal.targetId} onClose={() => setModal(null)} onOpenItem={(kind, id, itemId) => {
+          setModal(null); revealOutstandingItem(kind, id, itemId);
+        }} /></Modal>}
     {modal?.type === "template-library" && <Modal title={t("范本库")} onClose={() => setModal(null)} large>
       <input ref={templateImportRef} type="file" accept="application/json,.apw-template.json" hidden
         onChange={(event) => readTemplatePackage(event.target.files?.[0])} />
@@ -1734,7 +1740,11 @@ function OutstandingCenter({ store, target, targetKind, statuses, updateProject,
         <button type="button" className="button primary icon-only" aria-label={t("添加待清")}
           data-tooltip={t("添加待清")} data-tooltip-side="left" onClick={() => setModal({ type: "outstanding", targetKind,
             targetId: target.id, defaultWorkstreamId: targetKind === "project" ? activeWorkstreamId : null })}><ListPlus aria-hidden="true" /></button></>}
-    </div></div>
+    </div>
+    {!readOnly && <button type="button" className="button secondary outstanding-followup-trigger"
+      disabled={!entries.some(entry => !entry.readOnly && outstandingIsOpen(entry.item, store.outstandingStatuses))}
+      onClick={() => setModal({ type: "client-follow-up", targetKind, targetId: target.id })}>{t("客户跟进草稿")}</button>}
+    </div>
     <div className="outstanding-list">{visible.map((entry) => {
       const status = statusById(entry.item.status); const key = outstandingEntryKey(entry);
       return <article className="outstanding-item" tabIndex="-1" aria-label={entry.item.title}

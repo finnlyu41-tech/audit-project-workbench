@@ -27,7 +27,8 @@ export default defineConfig({
   projects: [
     { name: "chromium", use: { ...devices["Desktop Chrome"], viewport: { width: 1440, height: 900 } } },
     { name: "webkit-stability", testMatch: ["**/stability-recovery.spec.js", "**/group-quick-update.spec.js",
-        "**/action-workbench.spec.js", "**/holding-components.spec.js"],
+        "**/action-workbench.spec.js", "**/holding-components.spec.js", "**/outstanding-continuous.spec.js",
+        "**/client-follow-up.spec.js", "**/workflow-effort.spec.js"],
       use: { browserName: "webkit", viewport: { width: 1440, height: 900 } } },
   ],
   outputDir: "test-results",
