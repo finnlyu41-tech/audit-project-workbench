@@ -4,6 +4,7 @@ import { toTraditional } from "./traditional.js";
 export const LANGUAGE_PREFERENCE_KEY = "audit-progress-workbench:language";
 
 const english = {
+  "请先恢复公司主档，再恢复此年度项目。": "Restore the company master before restoring this annual engagement.",
   "新增": "Add",
   "搜索与筛选待清事项": "Search and filter outstanding items",
   "更多待清操作": "More outstanding actions",

@@ -1693,6 +1693,29 @@ function comparableLegacyViews(store) {
   return JSON.stringify({ projects: (store.projects || []).map(selectProject), groups: (store.groups || []).map(selectGroup) });
 }
 
+// Runtime members omit unassigned/missing annual links. Absence from that view is not deletion.
+function reconcileRuntimeComponents(previous, oldMembers, members, engagementById, entityById) {
+  const oldById = new Map(oldMembers.map(member => [member.id, member]));
+  const previousById = new Map(previous.map(component => [component.id, component]));
+  const nextById = new Map(members.map(member => {
+    const old = oldById.get(member.id); const component = previousById.get(member.id);
+    if (!component || !old || old.refId !== member.refId || old.kind !== member.kind) {
+      return [member.id, legacyMemberToComponent(member, engagementById, entityById)];
+    }
+    const patch = {};
+    for (const key of ['role', 'auditType', 'readinessConditions']) {
+      if (JSON.stringify(old[key]) !== JSON.stringify(member[key])) patch[key] = member[key];
+    }
+    return [member.id, { ...component, ...patch }];
+  }).filter(([, component]) => component));
+  const remaining = previous.filter(component => !oldById.has(component.id) || nextById.has(component.id));
+  const next = remaining.map(component => nextById.get(component.id) || component);
+  for (const [id, component] of nextById) if (!previousById.has(id)) next.push(component);
+  const visibleOrder = members.map(member => member.id).filter(id => nextById.has(id));
+  let index = 0;
+  return next.map(component => nextById.has(component.id) ? nextById.get(visibleOrder[index++]) : component);
+}
+
 function syncCanonicalFromLegacyViews(previous, candidate) {
   let entities = previous.entities.map((entity) => ({ ...entity }));
   let engagements = previous.engagements.map((engagement) => ({ ...engagement }));
@@ -1721,38 +1744,38 @@ function syncCanonicalFromLegacyViews(previous, candidate) {
     }
     const previousView = previousViewById.get(record.id);
     const changed = !previousView || JSON.stringify(previousView) !== JSON.stringify(record);
-    if (changed) {
-      const entityIndex = entities.findIndex((entity) => entity.id === entityId);
-      const currentEntity = entities[entityIndex];
-      entities[entityIndex] = { ...currentEntity,
-        legalName: (record.entity || record.name || currentEntity.legalName).trim(),
-        kind,
-        taxDeadlines: Array.isArray(record.taxDeadlines) ? record.taxDeadlines.map(makeTaxDeadline) : currentEntity.taxDeadlines,
-        updatedAt: now,
-      };
+    if (!changed) return;
+    const entityIndex = entities.findIndex((entity) => entity.id === entityId);
+    const currentEntity = entities[entityIndex];
+    const entityPatch = {};
+    if (!previousView || record.entity !== previousView.entity) {
+      entityPatch.legalName = (record.entity || record.name || currentEntity.legalName).trim();
+    } else if (kind === "holding_company" && record.name !== previousView.name) {
+      entityPatch.legalName = (record.name || currentEntity.legalName).trim();
+    }
+    if (currentEntity.kind !== kind) entityPatch.kind = kind;
+    if (Array.isArray(record.taxDeadlines) && JSON.stringify(record.taxDeadlines) !== JSON.stringify(previousView?.taxDeadlines)) {
+      entityPatch.taxDeadlines = record.taxDeadlines.map(makeTaxDeadline);
+    }
+    if (Object.keys(entityPatch).length) {
+      entities[entityIndex] = { ...currentEntity, ...entityPatch, updatedAt: now };
       entityById.set(entityId, entities[entityIndex]);
     }
     const workstreams = kind === "company" ? (record.workstreams || []) : (previousEngagement?.workstreams || []);
+    const priorConsolidation = previousEngagement?.consolidation;
+    const membersChanged = !previousView || JSON.stringify(record.members || []) !== JSON.stringify(previousView.members || []);
     const consolidation = kind === "holding_company" ? {
+      ...priorConsolidation,
       enabled: record.consolidationEnabled !== false,
       nodes: record.nodes || [],
-      components: (record.members || []).map((member) => {
-        const target = existingEngagementById.get(member.refId)
-          || engagements.find((engagement) => engagement.id === member.refId);
-        const targetEntity = target ? entityById.get(target.entityId) : null;
-        return target && targetEntity ? {
-          id: member.id, entityId: targetEntity.id, engagementId: target.id, role: member.role,
-          auditType: member.auditType, readinessConditions: member.readinessConditions,
-          entitySnapshot: { id: targetEntity.id, legalName: targetEntity.legalName, kind: targetEntity.kind },
-          periodSnapshot: { engagementId: target.id, periodStart: target.periodStart, periodEnd: target.periodEnd,
-            reportingPeriods: engagementReportingPeriods(target),
-            label: fiscalPeriodShortLabel(target, "en") },
-        } : null;
-      }).filter(Boolean),
-      structureSyncedAt: previousEngagement?.consolidation?.structureSyncedAt || now,
-    } : previousEngagement?.consolidation || null;
+      components: membersChanged ? reconcileRuntimeComponents(priorConsolidation?.components || [],
+        previousView?.members || [], record.members || [], new Map(engagements.map(item => [item.id, item])), entityById)
+        : priorConsolidation?.components || [],
+      structureSyncedAt: priorConsolidation?.structureSyncedAt || now,
+    } : priorConsolidation || null;
     const normalized = normalizeEngagementRecord({ ...previousEngagement, id: record.id, entityId,
-      internalName: record.name && record.name !== (record.entity || record.name) ? record.name : "",
+      internalName: previousView && record.name === previousView.name ? previousEngagement?.internalName || ""
+        : record.name && record.name !== (record.entity || record.name) ? record.name : "",
       engagementTypes: record.engagementTypes || previousEngagement?.engagementTypes,
       engagementType: record.engagementType || record.projectType || previousEngagement?.engagementType,
       periodPreset: record.periodPreset || inferPeriodPreset(record.periodStart, record.periodEnd),
@@ -1768,20 +1791,30 @@ function syncCanonicalFromLegacyViews(previous, candidate) {
     const engagementIndex = engagements.findIndex((engagement) => engagement.id === record.id);
     if (engagementIndex >= 0) engagements[engagementIndex] = normalized; else engagements.push(normalized);
   });
-  const activeEntityIds = new Set(engagements.map((engagement) => engagement.entityId));
-  const candidateGroupById = new Map((candidate.groups || []).map((group) => [group.id, group]));
-  const parentByEntityId = new Map();
-  candidateGroupById.forEach((group) => {
-    const parentEngagement = engagements.find((engagement) => engagement.id === group.id);
-    (group.members || []).forEach((member) => {
-      const childEngagement = engagements.find((engagement) => engagement.id === member.refId);
-      if (parentEngagement && childEngagement) parentByEntityId.set(childEngagement.entityId, {
-        parentEntityId: parentEngagement.entityId, relationshipRole: member.role || "",
-      });
-    });
+  // Only explicit membership deltas may affect today's master relationship.
+  // Content edits and historical annual membership are not a structure-sync command.
+  const removals = []; const additions = [];
+  for (const group of candidate.groups || []) {
+    const oldMembers = previousViewById.get(group.id)?.members || [];
+    const members = group.members || [];
+    const parentId = engagements.find(engagement => engagement.id === group.id)?.entityId;
+    if (!parentId) continue;
+    for (const member of oldMembers) if (!members.some(next => next.refId === member.refId)) {
+      removals.push({ childId: existingEngagementById.get(member.refId)?.entityId, parentId });
+    }
+    for (const member of members) if (!oldMembers.some(old => old.refId === member.refId)) {
+      additions.push({ childId: engagements.find(engagement => engagement.id === member.refId)?.entityId,
+        parentId, role: member.role || "" });
+    }
+  }
+  entities = entities.map(entity => {
+    const addition = additions.find(change => change.childId === entity.id);
+    if (addition) return { ...entity, parentEntityId: addition.parentId, relationshipRole: addition.role };
+    if (removals.some(change => change.childId === entity.id && change.parentId === entity.parentEntityId)) {
+      return { ...entity, parentEntityId: null, relationshipRole: "" };
+    }
+    return entity;
   });
-  entities = entities.map((entity) => parentByEntityId.has(entity.id) ? { ...entity, ...parentByEntityId.get(entity.id) }
-    : (activeEntityIds.has(entity.id) && entity.parentEntityId ? { ...entity, parentEntityId: null } : entity));
   return normalizeCanonicalStore({ ...candidate, entities, engagements });
 }
 
