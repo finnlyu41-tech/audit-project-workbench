@@ -59,6 +59,10 @@ pnpm dev
 pnpm check
 ```
 
+同一浏览器配置中，新版 APW 默认只允许一个窗口打开工作台，避免旧快照互相覆盖。换窗口前先保存并关闭原窗口，再点「重新检查并打开」。不支持窗口锁时须明确确认仅使用单窗口；这不是跨浏览器、跨设备或外部文件同步。详见 [单窗口编辑保护](docs/workspace-window-safety.md)。
+
+Updated APW windows use a single editing session per browser storage context to prevent stale-snapshot overwrites. Save and close the original before retrying in another window. Missing lock support requires explicit single-window acknowledgement; this is not cross-browser/device or external-file synchronization. See [window safety](docs/workspace-window-safety.md).
+
 ## 数据与隐私
 
 项目资料默认保存在当前浏览器来源的 `localStorage`；如使用者主动关联本地文件，资料还会写入该文件，文件授权则仅保存在当前浏览器的 IndexedDB。应用没有后端，也不会主动上传资料。工作台文件和导出的 JSON 备份可能包含客户名称及审计状态，请按机密审计资料处理，不要提交到公开仓库。详见 [隐私与数据边界](docs/privacy.md)。

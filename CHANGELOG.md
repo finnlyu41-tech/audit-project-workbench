@@ -1,5 +1,12 @@
 # Changelog
 
+## Window-safety stabilization
+
+- Reproduced and prevented stale-snapshot overwrites between participating updated windows using an exclusive browser session before startup.
+- Waiting windows cannot mount autosave or file sync; explicit retry reads the latest saved data after the owner closes. No force takeover.
+- Missing native locks require explicit single-window acknowledgement; denied requests remain blocked. Added native two-engine, failure, lifecycle and three-language checks.
+- No business schema, audit/tax calculations or persistence format changes. See `docs/workspace-window-safety.md`.
+
 All notable changes to this project will be documented here.
 
 The project follows [Semantic Versioning](https://semver.org/).

@@ -5,6 +5,7 @@ import "./theme.css";
 import "./dashboard/controls.css";
 import "./dashboard/feedback.css";
 import "./dashboard/workspace-recovery.css";
+import "./dashboard/workspace-session.css";
 import "./dashboard/company-entry.css";
 import "./dashboard/ux.css";
 import "./dashboard/quick-open.css";

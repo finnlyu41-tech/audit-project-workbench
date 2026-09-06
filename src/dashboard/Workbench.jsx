@@ -1,5 +1,6 @@
 import { useModalDraft } from "./modal-draft.jsx";
 import React from "react";
+import { WorkspaceSession } from "./workspace-session.jsx";
 import { OutstandingEntry } from "./outstanding-entry.jsx";
 import { FollowUpComposer } from "./follow-up.jsx";
 import { WorkspaceBootstrap, PersistenceSafetyAlert } from "./workspace-recovery.jsx";
@@ -85,7 +86,7 @@ function loadInitialWorkspaceView() {
 }
 
 export function DashboardContent() {
-  return <LanguageProvider><WorkspaceBootstrap>{(snapshot) => <DashboardWorkbench initialSnapshot={snapshot} />}</WorkspaceBootstrap></LanguageProvider>;
+  return <LanguageProvider><WorkspaceSession><WorkspaceBootstrap>{(snapshot) => <DashboardWorkbench initialSnapshot={snapshot} />}</WorkspaceBootstrap></WorkspaceSession></LanguageProvider>;
 }
 
 function revealOverflowText(event) {
