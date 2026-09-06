@@ -146,3 +146,11 @@ test('missing and incomplete reporting dates never count as a verified period ma
 test('boolean and object version values are not accepted as a legacy version number', () => {
   for (const version of [true, false, {}, []]) assert.equal(isValidStore({ version, projects: [] }), false);
 });
+test('tax save rejects dates that cannot survive the persisted workspace validator', async () => {
+  const { prepareTaxDeadlineSave } = await import('../src/dashboard/tax-editor-state.js');
+  const s = mergeFixture(); const before = structuredClone(s);
+  for (const dueDate of ['10000-01-01', '2026-02-30', 'not-a-date', '']) {
+    assert.equal(prepareTaxDeadlineSave(s, 'entity', 'merge-source', null, { category: 'tax_payment', dueDate }).error, 'date');
+  }
+  assert.deepEqual(s, before);
+});

@@ -18,7 +18,7 @@ Prepare the merge before enqueueing React state so errors remain in the dialog i
 
 A component can contribute to group readiness only when its company and complete reporting periods match the selected group engagement. Matching dates do not check readiness or audit conditions. Wrong-year, wrong-entity, missing/incomplete-period and differently partitioned multi-year ranges cannot masquerade as a valid match. This may correct a previously misleading completed/ready display; it does not alter saved checkboxes or provide an audit conclusion.
 
-Impossible tax dates are not rolled into the following month when computing urgency. Existing records are not silently rewritten to guessed dates.
+Impossible tax dates are not rolled into the following month when computing urgency. Existing records are not silently rewritten to guessed dates. Tax saves and annual date editors reject unsupported dates before writing, so they cannot create a payload rejected at the next startup. Native date controls are bounded to supported four-digit years.
 
 ## Submission / 提交
 

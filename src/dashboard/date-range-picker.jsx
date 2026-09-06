@@ -111,10 +111,10 @@ export function DateRangePicker({ startDate = "", dueDate = "", onChange, autoFo
   }}>
     <div className="schedule-range-fields">
       <label><span>{t("开始日")}</span><input autoFocus={autoFocus} aria-label={t("项目开始日")} type="date"
-        value={startDate} max={dueDate || undefined} onChange={(event) => onChange(event.target.value, dueDate)} /></label>
+        value={startDate} min="0001-01-01" max={dueDate || "9999-12-31"} onChange={(event) => onChange(event.target.value, dueDate)} /></label>
       <span className="schedule-range-arrow" aria-hidden="true">→</span>
       <label><span>{t("截止日")}</span><input aria-label={t("项目截止日")} type="date"
-        value={dueDate} min={startDate || undefined} onChange={(event) => onChange(startDate, event.target.value)} /></label>
+        value={dueDate} min={startDate || "0001-01-01"} max="9999-12-31" onChange={(event) => onChange(startDate, event.target.value)} /></label>
       <button ref={openerRef} type="button" className="schedule-range-open icon-only"
         aria-label={t("选择项目日期范围")} aria-expanded={open} aria-controls={calendarId}
         title={t("选择项目日期范围")} data-tooltip={t("选择项目日期范围")} data-tooltip-side="left" onClick={toggleCalendar}><CalendarDays aria-hidden="true" /></button>

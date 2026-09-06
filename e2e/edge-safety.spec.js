@@ -124,3 +124,14 @@ for (const [language, expected] of [['en', 'Master data conflict'], ['zh-Hans', 
     await dialog.locator('[data-modal-close]').click(); expect(await readStoredWorkspace(page)).toEqual(before);
   });
 }
+test('unsupported date years cannot be saved and later strand the workspace in recovery', async ({ page }) => {
+  await openWorkbench(page, workspaceFixture()); const before = await readStoredWorkspace(page);
+  await page.locator('.detail-facts .date-range-fact button').click();
+  const dialog = page.getByRole('dialog'); const due = dialog.locator('input[type=date]').last();
+  await dialog.locator('input[type=date]').first().fill('');
+  await due.fill('10000-01-01'); await dialog.getByRole('button', { name: 'Save engagement schedule', exact: true }).click();
+  await expect(dialog).toBeVisible(); expect(await readStoredWorkspace(page)).toEqual(before);
+  await due.fill('2026-12-01'); await dialog.getByRole('button', { name: 'Save engagement schedule', exact: true }).click();
+  await expect(dialog).toHaveCount(0); await page.reload(); await expect(page.locator('.audit-workbench')).toBeVisible();
+  expect((await readStoredWorkspace(page)).engagements[0].dueDate).toBe('2026-12-01');
+});

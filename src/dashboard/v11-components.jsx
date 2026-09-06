@@ -1,3 +1,4 @@
+import { calendarDate } from "./workspace-validation.js";
 import React from "react";
 import { RequiredTextInput } from "./required-text-input.jsx";
 import { batchCompanyEdited, prepareCompanyEntry } from "./company-entry-state.js";
@@ -126,7 +127,7 @@ export function CompanyForm({ store, initial = null, onSubmit, onClose, creation
           <option key={type} value={t(type)} />)}</datalist></label>
       <label><span>{t("默认会计年度")}</span><select value={values.fiscalYearPreset} onChange={update("fiscalYearPreset")}>
         {["calendar", "apr_mar", "custom"].map((preset) => <option value={preset} key={preset}>{presetLabel(preset, t)}</option>)}</select></label>
-      <label><span>{t("成立／开始日期（DOI，可选）")}</span><input type="date" value={values.incorporationDate}
+      <label><span>{t("成立／开始日期（DOI，可选）")}</span><input type="date" min="0001-01-01" max="9999-12-31" value={values.incorporationDate}
         onChange={update("incorporationDate")} /></label>
     </div><small className="form-help">{t("用于首个项目的 DOI → 年结日期间。")}</small>
     <AdvancedSection key={creationMode} title={t("公司关系与备注")} hint={t("高级设置，不影响先建立公司。")}
@@ -317,6 +318,9 @@ export function EngagementForm({ store, entity, initial = null, preferredSourceI
       if (reportingPeriods.some((period) => period.periodEnd < period.periodStart)) {
         setError(t("报告结束日不得早于开始日。")); return;
       }
+      if (reportingPeriods.some(period => !calendarDate(period.periodStart) || !calendarDate(period.periodEnd))) {
+        setError(t("请填写有效日期。")); return;
+      }
       const keys = reportingPeriods.map((period) => `${period.periodStart}|${period.periodEnd}`);
       if (new Set(keys).size !== keys.length) {
         setError(t("同一项目不能重复添加相同报告期间。")); return;
@@ -325,6 +329,9 @@ export function EngagementForm({ store, entity, initial = null, preferredSourceI
         period.periodStart, period.periodEnd, initial?.id || ""))) {
         setError(t("这家公司已经有相同报告期间的项目，包括归档项目。")); return;
       }
+    }
+    if ((!quickField || quickField === "schedule") && [values.startDate, values.dueDate].some(date => date && !calendarDate(date))) {
+      setError(t("请填写有效日期。")); return;
     }
     if (values.startDate && values.dueDate && values.dueDate < values.startDate) {
       setError(t("项目截止日不得早于开始日。")); return;

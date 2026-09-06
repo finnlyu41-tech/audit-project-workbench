@@ -76,7 +76,7 @@ function TaxDeadlineForm({ initial: initialValue, engagements = [], initialEngag
     reminderDays: String(values.reminderDays), revisionReason: dateChanged ? revisionReason : "" }, onCancel);
   const describeError = (result) => {
     if (!result?.error) return;
-    const messages = { source: "来源已归档或不存在，无法保存。", missing: "这项期限已不存在，请取消编辑后重新检查。",
+    const messages = { date: "请填写有效日期。", source: "来源已归档或不存在，无法保存。", missing: "这项期限已不存在，请取消编辑后重新检查。",
       changed: "期限已在别处更新，请取消并重新编辑，避免覆盖新内容。", reason: "请填写改期原因。" };
     setSaveError(t(messages[result.error] || "未能保存期限，更改仍保留在此编辑器中。"));
   };
@@ -107,7 +107,7 @@ function TaxDeadlineForm({ initial: initialValue, engagements = [], initialEngag
         onChange={update("customName")} placeholder={t("例如：物业税报税")} /></label>}
       <label><span>{t("课税年度")}</span><input value={values.taxYear} onChange={update("taxYear")}
         placeholder={t("例如：2025/26")} /></label>
-      <label><span>{t("当前期限 *")}</span><input required type="date" value={values.dueDate} onChange={update("dueDate")} /></label>
+      <label><span>{t("当前期限 *")}</span><input required type="date" min="0001-01-01" max="9999-12-31" value={values.dueDate} onChange={update("dueDate")} /></label>
       <label><span>{t("负责人")}</span><input value={values.owner} onChange={update("owner")} /></label>
       <label><span>{t("提前提醒天数")}</span><input type="number" min="0" max="365" step="1"
         value={values.reminderDays} onChange={update("reminderDays")} /></label>
