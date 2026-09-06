@@ -13,6 +13,8 @@ import "./dashboard/tax-editor.css";
 import "./dashboard/holding-components.css";
 import "./dashboard/company-overview.css";
 import "./dashboard/outstanding-center.css";
+import "./dashboard/outstanding-entry.css";
+import "./dashboard/outstanding-entry.css";
 import "./dashboard/deadline-alerts.css";
 
 import "./dashboard/schedule-usability.css";
