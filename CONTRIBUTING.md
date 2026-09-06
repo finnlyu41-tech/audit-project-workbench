@@ -2,6 +2,12 @@
 
 Thank you for helping improve Audit Project Workbench (APW).
 
+## License and external contributions
+
+APW 0.7.0 uses a proprietary license for new covered material. Bug reports and proposals are welcome, but obtain written permission and explicit contribution-license terms from the owner before submitting code. Do not assume a pull request transfers copyright or grants relicensing rights. Do not merge external code without verifying provenance and permission for the intended distribution. Existing MIT contributions retain their earlier rights. See [licensing](docs/licensing.md).
+
+授权切换后，外部代码贡献须先明确书面使用及分发授权；不得默认视为版权转让。历史 MIT 贡献的原有权利保留。开发命令不授予超出 LICENSE 的权限。
+
 ## Before starting
 
 1. Search existing issues before creating a new one.

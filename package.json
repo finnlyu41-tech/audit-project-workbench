@@ -1,9 +1,9 @@
 {
   "name": "audit-project-workbench",
-  "version": "0.6.7",
+  "version": "0.7.0",
   "description": "A desktop-first, local-first workbench for company masters and multi-year engagements.",
   "type": "module",
-  "license": "MIT",
+  "license": "SEE LICENSE IN LICENSE",
   "packageManager": "pnpm@11.19.0",
   "homepage": "https://finnlyu41-tech.github.io/audit-project-workbench/",
   "repository": {
@@ -43,5 +43,6 @@
     "progress-tracker",
     "local-first",
     "react"
-  ]
+  ],
+  "private": true
 }
