@@ -1,3 +1,4 @@
+import { openOutstandingFilters, openOutstandingMore, expandOutstandingItem } from './outstanding-helpers.js';
 import { expect, test } from "@playwright/test";
 import AxeBuilder from "@axe-core/playwright";
 import { openWorkbench, readStoredWorkspace, seriousViolations, workspaceFixture } from "./helpers.js";
@@ -5,7 +6,7 @@ import { openWorkbench, readStoredWorkspace, seriousViolations, workspaceFixture
 for (const width of [480, 800, 1440]) {
   test(`status editor controls stay contained at ${width}px`, async ({ page }, testInfo) => {
     await openWorkbench(page, workspaceFixture());
-    await page.locator(".outstanding-center-actions > button").first().click();
+    await openOutstandingMore(page); await page.getByRole("button", { name: "Statuses and colours", exact: true }).click();
     const dialog = page.getByRole("dialog");
     await expect(dialog.locator(".status-editor")).toBeVisible();
     await page.setViewportSize({ width, height: 760 });
@@ -55,7 +56,7 @@ for (const width of [480, 800, 1440]) {
 }
 test("status and template configuration dialogs remain accessible", async ({ page }) => {
   await openWorkbench(page, workspaceFixture());
-  await page.locator(".outstanding-center-actions > button").first().click();
+  await openOutstandingMore(page); await page.getByRole("button", { name: "Statuses and colours", exact: true }).click();
   expect(seriousViolations(await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa"]).analyze())).toEqual([]);
   await page.keyboard.press("Escape");
   await page.getByRole("button", { name: "Template library" }).click();
@@ -65,7 +66,7 @@ test("status and template configuration dialogs remain accessible", async ({ pag
 test("status name, color and order edits do not change engagement data", async ({ page }) => {
   await openWorkbench(page, workspaceFixture());
   const before = await readStoredWorkspace(page);
-  await page.locator(".outstanding-center-actions > button").first().click();
+  await openOutstandingMore(page); await page.getByRole("button", { name: "Statuses and colours", exact: true }).click();
   const dialog = page.getByRole("dialog");
   const first = dialog.locator(".status-editor-row").first();
   await first.locator(".status-name-field input").fill("Awaiting documents");
@@ -73,7 +74,7 @@ test("status name, color and order edits do not change engagement data", async (
   await first.getByRole("button", { name: "Move status down" }).click();
   await dialog.getByRole("button", { name: "Save statuses" }).click();
   expect((await readStoredWorkspace(page)).engagements).toEqual(before.engagements);
-  await page.locator(".outstanding-center-actions > button").first().click();
+  await openOutstandingMore(page); await page.getByRole("button", { name: "Statuses and colours", exact: true }).click();
   const updated = page.getByRole("dialog").locator(".status-editor-row").nth(1);
   await expect(updated.locator(".status-name-field input")).toHaveValue("Awaiting documents");
   await expect(updated.locator('input[type="color"]')).toHaveValue("#386641");

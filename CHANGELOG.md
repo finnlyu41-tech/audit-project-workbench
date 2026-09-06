@@ -22,6 +22,14 @@ The project follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Lightweight outstanding centre
+
+- Replace full default cards with expandable rows and native status chips; group holding items by exact source engagement.
+- Fold search and filter controls with visible active-filter state; move client drafts and settings into More without changing their editors.
+- Preserve read-only boundaries, source navigation, save/reveal focus, deletion confirmation and all persistence protections.
+- Compare default list density at fixed viewports using fictional data; no human time-saving claim. See `docs/outstanding-light.md`.
+
+
 ### Continuous outstanding entry and local follow-up drafts
 
 - Add Save and add another for new items, with explicit source validation, reset boundaries, canonical writes and preserved earlier submissions.

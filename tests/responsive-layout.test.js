@@ -262,9 +262,9 @@ test("workstream settings omit owner and deadline because both belong to the ann
 });
 
 test("cleared outstanding items remain discoverable through explicit visibility tabs", () => {
-  assert.match(workbench, /visibilityFilter/);
-  assert.match(workbench, /\["open", "closed", "all"\]/);
-  assert.match(workbench, /已清／归档/);
+  assert.match(readFileSync(new URL("../src/dashboard/outstanding-center.jsx", import.meta.url), "utf8"), /visibilityFilter/);
+  assert.match(readFileSync(new URL("../src/dashboard/outstanding-center.jsx", import.meta.url), "utf8"), /\['open', 'closed', 'all'\]/);
+  assert.match(readFileSync(new URL("../src/dashboard/outstanding-center.jsx", import.meta.url), "utf8"), /已清／归档/);
   assert.match(css, /\.outstanding-visibility-tabs button\[aria-pressed="true"\]/);
 });
 

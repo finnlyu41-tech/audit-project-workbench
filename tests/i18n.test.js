@@ -10,7 +10,7 @@ test("every Chinese system-text literal has an English entry", () => {
   const i18n = readFileSync(`${dashboardDirectory}/i18n.jsx`, "utf8");
   const dictionaryKeys = new Set([...i18n.matchAll(/^\s+"([^"]+)":/gm)].map((match) => match[1]));
   const source = ["Workbench.jsx", "components.jsx", "group-components.jsx", "deadline-alerts.jsx", "tax-deadlines.jsx", "timeline.jsx",
-    "persistence-ui.jsx", "management-report.jsx", "report-ui.jsx", "template-transfer.jsx", "template-start.jsx", "annual-source-summary.jsx", "v11-components.jsx", "home-overview.jsx", "ux-components.jsx", "quick-open.jsx", "modal.jsx", "feedback.jsx", "required-text-input.jsx", "workspace-session.jsx", "outstanding-entry.jsx", "follow-up.jsx"]
+    "persistence-ui.jsx", "management-report.jsx", "report-ui.jsx", "template-transfer.jsx", "template-start.jsx", "annual-source-summary.jsx", "v11-components.jsx", "home-overview.jsx", "ux-components.jsx", "quick-open.jsx", "modal.jsx", "feedback.jsx", "required-text-input.jsx", "workspace-session.jsx", "outstanding-entry.jsx", "outstanding-center.jsx", "follow-up.jsx"]
     .map((file) => readFileSync(`${dashboardDirectory}/${file}`, "utf8"))
     .join("\n");
   const referencedKeys = [...source.matchAll(/"([^"\n]*[\u3400-\u9fff][^"\n]*)"/gu)].map((match) => match[1]);

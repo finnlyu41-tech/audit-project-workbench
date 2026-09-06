@@ -1,3 +1,4 @@
+import { openOutstandingFilters, openOutstandingMore, expandOutstandingItem } from './outstanding-helpers.js';
 import { expect, test } from "@playwright/test";
 import AxeBuilder from "@axe-core/playwright";
 import { openWorkbench, readStoredWorkspace, seriousViolations, workspaceFixture } from "./helpers.js";
@@ -67,7 +68,7 @@ test("reverting values removes both the unsaved badge and page-leave protection"
 });
 test("status reorder is protected without typing and discard preserves stored statuses", async ({ page }) => {
   await openWorkbench(page, workspaceFixture()); const before = await readStoredWorkspace(page);
-  await page.locator(".outstanding-center-actions > button").first().click();
+  await openOutstandingMore(page); await page.getByRole("button", { name: "Statuses and colours", exact: true }).click();
   const dialog = page.getByRole("dialog");
   await dialog.getByRole("button", { name: "Move status down" }).first().click();
   await expect(dialog.locator(".modal-unsaved")).toHaveText("Unsaved changes");

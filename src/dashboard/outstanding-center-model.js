@@ -25,3 +25,15 @@ export function outstandingVisibilityCounts(entries, statuses) {
     return { all: counts.all + 1, open: counts.open + Number(open), closed: counts.closed + Number(!open) };
   }, { all: 0, open: 0, closed: 0 });
 }
+
+// Group a view, never mutate records or conflate same-name companies/annual projects.
+export function groupOutstandingEntries(entries) {
+  const groups = new Map();
+  for (const entry of entries) {
+    const key = JSON.stringify([entry.sourceType, entry.sourceId]);
+    if (!groups.has(key)) groups.set(key, { key, sourceId: entry.sourceId, sourceType: entry.sourceType,
+      companyName: entry.companyName, periodLabel: entry.periodLabel, readOnly: entry.readOnly, entries: [] });
+    groups.get(key).entries.push(entry);
+  }
+  return [...groups.values()];
+}

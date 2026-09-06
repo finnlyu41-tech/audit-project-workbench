@@ -1,3 +1,4 @@
+import { openOutstandingFilters, openOutstandingMore, expandOutstandingItem } from './outstanding-helpers.js';
 import { expect, test } from "@playwright/test";
 import AxeBuilder from "@axe-core/playwright";
 import { outstandingCenterFixture } from "../tests/fixtures/outstanding-center.js";
@@ -11,14 +12,15 @@ async function openCenter(page, store = outstandingCenterFixture(), term = "over
   if (includeArchived) await page.getByRole("dialog", { name: "Quick open" }).getByRole("checkbox").check();
   await query.fill(term); await query.press("Enter");
   if (await page.locator(".outstanding-rail-toggle").isVisible()) await page.locator(".outstanding-rail-toggle").click();
-  await expect(center(page)).toBeVisible();
+  await expect(center(page)).toBeVisible(); await openOutstandingFilters(page);
 }
 test("long outstanding text and status controls fit the sidebar", async ({ page }, testInfo) => {
   await openCenter(page);
   await page.screenshot({ path: testInfo.outputPath("outstanding-layout.png") });
   const bounds = await center(page).locator(".outstanding-list").evaluate((element) => ({ width: element.clientWidth, scroll: element.scrollWidth }));
   expect(bounds.scroll).toBeLessThanOrEqual(bounds.width + 1);
-  for (const select of await center(page).locator("select").all()) expect((await select.boundingBox()).height).toBe(42);
+  for (const select of await center(page).locator(".outstanding-tools-panel select").all()) expect((await select.boundingBox()).height).toBe(42);
+  for (const select of await center(page).locator(".outstanding-status-chip select").all()) expect((await select.boundingBox()).height).toBeGreaterThanOrEqual(36);
 });
 test("saving a new item clears old closed filters and focuses the saved card", async ({ page }) => {
   await openCenter(page); await center(page).getByRole("button", { name: /Cleared \/ archived/ }).click();
@@ -52,6 +54,7 @@ test("editing a filtered subsidiary item reveals only its own saved card in the 
   await openCenter(page, outstandingCenterFixture(), "overview holding 2026");
   const before = await readStoredWorkspace(page);
   const search = center(page).getByRole("searchbox"); await search.fill("signed alex");
+  await expandOutstandingItem(center(page).locator(".outstanding-item").first());
   await center(page).getByRole("button", { name: "Edit", exact: true }).click();
   const dialog = page.getByRole("dialog", { name: "Edit outstanding item" });
   await dialog.getByLabel("Outstanding item *").fill("Subsidiary changed title");
@@ -72,6 +75,7 @@ test("editing a filtered subsidiary item reveals only its own saved card in the 
 test("refusing to discard an edit keeps both the draft and its source filters", async ({ page }) => {
   await openCenter(page); const before = await readStoredWorkspace(page);
   await center(page).getByRole("searchbox").fill("final alex");
+  await expandOutstandingItem(center(page).locator(".outstanding-item").first());
   const editTrigger = center(page).getByRole("button", { name: "Edit", exact: true });
   await editTrigger.focus(); await editTrigger.press("Enter");
   const dialog = page.getByRole("dialog", { name: "Edit outstanding item" });
@@ -88,6 +92,8 @@ test("refusing to discard an edit keeps both the draft and its source filters", 
 test("deletion confirmation protects records and removal restores a usable focus target", async ({ page }) => {
   await openCenter(page); const before = await readStoredWorkspace(page);
   await center(page).getByRole("searchbox").fill("final alex");
+  await expandOutstandingItem(center(page).locator(".outstanding-item").first());
+  await center(page).getByRole("button", { name: "More item actions", exact: true }).click();
   page.once("dialog", (prompt) => prompt.dismiss());
   await center(page).getByRole("button", { name: "Delete", exact: true }).click();
   expect(await readStoredWorkspace(page)).toEqual(before);
@@ -106,6 +112,7 @@ test("source links reset stale navigation filters and focus the selected subsidi
   await page.getByRole("button", { name: "Open navigation filters" }).click();
   await page.getByRole("combobox", { name: "Owner filter" }).selectOption("Morgan Parent");
   await center(page).getByRole("searchbox").fill("final alex");
+  await expandOutstandingItem(center(page).locator(".outstanding-item").first());
   await center(page).locator(".outstanding-source button").click();
   await expect(center(page).locator(".outstanding-item").filter({ hasText: "Follow up on the final confirmation" })).toBeFocused();
   await expect(page.locator(".detail-title > p")).toContainText("Overview Example International Limited");
@@ -119,7 +126,7 @@ test("archived sources can be searched and opened without editable item controls
   const card = center(page).locator(".outstanding-item"); await expect(card).toHaveCount(1);
   await expect(card.locator("select, .outstanding-item-actions")).toHaveCount(0);
   await expect(center(page).getByRole("button", { name: "Add outstanding item", exact: true })).toHaveCount(0);
-  await card.locator(".outstanding-source button").click();
+  await expandOutstandingItem(card); await card.locator(".outstanding-source button").click();
   await expect(page.locator(".archive-banner")).toBeVisible(); await expect(card).toBeFocused();
   expect(await readStoredWorkspace(page)).toEqual(before);
 });
@@ -143,8 +150,9 @@ for (const [width, height] of [[800, 560], [1024, 900], [1440, 900], [1920, 900]
     expect(box.scroll).toBeLessThanOrEqual(box.width + 1);
     const tabTexts = center(page).locator(".outstanding-visibility-tabs button > span");
     for (const label of await tabTexts.all()) expect(await label.evaluate((element) => element.scrollWidth <= element.clientWidth + 1)).toBe(true);
-    for (const field of await center(page).locator("input, select").all()) expect((await field.boundingBox()).height).toBe(42);
+    for (const field of await center(page).locator(".outstanding-tools-panel input, .outstanding-tools-panel select").all()) expect((await field.boundingBox()).height).toBe(42);
     const row = center(page).locator(".outstanding-item").first();
+    await expandOutstandingItem(row);
     const edit = row.getByRole("button", { name: "Edit", exact: true }); await edit.focus();
     await expect(edit).toBeInViewport();
     const geometry = await row.evaluate((element) => ({ width: element.clientWidth, scroll: element.scrollWidth,

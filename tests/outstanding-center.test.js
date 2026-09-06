@@ -35,3 +35,27 @@ test("search retains source ordering and leaves all input records unchanged", ()
   assert.deepEqual(filterOutstandingEntries([], statuses), []);
   assert.deepEqual(outstandingVisibilityCounts([], statuses), { all: 0, open: 0, closed: 0 });
 });
+
+import { groupOutstandingEntries } from '../src/dashboard/outstanding-center-model.js';
+test('grouping uses source type and annual ID, never company names or shared item IDs', () => {
+  const first = rows()[0]; const second = { ...first, sourceId: 'another-year', periodLabel: '2025' };
+  const third = { ...first, sourceType: 'group' };
+  const groups = groupOutstandingEntries([first, second, third]);
+  assert.equal(groups.length, 3); assert.equal(new Set(groups.map(g => g.key)).size, 3);
+  assert.equal(groups[1].sourceId, 'another-year'); assert.equal(groups[1].periodLabel, '2025');
+});
+test('grouping retains first-source order and within-source order without mutating the input', () => {
+  const [first, other] = rows(); const next = { ...first, item: { ...first.item, id: 'third' } };
+  const entries = [first, other, next]; const before = structuredClone(entries);
+  const groups = groupOutstandingEntries(entries);
+  assert.deepEqual(groups.map(g => g.sourceId), ['one', 'two']);
+  assert.deepEqual(groups[0].entries.map(e => e.item.id), ['same', 'third']);
+  assert.deepEqual(entries, before); assert.deepEqual(groupOutstandingEntries([]), []);
+});
+test('filtered source groups carry only the visible entries without changing totals or closed semantics', () => {
+  const entries = rows(); const before = structuredClone(entries);
+  const groups = groupOutstandingEntries(filterOutstandingEntries(entries, statuses));
+  assert.equal(groups.length, 1); assert.equal(groups[0].entries.length, 1);
+  assert.deepEqual(outstandingVisibilityCounts(entries, statuses), { all: 2, open: 1, closed: 1 });
+  assert.deepEqual(entries, before);
+});
