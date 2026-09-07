@@ -85,3 +85,10 @@ test('dates near early years and leap months are parsed literally, never shifted
   const t=makeTimeline([{startDate:'2024-02-28',dueDate:'2024-03-02'}],'day',{now:new Date('2024-02-28T12:00:00Z')});
   assert.ok(t.ticks.some(x=>x.date.toISOString().slice(0,10)==='2024-02-29'));
 });
+test('ordinary multi-year schedules honor explicitly selected daily precision',()=>{
+  const t=makeTimeline([{startDate:'2025-08-03',dueDate:'2027-10-12'}],'day',
+    {now:new Date('2026-09-07T12:00:00Z')});
+  assert.equal(t.precision,'day'); assert.equal(t.coarse,false);
+  assert.ok(t.ticks.length>800&&t.ticks.length<850);
+  assert.equal(t.ticks.every(tick=>tick.width===t.pixelsPerDay),true);
+});

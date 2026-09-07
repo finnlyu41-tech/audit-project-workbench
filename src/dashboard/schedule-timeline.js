@@ -30,7 +30,9 @@ export function makeTimeline(rows,requestedPrecision='week',{minimumWidth=0,now=
  if(!supplied) { earliest=addDays(today,-28).getTime(); latest=addDays(today,84).getTime(); }
  let precision=['day','week','month'].includes(requestedPrecision)?requestedPrecision:'week';
  const span=(latest-earliest)/DAY;
- if(precision==='day'&&span>780) precision='week';
+ // Keep ordinary multi-year planning at the precision the user selected.
+ // Aggregate only beyond a bounded ten-year daily canvas (about 3,660 ticks).
+ if(precision==='day'&&span>3660) precision='week';
  if(precision==='week'&&span>5400) precision='month';
  let rangeStart,rangeEnd,pixelsPerDay;
  if(precision==='day') {

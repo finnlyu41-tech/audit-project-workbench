@@ -1,3 +1,4 @@
+import { openProjectNavigation } from "./panel-helpers.js";
 import AxeBuilder from "@axe-core/playwright";
 import { expect, test } from "@playwright/test";
 import { createTemplatePackage } from "../src/dashboard/template-packages.js";
@@ -31,6 +32,7 @@ test("primary workspaces and dialogs have no serious accessibility violations", 
   await expectNoSeriousViolations(page);
   await page.keyboard.press("Escape");
 
+  await openProjectNavigation(page);
   await page.locator(".tree-entity-row[data-kind='holding_company']").filter({ hasText: "Example Holdings Limited" }).click();
   await expectNoSeriousViolations(page);
   await page.getByRole("button", { name: /Tax deadlines/ }).click();

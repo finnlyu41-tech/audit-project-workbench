@@ -38,3 +38,9 @@ Timeline calculations use date-only UTC values, handle leap days and years below
 ## Release verification
 
 Use fictional isolated data only. Verify the same default schedule at fixed 800/1024/1280/1440/1920 CSS widths, actual date-edit actions, explicit filter opening/clearing, saved preference restoration, and three languages. Restore an actual downloaded first-period backup into a clean context and compare complete canonical records. Include prior priority controls at repeated narrow-width transitions, preserving the ≤90px gate that blocked the preceding release; do not substitute a retry for a fix. Then run full final-build regression, CI, Pages and post-publication verification against matching asset bytes.
+
+### Release follow-up: actual regression causes
+
+The Linux WebKit failure screenshot showed a docked company column at an 800px viewport, leaving the quick-update toolbar too narrow. A controlled dual-engine reproduction suppresses breakpoint `MediaQueryList` notifications and confirms the previous implementation retained that column. Viewport width now uses React's external-store subscription to the real layout viewport, read during rendering as well as on resize. Wide-screen preferences are kept separately and restored.
+
+The schedule accessibility journey explicitly opens the new temporary company drawer before selecting its next record; its accessibility assertions remain intact. Day view remains exact for ordinary multi-year plans up to roughly ten years. Only larger ranges are aggregated, with the notice and extreme-range bound retained. An 800-day regression now verifies that choosing Day actually produces day ticks.

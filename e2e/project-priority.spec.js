@@ -124,3 +124,26 @@ test('rapid narrow viewport changes cannot expand the compact priority toolbar i
   const after=await readStoredWorkspace(page);
   expect(omit(job(after,'priority-group'))).toEqual(omit(job(before,'priority-group')));
 });
+test('narrow workspace does not depend on a timely media-query change notification',async({page})=>{
+  await page.addInitScript(()=>{
+    const native=window.matchMedia.bind(window);
+    window.matchMedia=query=>{
+      const media=native(query);
+      if(!query.includes('1100px')&&!query.includes('1599px')) return media;
+      return new Proxy(media,{get(target,key){
+        if(key==='addEventListener'||key==='removeEventListener') return ()=>{};
+        const value=Reflect.get(target,key,target); return typeof value==='function'?value.bind(target):value;
+      }});
+    };
+  });
+  await start(page,'Group'); const before=await readStoredWorkspace(page);
+  await page.setViewportSize({width:800,height:640});
+  await control(page).selectOption('urgent');
+  await expect(page.locator('.project-panel')).toBeHidden();
+  expect((await page.locator('.project-detail').boundingBox()).width).toBeGreaterThan(650);
+  expect((await page.locator('.quick-update-panel').boundingBox()).height).toBeLessThanOrEqual(90);
+  const after=await readStoredWorkspace(page);
+  expect(omit(job(after,'priority-group'))).toEqual(omit(job(before,'priority-group')));
+  await page.setViewportSize({width:1440,height:900});
+  await expect(page.locator('.project-panel')).toBeVisible();
+});
