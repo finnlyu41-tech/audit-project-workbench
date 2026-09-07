@@ -112,3 +112,38 @@ test('next annual project starts at normal, accepts an explicit level and leaves
   expect(added[0].periodStart).toBe('2027-01-01'); expect(job(after,'priority-urgent')).toEqual(job(before,'priority-urgent'));
   expect(after.entities).toEqual(before.entities); await expect(control(page)).toHaveValue('low');
 });
+test('rapid narrow viewport changes cannot expand the compact priority toolbar into a large panel',async({page})=>{
+  await start(page,'Group'); const before=await readStoredWorkspace(page);
+  for(const width of [1440,800,1024,800,1280,800]) {
+    await page.setViewportSize({width,height:640});
+    await control(page).selectOption('urgent');
+    const quick=page.getByRole('region',{name:'Quick update',exact:true});
+    expect((await quick.boundingBox()).height).toBeLessThanOrEqual(90);
+    expect(await quick.evaluate(e=>e.scrollWidth<=e.clientWidth+1)).toBe(true);
+  }
+  const after=await readStoredWorkspace(page);
+  expect(omit(job(after,'priority-group'))).toEqual(omit(job(before,'priority-group')));
+});
+test('narrow workspace does not depend on a timely media-query change notification',async({page})=>{
+  await page.addInitScript(()=>{
+    const native=window.matchMedia.bind(window);
+    window.matchMedia=query=>{
+      const media=native(query);
+      if(!query.includes('1100px')&&!query.includes('1599px')) return media;
+      return new Proxy(media,{get(target,key){
+        if(key==='addEventListener'||key==='removeEventListener') return ()=>{};
+        const value=Reflect.get(target,key,target); return typeof value==='function'?value.bind(target):value;
+      }});
+    };
+  });
+  await start(page,'Group'); const before=await readStoredWorkspace(page);
+  await page.setViewportSize({width:800,height:640});
+  await control(page).selectOption('urgent');
+  await expect(page.locator('.project-panel')).toBeHidden();
+  expect((await page.locator('.project-detail').boundingBox()).width).toBeGreaterThan(650);
+  expect((await page.locator('.quick-update-panel').boundingBox()).height).toBeLessThanOrEqual(90);
+  const after=await readStoredWorkspace(page);
+  expect(omit(job(after,'priority-group'))).toEqual(omit(job(before,'priority-group')));
+  await page.setViewportSize({width:1440,height:900});
+  await expect(page.locator('.project-panel')).toBeVisible();
+});

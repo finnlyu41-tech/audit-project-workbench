@@ -1,16 +1,16 @@
 import React from "react";
-import { Building, Building2, CalendarClock, CircleAlert, Eye, EyeOff, LocateFixed, ReceiptText, Search } from "lucide-react";
+import { Building, Building2, CalendarClock, CircleAlert, Eye, EyeOff, LocateFixed, ReceiptText, Search, ListFilter } from "lucide-react";
 import { engagementTypesLabel, formatDate, taxDeadlineCategoryLabel, taxDeadlineUrgency } from "./model.js";
 import { filterScheduleRows, scheduleRows } from "./schedule-view-model.js";
 import { useUiLanguage } from "./i18n.jsx";
 import { ReportingPeriodSummary } from "./reporting-period-summary.jsx";
 
-const DAY_MS = 86400000;
+import { makeTimeline, parseDate, dayOffset } from "./schedule-timeline.js";
 const SCHEDULE_META_WIDTH_KEY = "audit-progress-workbench:schedule-meta-width";
 const SCHEDULE_PRECISION_KEY = "audit-progress-workbench:schedule-precision";
 const SCHEDULE_PRECISIONS = ["day", "week", "month"];
-const DEFAULT_META_WIDTH = 310;
-const MIN_META_WIDTH = 250;
+const DEFAULT_META_WIDTH = 260;
+const MIN_META_WIDTH = 180;
 const MAX_META_WIDTH = 560;
 
 function clampMetaWidth(value) {
@@ -39,116 +39,13 @@ function savePrecision(value) {
   catch { /* Layout preferences can safely fall back to the weekly view. */ }
 }
 
-function parseDate(value) {
-  if (!value) return null;
-  const date = new Date(`${value}T00:00:00`);
-  return Number.isNaN(date.getTime()) ? null : date;
-}
-
-function startOfWeek(value) {
-  const date = new Date(value);
-  date.setHours(0, 0, 0, 0);
-  const day = (date.getDay() + 6) % 7;
-  date.setDate(date.getDate() - day);
-  return date;
-}
-
-function endOfWeek(value) {
-  const date = startOfWeek(value);
-  date.setDate(date.getDate() + 6);
-  return date;
-}
-
-function addDays(value, days) {
-  const date = new Date(value);
-  date.setDate(date.getDate() + days);
-  return date;
-}
-
-function startOfMonth(value) {
-  return new Date(value.getFullYear(), value.getMonth(), 1);
-}
-
-function endOfMonth(value) {
-  return new Date(value.getFullYear(), value.getMonth() + 1, 0);
-}
-
-function addMonths(value, months) {
-  return new Date(value.getFullYear(), value.getMonth() + months, 1);
-}
-
-function calendarDayNumber(value) {
-  return Date.UTC(value.getFullYear(), value.getMonth(), value.getDate()) / DAY_MS;
-}
-
-function rangeSegments(rangeStart, rangeEnd, unit, pixelsPerDay) {
-  const segments = [];
-  const endExclusive = addDays(rangeEnd, 1);
-  let cursor = new Date(rangeStart);
-  while (cursor < endExclusive) {
-    const nextBoundary = unit === "year" ? new Date(cursor.getFullYear() + 1, 0, 1)
-      : new Date(cursor.getFullYear(), cursor.getMonth() + 1, 1);
-    const next = nextBoundary < endExclusive ? nextBoundary : endExclusive;
-    segments.push({ key: `${unit}-${cursor.getFullYear()}-${cursor.getMonth()}`,
-      date: new Date(cursor), width: (calendarDayNumber(next) - calendarDayNumber(cursor)) * pixelsPerDay });
-    cursor = next;
-  }
-  return segments;
-}
-
-function makeTimeline(rows, precision = "week") {
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  const suppliedDates = rows.flatMap((row) => [parseDate(row.startDate), parseDate(row.dueDate),
-    ...(row.taxDeadlines || []).map((deadline) => parseDate(deadline.dueDate))]).filter(Boolean);
-  const earliest = suppliedDates.length ? new Date(Math.min(today.getTime(), ...suppliedDates.map((date) => date.getTime()))) : addDays(today, -28);
-  const latest = suppliedDates.length ? new Date(Math.max(today.getTime(), ...suppliedDates.map((date) => date.getTime()))) : addDays(today, 84);
-  let rangeStart;
-  let rangeEnd;
-  let pixelsPerDay;
-  if (precision === "day") {
-    rangeStart = startOfWeek(addDays(earliest, -3));
-    rangeEnd = endOfWeek(addDays(latest, 3));
-    const minimumEnd = endOfWeek(addDays(rangeStart, 41));
-    if (rangeEnd < minimumEnd) rangeEnd = minimumEnd;
-    pixelsPerDay = 36;
-  } else if (precision === "month") {
-    rangeStart = startOfMonth(addMonths(earliest, -1));
-    rangeEnd = endOfMonth(addMonths(latest, 1));
-    const minimumEnd = endOfMonth(addMonths(rangeStart, 11));
-    if (rangeEnd < minimumEnd) rangeEnd = minimumEnd;
-    const monthCount = (rangeEnd.getFullYear() - rangeStart.getFullYear()) * 12
-      + rangeEnd.getMonth() - rangeStart.getMonth() + 1;
-    const monthWidth = monthCount > 72 ? 70 : monthCount > 48 ? 82 : 98;
-    pixelsPerDay = monthWidth / 30.4375;
-  } else {
-    rangeStart = startOfWeek(addDays(earliest, -7));
-    rangeEnd = endOfWeek(addDays(latest, 7));
-    const minimumEnd = endOfWeek(addDays(rangeStart, 83));
-    if (rangeEnd < minimumEnd) rangeEnd = minimumEnd;
-    const weekCount = Math.ceil((calendarDayNumber(addDays(rangeEnd, 1)) - calendarDayNumber(rangeStart)) / 7);
-    const weekWidth = weekCount > 78 ? 28 : weekCount > 56 ? 34 : 42;
-    pixelsPerDay = weekWidth / 7;
-  }
-  const dayCount = calendarDayNumber(addDays(rangeEnd, 1)) - calendarDayNumber(rangeStart);
-  const ticks = precision === "day"
-    ? Array.from({ length: dayCount }, (_, index) => ({ date: addDays(rangeStart, index), width: pixelsPerDay }))
-    : precision === "month" ? rangeSegments(rangeStart, rangeEnd, "month", pixelsPerDay)
-      : Array.from({ length: Math.ceil(dayCount / 7) }, (_, index) => ({ date: addDays(rangeStart, index * 7), width: pixelsPerDay * 7 }));
-  const majorGroups = rangeSegments(rangeStart, rangeEnd, precision === "month" ? "year" : "month", pixelsPerDay);
-  return { today, precision, rangeStart, rangeEnd, pixelsPerDay, ticks, majorGroups,
-    width: dayCount * pixelsPerDay, gridWidth: precision === "day" ? pixelsPerDay
-      : precision === "month" ? 30.4375 * pixelsPerDay : 7 * pixelsPerDay };
-}
-
-function dayOffset(date, rangeStart) {
-  return calendarDayNumber(date) - calendarDayNumber(rangeStart);
-}
-
-export function ProjectSchedule({ store, filter, onOpen, onEditSchedule, onOpenTaxDeadline, onReorder,
+export function ProjectSchedule({ store, filter, onFilterChange, onOpen, onEditSchedule, onOpenTaxDeadline, onReorder,
   simplifiedView = false, onToggleSimplifiedView }) {
   const { language, t } = useUiLanguage();
   const scrollRef = React.useRef(null);
+  const viewRef = React.useRef(null);
+  const [viewportWidth,setViewportWidth] = React.useState(900);
+  const [filtersOpen,setFiltersOpen] = React.useState(false);
   const draggingRef = React.useRef(null);
   const resizeRef = React.useRef(null);
   const [draggingKey, setDraggingKey] = React.useState(null);
@@ -156,24 +53,32 @@ export function ProjectSchedule({ store, filter, onOpen, onEditSchedule, onOpenT
   const [metaWidth, setMetaWidth] = React.useState(savedMetaWidth);
   const [precision, setPrecision] = React.useState(savedPrecision);
   const [resizingMeta, setResizingMeta] = React.useState(false);
+  const actualMetaWidth = Math.min(metaWidth, Math.max(150,Math.floor(viewportWidth*.35)));
+  React.useLayoutEffect(() => {
+    const element=viewRef.current; if(!element) return;
+    const measure=()=>setViewportWidth(element.clientWidth); measure();
+    const observer=new ResizeObserver(measure); observer.observe(element); return ()=>observer.disconnect();
+  }, []);
   const [query, setQuery] = React.useState("");
   const [dateScope, setDateScope] = React.useState("all");
   const searchRef = React.useRef(null);
+  const filterTriggerRef = React.useRef(null);
   const scrollHelpId = React.useId();
   const allRows = React.useMemo(() => scheduleRows(store, filter, language), [store, filter, language]);
   const rows = React.useMemo(() => filterScheduleRows(allRows, { query, dateScope, language }), [allRows, query, dateScope, language]);
-  const resetFilters = () => { setQuery(""); setDateScope("all"); searchRef.current?.focus(); };
-  const timeline = React.useMemo(() => makeTimeline(allRows, precision), [allRows, precision]);
+  const resetFilters = () => { setQuery(""); setDateScope("all");
+    window.requestAnimationFrame(()=> (filtersOpen ? searchRef.current : filterTriggerRef.current)?.focus()); };
+  const timeline = React.useMemo(() => makeTimeline(allRows, precision, {minimumWidth: Math.max(0,viewportWidth-actualMetaWidth-20)}), [allRows, precision,viewportWidth,actualMetaWidth]);
   const width = timeline.width;
   const scheduledCount = allRows.filter((row) => row.startDate && row.dueDate).length;
   const incompleteCount = allRows.length - scheduledCount;
   const todayLeft = (dayOffset(timeline.today, timeline.rangeStart) + .5) * timeline.pixelsPerDay;
   const locale = language === "en" ? "en-GB" : "zh-HK";
-  const weekFormatter = new Intl.DateTimeFormat(locale, { month: "short", day: "numeric" });
-  const monthFormatter = new Intl.DateTimeFormat(locale, { year: "numeric", month: "long" });
-  const shortMonthFormatter = new Intl.DateTimeFormat(locale, { month: "short" });
-  const yearFormatter = new Intl.DateTimeFormat(locale, { year: "numeric" });
-  const dayFormatter = new Intl.DateTimeFormat(locale, { day: "numeric" });
+  const weekFormatter = new Intl.DateTimeFormat(locale, { month: "short", day: "numeric", timeZone: "UTC" });
+  const monthFormatter = new Intl.DateTimeFormat(locale, { year: "numeric", month: "long", timeZone: "UTC" });
+  const shortMonthFormatter = new Intl.DateTimeFormat(locale, { month: "short", timeZone: "UTC" });
+  const yearFormatter = new Intl.DateTimeFormat(locale, { year: "numeric", timeZone: "UTC" });
+  const dayFormatter = new Intl.DateTimeFormat(locale, { day: "numeric", timeZone: "UTC" });
   const changePrecision = (value) => {
     setPrecision(value);
     savePrecision(value);
@@ -217,7 +122,7 @@ export function ProjectSchedule({ store, filter, onOpen, onEditSchedule, onOpenT
   };
   const beginMetaResize = (event) => {
     event.preventDefault();
-    resizeRef.current = { pointerId: event.pointerId, startX: event.clientX, startWidth: metaWidth, currentWidth: metaWidth };
+    resizeRef.current = { pointerId: event.pointerId, startX: event.clientX, startWidth: actualMetaWidth, currentWidth: actualMetaWidth };
     event.currentTarget.setPointerCapture(event.pointerId);
     setResizingMeta(true);
   };
@@ -240,7 +145,7 @@ export function ProjectSchedule({ store, filter, onOpen, onEditSchedule, onOpenT
     if (!(event.key in increments)) return;
     event.preventDefault();
     const width = event.key === "Home" || event.key === "End" ? increments[event.key]
-      : clampMetaWidth(metaWidth + increments[event.key]);
+      : clampMetaWidth(actualMetaWidth + increments[event.key]);
     setMetaWidth(width);
     saveMetaWidth(width);
   };
@@ -283,9 +188,9 @@ export function ProjectSchedule({ store, filter, onOpen, onEditSchedule, onOpenT
     viewport.scrollTo({ left: Math.min(Math.max(0, requestedLeft), viewport.scrollWidth - viewport.clientWidth), behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" });
   };
 
-  return <section className="schedule-view">
+  return <section className="schedule-view" ref={viewRef}>
     <header className="schedule-heading"><div><span className="workspace-label">{t("排期")}</span>
-      <h2>{t("项目排期")}</h2><p>{t("按自定义顺序查看每个公司及控股公司的开始日、截止日和横向工期。")}</p></div>
+      <h2>{t("项目排期")}</h2></div>
       <div className="schedule-heading-actions"><div className="schedule-summary">
         <span>{t("{count} 项已排期", { count: scheduledCount })}</span>
         <span data-alert={incompleteCount > 0 || undefined}>{t("{count} 项日期待补", { count: incompleteCount })}</span></div>
@@ -297,13 +202,15 @@ export function ProjectSchedule({ store, filter, onOpen, onEditSchedule, onOpenT
           {SCHEDULE_PRECISIONS.map((value) => <button type="button" key={value} aria-pressed={precision === value}
             onClick={() => changePrecision(value)}>{t(value === "day" ? "天" : value === "month" ? "月" : "周")}</button>)}
         </div>
-        <button type="button" className="button secondary" onClick={scrollToToday}><LocateFixed aria-hidden="true" />{t("今天")}</button></div>
+        <button type="button" className="button secondary" onClick={scrollToToday}><LocateFixed aria-hidden="true" />{t("今天")}</button>
+        <button type="button" className="button secondary schedule-filter-toggle" ref={filterTriggerRef} aria-expanded={filtersOpen}
+          aria-label={t("搜索和筛选排期")} onClick={()=>setFiltersOpen(value=>!value)}><ListFilter aria-hidden="true" />{t("筛选")}</button></div>
     </header>
-    <div className="schedule-legend" aria-label={t("排期图例")}><span><i data-tone="active" />{t("进行中")}</span>
-      <span><i data-tone="complete" />{t("已完成")}</span><span><i data-tone="overdue" />{t("已逾期")}</span>
-      <span><ReceiptText aria-hidden="true" />{t("税务期限")}</span>
-      <span><CircleAlert aria-hidden="true" />{t("日期不完整")}</span></div>
-    <div className="schedule-filters">
+    <div className="schedule-toolbar-status"><span className="schedule-result-count" role="status">{t("显示 {visible} / {total} 个排期", { visible: rows.length, total: allRows.length })} · {t(({active:"活跃",completed:"已完成",all:"全部",archived:"归档"})[filter]||"全部")}</span>
+      {(query || dateScope!=="all") && <button type="button" className="text-button" onClick={resetFilters}>{t("筛选已启用，清除")}</button>}
+      <span>{t("时间轴显示工作排期，不是报告期间。")}</span></div>
+    {(timeline.precision!==precision || timeline.coarse) && <p className="timeline-range-notice" role="note">{t("日期跨度较大，刻度已自动概括；完整排期与日期仍保留。")}</p>}
+    {filtersOpen && <div className="schedule-filters">
       <label><span>{t("查找排期")}</span><span className="schedule-search"><Search aria-hidden="true" />
         <input ref={searchRef} type="search" value={query} onChange={(event) => setQuery(event.target.value)}
           aria-label={t("查找排期")} placeholder={t("公司、报告年度、项目类型或负责人")} /></span></label>
@@ -311,29 +218,30 @@ export function ProjectSchedule({ store, filter, onOpen, onEditSchedule, onOpenT
         <option value="all">{t("全部排期")}</option><option value="incomplete">{t("日期待补")}</option>
         <option value="scheduled">{t("起止日期已填")}</option></select></label>
       {(query || dateScope !== "all") && <button type="button" className="button secondary" onClick={resetFilters}>{t("清除筛选")}</button>}
-      <span className="schedule-result-count" role="status">{t("显示 {visible} / {total} 个排期", { visible: rows.length, total: allRows.length })}</span>
-    </div>
-    <p className="schedule-scroll-help" id={scrollHelpId}>{t("上下滚动看项目，左右滚动看日期；筛选不会修改排期。")}</p>
+      {onFilterChange && <label><span>{t("显示项目")}</span><select value={filter} onChange={event=>onFilterChange(event.target.value)}>
+        {[["active","活跃"],["completed","已完成"],["all","全部"],["archived","归档"]].map(([value,label])=><option key={value} value={value}>{t(label)}</option>)}</select></label>}
+    </div>}
+    <p className="visually-hidden" id={scrollHelpId}>{t("上下滚动看项目，左右滚动看日期；筛选不会修改排期。")}</p>
     {rows.length ? <div className="schedule-scroll" ref={scrollRef} tabIndex="0" aria-describedby={scrollHelpId}
       aria-label={t("可横向滚动的项目排期")}>
-      <div className="schedule-grid" data-resizing={resizingMeta || undefined} data-precision={precision}
+      <div className="schedule-grid" data-resizing={resizingMeta || undefined} data-precision={timeline.precision}
         data-simplified={simplifiedView || undefined}
-        style={{ "--timeline-width": `${width}px`, "--time-grid-width": `${timeline.gridWidth}px`, "--schedule-meta-width": `${metaWidth}px` }}>
+        style={{ "--timeline-width": `${width}px`, "--time-grid-width": `${timeline.gridWidth}px`, "--schedule-meta-width": `${actualMetaWidth}px` }}>
         <div className="schedule-corner"><strong>{t("公司／控股公司")}</strong><span>{t(simplifiedView ? "项目类型 · 报告期间" : "项目类型 · 负责人")}</span>
           <button type="button" className="schedule-column-resizer" role="separator" aria-orientation="vertical"
-            aria-label={t("拖动调整公司栏宽度")} aria-valuemin={MIN_META_WIDTH} aria-valuemax={MAX_META_WIDTH}
-            aria-valuenow={metaWidth} aria-keyshortcuts="ArrowLeft ArrowRight Home End"
+            aria-label={t("拖动调整公司栏宽度")} aria-valuemin={Math.min(MIN_META_WIDTH,actualMetaWidth)} aria-valuemax={Math.min(MAX_META_WIDTH,Math.max(150,Math.floor(viewportWidth*.35)))}
+            aria-valuenow={actualMetaWidth} aria-keyshortcuts="ArrowLeft ArrowRight Home End"
             data-tooltip={t("拖动调整公司栏宽度；双击恢复默认宽度")}
             onPointerDown={beginMetaResize} onPointerMove={resizeMeta} onPointerUp={finishMetaResize}
             onPointerCancel={finishMetaResize} onKeyDown={resizeMetaWithKeyboard} onDoubleClick={resetMetaWidth} />
         </div>
         <div className="schedule-calendar-header" style={{ width }}>
           <div className="schedule-months">{timeline.majorGroups.map((group) => <span key={group.key}
-            style={{ width: group.width }}>{precision === "month" ? yearFormatter.format(group.date) : monthFormatter.format(group.date)}</span>)}</div>
+            style={{ width: group.width }}>{timeline.precision === "month" ? yearFormatter.format(group.date) : monthFormatter.format(group.date)}</span>)}</div>
           <div className="schedule-weeks">{timeline.ticks.map((tick, index) => <span key={tick.date.toISOString()}
             style={{ width: tick.width, flexBasis: tick.width }}
-            data-compact={tick.width < 34 || undefined}>{precision === "day" ? dayFormatter.format(tick.date)
-              : precision === "month" ? shortMonthFormatter.format(tick.date)
+            data-compact={tick.width < 34 || undefined}>{timeline.precision === "day" ? dayFormatter.format(tick.date)
+              : timeline.precision === "month" ? (timeline.coarse ? yearFormatter.format(tick.date) : shortMonthFormatter.format(tick.date))
                 : (tick.width < 34 && index % 2) ? "" : weekFormatter.format(tick.date)}</span>)}</div>
           {todayLeft >= 0 && todayLeft <= width && <span className="schedule-today-header" style={{ left: todayLeft }}
             aria-hidden="true"><b>{t("今天")}</b></span>}
@@ -354,8 +262,8 @@ export function ProjectSchedule({ store, filter, onOpen, onEditSchedule, onOpenT
           const barWidth = durationDays ? Math.max(8, durationDays * timeline.pixelsPerDay) : 0;
           const durationWeeks = durationDays ? Math.max(1, Math.ceil(durationDays / 7)) : 0;
           const durationMonths = durationDays ? Math.max(1, Math.ceil(durationDays / 30.4375)) : 0;
-          const durationLabel = precision === "day" ? t("{count} 天", { count: durationDays })
-            : precision === "month" ? t("{count} 个月", { count: durationMonths })
+          const durationLabel = timeline.precision === "day" ? t("{count} 天", { count: durationDays })
+            : timeline.precision === "month" ? t("{count} 个月", { count: durationMonths })
               : t("{count} 周", { count: durationWeeks });
           const taxMarkers = Object.values((row.taxDeadlines || []).reduce((groups, deadline) => ({ ...groups,
             [deadline.dueDate]: [...(groups[deadline.dueDate] || []), deadline] }), {}));
@@ -369,7 +277,7 @@ export function ProjectSchedule({ store, filter, onOpen, onEditSchedule, onOpenT
               data-drop-position={dropPosition} draggable={canReorder} title={canReorder ? t("按住项目即可拖动排序") : undefined}
               onDragStart={(event) => beginDrag(event, rowKey)} onDragEnd={finishDrag} onDragOver={(event) => dragOver(event, rowKey)}
               onDrop={(event) => drop(event, rowKey)}>
-              <button type="button" className="schedule-row-open" onClick={() => onOpen(row.kind, row.id)}
+              <button type="button" className="schedule-row-open" title={`${rowAccessibleName} · ${projectTypeOwner}`} onClick={() => onOpen(row.kind, row.id)}
                 aria-description={canReorder ? t("按住项目即可拖动排序；按 Alt 加上下方向键也可移动") : undefined}
                 aria-keyshortcuts={canReorder ? "Alt+ArrowUp Alt+ArrowDown" : undefined}
                 onKeyDown={(event) => reorderWithKeyboard(event, rowKey)}>
@@ -382,7 +290,7 @@ export function ProjectSchedule({ store, filter, onOpen, onEditSchedule, onOpenT
                       className="schedule-reporting-period" />}
                     {projectTypeOwner && <small className="schedule-project-type">{projectTypeOwner}</small>}
                     {row.secondaryName && <small>{row.secondaryName}</small>}
-                    <small className="schedule-date-summary">{t("项目排期")}：{row.startDate ? formatDate(row.startDate, language) : t("未设置开始日")}
+                    <small className="schedule-date-summary"><span className="visually-hidden">{t("项目排期")}：</span>{row.startDate ? formatDate(row.startDate, language) : t("未设置开始日")}
                       {" → "}{row.dueDate ? formatDate(row.dueDate, language) : t("未设置截止日")}</small></>}
                 </span>
               </button>
@@ -434,5 +342,11 @@ export function ProjectSchedule({ store, filter, onOpen, onEditSchedule, onOpenT
     </div> : <div className="schedule-empty"><CalendarClock aria-hidden="true" /><strong>{t("这个筛选条件下没有项目")}</strong>
       <span>{t("在左侧切换状态，或新建公司后设置项目开始日和截止日。")}</span>
       {(query || dateScope !== "all") && <button type="button" className="button secondary" onClick={resetFilters}>{t("清除筛选")}</button>}</div>}
+    <details className="schedule-help"><summary>{t("图例与排期操作说明")}</summary>
+    <div className="schedule-legend" aria-label={t("排期图例")}><span><i data-tone="active" />{t("进行中")}</span>
+      <span><i data-tone="complete" />{t("已完成")}</span><span><i data-tone="overdue" />{t("已逾期")}</span>
+      <span><ReceiptText aria-hidden="true" />{t("税务期限")}</span>
+      <span><CircleAlert aria-hidden="true" />{t("日期不完整")}</span></div>
+      <p>{t("上下滚动看项目，左右滚动看日期；筛选不会修改排期。")}</p></details>
   </section>;
 }

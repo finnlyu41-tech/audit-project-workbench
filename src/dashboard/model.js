@@ -1,3 +1,4 @@
+import { periodAfterEnd } from "./reporting-period-tools.js";
 import { priorityFields, projectPriority } from "./project-priority.js";
 import { consolidationIsSimple, simpleModeField } from "./consolidation-mode.js";
 import { toTraditional } from "./traditional.js";
@@ -1283,6 +1284,19 @@ export function suggestNextFiscalYear(entity, engagements = []) {
   }).filter(Number.isInteger);
   const currentYear = new Date().getFullYear();
   return years.length ? Math.max(...years) : currentYear;
+}
+
+// New drafts follow the actual recorded end, not the incorporation year or the copied structure.
+export function suggestedReportingPeriod(entity, engagements = []) {
+  const periods=engagements.filter(record=>record.entityId===entity.id).flatMap(engagementReportingPeriods)
+    .filter(period=>validIsoDate(period.periodStart)&&validIsoDate(period.periodEnd)&&period.periodEnd>=period.periodStart);
+  if(periods.length) {
+    const last=periods.reduce((a,b)=>a.periodEnd>b.periodEnd?a:b);
+    const dates=periodAfterEnd(last.periodEnd);
+    return { periodPreset: inferPeriodPreset(dates.periodStart,dates.periodEnd), ...dates };
+  }
+  if(validIsoDate(entity.incorporationDate)) return fiscalPeriodFromIncorporation(entity);
+  return fiscalPeriodForYear(entity.fiscalYearPreset, suggestNextFiscalYear(entity, engagements));
 }
 
 function normalizeEntityRecord(value = {}) {
@@ -2996,7 +3010,7 @@ export function yearEndOrPeriodLabel(engagement, language = "en") {
   const periods = engagementReportingPeriods(engagement);
   const labelFor = (period) => {
     const label = formalSingleReportingPeriodLabel(period, language);
-    if (!["calendar", "apr_mar"].includes(inferPeriodPreset(period?.periodStart, period?.periodEnd))) return label;
+    if (period?.periodPreset === "doi_year_end" || !["calendar", "apr_mar"].includes(inferPeriodPreset(period?.periodStart, period?.periodEnd))) return label;
     if (language === "en") return `YE ${label}`;
     return language === "zh-Hant" ? `年結：${label}` : `年结：${label}`;
   };
