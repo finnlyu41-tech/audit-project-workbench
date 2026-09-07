@@ -4,6 +4,26 @@ import { toTraditional } from "./traditional.js";
 export const LANGUAGE_PREFERENCE_KEY = "audit-progress-workbench:language";
 
 const english = {
+  "日期跨度较大，刻度已自动概括；完整排期与日期仍保留。": "The date range is large, so ticks are summarized. All schedules and exact dates are retained.",
+  "筛选": "Filters",
+  "搜索和筛选排期": "Search and filter schedules",
+  "筛选已启用，清除": "Filters applied; clear",
+  "图例与排期操作说明": "Legend and schedule help",
+  "显示项目": "Show projects",
+  "时间轴显示工作排期，不是报告期间。": "Timeline shows work dates, not reporting periods.",
+  "首期报告期间": "First reporting period",
+  "首期从成立日开始，结束日可以跨年；不是项目开工日。": "The first period starts at incorporation and may end in another year. It is not the work start date.",
+  "首期结束日建议": "Suggested first-period end",
+  "保留当前结束日，或选择建议": "Keep the current end, or choose a suggestion",
+  "从成立日起 {count} 个月": "{count} months from incorporation",
+  "公司年结日": "Company year-end",
+  "此记录的首期起点与当前主档 DOI 不同；保留已存期间，不会自动改写。": "The recorded first-period start differs from the current company DOI. Saved dates remain unchanged.",
+  "首期已超过 18 个月建议范围，请核对适用规定及实际报告期；这不是合规确认。": "This first period exceeds the 18-month suggestion. Check the applicable rules and actual reporting period; this is not compliance confirmation.",
+  "首期与后续期间说明": "First and subsequent reporting periods",
+  "首期可以短于或长于 12 个月；后续期间由上次实际结束日衔接。首次在 APW 建档不代表公司首次编报，可改用自定义期间。": "A first period may be shorter or longer than 12 months. Subsequent periods follow the actual last end. The first record in APW need not be the first-ever accounts; custom periods remain available.",
+  "香港公司的首个会计参照日通常须落在成立后 18 个月内；财务年度及其他地区规则另须核对，工具不作法定判断。": "A Hong Kong company’s first accounting reference date generally falls within 18 months of incorporation. Financial-year and other-jurisdiction rules need separate review; this tool does not make a legal determination.",
+  "项目排期是实际工作的开始日和截止日，与财务报表的报告期间分开。": "Project schedule dates plan the actual work. They are separate from the financial statements\u2019 reporting period.",
+
   "项目优先级": "Project priority",
   "优先级": "Priority",
   "紧急": "Urgent",

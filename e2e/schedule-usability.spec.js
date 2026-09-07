@@ -8,6 +8,7 @@ async function openSchedule(page, store = scheduleWorkspace()) {
   await openWorkbench(page, store);
   await page.locator('.app-rail-button[aria-label="Project schedule"]').click();
   await expect(page.locator(".schedule-scroll")).toBeVisible();
+  await page.getByRole("button", { name:"Search and filter schedules",exact:true }).click();
 }
 
 test("schedule precision controls offer consistent readable targets", async ({ page }) => {
@@ -77,7 +78,7 @@ test("editing a filtered schedule uses the existing guarded form and changes onl
 
 test("archive filters cannot expose schedule edits or allow keyboard reordering", async ({ page }) => {
   await openSchedule(page); const before = await readStoredWorkspace(page);
-  await page.getByRole("tab", { name: /^Archived/ }).click();
+  await page.getByRole("combobox", { name: "Show projects", exact: true }).selectOption("archived");
   await page.getByRole("searchbox", { name: "Find scheduled projects" }).fill("2024");
   await expect(page.locator(".schedule-row-meta")).toHaveCount(1);
   await expect(page.locator(".schedule-row-edit")).toHaveCount(0);

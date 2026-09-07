@@ -29,6 +29,8 @@ import "./dashboard/workspace-space.css";
 
 import "./dashboard/project-priority.css";
 
+import "./dashboard/schedule-focus.css";
+
 createRoot(document.getElementById("root")).render(
   <React.StrictMode>
     <App />

@@ -164,10 +164,12 @@ function DashboardWorkbench({ initialSnapshot }) {
   const narrowQuery = "(min-width: 761px) and (max-width: 1100px)";
   const [narrowNavigation, setNarrowNavigation] = React.useState(() => window.matchMedia(narrowQuery).matches);
   const [navigationDrawerOpen, setNavigationDrawerOpen] = React.useState(false);
-  const sidebarCollapsed = narrowNavigation ? !navigationDrawerOpen : savedSidebarCollapsed;
+  const scheduleFocus = workspaceView === "schedule";
+  const navigationOverlay = narrowNavigation || scheduleFocus;
+  const sidebarCollapsed = navigationOverlay ? !navigationDrawerOpen : savedSidebarCollapsed;
   const setSidebarCollapsed = value => {
     const next = typeof value === "function" ? value(sidebarCollapsed) : value;
-    if (narrowNavigation) setNavigationDrawerOpen(!next); else setSavedSidebarCollapsed(next);
+    if (navigationOverlay) setNavigationDrawerOpen(!next); else setSavedSidebarCollapsed(next);
   };
   React.useEffect(() => {
     const query = window.matchMedia(narrowQuery);
@@ -183,6 +185,8 @@ function DashboardWorkbench({ initialSnapshot }) {
     try { return window.matchMedia("(max-width: 1599px)").matches; } catch { return false; }
   });
   const [compactOutstandingOpen, setCompactOutstandingOpen] = React.useState(false);
+  React.useEffect(() => { setNavigationDrawerOpen(false);
+    if (workspaceView === "schedule") setCompactOutstandingOpen(false); }, [workspaceView]);
   const importRef = React.useRef(null);
   const templateImportRef = React.useRef(null);
   const toolbarRef = React.useRef(null);
@@ -843,9 +847,10 @@ function DashboardWorkbench({ initialSnapshot }) {
   const languageLabel = language === "en" ? "English" : language === "zh-Hant" ? "繁體中文" : "简体中文";
   const languageCode = language === "en" ? "EN" : language === "zh-Hant" ? "繁" : "简";
   const saveStateLabel = persistenceStatusLabel(persistence.status, t);
-  const outstandingPanelCollapsed = compactLayout ? !compactOutstandingOpen : outstandingCollapsed;
-  const expandOutstandingPanel = () => compactLayout ? setCompactOutstandingOpen(true) : setOutstandingCollapsed(false);
-  const collapseOutstandingPanel = () => compactLayout ? setCompactOutstandingOpen(false) : setOutstandingCollapsed(true);
+  const outstandingOverlay = compactLayout || scheduleFocus;
+  const outstandingPanelCollapsed = outstandingOverlay ? !compactOutstandingOpen : outstandingCollapsed;
+  const expandOutstandingPanel = () => outstandingOverlay ? setCompactOutstandingOpen(true) : setOutstandingCollapsed(false);
+  const collapseOutstandingPanel = () => outstandingOverlay ? setCompactOutstandingOpen(false) : setOutstandingCollapsed(true);
   const navigationEntryExists = (entry) => {
     if (!entry) return false;
     if (entry.workspaceView !== "detail") return true;
@@ -1027,8 +1032,8 @@ function DashboardWorkbench({ initialSnapshot }) {
       </nav>
     </aside>
 
-    <section className="workbench-layout" data-navigation-overlay={narrowNavigation || undefined} data-home={workspaceView === "home" || undefined} data-sidebar-collapsed={sidebarCollapsed || undefined}
-      data-compact-layout={compactLayout || undefined} data-outstanding-collapsed={outstandingPanelCollapsed || undefined}
+    <section className="workbench-layout" data-schedule={scheduleFocus || undefined} data-navigation-overlay={navigationOverlay || undefined} data-home={workspaceView === "home" || undefined} data-sidebar-collapsed={sidebarCollapsed || undefined}
+      data-compact-layout={outstandingOverlay || undefined} data-outstanding-collapsed={outstandingPanelCollapsed || undefined}
       data-resizing-navigation={resizingNavigation || undefined} data-simplified-view={simplifiedView || undefined}
       style={{ "--project-panel-width": `${navigationWidth}px`,
         "--effective-project-panel-width": `${simplifiedView ? Math.min(navigationWidth, COMPACT_NAVIGATION_WIDTH) : navigationWidth}px` }}>
@@ -1109,7 +1114,7 @@ function DashboardWorkbench({ initialSnapshot }) {
           onShowProjects={(status = "all") => { clearNavigationFilters(); setSearch(""); setSidebarCollapsed(false);
             setNavigationView("projects"); setFilter(status); setWorkspaceView("detail"); }}
           onShowSchedule={() => setWorkspaceView("schedule")} />
-          : workspaceView === "schedule" ? <ProjectSchedule store={store} filter={filter} onOpen={revealWorkspaceRecord}
+          : workspaceView === "schedule" ? <ProjectSchedule store={store} filter={filter} onFilterChange={setFilter} onOpen={revealWorkspaceRecord}
           onEditSchedule={openScheduleEditor} onOpenTaxDeadline={openTaxDeadlineCentre} onReorder={reorderSchedule}
           simplifiedView={simplifiedView} onToggleSimplifiedView={() => setSimplifiedView((current) => !current)} />
           : workspaceView === "report" ? <ManagementReport store={store} selection={selection} now={deadlineClock}

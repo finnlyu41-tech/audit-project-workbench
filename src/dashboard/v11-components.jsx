@@ -1,6 +1,8 @@
 import { consolidationIsSimple } from "./consolidation-mode.js";
 import { calendarDate } from "./workspace-validation.js";
 import React from "react";
+import { FirstPeriodGuidance } from "./first-period-guidance.jsx";
+import { suggestedReportingPeriod } from "./model.js";
 import { ProjectPrioritySelect } from "./project-priority.jsx";
 import { projectPriority, validProjectPriority } from "./project-priority.js";
 import { RequiredTextInput } from "./required-text-input.jsx";
@@ -194,9 +196,9 @@ export function EngagementForm({ store, entity, initial = null, preferredSourceI
   const firstInitialPeriod = engagementReportingPeriods(initial)[0] || initial || {};
   const suggestedYear = initial ? Number(firstInitialPeriod.periodStart?.slice(0, 4)) || new Date().getFullYear()
     : suggestNextFiscalYear(entity, store.engagements) || new Date().getFullYear();
-  const initialPreset = firstInitialPeriod?.periodPreset || entity.fiscalYearPreset || "calendar";
-  const generated = initial ? { periodStart: firstInitialPeriod.periodStart, periodEnd: firstInitialPeriod.periodEnd }
-    : fiscalPeriodForYear(initialPreset, suggestedYear);
+  const proposedPeriod = initial ? firstInitialPeriod : suggestedReportingPeriod(entity, store.engagements);
+  const initialPreset = proposedPeriod.periodPreset || entity.fiscalYearPreset || "calendar";
+  const generated = { periodStart: proposedPeriod.periodStart, periodEnd: proposedPeriod.periodEnd };
   const inheritedEngagementTypes = templateStarter?.engagementTypes || engagementTypeValues(initial || existing[0] || {
     engagementType: entity.kind === "holding_company" ? "Group consolidation" : "Audit",
   });
@@ -259,21 +261,16 @@ export function EngagementForm({ store, entity, initial = null, preferredSourceI
   const changeDate = (id, field) => (event) => updatePeriods((periods) => periods.map((period) => {
     if (period.id !== id) return period;
     return { ...period, [field]: event.target.value,
-      periodPreset: period.periodPreset === "doi_year_end" && field === "periodEnd"
-        && period.periodStart === entity.incorporationDate ? "doi_year_end"
+      periodPreset: period.periodPreset === "doi_year_end" && field === "periodEnd" ? "doi_year_end"
         : event.target.value === period[field] ? period.periodPreset : "custom" };
   }));
   const addReportingPeriod = () => {
-    const nextPreset = entity.fiscalYearPreset || "calendar";
-    const nextYear = suggestNextFiscalYear(entity, [
-      ...store.engagements.filter((engagement) => engagement.id !== initial?.id),
+    const dates = suggestedReportingPeriod(entity, [
+      ...store.engagements.filter(record => record.id !== initial?.id),
       { entityId: entity.id, reportingPeriods: values.reportingPeriods },
-    ]) || new Date().getFullYear();
-    const dates = fiscalPeriodForYear(nextPreset, nextYear);
-    updatePeriods((periods) => [...periods, {
-      id: uid("reporting-period"), periodPreset: nextPreset, baseYear: nextYear,
-      periodStart: dates.periodStart || "", periodEnd: dates.periodEnd || "",
-    }]);
+    ]);
+    updatePeriods(periods => [...periods, { id: uid("reporting-period"), ...dates,
+      baseYear: Number(dates.periodStart?.slice(0,4)) || new Date().getFullYear() }]);
   };
   const removeReportingPeriod = (id) => updatePeriods((periods) => periods.length === 1
     ? periods : periods.filter((period) => period.id !== id));
@@ -354,6 +351,7 @@ export function EngagementForm({ store, entity, initial = null, preferredSourceI
   if (quickField === "schedule") return <form data-editor-guard className="workbench-form" data-quick-field="schedule" onSubmit={submit}>
     <div className="engagement-company-lock"><i>{entity.kind === "holding_company" ? <Building2 aria-hidden="true" /> : <Building aria-hidden="true" />}</i>
       <span><small>{t("年度项目")}</small><strong>{entity.legalName} · {yearEndOrPeriodLabel(initial, language)}</strong></span></div>
+    <p className="form-help">{t("项目排期是实际工作的开始日和截止日，与财务报表的报告期间分开。")}</p>
     <div className="project-date-groups" data-single="true"><fieldset><legend>{t("项目排期")}</legend>
       <DateRangePicker autoFocus startDate={values.startDate} dueDate={values.dueDate}
         onChange={(startDate, dueDate) => setValues((current) => ({ ...current, startDate, dueDate }))} />
@@ -391,7 +389,7 @@ export function EngagementForm({ store, entity, initial = null, preferredSourceI
           <button type="button" className="icon-button danger" disabled={values.reportingPeriods.length === 1}
             aria-label={t("移除报告期间 {number}", { number: index + 1 })}
             onClick={() => removeReportingPeriod(period.id)}><Trash2 aria-hidden="true" /></button></div>
-        <div className="period-builder-controls"><label><span>{t("期间方式")}</span>
+        <div className="period-builder-controls" data-period-kind={period.periodPreset}><label><span>{t("期间方式")}</span>
           <select value={period.periodPreset} onChange={changePreset(period.id)}>
             {["calendar", "apr_mar", ...(entity.incorporationDate || period.periodPreset === "doi_year_end" ? ["doi_year_end"] : []), "custom"]
               .map((preset) => <option value={preset} key={preset}>{presetLabel(preset, t)}</option>)}</select></label>
@@ -401,6 +399,8 @@ export function EngagementForm({ store, entity, initial = null, preferredSourceI
             max={period.periodEnd || undefined} onChange={changeDate(period.id, "periodStart")} /></label>
           <label><span>{t("报告结束日 *")}</span><input type="date" required value={period.periodEnd}
             min={period.periodStart || undefined} onChange={changeDate(period.id, "periodEnd")} /></label></div>
+        {period.periodPreset === "doi_year_end" && <FirstPeriodGuidance period={period} entity={entity}
+          onChooseEnd={periodEnd => updatePeriods(periods => periods.map(p => p.id===period.id ? {...p,periodEnd}:p))} />}
         {period.periodStart && period.periodEnd && <div className="period-preview"><CalendarPlus aria-hidden="true" />
           <strong>{yearEndOrPeriodLabel(period, language)}</strong>
           <span>{formatDate(period.periodStart, language)} → {formatDate(period.periodEnd, language)}</span></div>}
@@ -448,6 +448,7 @@ export function EngagementForm({ store, entity, initial = null, preferredSourceI
     <div className="form-grid" data-columns="2"><label><span>{t("负责人")}</span>
       <input value={values.owner} onChange={update("owner")} placeholder={t("例如：项目经理或主审")} /></label>
       <ProjectPrioritySelect value={values.priority} onChange={priority => setValues(current => ({ ...current, priority }))} /></div>
+    <p className="form-help">{t("项目排期是实际工作的开始日和截止日，与财务报表的报告期间分开。")}</p>
     <div className="project-date-groups" data-single="true"><fieldset><legend>{t("项目排期")}</legend>
       <DateRangePicker startDate={values.startDate} dueDate={values.dueDate}
         onChange={(startDate, dueDate) => setValues((current) => ({ ...current, startDate, dueDate }))} />

@@ -138,3 +138,7 @@ Found a workflow problem? [Open an issue](https://github.com/finnlyu41-tech/audi
 [Open APW](https://finnlyu41-tech.github.io/audit-project-workbench/) · [中文介绍](README.zh-CN.md)
 
 </div>
+
+### 排期与首期报告期间 / Schedule and first reporting periods
+
+排期画布与 DOI 首期、跨年／18个月建议、后续实际期间衔接及其边界见 [操作说明](docs/schedule-and-first-period.md)。Work dates are separate from reporting periods; changing company DOI does not rewrite saved engagements.

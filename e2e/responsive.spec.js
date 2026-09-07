@@ -123,6 +123,7 @@ test("company navigation and schedule company columns resize by dragging and per
   await page.reload();
   await page.locator(".app-rail-button[aria-label='Project schedule']").click();
   await expect(page.locator(".schedule-corner")).toBeVisible();
+  await openProjectNavigation(page);
   expect((await page.locator(".project-panel").boundingBox()).width).toBeCloseTo(navAfter, 0);
   expect((await page.locator(".schedule-corner").boundingBox()).width).toBeCloseTo(scheduleAfter, 0);
 });
@@ -168,8 +169,10 @@ test("simplified view compacts navigation and schedule while retaining core proj
   await expect(page.locator(".schedule-project-type")).toContainText("Alex Chan");
   expect((await compactRow.boundingBox()).height).toBeGreaterThan(compactHeight);
 
+  await openProjectNavigation(page);
   await navigationToggle.click();
   await page.reload();
+  await openProjectNavigation(page);
   await expect(page.locator(".navigation-density-toggle")).toHaveAttribute("aria-pressed", "true");
   expect((await page.locator(".project-panel").boundingBox()).width).toBeCloseTo(compactNavigationWidth, 0);
 });

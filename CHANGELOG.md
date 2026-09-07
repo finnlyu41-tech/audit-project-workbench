@@ -1,5 +1,15 @@
 # Changelog
 
+## Schedule canvas and flexible first reporting periods
+
+- Reclaim the schedule canvas: temporary navigation/outstanding drawers, on-demand filters and help, responsive identity width, full remaining timeline height.
+- Suggest DOI first periods with editable cross-year, 12-month and 18-month ends; keep reporting dates separate from actual work dates.
+- Continue the next period from the actual previous end, including long/custom first periods, without rewriting existing company/engagement data.
+- Preserve complete DOI labels, widen date controls, bound extreme-range tick rendering and protect early-year/leap-date arithmetic.
+- Fix the narrow priority-toolbar layout that blocked the preceding Pages release; retain the existing height gate and add rapid-resize coverage.
+- See docs/schedule-and-first-period.md for scope, statutory-reference boundaries and release verification.
+
+
 ## Manual annual project priority
 
 - Assign Urgent, High, Normal or Low within the compact project toolbar or annual editor.
