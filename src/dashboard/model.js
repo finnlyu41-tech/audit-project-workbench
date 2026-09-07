@@ -1,3 +1,4 @@
+import { priorityFields, projectPriority } from "./project-priority.js";
 import { consolidationIsSimple, simpleModeField } from "./consolidation-mode.js";
 import { toTraditional } from "./traditional.js";
 import { validWorkspaceRecords, calendarDate } from "./workspace-validation.js";
@@ -759,6 +760,7 @@ export function makeGroup(values, useStarter = true, groupSample = createDefault
     notes: values.notes?.trim() || "",
     consolidationEnabled,
     ...(consolidationIsSimple(values) ? { consolidationMode: "simple" } : {}),
+    ...priorityFields(values),
     archived: false,
     createdAt: now,
     updatedAt: now,
@@ -1041,6 +1043,7 @@ function normalizeLegacyStore(value) {
         linkedWorkstreamId: workstreamIds.has(deadline.linkedWorkstreamId) ? deadline.linkedWorkstreamId : null })) : [];
     return {
       id: project?.id || uid("project"),
+      ...priorityFields(project),
       name: typeof project?.name === "string" && project.name.trim() ? project.name.trim() : "未命名项目",
       entity: typeof project?.entity === "string" ? project.entity : "",
       engagementTypes: engagementTypeValues(project),
@@ -1064,6 +1067,7 @@ function normalizeLegacyStore(value) {
   });
   const groups = Array.isArray(value.groups) ? value.groups.map((group) => ({
     id: group?.id || uid("group"),
+    ...priorityFields(group),
     name: typeof group?.name === "string" && group.name.trim() ? group.name.trim() : "未命名控股公司",
     engagementTypes: engagementTypeValues(group).length ? engagementTypeValues(group) : ["Group consolidation"],
     engagementType: engagementTypeValues(group)[0] || "Group consolidation",
@@ -1390,6 +1394,7 @@ function normalizeEngagementRecord(value = {}, context = {}) {
     engagementType: engagementTypes[0] || "",
     reportingFramework: typeof value.reportingFramework === "string" ? value.reportingFramework.trim() : "",
     owner,
+    ...priorityFields(value),
     startDate: typeof value.startDate === "string" ? value.startDate : "",
     dueDate,
     notes: typeof value.notes === "string" ? value.notes : "",
@@ -1476,6 +1481,7 @@ function addRuntimeViews(store) {
       startDate: engagement.startDate,
       dueDate: engagement.dueDate,
       owner: engagement.owner,
+      ...priorityFields(engagement),
       notes: engagement.notes,
       archived: engagement.archived,
       createdAt: engagement.createdAt,
@@ -1628,7 +1634,7 @@ function migrateLegacyStore(value) {
       periodPreset: inferPeriodPreset(project.periodStart, project.periodEnd), periodStart: project.periodStart,
       periodEnd: project.periodEnd, legacyPeriod: project.period,
       engagementTypes: project.engagementTypes, engagementType: project.engagementType || project.projectType,
-      reportingFramework: project.reportingFramework,
+      reportingFramework: project.reportingFramework, ...priorityFields(project),
       owner: project.owner, startDate: project.startDate, dueDate: project.dueDate, notes: project.notes,
       archived: project.archived, workstreams: project.workstreams, outstandingItems: project.outstandingItems,
       consolidation: project.conversionState?.group ? { enabled: project.conversionState.group.consolidationEnabled !== false, ...simpleModeField(project.conversionState.group),
@@ -1646,7 +1652,7 @@ function migrateLegacyStore(value) {
       incorporationDate: group.incorporationDate || group.dateOfIncorporation, kind: "holding_company",
       fiscalYearPreset: inferPeriodPreset(group.periodStart, group.periodEnd), taxDeadlines: group.taxDeadlines,
       archived: group.archived, createdAt: group.createdAt, updatedAt: group.updatedAt }));
-    engagements.push(normalizeEngagementRecord({ id: group.id, entityId, internalName: "", engagementTypes: group.engagementTypes,
+    engagements.push(normalizeEngagementRecord({ id: group.id, entityId, internalName: "", ...priorityFields(group), engagementTypes: group.engagementTypes,
       engagementType: group.engagementType || "Group consolidation",
       periodPreset: inferPeriodPreset(group.periodStart, group.periodEnd), periodStart: group.periodStart,
       periodEnd: group.periodEnd, legacyPeriod: group.period, reportingFramework: "", owner: group.owner,
@@ -1787,7 +1793,7 @@ function syncCanonicalFromLegacyViews(previous, candidate) {
       periodStart: record.periodStart, periodEnd: record.periodEnd,
       reportingPeriods: record.reportingPeriods || previousEngagement?.reportingPeriods, legacyPeriod: record.period,
       reportingFramework: record.reportingFramework, owner: record.owner, startDate: record.startDate,
-      dueDate: record.dueDate, notes: record.notes, archived: record.archived,
+      priority: record.priority, dueDate: record.dueDate, notes: record.notes, archived: record.archived,
       workstreams, outstandingItems: record.outstandingItems, consolidation,
       conversionState: record.conversionState, createdAt: record.createdAt, updatedAt: record.updatedAt || now }, {
       categoryById: new Map(candidate.workstreamCategories.map((category) => [category.id, category])),
@@ -1962,6 +1968,7 @@ export function makeEngagement(values = {}, options = {}) {
     startDate: values.startDate || "",
     dueDate: values.dueDate || "",
     notes: values.notes || "",
+    ...priorityFields(values),
     archived: false,
     workstreams,
     outstandingItems: [],
@@ -2131,6 +2138,7 @@ export function makeProject(values, useStarter = true, sampleSource = null, cate
     dueDate: values.dueDate || "",
     owner: values.owner?.trim() || "",
     notes: values.notes?.trim() || "",
+    ...priorityFields(values),
     archived: false,
     createdAt: now,
     updatedAt: now,
@@ -2163,6 +2171,7 @@ export function convertProjectToGroup(store, projectId, groupSample = createDefa
     startDate: project.startDate || "",
     dueDate: project.dueDate || "",
     owner: project.owner || "",
+    ...priorityFields(project),
     notes: project.notes || "",
     consolidationEnabled,
     ...(consolidationIsSimple(previousGroup) ? { consolidationMode: "simple" } : {}),
@@ -2221,6 +2230,7 @@ export function convertGroupToProject(store, groupId, groupSample = createDefaul
     startDate: group.startDate || "",
     dueDate: group.dueDate || "",
     owner: group.owner || "",
+    ...priorityFields(group),
     notes: group.notes || "",
     archived: Boolean(group.archived),
     createdAt: group.createdAt || now,
@@ -2586,6 +2596,9 @@ export function homeOverviewData(store, now = new Date()) {
   const entitiesWithoutEngagement = (store?.entities || []).filter((entity) => !entity.archived
     && !entityIdsWithActiveEngagements.has(entity.id)).sort((left, right) => left.legalName.localeCompare(right.legalName));
   const priorityItems = [
+    ...activeRecords.filter(record => ['urgent', 'high'].includes(projectPriority(record.engagement))).map(record =>
+      ({ category: 'manual_priority', urgency: projectPriority(record.engagement) === 'urgent' ? 'manual_urgent' : 'manual_high',
+        record, sortDate: record.engagement.dueDate || '9999' })),
     ...alerts.map((alert) => ({ category: "deadline", urgency: alert.urgency || "overdue", alert,
       record: recordById.get(alert.targetId) || null, sortDate: alert.dueDate || "" })),
     ...upcomingDeadlines.map((item) => ({ category: "upcoming", urgency: item.daysUntil === 0 ? "due_today" : "due_soon",
@@ -2595,7 +2608,7 @@ export function homeOverviewData(store, now = new Date()) {
     ...openOutstanding.map((entry) => ({ category: "outstanding", urgency: "outstanding", ...entry,
       sortDate: entry.item.createdAt || "" })),
   ];
-  const urgencyRank = { overdue: 0, due_today: 1, due_soon: 2, setup: 3, outstanding: 4 };
+  const urgencyRank = { overdue: 0, due_today: 1, manual_urgent: 2, due_soon: 3, manual_high: 4, setup: 5, outstanding: 6 };
   priorityItems.sort((left, right) => (urgencyRank[left.urgency] ?? 9) - (urgencyRank[right.urgency] ?? 9)
     || left.sortDate.localeCompare(right.sortDate)
     || (left.record?.entity.legalName || left.entity?.legalName || left.alert?.recordName || "")

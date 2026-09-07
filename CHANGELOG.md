@@ -1,5 +1,14 @@
 # Changelog
 
+## Manual annual project priority
+
+- Assign Urgent, High, Normal or Low within the compact project toolbar or annual editor.
+- Order active home projects and the flat project list by priority; retain original tie-break order and independent deadline alerts.
+- Surface urgent/high unfinished projects as actionable home entries without inventing deadlines or changing completion.
+- Preserve optional priority through serialization, backup recovery and record conversions; new annual work defaults to Normal.
+- Retain the working-area improvements and add isolated priority/sorting/accessibility/regression coverage.
+
+
 ## Workspace space and simple consolidation
 
 - Give the central workspace more screen area, use temporary narrow navigation and outstanding overlays, and fold secondary group tools and quick-update notes.

@@ -27,6 +27,8 @@ import "./dashboard/template-transfer.css";
 
 import "./dashboard/workspace-space.css";
 
+import "./dashboard/project-priority.css";
+
 createRoot(document.getElementById("root")).render(
   <React.StrictMode>
     <App />

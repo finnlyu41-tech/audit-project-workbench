@@ -1,6 +1,8 @@
 import { consolidationIsSimple } from "./consolidation-mode.js";
 import { calendarDate } from "./workspace-validation.js";
 import React from "react";
+import { ProjectPrioritySelect } from "./project-priority.jsx";
+import { projectPriority, validProjectPriority } from "./project-priority.js";
 import { RequiredTextInput } from "./required-text-input.jsx";
 import { batchCompanyEdited, prepareCompanyEntry } from "./company-entry-state.js";
 import { useModalDraft } from "./modal-draft.jsx";
@@ -209,6 +211,7 @@ export function EngagementForm({ store, entity, initial = null, preferredSourceI
       baseYear: Number(period.periodStart?.slice(0, 4)) || suggestedYear + index })),
     reportingFramework: initial ? initial.reportingFramework || "" : existing[0]?.reportingFramework || "",
     owner: initial?.owner || "",
+    priority: projectPriority(initial),
     startDate: initial?.startDate || "",
     dueDate: initial?.dueDate || "",
     notes: initial?.notes || "",
@@ -338,6 +341,7 @@ export function EngagementForm({ store, entity, initial = null, preferredSourceI
     if (values.startDate && values.dueDate && values.dueDate < values.startDate) {
       setError(t("项目截止日不得早于开始日。")); return;
     }
+    if (!validProjectPriority(values.priority)) { setError(t("请选择有效的项目优先级。")); return; }
     const sortedPeriods = engagementReportingPeriods({ reportingPeriods });
     const result = onSubmit({ ...values, engagementType: values.engagementTypes[0] || "", entityId: entity.id, reportingPeriods: sortedPeriods,
       periodStart: sortedPeriods[0]?.periodStart || initial?.periodStart || "",
@@ -441,8 +445,9 @@ export function EngagementForm({ store, entity, initial = null, preferredSourceI
           onClick={() => toggleEngagementType(type)}><X aria-hidden="true" /></button></span>)}</div>}
       <small className="form-help">{t("可同时选择多个预设类型，也可以添加自定义类型。")}</small>
     </fieldset>
-    <div className="form-grid" data-columns="1"><label><span>{t("负责人")}</span>
-      <input value={values.owner} onChange={update("owner")} placeholder={t("例如：项目经理或主审")} /></label></div>
+    <div className="form-grid" data-columns="2"><label><span>{t("负责人")}</span>
+      <input value={values.owner} onChange={update("owner")} placeholder={t("例如：项目经理或主审")} /></label>
+      <ProjectPrioritySelect value={values.priority} onChange={priority => setValues(current => ({ ...current, priority }))} /></div>
     <div className="project-date-groups" data-single="true"><fieldset><legend>{t("项目排期")}</legend>
       <DateRangePicker startDate={values.startDate} dueDate={values.dueDate}
         onChange={(startDate, dueDate) => setValues((current) => ({ ...current, startDate, dueDate }))} />

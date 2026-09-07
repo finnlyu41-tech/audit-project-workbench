@@ -1,4 +1,6 @@
 import React from "react";
+import { ProjectPriorityBadge } from "./project-priority.jsx";
+import { compareProjectPriority } from "./project-priority.js";
 import { useModalDraft } from "./modal-draft.jsx";
 import { ArrowDown, ArrowUp, ArrowRightLeft, Building, Building2, ChevronsDown, ChevronsUp, Copy, Minus, Pencil, Play, Plus, Trash2 } from "lucide-react";
 import { ProgressBar } from "./components.jsx";
@@ -188,17 +190,17 @@ function EntityEngagementWorkspaceList({ store, selection, onSelect, search, fil
   }).filter(Boolean).sort((left, right) => {
     const leftKey = `${left.kind}:${left.engagement.id}`;
     const rightKey = `${right.kind}:${right.engagement.id}`;
-    return (scheduleOrder.get(leftKey) ?? Number.MAX_SAFE_INTEGER) - (scheduleOrder.get(rightKey) ?? Number.MAX_SAFE_INTEGER)
+    return compareProjectPriority(left.engagement, right.engagement) || (scheduleOrder.get(leftKey) ?? Number.MAX_SAFE_INTEGER) - (scheduleOrder.get(rightKey) ?? Number.MAX_SAFE_INTEGER)
       || (entityOrder.get(left.entity.id) ?? Number.MAX_SAFE_INTEGER) - (entityOrder.get(right.entity.id) ?? Number.MAX_SAFE_INTEGER)
       || (right.engagement.periodEnd || "").localeCompare(left.engagement.periodEnd || "")
       || left.entity.legalName.localeCompare(right.entity.legalName);
   });
   return <div className="workspace-tree flat-engagement-list" data-simplified={simplifiedView || undefined}>
     {rows.length ? rows.map(({ engagement, entity, kind, progress, complete, periodLabel, typeLabel, outstanding }) =>
-      <button type="button" className="tree-row flat-engagement-row" key={engagement.id}
+      <button type="button" className="tree-row flat-engagement-row" data-engagement-id={engagement.id} key={engagement.id}
         data-selected={selection?.kind === kind && selection.id === engagement.id || undefined}
         onClick={() => onSelect({ kind, id: engagement.id, entityId: entity.id })}>
-        <span className="tree-copy"><strong className="flat-engagement-type">{typeLabel}</strong>
+        <span className="tree-copy"><span className="priority-title-line"><strong className="flat-engagement-type">{typeLabel}</strong><ProjectPriorityBadge record={engagement} /></span>
           <ReportingPeriodSummary engagement={engagement} language={language} t={t} className="flat-engagement-period"
             compact={simplifiedView} />
           <small className="flat-engagement-company">{[entity.legalName, simplifiedView ? "" : engagement.owner]
@@ -321,7 +323,7 @@ function EntityWorkspaceTree({ store, selection, onSelect, onMove, search, filte
     return <button type="button" className="tree-row tree-engagement-row" style={{ "--tree-depth": depth }} key={engagement.id}
       data-selected={selection?.kind === kind && selection.id === engagement.id || undefined}
       onClick={() => onSelect({ kind, id: engagement.id, entityId: entity.id })}>
-        <span className="tree-copy"><strong className="tree-engagement-type">{typeLabel}</strong>
+        <span className="tree-copy"><span className="priority-title-line"><strong className="tree-engagement-type">{typeLabel}</strong><ProjectPriorityBadge record={engagement} /></span>
         <ReportingPeriodSummary engagement={engagement} language={language} t={t} className="tree-engagement-period"
           owner={simplifiedView ? "" : engagement.owner} compact={simplifiedView} /></span>
       {!simplifiedView && outstanding > 0 && <em>{outstanding}</em>}{!simplifiedView && <span className="tree-progress">{complete ? "✓" : entity.kind === "company"

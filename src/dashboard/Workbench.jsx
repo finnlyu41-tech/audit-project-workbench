@@ -1,3 +1,4 @@
+import { prepareProjectPriority, withProjectPriority } from "./project-priority.js";
 import { outstandingEntriesForScope } from "./outstanding-scope.js";
 import { consolidationIsSimple, withConsolidationMode } from "./consolidation-mode.js";
 import { useModalDraft } from "./modal-draft.jsx";
@@ -482,6 +483,18 @@ function DashboardWorkbench({ initialSnapshot }) {
     engagements: current.engagements.map((engagement) => engagement.id === engagementId
       ? { ...updater(engagement), updatedAt: new Date().toISOString() } : engagement),
   })), []);
+  const saveProjectPriority = (id, priority, baseline) => {
+    const result = prepareProjectPriority(store, id, priority, baseline);
+    if (result.error) { notify(t("无法更新优先级，请重新打开有效项目后重试。")); return result; }
+    if (!result.changed) return result;
+    setStore(current => {
+      const check = prepareProjectPriority(current, id, priority, baseline);
+      if (check.error || !check.changed) return current;
+      return { ...current, engagements: current.engagements.map(record => record.id === id
+        ? { ...withProjectPriority(record, priority), updatedAt: new Date().toISOString() } : record) };
+    });
+    notify(t("项目优先级已更新")); return result;
+  };
   const saveQuickUpdate = (id, baseline, values) => {
     const result = prepareQuickUpdate(store, id, baseline, values);
     if (!result.error && Object.keys(result.patch).length) {
@@ -1125,14 +1138,14 @@ function DashboardWorkbench({ initialSnapshot }) {
           parentMembership={selectedProjectMembership} onWorkflowRevealed={() => setWorkflowReveal(null)} workflowReveal={workflowReveal?.targetId === selectedProjectSource.id ? workflowReveal : null}
           quickUpdate={selectedEngagement && <QuickUpdate key={`quick-update:${selectedEngagement.id}`} engagement={selectedEngagement}
             readOnly={Boolean(selectedEngagement.archived || selectedRecordEntity?.archived)} drafts={quickDrafts.current}
-            showSummary={false} onSave={saveQuickUpdate} onContinue={() => revealNextStep(selectedEngagement.id)} />}
+            showSummary={false} onSave={saveQuickUpdate} onPriorityChange={saveProjectPriority} onContinue={() => revealNextStep(selectedEngagement.id)} />}
           activeWorkstreamId={activeWorkstreamId} setActiveWorkstreamId={setActiveWorkstreamId} updateWorkflowNodes={updateWorkflowNodes}
           setModal={setModal} duplicateProject={duplicateProject} archiveTarget={archiveTarget} restoreTarget={restoreTarget}
           onReorderWorkstreams={reorderProjectWorkstreams} deadlineClock={deadlineClock} />
           : selectedGroup ? <GroupDetail store={store} group={selectedGroup} statuses={outstandingStatusViews}
             quickUpdate={selectedEngagement && <QuickUpdate key={`quick-update:${selectedEngagement.id}`} engagement={selectedEngagement}
               readOnly={Boolean(selectedEngagement.archived || selectedRecordEntity?.archived)}
-              drafts={quickDrafts.current} onSave={saveQuickUpdate} />}
+              drafts={quickDrafts.current} onSave={saveQuickUpdate} onPriorityChange={saveProjectPriority} />}
             onChangeMode={mode => {
               if (selectedEngagement.archived || selectedRecordEntity?.archived) return;
               updateEngagement(selectedEngagement.id, current => ({ ...current,
@@ -1221,6 +1234,7 @@ function DashboardWorkbench({ initialSnapshot }) {
             ? { ...engagement, ...Object.fromEntries(quickFields.map(field => [field, values[field]])) }
             : ({ ...engagement,
             internalName: values.internalName, engagementTypes: values.engagementTypes, engagementType: values.engagementType,
+            priority: values.priority,
             periodPreset: values.periodPreset, periodStart: values.periodStart,
             periodEnd: values.periodEnd, reportingPeriods: values.reportingPeriods,
             reportingFramework: values.reportingFramework, owner: values.owner,
