@@ -63,7 +63,7 @@
   .audit-workbench .group-status-strip { grid-template-columns: repeat(auto-fit, minmax(min(140px, 100%), 1fr)); }
   .audit-workbench .group-status-strip > article > span { overflow: visible; white-space: normal; font-size: 13px; line-height: 1.4; }
   .audit-workbench .group-status-strip > article > div { flex-wrap: wrap; }
-  @container holding-panel (max-width: 820px) {
+  @container holding-panel (max-width: 640px) {
     .audit-workbench .holding-components-panel .holding-component-rows > article {
       grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) 32px;
       grid-template-areas: "identity identity open" "assignment assignment assignment" "progress readiness readiness" "notice notice notice" "checks checks checks";

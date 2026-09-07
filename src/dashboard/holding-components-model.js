@@ -14,6 +14,7 @@ export function holdingComponentRows(store, engagement) {
     return { component, entity, target, candidates, matches,
       name: entity?.legalName || component.entitySnapshot?.legalName || "",
       archived: Boolean(entity?.archived || target?.archived),
+      historical: !entity || Boolean(entity.archived || target?.archived || (component.engagementId && !target)),
       status: !target ? "unassigned" : engagementReportingPeriodsMatch(target, engagement) ? "matched" : "mismatch",
       done: conditions.filter((condition) => condition.done).length, total: conditions.length };
   });

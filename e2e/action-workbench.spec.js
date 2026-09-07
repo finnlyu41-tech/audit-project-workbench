@@ -1,3 +1,4 @@
+import { openProjectNavigation } from './panel-helpers.js';
 import { expect, test } from "@playwright/test";
 import AxeBuilder from "@axe-core/playwright";
 import { openWorkbench, readStoredWorkspace, seriousViolations, workspaceFixture } from "./helpers.js";
@@ -81,6 +82,7 @@ test("recent shortcuts survive reload and clearing history does not delete proje
 });
 test("company advanced fields are optional and preserve entered values while collapsed", async ({ page }) => {
   await openWorkbench(page, workspaceFixture());
+  await openProjectNavigation(page);
   await page.getByRole("button", { name: "New company" }).click();
   const dialog = page.getByRole("dialog", { name: "New company" });
   const disclosure = dialog.locator(".advanced-section");
@@ -102,6 +104,7 @@ test("action home, inline editor and expanded company form remain accessible", a
   await panel(page).getByRole("button", { name: "Quick edit" }).click();
   expect(seriousViolations(await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa"]).analyze())).toEqual([]);
   await panel(page).getByRole("button", { name: "Cancel", exact: true }).click();
+  await openProjectNavigation(page);
   await page.getByRole("button", { name: "New company" }).click();
   await page.getByRole("dialog").locator(".advanced-section > summary").click();
   expect(seriousViolations(await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa"]).analyze())).toEqual([]);
@@ -110,7 +113,7 @@ for (const width of [1024, 1440, 1920]) {
   test(`action layout fits at ${width}px with readable project cards`, async ({ page }, testInfo) => {
     await page.setViewportSize({ width, height: 900 });
     await openWorkbench(page, workspaceFixture(), { home: true });
-    await expect(page.locator(".outstanding-center-shell")).toBeHidden();
+    await expect(page.locator(".outstanding-center-shell")).toBeVisible();
     const geometry = await page.locator(".home-project-row").first().evaluate((element) => ({
       viewport: document.documentElement.clientWidth, page: document.documentElement.scrollWidth,
       card: element.clientWidth, content: element.scrollWidth,
@@ -125,6 +128,7 @@ for (const width of [1024, 1440, 1920]) {
     expect(fields).toEqual([42, 42, 42]);
     await page.screenshot({ path: testInfo.outputPath(`quick-update-${width}.png`) });
     await panel(page).getByRole("button", { name: "Cancel", exact: true }).click();
+    await openProjectNavigation(page);
     await page.getByRole("button", { name: "New company" }).click();
     await page.screenshot({ path: testInfo.outputPath(`company-${width}.png`) });
   });

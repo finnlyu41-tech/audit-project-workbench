@@ -1,7 +1,9 @@
+import { consolidationIsSimple } from "./consolidation-mode.js";
 import {
   collectGroupOutstandingEntries,
   collectGroupTaxDeadlineEntries,
   entityForEngagement,
+  engagementReportingPeriodsMatch,
   findParentMembership,
   groupProgress,
   memberIsReady,
@@ -324,7 +326,7 @@ function flattenGroupMembers(store, groupId, depth = 0, visited = new Set()) {
   if (visited.has(groupId)) return [];
   if (Array.isArray(store?.entities) && Array.isArray(store?.engagements)) {
     const engagement = store.engagements.find((item) => item.id === groupId);
-    if (!engagement?.consolidation) return [];
+    if (!engagement?.consolidation || consolidationIsSimple(engagement)) return [];
     const nextVisited = new Set(visited).add(groupId);
     return engagement.consolidation.components.flatMap((component) => {
       const target = store.engagements.find((item) => item.id === component.engagementId);
@@ -336,8 +338,10 @@ function flattenGroupMembers(store, groupId, depth = 0, visited = new Set()) {
         : projectStats(target).workstreams ? ((target.workstreams || []).find((workstream) => workstream.type === "audit")
           ? workstreamStats(target.workstreams.find((workstream) => workstream.type === "audit")).percentage
           : (conditions.length ? Math.round((conditions.filter((condition) => condition.done).length / conditions.length) * 100) : 0)) : 0) : 0;
-      const ready = target ? (kind === "group" ? childProgress.ready
-        : conditions.length > 0 && conditions.every((condition) => condition.done)) : false;
+      const eligible = target && entity && !target.archived && !entity.archived
+        && target.entityId === component.entityId && engagementReportingPeriodsMatch(target, engagement);
+      const ready = Boolean(eligible && (kind === "group" ? childProgress.ready
+        : conditions.length > 0 && conditions.every((condition) => condition.done)));
       const row = {
         kind,
         id: target?.id || component.id,
@@ -394,6 +398,7 @@ function groupRecordReport(store, group, now) {
     dueDate: group.dueDate,
     archived: group.archived,
     complete: progress.ready,
+    consolidationMode: consolidationIsSimple(group) ? "simple" : "full",
     progress,
     members: flattenGroupMembers(store, group.id),
     nodes: group.nodes.map((node) => ({ id: node.id, title: node.title, status: nodeStatus(node),

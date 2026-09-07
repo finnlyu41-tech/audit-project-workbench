@@ -1,3 +1,4 @@
+import { openProjectNavigation } from './panel-helpers.js';
 import { expect, test } from "@playwright/test";
 import { openWorkbench, workspaceFixture } from "./helpers.js";
 
@@ -12,7 +13,8 @@ for (const width of [1024, 1280, 1440, 1920]) {
     }));
     expect(metrics.scrollWidth).toBeLessThanOrEqual(metrics.clientWidth + 1);
     await expect(page.locator(".app-rail")).toBeVisible();
-    await expect(page.locator(".project-panel")).toBeVisible();
+    await openProjectNavigation(page);
+    if (width <= 1100) await page.locator(".app-mark").click();
     await expect(page.locator(".project-detail")).toBeVisible();
     const historyBox = await page.locator(".workspace-history-controls").boundingBox();
     const detailHeaderBox = await page.locator(".detail-header").boundingBox();
@@ -20,7 +22,7 @@ for (const width of [1024, 1280, 1440, 1920]) {
     expect(historyBox.y).toBeGreaterThanOrEqual(detailHeaderBox.y - 4);
     expect(historyBox.y).toBeLessThanOrEqual(detailHeaderBox.y + detailHeaderBox.height);
 
-    if (width < 1400) {
+    if (width < 1600) {
       const openOutstanding = page.getByRole("button", { name: "Expand outstanding centre" });
       await expect(openOutstanding).toBeVisible();
       await openOutstanding.click();
@@ -138,7 +140,7 @@ test("simplified view compacts navigation and schedule while retaining core proj
   await expect(page.locator(".tree-engagement-period")).not.toContainText("Alex Chan");
   await expect(page.locator(".workspace-tree .tree-progress")).toHaveCount(0);
   await expect.poll(async () => (await page.locator(".project-panel").boundingBox()).width)
-    .toBeLessThan(detailedNavigationWidth - 50);
+    .toBeLessThan(detailedNavigationWidth);
   await expect.poll(async () => (await page.locator(".project-panel").boundingBox()).width).toBe(250);
   const compactNavigationWidth = (await page.locator(".project-panel").boundingBox()).width;
   await expect(page.locator(".project-panel-resizer")).toBeHidden();

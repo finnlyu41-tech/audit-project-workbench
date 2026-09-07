@@ -1,3 +1,4 @@
+import { consolidationIsSimple } from "./consolidation-mode.js";
 import { calendarDate } from "./workspace-validation.js";
 import React from "react";
 import { RequiredTextInput } from "./required-text-input.jsx";
@@ -212,6 +213,7 @@ export function EngagementForm({ store, entity, initial = null, preferredSourceI
     dueDate: initial?.dueDate || "",
     notes: initial?.notes || "",
     consolidationEnabled: initial?.consolidation?.enabled !== false,
+    consolidationMode: consolidationIsSimple(initial || existing[0]) ? "simple" : "full",
   }));
   const previousDefault = existing.find((engagement) => !initial || engagement.id !== initial.id) || null;
   const [sourceMode, setSourceMode] = React.useState(templateStarter ? "template" : previousDefault ? "previous" : "template");
@@ -450,8 +452,12 @@ export function EngagementForm({ store, entity, initial = null, preferredSourceI
       <label><span>{t("财务报告准则／框架")}</span><input list="v11-framework-options" value={values.reportingFramework}
         onChange={update("reportingFramework")} placeholder={t("选择常用框架或直接输入")} />
         <datalist id="v11-framework-options">{FRAMEWORKS.map((framework) => <option key={framework} value={framework} />)}</datalist></label>
+    {entity.kind === "holding_company" && values.consolidationEnabled && <label><span>{t("合并模式")}</span>
+      <select value={values.consolidationMode} onChange={update("consolidationMode")}>
+        <option value="full">{t("完整模式")}</option><option value="simple">{t("简易模式")}</option></select>
+      {values.consolidationMode === "simple" && <small>{t("仅跟踪本级合并工作；组成部分保留，未纳入完成判断。")}</small>}</label>}
     {entity.kind === "holding_company" && <label className="check-option"><input type="checkbox" checked={values.consolidationEnabled}
-      onChange={(event) => setValues((current) => ({ ...current, consolidationEnabled: event.target.checked }))} />
+      onChange={(event) => setValues((current) => ({ ...current, consolidationEnabled: event.target.checked, consolidationMode: event.target.checked ? current.consolidationMode : "full" }))} />
       <span><strong>{t("本级需要独立合并流程")}</strong><small>{t("关闭后，本级只汇总组成部分。")}</small></span></label>}
     </AdvancedSection>
     {error && <div className="form-error" role="alert"><CircleAlert aria-hidden="true" />{error}</div>}
@@ -613,11 +619,14 @@ export function MergeEntitiesForm({ store, initialEntityId, onSubmit, onClose })
 
 export function HoldingComponentsPanel({ store, engagement, readOnly = false, onOpen, onUpdate, onSync }) {
   const { language, t } = useUiLanguage();
+  const [filtersOpen, setFiltersOpen] = React.useState(false);
   const [query, setQuery] = React.useState("");
   const [status, setStatus] = React.useState("all");
   const queryRef = React.useRef(null);
+  const [showHistory, setShowHistory] = React.useState(readOnly);
   const rows = React.useMemo(() => holdingComponentRows(store, engagement), [store, engagement]);
-  const searched = filterHoldingComponents(rows, query);
+  const historical = rows.filter(row => row.historical);
+  const searched = filterHoldingComponents(showHistory ? rows : rows.filter(row => !row.historical), query);
   const visible = filterHoldingComponents(searched, "", status);
   const currentChildren = store.entities.filter((item) => item.parentEntityId === engagement.entityId);
   const snapshotIds = new Set(rows.map((row) => row.component.entityId));
@@ -631,23 +640,31 @@ export function HoldingComponentsPanel({ store, engagement, readOnly = false, on
     setQuery(""); setStatus("all"); onUpdate(id, patch);
   };
   return <section className="holding-components-panel" aria-label={t("本年度组成部分")}>
-    <header><div><h3>{t("本年度组成部分")}</h3><p>{t("范围按建立项目时的架构保存；每家公司必须指定同一报告期间的年度项目。")}</p>
+    <header><div><h3>{t("本年度组成部分")}</h3>
       <p>{t("本年度要求：{period}", { period: yearEndOrPeriodLabel(engagement, language) })}</p></div>
       {!readOnly && <button type="button" className="button secondary" onClick={onSync}><FolderTree aria-hidden="true" />
         {added.length || removed.length ? t("同步当前架构 · +{added}/−{removed}", { added: added.length, removed: removed.length }) : t("检查当前架构")}</button>}</header>
     {(added.length > 0 || removed.length > 0) && <div className="structure-difference"><CircleAlert aria-hidden="true" />
-      <span>{t("当前架构与本年度范围不同：新增 {added} 家，移出 {removed} 家。历史范围不会自动改变。", {
+      <span>{t("架构与历史范围不同（+{added}/−{removed}），不会自动变更。", {
         added: added.length, removed: removed.length })}</span></div>}
-    {rows.length > 0 && <div className="component-filters">
+    {rows.length > 0 && <div className="component-toolbar">
+      <button type="button" className="button secondary" aria-label={t("查找与筛选组成部分")}
+        aria-expanded={filtersOpen} onClick={() => setFiltersOpen(v => !v)}>{t("查找与筛选")}</button>
+      {historical.length > 0 && <button type="button" className="button secondary" aria-pressed={showHistory}
+        aria-label={t(showHistory ? "收起历史组成部分 · {count}" : "显示历史组成部分 · {count}", { count: historical.length })}
+        onClick={() => setShowHistory(v => !v)}>{t("历史记录 · {count}", { count: historical.length })}</button>}
+      <span role="status">{t("显示 {shown} / {total} 家", { shown: visible.length, total: rows.length })}</span>
+      {!filtersOpen && (query || status !== "all") && <button type="button" className="button secondary"
+        onClick={() => { clear(); setFiltersOpen(true); }}>{t("筛选已启用")} · {t("清除筛选")}</button>}
+    </div>}
+    {rows.length > 0 && filtersOpen && <div className="component-filters">
       <label className="component-search"><span>{t("查找组成部分")}</span><span><Search aria-hidden="true" />
         <input ref={queryRef} type="search" value={query} onChange={(event) => setQuery(event.target.value)}
           aria-label={t("查找组成部分")} placeholder={t("公司名称、角色或负责人")} /></span></label>
       <div className="component-filter-options" role="group" aria-label={t("按项目匹配情况筛选")}>{Object.entries(labels).map(([value, label]) =>
         <button type="button" key={value} aria-pressed={status === value} onClick={() => setStatus(value)}>
           {t(label)}<strong>{filterHoldingComponents(searched, "", value).length}</strong></button>)}</div>
-      <span className="component-result-count" role="status">{t("显示 {shown} / {total} 家", { shown: visible.length, total: rows.length })}</span>
       {(query || status !== "all") && <button type="button" className="button secondary" onClick={clear}>{t("清除筛选")}</button>}
-      <small>{t(readOnly ? "归档记录仅供查看。" : "指定项目或勾选条件会立即应用；搜索和筛选不会改变年度范围。")}</small>
     </div>}
     {visible.length > 0 ? <div className="holding-component-rows">{visible.map((row) => <HoldingComponentRow key={row.component.id}
       row={row} store={store} readOnly={readOnly} onOpen={onOpen} onAssign={assign} onUpdate={onUpdate} />)}</div>
@@ -655,6 +672,10 @@ export function HoldingComponentsPanel({ store, engagement, readOnly = false, on
         <span>{t("清除筛选即可查看本年度完整范围。")}</span><button type="button" className="button secondary" onClick={clear}>{t("清除筛选")}</button></div>
         : <div className="entity-empty-projects"><FolderTree aria-hidden="true" /><strong>{t("本年度尚未保存组成部分")}</strong>
           <span>{t("同步当前架构后，系统会按完整报告期间尝试匹配下属公司的项目。")}</span></div>}
+    <details className="component-help"><summary>{t("范围与操作说明")}</summary>
+      <p>{t("范围按建立项目时的架构保存；每家公司必须指定同一报告期间的年度项目。")}</p>
+      <p>{t("已归档或来源缺失的记录仍在历史范围中；收起不会解除完整模式的就绪要求。")}</p>
+      <p>{t(readOnly ? "归档记录仅供查看。" : "指定项目或勾选条件会立即应用；搜索和筛选不会改变年度范围。")}</p></details>
   </section>;
 }
 
@@ -671,7 +692,7 @@ function HoldingComponentRow({ row, store, readOnly, onOpen, onAssign, onUpdate 
         {!entity ? ` · ${t("历史快照")}` : row.archived ? ` · ${t("关联来源已归档")}` : ""}</small>
         {target?.owner && <small>{t("负责人")}：{target.owner}</small>}</span></div>
     <label className="component-assignment"><span>{t("对应年度项目")}</span>
-      <select disabled={readOnly || !entity} value={target?.id || ""} aria-label={t("{name}的对应年度项目", { name })}
+      <select disabled={readOnly || !entity || row.archived} value={target?.id || ""} aria-label={t("{name}的对应年度项目", { name })}
         aria-describedby={hintId} onChange={(event) => {
           const selected = candidates.find((candidate) => candidate.id === event.target.value);
           onAssign(component.id, { engagementId: selected?.id || null,
@@ -697,7 +718,7 @@ function HoldingComponentRow({ row, store, readOnly, onOpen, onAssign, onUpdate 
     </div>
     {total > 0 && <div className="component-readiness-checks" role="group" aria-label={t("{name}的就绪条件", { name })}>
       {component.readinessConditions.map((condition) => <label key={condition.id}>
-        <input type="checkbox" disabled={readOnly} checked={condition.done} onChange={(event) => onUpdate(component.id, {
+        <input type="checkbox" disabled={readOnly || row.archived || !entity} checked={condition.done} onChange={(event) => onUpdate(component.id, {
           readinessConditions: component.readinessConditions.map((item) => item.id === condition.id ? { ...item, done: event.target.checked } : item),
         })} /><span>{condition.label}</span></label>)}
     </div>}

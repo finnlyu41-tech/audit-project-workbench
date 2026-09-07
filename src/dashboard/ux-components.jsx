@@ -50,17 +50,22 @@ export function QuickUpdate({ engagement, readOnly = false, drafts, onSave, onCo
     }
     close(); setApplied(true);
   };
-  return <section className="quick-update-panel" aria-label={t("快速更新")}>
-    <header><div><h3>{t("快速更新")}</h3><p>{t("负责人、排期和备注，在这里直接更新。")}</p></div>
+  return <section className="quick-update-panel" data-density="compact" aria-label={t("快速更新")}>
+    <header><h3>{t("快速更新")}</h3>
+      {!editor && showSummary && <dl className="quick-update-summary">
+        <div><dt>{t("负责人")}</dt><dd>{engagement.owner || t("未设置")}</dd></div>
+        {(engagement.startDate || engagement.dueDate) && <div><dt>{t("项目排期")}</dt><dd>
+          {engagement.startDate ? formatDate(engagement.startDate, language) : t("未设置开始日")} → {engagement.dueDate ? formatDate(engagement.dueDate, language) : t("未设置截止日")}</dd></div>}
+      </dl>}
       {!readOnly && !editor && <button type="button" ref={trigger} className="button secondary" onClick={edit}>
         <Pencil aria-hidden="true" />{t("快速编辑")}</button>}</header>
     {editor && !readOnly ? <form className="quick-update-form" onSubmit={submit}>
       <div className="quick-update-fields">
         <label><span>{t("负责人")}</span><input autoFocus value={editor.values.owner} onChange={update("owner")} /></label>
         <label><span>{t("项目开始日")}</span><input type="date" value={editor.values.startDate}
-          max={editor.values.dueDate || undefined} onChange={update("startDate")} /></label>
+          min="0001-01-01" max={editor.values.dueDate || "9999-12-31"} onChange={update("startDate")} /></label>
         <label><span>{t("项目截止日")}</span><input type="date" value={editor.values.dueDate}
-          min={editor.values.startDate || undefined} onChange={update("dueDate")} /></label>
+          min={editor.values.startDate || "0001-01-01"} max="9999-12-31" onChange={update("dueDate")} /></label>
       </div>
       <label className="quick-update-notes"><span>{t("项目备注")}</span><textarea rows="3" value={editor.values.notes}
         onChange={update("notes")} placeholder={t("记录下一步、跟进情况或交接说明")} /></label>
@@ -69,10 +74,8 @@ export function QuickUpdate({ engagement, readOnly = false, drafts, onSave, onCo
         <button type="button" className="button secondary" onClick={close}>{t("取消")}</button>
         <button type="submit" className="button primary"><Save aria-hidden="true" />{t("保存更新")}</button></div></footer>
     </form> : <>
-      {showSummary && <dl className="quick-update-summary"><div><dt>{t("负责人")}</dt><dd>{engagement.owner || t("未设置")}</dd></div>
-        <div><dt>{t("项目排期")}</dt><dd>{engagement.startDate ? formatDate(engagement.startDate, language) : t("未设置开始日")}
-          <span aria-hidden="true"> → </span>{engagement.dueDate ? formatDate(engagement.dueDate, language) : t("未设置截止日")}</dd></div></dl>}
-      {engagement.notes && <p className="quick-note-preview">{engagement.notes}</p>}
+      {engagement.notes && <details className="quick-note-disclosure"><summary>{t("项目备注")}</summary>
+        <p className="quick-note-preview">{engagement.notes}</p></details>}
       {!readOnly && next && onContinue && <button type="button" className="next-action-link" onClick={() => onContinue(next)}>
         <span><small>{t("下一步")}</small><strong>{next.node?.title || t("为业务模块添加节点")}</strong></span>
         <ArrowRight aria-hidden="true" /></button>}

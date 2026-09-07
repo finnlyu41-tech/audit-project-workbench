@@ -27,6 +27,11 @@ test("quick open finds a company and reporting year without navigating the sideb
 });
 test("back restores navigation filters, search, module and workspace scroll", async ({ page }) => {
   const store = twoCompanies(); store.projects[0].notes = "Fictional follow-up note.\n".repeat(60);
+  // Scroll through permanent working content, not a note now intentionally folded by default.
+  store.projects[0].workstreams.push(...Array.from({length:60}, (_,index) => ({
+    ...store.projects[0].workstreams[0], id:`scroll-module-${index}`, type:"custom", categoryId:"custom",
+    customName:`Fictional scroll module ${index}`, nodes:[],
+  })));
   await openWorkbench(page, store);
   const before = await readStoredWorkspace(page);
   await page.getByRole("button", { name: "Open navigation filters" }).click();

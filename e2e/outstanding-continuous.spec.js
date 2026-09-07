@@ -1,3 +1,4 @@
+import { addOutstandingItem, openOutstandingPane } from './panel-helpers.js';
 import { openOutstandingFilters, openOutstandingMore, expandOutstandingItem } from './outstanding-helpers.js';
 import fs from 'node:fs/promises';
 import { STORAGE_KEY } from '../src/dashboard/model.js';
@@ -21,7 +22,7 @@ function unchangedOutsideItems(after, before, id) {
 async function openNew(page, store = annualSourceFixture().store) {
   await openWorkbench(page, store);
   const before = await readStoredWorkspace(page);
-  await page.getByRole('button', { name: 'Add outstanding item', exact: true }).click();
+  await addOutstandingItem(page);
   return before;
 }
 test('three consecutive items use one editor and four button activations without altering other work', async ({ page }, info) => {
@@ -115,7 +116,7 @@ for (const [language, label] of [['en', 'Save and add another'], ['zh-Hans', 'ä¿
   test(`continuous entry is readable and keeps focus at 480px in ${language}`, async ({ page }, info) => {
     await openWorkbench(page, annualSourceFixture().store);
     await page.evaluate((value) => localStorage.setItem('audit-progress-workbench:language', value), language);
-    await page.reload(); await page.locator('.outstanding-add').click();
+    await page.reload(); await openOutstandingPane(page); await page.locator('.outstanding-add').click();
     await page.setViewportSize({ width: 480, height: 640 });
     const dialog = modal(page); const field = dialog.locator('input[required]');
     const button = dialog.locator('button[value=continue]'); await expect(button).toHaveAccessibleName(label);

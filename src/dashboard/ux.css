@@ -99,13 +99,6 @@
   .quick-update-panel, .navigation-recent, .home-action-filters, .home-priority-filters { display: none !important; }
 }
 @media screen {
-  .audit-workbench .workbench-layout[data-home] {
-    grid-template-columns: var(--effective-project-panel-width, 320px) minmax(0, 1fr);
-  }
-  .audit-workbench .workbench-layout[data-home][data-sidebar-collapsed] {
-    grid-template-columns: 48px minmax(0, 1fr);
-  }
-  .audit-workbench .workbench-layout[data-home] > .outstanding-center-shell { display: none; }
   .audit-workbench .home-project-row {
     grid-template-columns: 34px minmax(0, 1fr) 14px;
     grid-template-areas: "progress identity arrow" "progress period arrow" "progress due arrow";

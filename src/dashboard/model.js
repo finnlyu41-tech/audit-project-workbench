@@ -1,3 +1,4 @@
+import { consolidationIsSimple, simpleModeField } from "./consolidation-mode.js";
 import { toTraditional } from "./traditional.js";
 import { validWorkspaceRecords, calendarDate } from "./workspace-validation.js";
 
@@ -757,6 +758,7 @@ export function makeGroup(values, useStarter = true, groupSample = createDefault
     owner: values.owner?.trim() || "",
     notes: values.notes?.trim() || "",
     consolidationEnabled,
+    ...(consolidationIsSimple(values) ? { consolidationMode: "simple" } : {}),
     archived: false,
     createdAt: now,
     updatedAt: now,
@@ -1000,6 +1002,7 @@ function normalizeLegacyStore(value) {
     };
     if (state.group && typeof state.group === "object") normalized.group = {
       consolidationEnabled: state.group.consolidationEnabled !== false,
+      ...(consolidationIsSimple(state.group) ? { consolidationMode: "simple" } : {}),
       nodes: normalizeNodeList(state.group.nodes),
     };
     return Object.keys(normalized).length ? normalized : undefined;
@@ -1072,6 +1075,7 @@ function normalizeLegacyStore(value) {
     owner: typeof group?.owner === "string" ? group.owner : "",
     notes: typeof group?.notes === "string" ? group.notes : "",
     consolidationEnabled: group?.consolidationEnabled !== false,
+    ...(consolidationIsSimple(group) ? { consolidationMode: "simple" } : {}),
     archived: Boolean(group?.archived),
     createdAt: group?.createdAt || new Date().toISOString(),
     updatedAt: group?.updatedAt || new Date().toISOString(),
@@ -1394,6 +1398,7 @@ function normalizeEngagementRecord(value = {}, context = {}) {
     outstandingItems,
     consolidation: value.consolidation && typeof value.consolidation === "object" ? {
       enabled: value.consolidation.enabled !== false,
+      ...simpleModeField(value),
       nodes: normalizeNodeList(value.consolidation.nodes),
       components: Array.isArray(value.consolidation.components) ? value.consolidation.components : [],
       structureSyncedAt: value.consolidation.structureSyncedAt || "",
@@ -1626,7 +1631,7 @@ function migrateLegacyStore(value) {
       reportingFramework: project.reportingFramework,
       owner: project.owner, startDate: project.startDate, dueDate: project.dueDate, notes: project.notes,
       archived: project.archived, workstreams: project.workstreams, outstandingItems: project.outstandingItems,
-      consolidation: project.conversionState?.group ? { enabled: project.conversionState.group.consolidationEnabled !== false,
+      consolidation: project.conversionState?.group ? { enabled: project.conversionState.group.consolidationEnabled !== false, ...simpleModeField(project.conversionState.group),
         nodes: project.conversionState.group.nodes || [], components: [] } : null,
       conversionState: project.conversionState, createdAt: project.createdAt, updatedAt: project.updatedAt }, {
       categoryById: new Map(legacy.workstreamCategories.map((category) => [category.id, category])),
@@ -1647,7 +1652,7 @@ function migrateLegacyStore(value) {
       periodEnd: group.periodEnd, legacyPeriod: group.period, reportingFramework: "", owner: group.owner,
       startDate: group.startDate, dueDate: group.dueDate, notes: group.notes, archived: group.archived,
       workstreams: [], outstandingItems: group.outstandingItems,
-      consolidation: { enabled: group.consolidationEnabled !== false, nodes: group.nodes, components: [] },
+      consolidation: { enabled: group.consolidationEnabled !== false, ...simpleModeField(group), nodes: group.nodes, components: [] },
       conversionState: group.conversionState, createdAt: group.createdAt, updatedAt: group.updatedAt }, {
       categoryById: new Map(legacy.workstreamCategories.map((category) => [category.id, category])),
       outstandingStatuses: legacy.outstandingStatuses,
@@ -1929,7 +1934,9 @@ export function makeEngagement(values = {}, options = {}) {
     throw new Error("An engagement already exists for this reporting period.");
   }
   const consolidation = entity?.kind === "holding_company" ? {
-    enabled: values.consolidationEnabled !== false,
+    enabled: values.consolidationMode === 'simple' || values.consolidationEnabled !== false,
+    ...simpleModeField({ mode: values.consolidationMode ?? (sourceMode === 'previous' && consolidationIsSimple(source) ? 'simple' : 'full'),
+      enabled: values.consolidationMode === 'simple' || values.consolidationEnabled !== false }),
     nodes: sourceMode === "previous" && source?.consolidation
       ? resetNodeStructure(source.consolidation.nodes) : (sourceMode === "blank" ? []
         : resetNodeStructure(options.groupSample?.nodes || [])),
@@ -2158,6 +2165,7 @@ export function convertProjectToGroup(store, projectId, groupSample = createDefa
     owner: project.owner || "",
     notes: project.notes || "",
     consolidationEnabled,
+    ...(consolidationIsSimple(previousGroup) ? { consolidationMode: "simple" } : {}),
     archived: Boolean(project.archived),
     createdAt: project.createdAt || now,
     updatedAt: now,
@@ -2223,6 +2231,7 @@ export function convertGroupToProject(store, groupId, groupSample = createDefaul
     workstreams,
     conversionState: mergeConversionState(group.conversionState, { group: {
       consolidationEnabled: group.consolidationEnabled !== false,
+      ...(consolidationIsSimple(group) ? { consolidationMode: "simple" } : {}),
       nodes: normalizeNodeList(group.nodes),
     } }),
   };
@@ -2771,6 +2780,12 @@ export function groupProgress(store, groupId, visited = new Set()) {
       return { componentPercentage: 0, consolidationPercentage: 0,
         percentage: 0, ready: false, readyMembers: 0, totalMembers: 0, readyCompanies: 0, totalCompanies: 0 };
     }
+    if (consolidationIsSimple(engagement)) {
+      const workflow = workflowStats(engagement.consolidation?.nodes || []);
+      return { componentPercentage: 0, consolidationPercentage: workflow.percentage,
+        percentage: workflow.percentage, ready: workflow.complete,
+        readyMembers: 0, totalMembers: 0, readyCompanies: 0, totalCompanies: 0 };
+    }
     const nextVisited = new Set(visited).add(groupId);
     const components = engagement.consolidation?.components || [];
     const results = components.map((component) => {
@@ -2783,7 +2798,7 @@ export function groupProgress(store, groupId, visited = new Set()) {
       if (targetEntity.kind === "holding_company") {
         const child = groupProgress(store, target.id, nextVisited);
         return { percentage: child.percentage, ready: child.ready,
-          readyCompanies: child.readyCompanies, totalCompanies: child.totalCompanies || 1 };
+          readyCompanies: child.totalCompanies ? child.readyCompanies : Number(child.ready), totalCompanies: child.totalCompanies || 1 };
       }
       const audit = (target.workstreams || []).find((workstream) => workstream.type === "audit");
       const readiness = component.readinessConditions || [];
@@ -2817,6 +2832,12 @@ export function groupProgress(store, groupId, visited = new Set()) {
   const group = (store.groups || []).find((item) => item.id === groupId);
   if (!group) return { componentPercentage: 0, consolidationPercentage: 0,
     percentage: 0, ready: false, readyMembers: 0, totalMembers: 0, readyCompanies: 0, totalCompanies: 0 };
+  if (consolidationIsSimple(group)) {
+    const workflow = workflowStats(group.nodes || []);
+    return { componentPercentage: 0, consolidationPercentage: workflow.percentage,
+      percentage: workflow.percentage, ready: !group.archived && workflow.complete,
+      readyMembers: 0, totalMembers: 0, readyCompanies: 0, totalCompanies: 0 };
+  }
   const nextVisited = new Set(visited).add(groupId);
   const members = group.members.filter((member) => member.kind === "project"
     ? store.projects.some((project) => project.id === member.refId && !project.archived)
@@ -2852,16 +2873,17 @@ export function collectGroupOutstandingEntries(store, groupId, visited = new Set
   const own = (group.outstandingItems || []).map((item) => ({
     item, sourceType: "group", sourceId: group.id, sourceName: group.name, depth,
   }));
+  if (consolidationIsSimple(group)) return own;
   const children = group.members.flatMap((member) => {
     if (member.kind === "project") {
       const project = store.projects.find((item) => item.id === member.refId);
-      if (!project || (!includeArchived && project.archived)) return [];
+      if (!project || (!includeArchived && (project.archived || entityForEngagement(store, project.id)?.archived))) return [];
       return (project?.outstandingItems || []).map((item) => ({
         item, sourceType: "project", sourceId: project.id, sourceName: project.name, depth: depth + 1,
       }));
     }
     const child = store.groups.find((item) => item.id === member.refId);
-    if (!child || (!includeArchived && child.archived)) return [];
+    if (!child || (!includeArchived && (child.archived || entityForEngagement(store, child.id)?.archived))) return [];
     return collectGroupOutstandingEntries(store, member.refId, nextVisited, depth + 1, includeArchived);
   });
   return [...own, ...children];

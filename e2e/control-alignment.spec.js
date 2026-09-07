@@ -1,3 +1,4 @@
+import { openProjectNavigation } from './panel-helpers.js';
 import { expect, test } from "@playwright/test";
 import { openWorkbench, workspaceFixture } from "./helpers.js";
 
@@ -99,6 +100,7 @@ for (const width of [480, 1024, 1440]) {
   test(`company fields stay aligned and inside the dialog at ${width}px`, async ({ page }) => {
     await page.setViewportSize({ width: 1024, height: 760 });
     await openWorkbench(page, workspaceFixture());
+    await openProjectNavigation(page);
     await page.getByRole("button", { name: "New company" }).click();
     const dialog = page.getByRole("dialog", { name: "New company" });
     await expect(dialog).toBeVisible();
@@ -119,6 +121,7 @@ for (const width of [480, 1024, 1440]) {
 test("batch actions center their icons and long labels reflow without clipping fields", async ({ page }) => {
   await page.setViewportSize({ width: 1024, height: 760 });
   await openWorkbench(page, workspaceFixture());
+  await openProjectNavigation(page);
   const newCompany = page.getByRole("button", { name: "New company" });
   await expectIconAndTextCentered(newCompany);
   await newCompany.click();

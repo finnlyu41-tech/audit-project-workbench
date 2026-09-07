@@ -1,3 +1,4 @@
+import { addOutstandingItem } from './panel-helpers.js';
 import { test, expect } from '@playwright/test';
 import AxeBuilder from '@axe-core/playwright';
 import { openWorkbench, readStoredWorkspace, workspaceFixture, seriousViolations } from './helpers.js';
@@ -116,7 +117,7 @@ for (const language of ['en', 'zh-Hans', 'zh-Hant']) {
 }
 test('opening another window does not discard a draft or hand over its active session', async ({ page, context }) => {
   await openWorkbench(page, workspaceFixture()); const before = await readStoredWorkspace(page);
-  await page.getByRole('button', { name: 'Add outstanding item', exact: true }).click();
+  await addOutstandingItem(page);
   const editor = page.getByRole('dialog', { name: 'Add outstanding item', exact: true });
   await editor.getByLabel('Outstanding item *').fill('Fictional unsubmitted request');
   const other = await newBlocked(context); await retry(other).click(); await expect(occupied(other)).toBeVisible();
