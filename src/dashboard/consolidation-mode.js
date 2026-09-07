@@ -5,8 +5,11 @@ export function consolidationIsSimple(value) {
     && c?.enabled !== false && value?.consolidationEnabled !== false;
 }
 export function withConsolidationMode(consolidation, mode) {
-  if (!consolidation || !['full', 'simple'].includes(mode)) throw new Error('Invalid consolidation mode');
-  const next = { ...consolidation };
+  if (!['full', 'simple'].includes(mode) || (consolidation != null
+    && (typeof consolidation !== 'object' || Array.isArray(consolidation)))) throw new Error('Invalid consolidation mode');
+  // A valid historical holding engagement may not yet have local consolidation settings.
+  // Initialize only on an explicit mode change, without inferring scope or completion.
+  const next = { ...(consolidation || { enabled: false, nodes: [], components: [] }) };
   if (mode === 'simple') { next.mode = 'simple'; next.enabled = true; }
   else delete next.mode;
   return next;

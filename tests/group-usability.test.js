@@ -104,3 +104,13 @@ test('reports never label mismatched or archived components ready just because b
   assert.equal(report.members.find(m=>m.id==='alpha-old').ready,false);
   assert.equal(report.members.find(m=>m.id==='cedar-annual').ready,false);
 });
+test('an old valid holding record without consolidation config can explicitly start simple mode',()=>{
+  const original=groupUsabilityFixture(); group(original).consolidation=null;
+  assert.equal(isValidStore(original),true);
+  const s=setMode(original,'simple');
+  assert.equal(consolidationIsSimple(group(s)),true);
+  assert.deepEqual(group(s).consolidation.nodes,[]); assert.deepEqual(group(s).consolidation.components,[]);
+  assert.equal(groupProgress(s,groupId).ready,false);
+  assert.deepEqual(s.entities,original.entities); assert.deepEqual(s.engagements.slice(1),original.engagements.slice(1));
+  assert.equal(isValidStore(canonicalStorePayload(s)),true);
+});

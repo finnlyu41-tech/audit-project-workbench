@@ -157,3 +157,29 @@ test('simple mode and retained historical scope survive an actual backup restore
     expect(await readStoredWorkspace(fresh)).toEqual(expected);
   } finally { await context.close(); }
 });
+test('simple mode explicitly initializes an old holding annual with no consolidation config without crashing',async({page})=>{
+  const input=groupUsabilityFixture(); input.engagements[0].consolidation=null;
+  const errors=[]; page.on('pageerror',e=>errors.push(e.message));
+  await openWorkbench(page,input); await openRecord(page,'Example Consolidation 2026');
+  const before=await readStoredWorkspace(page);
+  page.once('dialog',d=>d.accept()); await page.getByRole('combobox',{name:'Consolidation mode',exact:true}).selectOption('simple');
+  await expect(page.locator('[data-consolidation-mode]')).toHaveAttribute('data-consolidation-mode','simple');
+  await expect(page.locator('.node-board .inline-empty')).toBeVisible();
+  const after=await readStoredWorkspace(page); expect(after.engagements[0].consolidation.mode).toBe('simple');
+  expect(after.engagements[0].consolidation.nodes).toEqual([]); expect(after.engagements[0].consolidation.components).toEqual([]);
+  expect(after.entities).toEqual(before.entities); expect(after.engagements.slice(1)).toEqual(before.engagements.slice(1));
+  await page.reload(); await openRecord(page,'Example Consolidation 2026');
+  await expect(page.getByRole('combobox',{name:'Consolidation mode',exact:true})).toHaveValue('simple'); expect(errors).toEqual([]);
+});
+test('annual editor can explicitly enable simple mode for a historical record with no consolidation settings',async({page})=>{
+  const input=groupUsabilityFixture(); input.engagements[0].consolidation=null;
+  await openWorkbench(page,input); await openRecord(page,'Example Consolidation 2026');
+  const before=await readStoredWorkspace(page);
+  await page.getByRole('button',{name:'Edit annual engagement',exact:true}).click();
+  const dialog=page.getByRole('dialog'); await dialog.getByRole('combobox',{name:'Consolidation mode',exact:true}).selectOption('simple');
+  await dialog.getByRole('button',{name:'Save engagement',exact:true}).click();
+  await expect(page.getByRole('combobox',{name:'Consolidation mode',exact:true})).toHaveValue('simple');
+  const after=await readStoredWorkspace(page);
+  expect(after.engagements[0].consolidation).toMatchObject({mode:'simple',enabled:true,nodes:[],components:[]});
+  expect(after.entities).toEqual(before.entities); expect(after.engagements.slice(1)).toEqual(before.engagements.slice(1));
+});

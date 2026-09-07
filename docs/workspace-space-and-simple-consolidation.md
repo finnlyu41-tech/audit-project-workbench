@@ -8,7 +8,7 @@ The title and group tabs no longer stack as sticky layers over working content. 
 
 ## Consolidation mode
 
-Each holding-company annual engagement can select Full mode or Simple mode. Existing records remain full mode. Switching to simple mode explicitly explains that the project's completion depends only on its own consolidation nodes and their conditions, not component readiness. Empty workflows do not become complete. This is workflow tracking, never audit sign-off.
+Each holding-company annual engagement can select Full mode or Simple mode. Existing records remain full mode. Switching to simple mode explicitly explains that the project's completion depends only on its own consolidation nodes and their conditions, not component readiness. Empty workflows do not become complete. A valid old holding record without consolidation configuration can explicitly initialize an empty local workflow; no scope or completion is inferred. This is workflow tracking, never audit sign-off.
 
 Switching does not delete components, historical snapshots, condition checks or other annual work. Returning to full mode restores those requirements. The optional `consolidation.mode` field is serialized in the existing V11 envelope; the default full field is omitted so unchanged old records remain unchanged. Use an updated app for these backups: older clients do not implement simple-mode semantics.
 

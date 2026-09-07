@@ -1225,7 +1225,7 @@ function DashboardWorkbench({ initialSnapshot }) {
             periodEnd: values.periodEnd, reportingPeriods: values.reportingPeriods,
             reportingFramework: values.reportingFramework, owner: values.owner,
             startDate: values.startDate, dueDate: values.dueDate, notes: values.notes,
-            consolidation: engagement.consolidation ? { ...engagement.consolidation,
+            consolidation: (engagement.consolidation || values.consolidationMode === "simple") ? { ...engagement.consolidation,
               ...withConsolidationMode(engagement.consolidation, values.consolidationMode || "full"),
               enabled: values.consolidationMode === "simple" || values.consolidationEnabled !== false } : engagement.consolidation }));
           const identityChanged = ["owner", "internalName", "engagementTypes", "reportingPeriods"].some(field =>
