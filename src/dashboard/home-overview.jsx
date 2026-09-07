@@ -1,4 +1,6 @@
 import React from "react";
+import { ProjectPriorityBadge } from "./project-priority.jsx";
+import { projectPriority, PRIORITY_LABELS, prioritizedActiveRecords } from "./project-priority.js";
 import { BarChart3, BellRing, CalendarRange, CheckCircle2, ChevronRight, House, ListFilter, ListTodo, Plus } from "lucide-react";
 import { ProgressBar } from "./components.jsx";
 import { engagementTypesLabel, formatDate, homeOverviewData, outstandingStatusLabel,
@@ -35,13 +37,14 @@ export function HomeOverview({ store, now, onOpen, onOpenDeadline, onNewCompany,
   const owners = [...new Set([...overview.records.map((record) => record.engagement.owner),
     ...overview.alerts.map((alert) => alert.owner)].filter(Boolean))].sort();
   const filteredPriorities = priorityItemsFor(overview, priorityFilter, owner);
-  const activeRecords = overview.activeRecords.filter((record) => !owner || record.engagement.owner === owner)
-    .sort((a, b) => (a.engagement.dueDate || "9999").localeCompare(b.engagement.dueDate || "9999"));
-  const filterLabels = { all: "全部事项", today: "今天到期", overdue: "已逾期", week: "未来 7 天", outstanding: "待清事项", setup: "待完善" };
+  const activeRecords = prioritizedActiveRecords(overview.activeRecords, owner);
+  const filterLabels = { all: "全部事项", manual: "手工优先", today: "今天到期", overdue: "已逾期", week: "未来 7 天", outstanding: "待清事项", setup: "待完善" };
   const changeFilter = (value) => { setPriorityFilter(value); setPriorityLimit(5); };
   const priorityRef = React.useRef(null);
   const summary = overview.immediateDeadlineCount
     ? t("先处理 {count} 项今天到期或已经逾期的工作。", { count: overview.immediateDeadlineCount })
+    : overview.activeRecords.some(record => ['urgent', 'high'].includes(projectPriority(record.engagement)))
+      ? t("已指定 {count} 个紧急或高优先级项目。", { count: overview.activeRecords.filter(record => ['urgent', 'high'].includes(projectPriority(record.engagement))).length })
     : overview.deadlineAttentionCount
       ? t("目前没有逾期事项，接下来有 {count} 项期限需要关注。", { count: overview.deadlineAttentionCount })
       : overview.openOutstanding.length
@@ -54,6 +57,9 @@ export function HomeOverview({ store, now, onOpen, onOpenDeadline, onNewCompany,
   const visiblePriorities = filteredPriorities.slice(0, priorityLimit);
 
   const priorityPresentation = (item) => {
+    if (item.category === 'manual_priority') return { title: t("优先推进项目"),
+      context: `${item.record.entity.legalName} · ${yearEndOrPeriodLabel(item.record.engagement, language)}`,
+      detail: engagementTypesLabel(item.record.engagement, language), badge: t(PRIORITY_LABELS[projectPriority(item.record.engagement)]) };
     if (item.category === "deadline" || item.category === "upcoming") {
       const alert = item.alert;
       const record = item.record;
@@ -134,7 +140,7 @@ export function HomeOverview({ store, now, onOpen, onOpenDeadline, onNewCompany,
         {visiblePriorities.length ? <div className="home-priority-list">{visiblePriorities.map((item, index) => {
           const presentation = priorityPresentation(item);
           return <button type="button" key={`${item.category}:${item.alert?.id || item.record?.id || item.entity?.id}:${item.item?.id || index}`}
-            data-urgency={item.urgency} onClick={() => openPriority(item)} aria-label={`${presentation.title} · ${presentation.context}`}>
+            data-urgency={item.urgency} data-category={item.category} data-engagement-id={item.record?.id} onClick={() => openPriority(item)} aria-label={`${presentation.title} · ${presentation.context}`}>
             <i aria-hidden="true" /><span><strong>{presentation.title}</strong><small>{presentation.context}</small>
               <small>{presentation.detail}</small></span><em>{presentation.badge}</em><ChevronRight aria-hidden="true" /></button>;
         })}</div> : <div className="home-overview-empty"><CheckCircle2 aria-hidden="true" /><strong>{t("目前没有需要优先处理的事项")}</strong>
@@ -144,11 +150,11 @@ export function HomeOverview({ store, now, onOpen, onOpenDeadline, onNewCompany,
         {priorityLimit > 5 && <footer><button type="button" className="text-button" onClick={() => setPriorityLimit(5)}>{t("只显示前 5 项")}</button></footer>}
       </section>
 
-      <section className="home-overview-panel home-active-panel"><header><div><span>{t("进行中")}</span><h3>{t("进行中的项目")}</h3></div>
+      <section className="home-overview-panel home-active-panel"><header><div><span>{t("进行中")}</span><h3>{t("进行中的项目")}</h3><small>{t("按优先级排列，同级按截止日")}</small></div>
         <button type="button" onClick={() => onShowProjects("active")}>{t("查看全部")}<ChevronRight aria-hidden="true" /></button></header>
         {activeRecords.length ? <div className="home-project-list">{activeRecords.slice(0, 6).map((record) =>
-          <button type="button" className="home-project-row" key={record.id} onClick={() => onOpen(record.kind, record.id)}>
-            <ProgressBar value={record.percentage} compact /><span><strong>{record.entity.legalName}</strong>
+          <button type="button" className="home-project-row" data-engagement-id={record.id} key={record.id} onClick={() => onOpen(record.kind, record.id)}>
+            <ProgressBar value={record.percentage} compact /><span><strong>{record.entity.legalName}<ProjectPriorityBadge record={record.engagement} /></strong>
               <small>{engagementTypesLabel(record.engagement, language) || t("项目类型未设置")}</small>
               {nextEngagementAction(record.engagement)?.node && <small className="home-card-next">{t("下一步")}：{nextEngagementAction(record.engagement).node.title}</small>}</span><span><strong>{yearEndOrPeriodLabel(record.engagement, language)}</strong>
                 <small>{record.engagement.owner || t("未设置负责人")}</small></span><time>{record.engagement.dueDate

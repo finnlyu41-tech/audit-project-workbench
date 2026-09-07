@@ -4,6 +4,21 @@ import { toTraditional } from "./traditional.js";
 export const LANGUAGE_PREFERENCE_KEY = "audit-progress-workbench:language";
 
 const english = {
+  "项目优先级": "Project priority",
+  "优先级": "Priority",
+  "紧急": "Urgent",
+  "高": "High",
+  "普通": "Normal",
+  "低": "Low",
+  "项目优先级：{priority}": "Project priority: {priority}",
+  "项目优先级已更新": "Project priority updated",
+  "请选择有效的项目优先级。": "Choose a valid project priority.",
+  "无法更新优先级，请重新打开有效项目后重试。": "Priority could not be updated. Reopen an available engagement and try again.",
+  "手工优先": "Manual priority",
+  "优先推进项目": "Prioritize engagement",
+  "按优先级排列，同级按截止日": "Priority first, then due date",
+  "已指定 {count} 个紧急或高优先级项目。": "{count} engagements are marked urgent or high priority.",
+
   "查找与筛选组成部分": "Search and filter components",
   "查找与筛选": "Search and filter",
   "历史记录 · {count}": "History · {count}",

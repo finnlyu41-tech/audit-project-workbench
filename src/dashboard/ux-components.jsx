@@ -1,4 +1,6 @@
 import React from "react";
+import { ProjectPrioritySelect } from "./project-priority.jsx";
+import { projectPriority } from "./project-priority.js";
 import { ArrowRight, ChevronDown, Pencil, Save } from "lucide-react";
 import { formatDate } from "./model.js";
 import { useUiLanguage } from "./i18n.jsx";
@@ -16,7 +18,7 @@ export function AdvancedSection({ title, hint, defaultOpen = false, children }) 
   </details>;
 }
 
-export function QuickUpdate({ engagement, readOnly = false, drafts, onSave, onContinue, showSummary = true }) {
+export function QuickUpdate({ engagement, readOnly = false, drafts, onSave, onContinue, onPriorityChange, showSummary = true }) {
   const { language, t } = useUiLanguage();
   const [editor, setEditor] = React.useState(() => drafts.get(engagement.id) || null);
   const [error, setError] = React.useState("");
@@ -57,6 +59,8 @@ export function QuickUpdate({ engagement, readOnly = false, drafts, onSave, onCo
         {(engagement.startDate || engagement.dueDate) && <div><dt>{t("项目排期")}</dt><dd>
           {engagement.startDate ? formatDate(engagement.startDate, language) : t("未设置开始日")} → {engagement.dueDate ? formatDate(engagement.dueDate, language) : t("未设置截止日")}</dd></div>}
       </dl>}
+      {onPriorityChange && <ProjectPrioritySelect compact value={projectPriority(engagement)} disabled={readOnly}
+        onChange={value => onPriorityChange(engagement.id, value, projectPriority(engagement))} />}
       {!readOnly && !editor && <button type="button" ref={trigger} className="button secondary" onClick={edit}>
         <Pencil aria-hidden="true" />{t("快速编辑")}</button>}</header>
     {editor && !readOnly ? <form className="quick-update-form" onSubmit={submit}>

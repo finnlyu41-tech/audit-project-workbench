@@ -1,5 +1,6 @@
 // Validate persisted structure before normalization can discard or reinterpret supplied data.
 // Historical component references may be missing; a live engagement's company may not.
+import { validProjectPriority } from "./project-priority.js";
 const record = value => Boolean(value && typeof value === 'object' && !Array.isArray(value));
 const optional = (row, key, check) => row[key] === undefined || check(row[key]);
 const string = value => typeof value === 'string';
@@ -52,6 +53,7 @@ export function validWorkspaceRecords(value, legacy = false) {
     && list(row, 'nodes', node) && list(row, 'components', component);
   const engagement = row => fields(row, ['internalName', 'name', 'entity', 'entityId', 'owner', 'notes', 'reportingFramework'],
     ['archived'], ['periodStart', 'periodEnd', 'startDate', 'dueDate'])
+    && optional(row, 'priority', validProjectPriority)
     && list(row, 'reportingPeriods', period) && list(row, 'workstreams', workstream)
     && list(row, 'outstandingItems', outstanding) && list(row, 'taxDeadlines', tax)
     && list(row, 'nodes', node) && list(row, 'members', component)

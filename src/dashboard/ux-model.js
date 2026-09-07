@@ -1,7 +1,7 @@
 import { nodeIsComplete } from "./model.js";
 
 export const RECENT_RECORDS_KEY = "audit-progress-workbench:recent-records:v1";
-export const PRIORITY_FILTERS = ["all", "today", "overdue", "week", "outstanding", "setup"];
+export const PRIORITY_FILTERS = ["all", "today", "overdue", "week", "manual", "outstanding", "setup"];
 export const QUICK_FIELDS = ["owner", "startDate", "dueDate", "notes"];
 
 export function priorityItemsFor(overview, filter = "all", owner = "") {
@@ -14,6 +14,7 @@ export function priorityItemsFor(overview, filter = "all", owner = "") {
     if (seen.has(key)) return false;
     seen.add(key);
     if (owner && (item.record?.engagement.owner || item.alert?.owner || "") !== owner) return false;
+    if (filter === "manual") return item.category === "manual_priority";
     if (filter === "today") return item.urgency === "due_today";
     if (filter === "overdue") return item.urgency === "overdue";
     if (filter === "week") {
