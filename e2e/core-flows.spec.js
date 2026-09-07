@@ -1,3 +1,5 @@
+import { closeOutstandingPane } from './panel-helpers.js';
+import { addOutstandingItem } from './panel-helpers.js';
 import { openOutstandingFilters, openOutstandingMore, expandOutstandingItem } from './outstanding-helpers.js';
 import fs from "node:fs/promises";
 import { expect, test } from "@playwright/test";
@@ -375,7 +377,7 @@ test("progress, outstanding items and tax deadlines remain independent", async (
   await expect(taxCard.locator(".workstream-card-top [role='progressbar']")).toHaveAttribute("aria-valuenow", "0");
   const auditProgress = await auditCard.locator(".workstream-card-top [role='progressbar']").getAttribute("aria-valuenow");
 
-  await page.getByRole("button", { name: "Add outstanding item" }).click();
+  await addOutstandingItem(page);
   const outstandingDialog = page.getByRole("dialog", { name: "Add outstanding item" });
   await outstandingDialog.getByLabel("Outstanding item *").fill("Signed representation letter missing");
   await outstandingDialog.getByRole("button", { name: "Save outstanding item" }).click();
@@ -387,6 +389,7 @@ test("progress, outstanding items and tax deadlines remain independent", async (
   await openOutstandingFilters(page); await page.getByRole("button", { name: /Cleared \/ archived/ }).click();
   await expect(page.locator(".outstanding-item").filter({ hasText: "Signed representation letter missing" })).toBeVisible();
 
+  await closeOutstandingPane(page);
   await page.locator(".tax-deadline-fact").getByRole("button", { name: "Add tax deadline" }).click();
   const deadlineDialog = page.getByRole("dialog", { name: "Tax deadlines" });
   await deadlineDialog.getByRole("button", { name: "Add deadline" }).click();
@@ -410,6 +413,7 @@ test("progress, outstanding items and tax deadlines remain independent", async (
 
 test("tax deadline types can be entered directly as custom categories", async ({ page }) => {
   await openWorkbench(page, workspaceFixture());
+  await closeOutstandingPane(page);
   await page.locator(".tax-deadline-fact").getByRole("button", { name: "Add tax deadline" }).click();
   const manager = page.getByRole("dialog", { name: "Tax deadlines" });
   await manager.getByRole("button", { name: "Add deadline" }).click();

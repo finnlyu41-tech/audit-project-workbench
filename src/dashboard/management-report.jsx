@@ -188,17 +188,19 @@ function ProjectRecordReport({ report, statuses }) {
 
 function GroupRecordReport({ report, statuses }) {
   const { language, t } = useUiLanguage();
+  const simple = report.consolidationMode === "simple";
   return <>
+    {simple && <p className="form-help">{t("简易模式")} · {t("仅跟踪本级合并工作；组成部分保留，未纳入完成判断。")}</p>}
     <section className="record-report-facts"><div><span>{t("负责人")}</span><strong>{report.owner || t("未设置")}</strong></div>
       <div><span>{t("报告期间")}</span><strong>{reportingPeriodLabel(report, language) || t("未设置")}</strong></div>
-      <div><span>{t("组成部分就绪")}</span><strong>{report.progress.readyCompanies}/{report.progress.totalCompanies}</strong></div>
+      {!simple && <div><span>{t("组成部分就绪")}</span><strong>{report.progress.readyCompanies}/{report.progress.totalCompanies}</strong></div>}
       <div><span>{t("本级合并进度")}</span><strong>{report.progress.consolidationPercentage}%</strong></div></section>
-    <section className="management-report-section"><header><div><h3>{t("组成部分")}</h3><span>{t("进度、就绪状态及截止日")}</span></div></header>
+    {!simple && <section className="management-report-section"><header><div><h3>{t("组成部分")}</h3><span>{t("进度、就绪状态及截止日")}</span></div></header>
       <ReportTableRegion label={t("组成部分")}><table className="management-report-table"><thead><tr><th>{t("公司／控股公司")}</th>
         <th>{t("角色")}</th><th>{t("负责人")}</th><th>{t("进度")}</th><th>{t("合并就绪")}</th><th>{t("截止日")}</th></tr></thead><tbody>
         {report.members.map((member) => <tr key={`${member.kind}:${member.id}`} data-unresolved={member.unresolved || undefined}><td style={{ "--report-depth": member.depth }}>
           <strong>{member.name}</strong>{member.periodLabel && <small>{member.periodLabel}</small>}</td><td>{member.role || "—"}</td><td>{member.owner || "—"}</td><td>{member.progress}%</td>
-          <td>{t(member.unresolved ? "待指定" : member.ready ? "已就绪" : "未就绪")}</td><td>{formatDate(member.dueDate, language)}</td></tr>)}</tbody></table></ReportTableRegion></section>
+          <td>{t(member.unresolved ? "待指定" : member.ready ? "已就绪" : "未就绪")}</td><td>{formatDate(member.dueDate, language)}</td></tr>)}</tbody></table></ReportTableRegion></section>}
     <section className="management-report-section"><header><div><h3>{t("本级合并节点")}</h3><span>{t("明确条件完成情况")}</span></div></header>
       <div className="record-stage-list">{report.nodes.map((node, index) => <article key={node.id}><span>{index + 1}</span><strong>{node.title}</strong>
         <small>{node.completedConditions}/{node.conditions} · {t(node.status)}</small></article>)}</div></section>

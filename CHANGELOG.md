@@ -1,5 +1,13 @@
 # Changelog
 
+## Workspace space and simple consolidation
+
+- Give the central workspace more screen area, use temporary narrow navigation and outstanding overlays, and fold secondary group tools and quick-update notes.
+- Add explicit annual simple-consolidation mode while retaining full-mode historical scope and all saved conditions.
+- Make outstanding badges resolve to actual lists in the same project, group, company or workspace scope.
+- Fold archived/missing components by default, align the shared progress rings, and keep report readiness consistent with valid source periods.
+- Preserve optional mode in V11 backups and add cross-surface, restore and responsive regressions. See `docs/workspace-space-and-simple-consolidation.md`.
+
 ## Build and release maintenance
 
 - Separate stable runtime, workspace core and translations into statically preloaded chunks; retain synchronous app behavior and all business data boundaries.

@@ -1,3 +1,4 @@
+import { outstandingEntriesForScope } from "./outstanding-scope.js";
 import React from 'react';
 import { ChevronDown, ChevronRight, Ellipsis, ListFilter, ListPlus, MessageSquareText, Palette, Pencil, Trash2 } from 'lucide-react';
 import { useUiLanguage } from './i18n.jsx';
@@ -19,10 +20,8 @@ export function OutstandingCenter({ store, target, targetKind, statuses, updateP
   const panelId = React.useId(); const filterRef = React.useRef(null); const moreRef = React.useRef(null);
   const searchRef = React.useRef(null);
   const cardsRef = React.useRef(new Map());
-  const rawEntries = targetKind === "group"
-    ? collectGroupOutstandingEntries(store, target.id, new Set(), 0, readOnly)
-    : (target.outstandingItems || []).map((item) => ({ item, sourceType: "project", sourceId: target.id,
-      sourceName: target.name, depth: 0 }));
+  const singleSource = targetKind === 'project' || targetKind === 'group';
+  const rawEntries = outstandingEntriesForScope(store, targetKind, target, readOnly);
   const entries = rawEntries.map((entry) => {
     const source = entry.sourceType === "project" ? store.projects.find((item) => item.id === entry.sourceId)
       : store.groups.find((item) => item.id === entry.sourceId);
@@ -38,7 +37,7 @@ export function OutstandingCenter({ store, target, targetKind, statuses, updateP
         : t(entry.sourceType === "group" ? "集团级" : "项目级") };
   });
   const moduleOptions = [...new Map(entries.map((entry) => [entry.moduleKey,
-    targetKind === "group" ? `${entry.companyName} · ${entry.moduleLabel}` : entry.moduleLabel])).entries()];
+    targetKind !== "project" ? `${entry.companyName} · ${entry.moduleLabel}` : entry.moduleLabel])).entries()];
   const visibilityCounts = outstandingVisibilityCounts(entries, store.outstandingStatuses);
   const filters = { query, visibility: visibilityFilter, status: statusFilter, module: moduleFilter };
   const visible = filterOutstandingEntries(entries, store.outstandingStatuses, filters);
@@ -112,7 +111,7 @@ export function OutstandingCenter({ store, target, targetKind, statuses, updateP
         <span className="outstanding-result-count" role="status" aria-label={t("显示 {visible} / {total} 项", { visible: visible.length, total: entries.length })}>
           <strong>{displayScope}</strong> <span>{visible.length}</span></span>
         <div className="outstanding-center-actions">
-          {!readOnly && <button type="button" className="button primary outstanding-add" aria-label={t("添加待清")}
+          {!readOnly && singleSource && <button type="button" className="button primary outstanding-add" aria-label={t("添加待清")}
             onClick={event => { event.currentTarget.focus(); setModal({ type: 'outstanding', targetKind,
               targetId: target.id, defaultWorkstreamId: targetKind === 'project' ? activeWorkstreamId : null }); }}>
             <ListPlus aria-hidden="true" /><span>{t("新增")}</span></button>}
@@ -130,9 +129,9 @@ export function OutstandingCenter({ store, target, targetKind, statuses, updateP
     <div className="outstanding-body">
       {moreOpen && <div id={`${panelId}-more`} className="outstanding-more-actions" role="group" aria-label={t("更多待清操作")}
         onKeyDown={event => { if (event.key === 'Escape') { event.stopPropagation(); setMoreOpen(false); moreRef.current?.focus(); } }}>
-        <button type="button" className="button secondary outstanding-followup-trigger"
+        {singleSource && <button type="button" className="button secondary outstanding-followup-trigger"
           disabled={!entries.some(entry => !entry.readOnly && outstandingIsOpen(entry.item, store.outstandingStatuses))}
-          onClick={event => { event.currentTarget.focus(); setModal({ type: 'client-follow-up', targetKind, targetId: target.id }); }}>{t("客户跟进草稿")}</button>
+          onClick={event => { event.currentTarget.focus(); setModal({ type: 'client-follow-up', targetKind, targetId: target.id }); }}>{t("客户跟进草稿")}</button>}
         <button type="button" className="button secondary" onClick={event => { event.currentTarget.focus(); setModal({ type: 'outstanding-statuses' }); }}>
           <Palette aria-hidden="true" />{t("状态与颜色")}</button>
       </div>}
@@ -153,13 +152,16 @@ export function OutstandingCenter({ store, target, targetKind, statuses, updateP
             <option value="all">{t("全部状态")}</option>{statuses.map(status => <option value={status.id} key={status.id}>{status.label}</option>)}</select></label>
         </div>
       </div>}
+      {!singleSource && <div className="outstanding-context-summary"><strong>
+        {targetKind === 'entity' ? target.legalName : t("全部活跃项目")}</strong>
+        <span>{t("按来源公司和年度列示；点击事项可查看原记录。")}</span></div>}
       {targetKind === 'project' && <div className="outstanding-context-summary">
         <strong>{company?.legalName || target.entity || target.name}</strong>
         <span>{reportingPeriodLabel(currentEngagement || target, language)}</span>
       </div>}
       <div className="outstanding-list">{groups.map(group => <section key={group.key} className="outstanding-source-group" data-source-id={group.sourceId} data-source-kind={group.sourceType}
-        aria-label={targetKind === 'group' ? `${group.companyName} · ${group.periodLabel}` : undefined}>
-        {targetKind === 'group' && <header className="outstanding-group-heading"><strong>{group.companyName}</strong>
+        aria-label={targetKind !== 'project' ? `${group.companyName} · ${group.periodLabel}` : undefined}>
+        {targetKind !== 'project' && <header className="outstanding-group-heading"><strong>{group.companyName}</strong>
           <span>{group.periodLabel}</span><small>{t("显示 {visible} / {total} 项", { visible: group.entries.length,
             total: entries.filter(entry => entry.sourceId === group.sourceId && entry.sourceType === group.sourceType).length })}
             {group.readOnly ? ` · ${t("已归档，只读")}` : ''}</small></header>}

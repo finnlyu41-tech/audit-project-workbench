@@ -4,6 +4,23 @@ import { toTraditional } from "./traditional.js";
 export const LANGUAGE_PREFERENCE_KEY = "audit-progress-workbench:language";
 
 const english = {
+  "查找与筛选组成部分": "Search and filter components",
+  "查找与筛选": "Search and filter",
+  "历史记录 · {count}": "History · {count}",
+  "架构与历史范围不同（+{added}/−{removed}），不会自动变更。": "Structure differs from saved scope (+{added}/−{removed}). No automatic changes.",
+  "范围与操作说明": "Scope and operation details",
+  "历史范围仍参与完整模式判断。": "Historical scope still counts in full mode.",
+  "合并模式": "Consolidation mode",
+  "简易模式": "Simple mode",
+  "完整模式": "Full mode",
+  "简易模式只按本级合并节点计算完成，不检查组成部分就绪；历史范围会保留。这不是审计签署。确定切换？": "Simple mode counts only this engagement’s consolidation workflow, not component readiness. Historical scope is retained. This is not audit sign-off. Switch mode?",
+  "仅跟踪本级合并工作；组成部分保留，未纳入完成判断。": "Only this consolidation workflow is tracked; component records are retained but excluded from completion.",
+  "显示历史组成部分 · {count}": "Show historical components · {count}",
+  "收起历史组成部分 · {count}": "Hide historical components · {count}",
+  "已归档或来源缺失的记录仍在历史范围中；收起不会解除完整模式的就绪要求。": "Archived or missing sources remain in the saved scope. Hiding them does not satisfy full-mode readiness.",
+  "全部活跃项目": "All active engagements",
+  "按来源公司和年度列示；点击事项可查看原记录。": "Grouped by source company and year; open an item to view its original record.",
+
   "请选择两个不同的公司主档。": "Select two different company masters.",
   "公司主档已不存在，请重新选择。": "A company master no longer exists. Choose again.",
   "归档公司不能参与合并；请先核对并恢复公司主档。": "Archived companies cannot be merged. Review and restore their masters first.",

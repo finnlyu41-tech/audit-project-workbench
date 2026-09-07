@@ -1,3 +1,4 @@
+import { closeOutstandingPane } from './panel-helpers.js';
 import fs from 'node:fs/promises';
 import { expect, test } from '@playwright/test';
 import { operationBoundaryFixture } from '../tests/fixtures/operation-boundaries.js';
@@ -48,6 +49,7 @@ for (const group of [false, true]) test(`${group ? 'consolidation' : 'ordinary'}
 test('annual owner dialog keeps the edited record visible instead of losing it to old filters', async ({ page }) => {
   await start(page); await page.getByRole('button', { name: 'Open navigation filters' }).click();
   await page.getByRole('combobox', { name: 'Owner filter', exact: true }).selectOption('Alex Example');
+  await closeOutstandingPane(page);
   await page.getByRole('button', { name: 'Edit annual engagement', exact: true }).click();
   const dialog = page.getByRole('dialog'); await dialog.getByLabel('Owner', { exact: true }).fill('Reassigned fictional owner');
   await dialog.getByRole('button', { name: 'Save engagement', exact: true }).click();
@@ -58,6 +60,7 @@ test('annual owner dialog keeps the edited record visible instead of losing it t
 test('restoring an annual record cannot reactivate it underneath an archived company', async ({ page }) => {
   const store = operationBoundaryFixture(); store.entities.find(e => e.id === 'holding-parent').archived = true;
   job(store).archived = true; const before = await start(page, 'Example Consolidation 2026', store, true);
+  await closeOutstandingPane(page);
   await page.locator('.detail-actions').getByRole('button', { name: 'Restore', exact: true }).click();
   expect(await readStoredWorkspace(page)).toEqual(before);
   await expect(page.locator('.archive-banner')).toBeVisible();
@@ -71,12 +74,14 @@ test('deleting a subsidiary item from the group view does not remove unmatched c
   page.once('dialog', d => d.accept()); await row.getByRole('button', { name: 'Delete', exact: true }).click();
   const after = await readStoredWorkspace(page); expect(job(after, 'alpha-old').outstandingItems).toHaveLength(0);
   expect(job(after)).toEqual(job(before)); expect(after.entities).toEqual(before.entities);
+  await page.getByRole('button', { name: /Show historical components/ }).click();
   await expect(page.locator('[data-component-id]')).toHaveCount(4);
 });
 test('restoring a completed annual record keeps that exact completed record selected', async ({ page }) => {
   const store = operationBoundaryFixture(); const target = job(store, 'alpha-old'); target.archived = true;
   target.workstreams.forEach(w => w.nodes.forEach(n => n.conditions.forEach(c => { c.done = true; })));
   const before = await start(page, 'Alpha Example 2025', store, true);
+  await closeOutstandingPane(page);
   await page.locator('.detail-actions').getByRole('button', { name: 'Restore', exact: true }).click();
   await expect(page.locator('.detail-title > p')).toContainText('2025');
   await expect(page.locator('.archive-banner')).toHaveCount(0);
@@ -108,6 +113,7 @@ test('an untouched annual editor keeps an intentionally blank framework rather t
   const store = operationBoundaryFixture(); job(store, 'alpha-current').reportingFramework = 'Other year contractual basis';
   job(store, 'alpha-old').reportingFramework = '';
   const before = await start(page, 'Alpha Example 2025', store);
+  await closeOutstandingPane(page);
   await page.getByRole('button', { name: 'Edit annual engagement', exact: true }).click();
   await expect(page.getByRole('dialog').getByLabel('Financial reporting standard / framework', { exact: true })).toHaveValue('');
   await page.getByRole('dialog').getByRole('button', { name: 'Cancel', exact: true }).click();
@@ -152,6 +158,7 @@ for (const language of ['en', 'zh-Hans', 'zh-Hant']) test(`archive master protec
   await page.locator('.language-summary').click();
   await page.locator('.language-menu > button').nth({ 'zh-Hans': 0, 'zh-Hant': 1, en: 2 }[language]).click();
   await page.setViewportSize({ width: 800, height: 560 });
+  await closeOutstandingPane(page);
   await page.locator('.detail-actions > button').first().click();
   await expect(page.locator('.feedback-copy')).toContainText(/company master|公司主档|公司主檔/);
   expect(await readStoredWorkspace(page)).toEqual(before);

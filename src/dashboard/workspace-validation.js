@@ -47,6 +47,8 @@ export function validWorkspaceRecords(value, legacy = false) {
     && optional(row, 'entitySnapshot', s => fields(s, ['id', 'legalName', 'entityType', 'kind']))
     && optional(row, 'periodSnapshot', s => period(s) && fields(s, ['engagementId']) && list(s, 'reportingPeriods', period));
   const consolidation = row => fields(row, ['structureSyncedAt'], ['enabled'])
+    && optional(row, 'mode', v => ['simple', 'full'].includes(v))
+    && !(row.mode === 'simple' && row.enabled === false)
     && list(row, 'nodes', node) && list(row, 'components', component);
   const engagement = row => fields(row, ['internalName', 'name', 'entity', 'entityId', 'owner', 'notes', 'reportingFramework'],
     ['archived'], ['periodStart', 'periodEnd', 'startDate', 'dueDate'])

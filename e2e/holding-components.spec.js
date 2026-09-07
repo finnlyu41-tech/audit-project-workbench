@@ -13,6 +13,10 @@ async function openHolding(page, store = holdingWorkspace()) {
   }
   await query.fill("Example Consolidation 2026"); await query.press("Enter");
   await expect(panel(page)).toBeVisible();
+  const filters = panel(page).getByRole("button", { name: "Search and filter components", exact: true });
+  if (await filters.count()) await filters.click();
+  const history = panel(page).getByRole("button", { name: /Show historical components/ });
+  if (await history.count()) await history.click();
 }
 
 test("holding component fields are readable and contained in a narrow workspace", async ({ page }, testInfo) => {

@@ -1,0 +1,89 @@
+/* Give the work itself the screen; keep readable text and full-size editing controls. */
+@media screen {
+  .app-shell { width: calc(100% - 8px); max-width: none; }
+  .audit-workbench .workspace-history-controls { position: relative; top: 0; }
+  .audit-workbench .workspace-detail-inner { align-content: start; gap: 8px; }
+  .audit-workbench .detail-header { position: relative; top: auto; padding-block: 0 6px; min-height: 40px; }
+  .audit-workbench .detail-title .workspace-label { display: none; }
+  .audit-workbench .detail-title h2 { font-size: 20px; line-height: 1.25; }
+  .audit-workbench .detail-title p { font-size: 13px; line-height: 1.4; white-space: normal; overflow-wrap: anywhere; }
+  .audit-workbench .group-tabs { position: static; top: auto; margin: 0; min-height: 36px; }
+  .audit-workbench .group-tabs > button { min-height: 32px; font-size: 14px; }
+  .audit-workbench .group-command-row { display: grid; grid-template-columns: auto minmax(0,1fr); gap: 8px 12px; align-items: start; }
+  .audit-workbench .group-command-row .group-mode-bar { padding-block: 8px; max-width: 280px; }
+  .audit-workbench .group-command-row .group-mode-bar > span { font-size: 13px; }
+  .audit-workbench .group-command-row:has(.quick-update-form) { grid-template-columns: minmax(0,1fr); }
+  .audit-workbench .group-command-row:has(.quick-update-form) .group-mode-bar { max-width: none; }
+  .audit-workbench .group-status-strip > article { min-height: 52px; padding: 6px 10px; gap: 3px; }
+  .audit-workbench .group-status-strip .progress-track { display: grid; place-items: center; }
+  .audit-workbench .project-panel-controls { gap: 7px; padding: 10px; }
+  .audit-workbench .outstanding-shell-title { min-height: 44px; padding: 6px 12px; }
+  .audit-workbench .holding-components-panel > header { gap: 8px; padding: 8px 12px; }
+  .audit-workbench .holding-components-panel > header > div { gap: 3px; }
+  .audit-workbench .holding-components-panel h3 { font-size: 14px; }
+  .audit-workbench .holding-components-panel .structure-difference { padding: 6px 12px; }
+  .audit-workbench .component-history-tools { padding: 6px 12px; }
+  .audit-workbench .component-history-tools small { flex-basis: 200px; }
+  .audit-workbench .component-help { padding: 6px 12px; font-size: 13px; color: var(--secondary); }
+  .audit-workbench .component-help summary { cursor: pointer; min-height: 24px; width: fit-content; }
+  .audit-workbench .component-help p { margin: 6px 0; line-height: 1.5; }
+}
+@media screen {
+  .audit-workbench .component-filters { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; padding: 8px 12px; }
+  .audit-workbench .component-search { flex: 1 1 200px; max-width: 360px; }
+  .audit-workbench .component-search > span:first-child { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
+  .audit-workbench .component-filter-options { gap: 4px; }
+  .audit-workbench .component-filter-options > button { padding: 6px 8px; }
+  .audit-workbench .component-result-count { margin-left: auto; }
+  .audit-workbench .holding-components-panel .holding-component-rows > article { padding: 12px; gap: 8px 12px; }
+  .audit-workbench .holding-components-panel .component-progress > span { white-space: normal; }
+  .audit-workbench .holding-components-panel .component-readiness-checks { gap: 8px 12px; padding-top: 8px; }
+}
+@media screen and (min-width: 761px) {
+  .audit-workbench { height: 100dvh; min-height: 0; padding-block: 4px; }
+  .audit-workbench .workbench-layout { min-height: 0; }
+  .audit-workbench .project-detail { min-height: 0; padding: 10px 12px 18px; }
+  .audit-workbench .app-rail { min-height: 0; padding-block: 6px; gap: 6px; }
+  .audit-workbench .app-rail-primary, .audit-workbench .app-rail-secondary { gap: 4px; }
+}
+@container workspace (max-width: 560px) {
+  .audit-workbench .group-command-row { grid-template-columns: minmax(0,1fr); gap: 4px; }
+  .audit-workbench .group-command-row .group-mode-bar { padding-block: 2px; max-width: none; }
+  .audit-workbench .group-status-strip { grid-template-columns: repeat(auto-fit,minmax(min(125px,100%),1fr)); }
+  .audit-workbench .group-status-strip[data-simple] { grid-template-columns: repeat(3,minmax(0,1fr)); }
+}
+@media screen and (max-height: 520px) and (min-width: 761px) {
+  .audit-workbench { min-height: 480px; }
+  .audit-workbench .app-rail-button, .audit-workbench .app-rail .toolbar-menu, .audit-workbench .app-rail .toolbar-menu > summary { height: 36px; min-height: 36px; }
+}
+@media print { .group-mode-bar, .component-history-tools, .component-help { display: none !important; } }
+@media screen and (min-width: 761px) and (max-width: 1100px) {
+  .audit-workbench .workbench-layout[data-navigation-overlay],
+  .audit-workbench .workbench-layout[data-navigation-overlay][data-sidebar-collapsed],
+  .audit-workbench .workbench-layout[data-navigation-overlay][data-outstanding-collapsed],
+  .audit-workbench .workbench-layout[data-navigation-overlay][data-sidebar-collapsed][data-outstanding-collapsed] {
+    position: relative; transition: none; grid-template-columns: 0 minmax(0,1fr) 48px; grid-template-rows: minmax(0,1fr);
+  }
+  .audit-workbench .workbench-layout[data-navigation-overlay]:not([data-sidebar-collapsed]) > .project-panel {
+    position: absolute; inset: 0 auto 0 0; width: min(320px,calc(100% - 60px)); height: 100%; z-index: 18;
+    grid-column: 1 / -1; grid-row: 1; box-shadow: 12px 0 28px rgb(24 40 29 / 16%);
+    background: var(--surface-raised);
+  }
+  .audit-workbench .workbench-layout[data-navigation-overlay] .project-panel-resizer { display: none; }
+}
+@media screen {
+  .audit-workbench .detail-header { display: flex; flex-direction: row; align-items: flex-start; }
+  .audit-workbench .detail-title { flex: 1; }
+  .audit-workbench .group-status-strip { grid-template-columns: repeat(5,minmax(0,1fr)); }
+  .audit-workbench .group-status-strip[data-simple] { grid-template-columns: repeat(3,minmax(0,1fr)); }
+  .audit-workbench .group-command-row .quick-update-panel:not(:has(.quick-update-form)) > header > h3 {
+    position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%);
+  }
+  .audit-workbench .group-command-row .quick-update-summary { flex-basis: auto; }
+  .audit-workbench .component-toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px;
+    padding: 6px 12px; border-bottom: 1px solid var(--border); }
+  .audit-workbench .component-toolbar > span { margin-left: auto; font-size: 13px; color: var(--secondary); }
+}
+@container workspace (max-width: 560px) {
+  .audit-workbench .group-status-strip { grid-template-columns: repeat(3,minmax(0,1fr)); }
+}

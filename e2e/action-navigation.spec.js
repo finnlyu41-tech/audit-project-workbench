@@ -1,3 +1,4 @@
+import { closeOutstandingPane } from './panel-helpers.js';
 import { openOutstandingFilters } from './outstanding-helpers.js';
 import { expect, test } from "@playwright/test";
 import { makeCompany, openWorkbench, readStoredWorkspace, workspaceFixture } from "./helpers.js";
@@ -69,13 +70,14 @@ test("outstanding navigation clears a previous closed-items filter and preserves
   const store = workspaceFixture();
   store.projects[0].outstandingItems = [{ id: "target", title: "Target approval", status: "missing_document", note: "", workstreamId: null }];
   await openWorkbench(page, store);
-  await openOutstandingFilters(page);
-  await page.locator(".outstanding-visibility-tabs > button").nth(1).click();
   await page.getByRole("button", { name: "Quick edit" }).click();
   await page.locator(".quick-update-form").getByLabel("Owner", { exact: true }).fill("Unsaved editor");
+  await openOutstandingFilters(page);
+  await page.locator(".outstanding-visibility-tabs > button").nth(1).click();
   await home(page).click();
   await page.locator(".home-priority-list > button").filter({ hasText: "Target approval" }).click();
   await expect(page.locator(".outstanding-item").filter({ hasText: "Target approval" })).toBeFocused();
   await expect(page.locator(".quick-update-form").getByLabel("Owner", { exact: true })).toHaveValue("Unsaved editor");
+  await closeOutstandingPane(page);
   await page.locator(".quick-update-form").getByRole("button", { name: "Cancel", exact: true }).click();
 });

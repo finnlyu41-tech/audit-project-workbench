@@ -1,3 +1,5 @@
+import { outstandingEntriesForScope } from "./outstanding-scope.js";
+import { consolidationIsSimple, withConsolidationMode } from "./consolidation-mode.js";
 import { useModalDraft } from "./modal-draft.jsx";
 import React from "react";
 import { WorkspaceSession } from "./workspace-session.jsx";
@@ -51,13 +53,14 @@ import { navigationSnapshot, sameNavigationDestination, restoreNavigationSnapsho
 import { RECENT_RECORDS_KEY, nextEngagementAction, prepareQuickUpdate, recentRecordsFor, rememberRecord, resolveWorkspaceTarget, sanitizeRecentRecords } from "./ux-model.js";
 import { FeedbackContext, FeedbackSlot, useFeedbackController } from "./feedback.jsx";
 import "./dashboard.css";
+import "./group-usability.css";
 
 const SIDEBAR_PREFERENCE_KEY = "audit-progress-workbench:sidebar-collapsed";
 const OUTSTANDING_PREFERENCE_KEY = "audit-progress-workbench:outstanding-collapsed";
 const NAVIGATION_WIDTH_KEY = "audit-progress-workbench:navigation-width";
 const NAVIGATION_VIEW_KEY = "audit-progress-workbench:navigation-view";
 const SIMPLIFIED_VIEW_KEY = "audit-progress-workbench:simplified-view";
-const DEFAULT_NAVIGATION_WIDTH = 320;
+const DEFAULT_NAVIGATION_WIDTH = 260;
 const MIN_NAVIGATION_WIDTH = 220;
 const MAX_NAVIGATION_WIDTH = 520;
 const COMPACT_NAVIGATION_WIDTH = 250;
@@ -154,16 +157,29 @@ function DashboardWorkbench({ initialSnapshot }) {
   const feedback = useFeedbackController();
   const setMessage = feedback.publish;
   const [deadlineClock, setDeadlineClock] = React.useState(() => new Date());
-  const [sidebarCollapsed, setSidebarCollapsed] = React.useState(() => {
+  const [savedSidebarCollapsed, setSavedSidebarCollapsed] = React.useState(() => {
     try { return localStorage.getItem(SIDEBAR_PREFERENCE_KEY) === "true"; } catch { return false; }
   });
+  const narrowQuery = "(min-width: 761px) and (max-width: 1100px)";
+  const [narrowNavigation, setNarrowNavigation] = React.useState(() => window.matchMedia(narrowQuery).matches);
+  const [navigationDrawerOpen, setNavigationDrawerOpen] = React.useState(false);
+  const sidebarCollapsed = narrowNavigation ? !navigationDrawerOpen : savedSidebarCollapsed;
+  const setSidebarCollapsed = value => {
+    const next = typeof value === "function" ? value(sidebarCollapsed) : value;
+    if (narrowNavigation) setNavigationDrawerOpen(!next); else setSavedSidebarCollapsed(next);
+  };
+  React.useEffect(() => {
+    const query = window.matchMedia(narrowQuery);
+    const update = event => { setNarrowNavigation(event.matches); setNavigationDrawerOpen(false); };
+    query.addEventListener("change", update); return () => query.removeEventListener("change", update);
+  }, []);
   const [navigationWidth, setNavigationWidth] = React.useState(loadNavigationWidth);
   const [resizingNavigation, setResizingNavigation] = React.useState(false);
   const [outstandingCollapsed, setOutstandingCollapsed] = React.useState(() => {
-    try { return localStorage.getItem(OUTSTANDING_PREFERENCE_KEY) === "true"; } catch { return false; }
+    try { return localStorage.getItem(OUTSTANDING_PREFERENCE_KEY) !== "false"; } catch { return false; }
   });
   const [compactLayout, setCompactLayout] = React.useState(() => {
-    try { return window.matchMedia("(max-width: 1399px)").matches; } catch { return false; }
+    try { return window.matchMedia("(max-width: 1599px)").matches; } catch { return false; }
   });
   const [compactOutstandingOpen, setCompactOutstandingOpen] = React.useState(false);
   const importRef = React.useRef(null);
@@ -193,8 +209,8 @@ function DashboardWorkbench({ initialSnapshot }) {
     return () => window.clearInterval(timer);
   }, []);
   React.useEffect(() => {
-    try { localStorage.setItem(SIDEBAR_PREFERENCE_KEY, String(sidebarCollapsed)); } catch { /* optional */ }
-  }, [sidebarCollapsed]);
+    try { localStorage.setItem(SIDEBAR_PREFERENCE_KEY, String(savedSidebarCollapsed)); } catch { /* optional */ }
+  }, [savedSidebarCollapsed]);
   React.useEffect(() => {
     try { localStorage.setItem(OUTSTANDING_PREFERENCE_KEY, String(outstandingCollapsed)); } catch { /* optional */ }
   }, [outstandingCollapsed]);
@@ -205,7 +221,7 @@ function DashboardWorkbench({ initialSnapshot }) {
     try { localStorage.setItem(SIMPLIFIED_VIEW_KEY, String(simplifiedView)); } catch { /* optional */ }
   }, [simplifiedView]);
   React.useEffect(() => {
-    const query = window.matchMedia("(max-width: 1399px)");
+    const query = window.matchMedia("(max-width: 1599px)");
     const updateCompactLayout = (event) => {
       setCompactLayout(event.matches);
       if (!event.matches) setCompactOutstandingOpen(false);
@@ -338,6 +354,7 @@ function DashboardWorkbench({ initialSnapshot }) {
   const notify = (text) => setMessage(text);
   const openWorkspaceRecord = React.useCallback((kind, id) => {
     setSelection({ kind, id });
+    setNavigationDrawerOpen(false);
     setWorkspaceView("detail");
   }, []);
   const revealWorkspaceRecord = React.useCallback((kind, id) => {
@@ -802,7 +819,14 @@ function DashboardWorkbench({ initialSnapshot }) {
   const availableProjects = store.projects.filter((project) => !project.archived && !findParentMembership(store, "project", project.id));
   const availableGroups = store.groups.filter((group) => !group.archived && group.id !== selectedGroupSource?.id
     && canNestGroup(store, selectedGroupSource?.id, group.id));
-  const activeOutstandingCount = activeOutstandingItems(store).filter((item) => outstandingIsOpen(item, store.outstandingStatuses)).length;
+  const outstandingKind = workspaceView !== "detail" ? "workspace"
+    : selectedProjectSource ? "project" : selectedGroupSource ? "group" : selectedEntitySource ? "entity" : "workspace";
+  const outstandingTarget = outstandingKind === "project" ? selectedProjectSource : outstandingKind === "group" ? selectedGroupSource
+    : outstandingKind === "entity" ? selectedEntitySource : { id: "workspace" };
+  const outstandingReadOnly = outstandingKind === "entity" ? Boolean(selectedEntitySource?.archived)
+    : ["project", "group"].includes(outstandingKind) && Boolean(outstandingTarget.archived || selectedRecordEntity?.archived);
+  const activeOutstandingCount = outstandingEntriesForScope(store, outstandingKind, outstandingTarget, outstandingReadOnly)
+    .filter(entry => outstandingIsOpen(entry.item, store.outstandingStatuses)).length;
   const languageLabel = language === "en" ? "English" : language === "zh-Hant" ? "繁體中文" : "简体中文";
   const languageCode = language === "en" ? "EN" : language === "zh-Hant" ? "繁" : "简";
   const saveStateLabel = persistenceStatusLabel(persistence.status, t);
@@ -990,7 +1014,7 @@ function DashboardWorkbench({ initialSnapshot }) {
       </nav>
     </aside>
 
-    <section className="workbench-layout" data-home={workspaceView === "home" || undefined} data-sidebar-collapsed={sidebarCollapsed || undefined}
+    <section className="workbench-layout" data-navigation-overlay={narrowNavigation || undefined} data-home={workspaceView === "home" || undefined} data-sidebar-collapsed={sidebarCollapsed || undefined}
       data-compact-layout={compactLayout || undefined} data-outstanding-collapsed={outstandingPanelCollapsed || undefined}
       data-resizing-navigation={resizingNavigation || undefined} data-simplified-view={simplifiedView || undefined}
       style={{ "--project-panel-width": `${navigationWidth}px`,
@@ -1109,6 +1133,12 @@ function DashboardWorkbench({ initialSnapshot }) {
             quickUpdate={selectedEngagement && <QuickUpdate key={`quick-update:${selectedEngagement.id}`} engagement={selectedEngagement}
               readOnly={Boolean(selectedEngagement.archived || selectedRecordEntity?.archived)}
               drafts={quickDrafts.current} onSave={saveQuickUpdate} />}
+            onChangeMode={mode => {
+              if (selectedEngagement.archived || selectedRecordEntity?.archived) return;
+              updateEngagement(selectedEngagement.id, current => ({ ...current,
+                consolidation: withConsolidationMode(current.consolidation, mode) }));
+              setFilter("all");
+            }}
             updateWorkflowNodes={updateWorkflowNodes} setModal={setModal} onOpenComponent={revealWorkspaceRecord}
             updateEngagement={updateEngagement} setStore={setStore} selectedGroupSample={selectedGroupSample}
             archiveTarget={archiveTarget} restoreTarget={restoreTarget} deadlineClock={deadlineClock} />
@@ -1124,17 +1154,11 @@ function DashboardWorkbench({ initialSnapshot }) {
             <button type="button" className="icon-only" aria-label={t("收起待清中心")}
               data-tooltip={t("收起待清中心")} data-tooltip-side="left" onClick={collapseOutstandingPanel}>
               <PanelRightClose aria-hidden="true" /></button></header>
-          {workspaceView === "home" ? <div className="outstanding-center-empty">{t("首页已经汇总所有活跃项目的优先事项；打开项目后可处理该项目的待清事项。")}</div>
-            : selectedProject ? <OutstandingCenter key={selectedProjectSource.id} revealRequest={outstandingReveal}
-            onRevealHandled={() => setOutstandingReveal(null)} store={store} target={selectedProjectSource} targetKind="project" statuses={outstandingStatusViews}
-            updateProject={updateProject} updateGroup={updateGroup} setModal={setModal} onOpenItem={revealOutstandingItem} notify={notify}
-            readOnly={Boolean(selectedProjectSource.archived || selectedRecordEntity?.archived)} activeWorkstreamId={activeWorkstreamId} />
-            : selectedGroup ? <OutstandingCenter key={selectedGroupSource.id} revealRequest={outstandingReveal}
-              onRevealHandled={() => setOutstandingReveal(null)} store={store} target={selectedGroupSource} targetKind="group" statuses={outstandingStatusViews}
-              updateProject={updateProject} updateGroup={updateGroup} setModal={setModal} onOpenItem={revealOutstandingItem} notify={notify}
-              readOnly={Boolean(selectedGroupSource.archived || selectedRecordEntity?.archived)} />
-              : selectedEntitySource ? <div className="outstanding-center-empty">{t("公司概览会汇总历年项目；进入某一年度查看该年度待清事项。")}</div>
-                : <div className="outstanding-center-empty">{t("选择项目或集团后查看待清事项。")}</div>}</>}
+          <OutstandingCenter key={`${outstandingKind}:${outstandingTarget.id}:${consolidationIsSimple(outstandingTarget)}`}
+            revealRequest={outstandingReveal} onRevealHandled={() => setOutstandingReveal(null)} store={store}
+            target={outstandingTarget} targetKind={outstandingKind} statuses={outstandingStatusViews}
+            updateProject={updateProject} updateGroup={updateGroup} setModal={setModal} onOpenItem={revealOutstandingItem}
+            notify={notify} readOnly={outstandingReadOnly} activeWorkstreamId={outstandingKind === 'project' ? activeWorkstreamId : null} /></>}
       </aside>
     </section>
 
@@ -1202,7 +1226,8 @@ function DashboardWorkbench({ initialSnapshot }) {
             reportingFramework: values.reportingFramework, owner: values.owner,
             startDate: values.startDate, dueDate: values.dueDate, notes: values.notes,
             consolidation: engagement.consolidation ? { ...engagement.consolidation,
-              enabled: values.consolidationEnabled !== false } : engagement.consolidation }));
+              ...withConsolidationMode(engagement.consolidation, values.consolidationMode || "full"),
+              enabled: values.consolidationMode === "simple" || values.consolidationEnabled !== false } : engagement.consolidation }));
           const identityChanged = ["owner", "internalName", "engagementTypes", "reportingPeriods"].some(field =>
             (!quickFields || quickFields.includes(field)) && JSON.stringify(values[field]) !== JSON.stringify(modalTargetEngagement[field]));
           if (identityChanged) {
@@ -1540,12 +1565,14 @@ function ProjectDetail({ project, rawProject, entityArchived = false, statuses, 
 }
 
 function GroupDetail({ store, group, statuses, updateWorkflowNodes, setModal, onOpenComponent, updateEngagement, setStore,
-  selectedGroupSample, archiveTarget, restoreTarget, deadlineClock, quickUpdate }) {
+  selectedGroupSample, archiveTarget, restoreTarget, deadlineClock, quickUpdate, onChangeMode }) {
   const { language, t } = useUiLanguage();
-  const [tab, setTab] = React.useState("overview");
+  const [tabChoice, setTab] = React.useState("overview");
   const rawGroup = store.groups.find((item) => item.id === group.id);
   const engagement = store.engagements.find((item) => item.id === group.id);
   const readOnly = Boolean(rawGroup?.archived || entityForEngagement(store, engagement)?.archived);
+  const simple = consolidationIsSimple(engagement);
+  const tab = simple && tabChoice === 'overview' ? 'workflow' : tabChoice;
   const stats = groupProgress(store, group.id);
   const openItems = collectGroupOutstandingEntries(store, group.id, new Set(), 0, readOnly)
     .filter((entry) => outstandingIsOpen(entry.item, statuses)).length;
@@ -1555,7 +1582,7 @@ function GroupDetail({ store, group, statuses, updateWorkflowNodes, setModal, on
   const subtitle = [group.name, reportingPeriodLabel(group, language)].filter(Boolean).join(" · ")
     || t("尚未填写集团资料");
   if (!rawGroup) return null;
-  return <div className="workspace-detail-inner">
+  return <div className="workspace-detail-inner" data-consolidation-mode={simple ? "simple" : "full"}>
     {readOnly && <div className="archive-banner"><strong>{t("已归档，只读")}</strong>
       <span>{t("归档记录不能编辑；恢复后才可继续更新。")}</span></div>}
     <header className="detail-header"><div className="detail-title"><div><span className="workspace-label">{t("集团工作区")}</span><h2>{primaryName}</h2></div>
@@ -1569,19 +1596,27 @@ function GroupDetail({ store, group, statuses, updateWorkflowNodes, setModal, on
           data-tooltip={t("编辑年度项目")} onClick={() => setModal({ type: "edit-engagement", targetKind: "group", targetId: rawGroup.id })}><Pencil aria-hidden="true" /></button>
         <button type="button" className="button secondary icon-only" aria-label={t("归档集团")}
           data-tooltip={t("归档集团")} onClick={() => archiveTarget("group", group.id)}><Archive aria-hidden="true" /></button></>}</div></header>
-    {quickUpdate}
-    <section className="group-status-strip" aria-label={t("集团状态")}><article><span>{t("组成部分进度")}</span>
+    <div className="group-command-row"><div className="group-mode-bar"><label><span>{t("合并模式")}</span>
+      <select aria-label={t("合并模式")} disabled={readOnly} value={simple ? "simple" : "full"} onChange={event => {
+        const mode = event.target.value;
+        if (mode === 'simple' && !window.confirm(t("简易模式只按本级合并节点计算完成，不检查组成部分就绪；历史范围会保留。这不是审计签署。确定切换？"))) return;
+        onChangeMode(mode); setTab(mode === 'simple' ? 'workflow' : 'overview');
+      }}><option value="full">{t("完整模式")}</option><option value="simple">{t("简易模式")}</option></select></label>
+      {simple && <span>{t("仅跟踪本级合并工作；组成部分保留，未纳入完成判断。")}</span>}</div>
+    {quickUpdate}</div>
+    <section className="group-status-strip" aria-label={t("集团状态")} data-simple={simple || undefined}>{!simple && <><article><span>{t("组成部分进度")}</span>
       <ProgressBar value={stats.componentPercentage} compact /></article>
-      <article><span>{t("公司合并就绪")}</span><div><strong>{stats.readyCompanies}/{stats.totalCompanies}</strong><small>{t("家公司")}</small></div></article>
+      <article><span>{t("公司合并就绪")}</span><div><strong>{stats.readyCompanies}/{stats.totalCompanies}</strong><small>{t("家公司")}</small></div></article></>}
       <article><span>{t("本级合并流程")}</span>{group.consolidationEnabled
         ? <ProgressBar value={stats.consolidationPercentage} compact /> : <div><strong>{t("不适用")}</strong></div>}</article>
       <article><span>{t("未清事项")}</span><div><strong>{openItems}</strong><small>{t("项")}</small></div></article>
       <article className="group-tax-deadline"><span>{t("税务期限")}</span><TaxDeadlineSummaryButton deadlines={groupTaxDeadlines}
         now={deadlineClock} compact onClick={() => setModal({ type: "tax-deadlines", targetKind: "group", targetId: rawGroup.id })} /></article></section>
-    <div className="group-tabs" role="tablist" aria-label={t("控股公司工作区")} onKeyDown={handleTabListKeyDown}>{[["overview", "组成部分"], ["workflow", "合并节点"], ["settings", "集团资料"]]
+    <div className="group-tabs" role="tablist" aria-label={t("控股公司工作区")} onKeyDown={handleTabListKeyDown}>{(simple ? [["workflow", "合并节点"], ["settings", "集团资料"]]
+      : [["overview", "组成部分"], ["workflow", "合并节点"], ["settings", "集团资料"]])
       .map(([value, label]) => <button type="button" role="tab" aria-selected={tab === value} key={value}
         tabIndex={tabIndexFor(tab === value)} onClick={() => setTab(value)}>{t(label)}</button>)}</div>
-    {tab === "overview" && engagement && <HoldingComponentsPanel key={`holding-components:${engagement.id}`} store={store} engagement={engagement} readOnly={readOnly}
+    {!simple && tab === "overview" && engagement && <HoldingComponentsPanel key={`holding-components:${engagement.id}`} store={store} engagement={engagement} readOnly={readOnly}
       onOpen={onOpenComponent}
       onUpdate={(componentId, patch) => updateEngagement(engagement.id, (current) => ({ ...current,
         consolidation: { ...current.consolidation, components: (current.consolidation?.components || []).map((component) =>
@@ -1600,7 +1635,7 @@ function GroupDetail({ store, group, statuses, updateWorkflowNodes, setModal, on
     {tab === "settings" && <section className="group-settings-panel"><dl><div><dt>{t("负责人")}</dt><dd>{group.owner || t("未设置")}</dd></div>
       <div className="date-range-fact"><dt>{t("项目排期")}</dt><dd><time>{group.startDate ? formatDate(group.startDate, language) : t("未设置开始日")}</time>
         <span aria-hidden="true">→</span><time>{group.dueDate ? formatDate(group.dueDate, language) : t("未设置截止日")}</time></dd></div>
-      <div><dt>{t("合并方式")}</dt><dd>{t(group.consolidationEnabled ? "本级需要合并" : "仅作分类")}</dd></div>
+      <div><dt>{t("合并方式")}</dt><dd>{t(simple ? "简易模式" : group.consolidationEnabled ? "完整模式" : "仅作分类")}</dd></div>
       <div><dt>{t("组成部分")}</dt><dd>{engagement?.consolidation?.components?.length || 0}</dd></div></dl>
       <div className="group-structure-note"><Building2 aria-hidden="true" /><span><strong>{t("控股架构在公司主档管理")}</strong>
         <small>{t("本年度组成部分在“组成部分”页签中指定；当前公司层级不会自动改写历史年度。")}</small></span></div></section>}

@@ -14,7 +14,7 @@ export default defineConfig({
           includeDependenciesRecursively: false,
           groups: [
             { name: "vendor", test: /[\\/]node_modules[\\/]/, priority: 30 },
-            { name: "workspace-core", test: /[\\/]dashboard[\\/](?:model|traditional|workspace-validation)\.js$/, priority: 20 },
+            { name: "workspace-core", test: /[\\/]dashboard[\\/](?:model|traditional|workspace-validation|consolidation-mode)\.js$/, priority: 20 },
             { name: "translations", test: /[\\/]dashboard[\\/]i18n\.jsx$/, priority: 10 },
           ],
         },

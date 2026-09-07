@@ -1,10 +1,11 @@
+import { addOutstandingItem } from './panel-helpers.js';
 import { expect, test } from "@playwright/test";
 import AxeBuilder from "@axe-core/playwright";
 import { openWorkbench, readStoredWorkspace, seriousViolations, workspaceFixture } from "./helpers.js";
 
 async function openEditor(page, kind) {
   await openWorkbench(page, workspaceFixture());
-  if (kind === "outstanding") await page.getByRole("button", { name: "Add outstanding item", exact: true }).click();
+  if (kind === "outstanding") await addOutstandingItem(page);
   else if (kind === "workstream") await page.getByRole("button", { name: "Add workstream", exact: true }).click();
   else {
     await page.locator(".workstream-card-select").first().click();

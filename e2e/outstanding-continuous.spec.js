@@ -1,3 +1,4 @@
+import { addOutstandingItem } from './panel-helpers.js';
 import { openOutstandingFilters, openOutstandingMore, expandOutstandingItem } from './outstanding-helpers.js';
 import fs from 'node:fs/promises';
 import { STORAGE_KEY } from '../src/dashboard/model.js';
@@ -21,7 +22,7 @@ function unchangedOutsideItems(after, before, id) {
 async function openNew(page, store = annualSourceFixture().store) {
   await openWorkbench(page, store);
   const before = await readStoredWorkspace(page);
-  await page.getByRole('button', { name: 'Add outstanding item', exact: true }).click();
+  await addOutstandingItem(page);
   return before;
 }
 test('three consecutive items use one editor and four button activations without altering other work', async ({ page }, info) => {
