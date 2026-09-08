@@ -1,4 +1,6 @@
 import React from "react";
+import { WorkingDayFields } from "./working-day-fields.jsx";
+import { estimateWorkingSchedule } from "./working-day-schedule.js";
 import { isComposingKey } from "./editor-draft-state.js";
 import { CalendarDays, ChevronLeft, ChevronRight, X } from "lucide-react";
 import { formatDate } from "./model.js";
@@ -44,7 +46,7 @@ function orderedRange(first, second) {
   return first <= second ? [first, second] : [second, first];
 }
 
-export function DateRangePicker({ startDate = "", dueDate = "", onChange, autoFocus = false }) {
+export function DateRangePicker({ startDate = "", dueDate = "", onChange, autoFocus = false, estimate = null, onEstimateChange }) {
   const { language, t } = useUiLanguage();
   const calendarId = React.useId();
   const openerRef = React.useRef(null);
@@ -68,6 +70,15 @@ export function DateRangePicker({ startDate = "", dueDate = "", onChange, autoFo
     const firstDate = calendar.querySelector('.schedule-range-days button:not([data-outside])');
     (selected || firstDate)?.focus();
   }, [open, month]);
+  const switchMode = automatic => {
+    setOpen(false); setAnchorDate(""); setHoverDate("");
+    if (automatic) onEstimateChange({ startDate, workdays: "", workweek: "five" });
+    else {
+      const computed = estimateWorkingSchedule(estimate);
+      if (!computed.error) onChange(computed.startDate, computed.dueDate);
+      onEstimateChange(null);
+    }
+  };
   const dates = calendarDates(month);
   const preview = anchorDate ? orderedRange(anchorDate, hoverDate || anchorDate)
     : (startDate && dueDate ? orderedRange(startDate, dueDate) : [startDate, dueDate]);
@@ -109,6 +120,11 @@ export function DateRangePicker({ startDate = "", dueDate = "", onChange, autoFo
     setAnchorDate("");
     openerRef.current?.focus();
   }}>
+    {onEstimateChange && <div className="schedule-entry-mode" role="group" aria-label={t("排期输入方式")}>
+      <button type="button" aria-pressed={!estimate} onClick={() => estimate && switchMode(false)}>{t("手动日期")}</button>
+      <button type="button" aria-pressed={Boolean(estimate)} onClick={() => !estimate && switchMode(true)}>{t("按工作日估算")}</button>
+    </div>}
+    {estimate ? <WorkingDayFields value={estimate} onChange={onEstimateChange} autoFocus /> : <>
     <div className="schedule-range-fields">
       <label><span>{t("开始日")}</span><input autoFocus={autoFocus} aria-label={t("项目开始日")} type="date"
         value={startDate} min="0001-01-01" max={dueDate || "9999-12-31"} onChange={(event) => onChange(event.target.value, dueDate)} /></label>
@@ -146,5 +162,6 @@ export function DateRangePicker({ startDate = "", dueDate = "", onChange, autoFo
       <footer><button type="button" className="text-button" onClick={clearDates}><X aria-hidden="true" />{t("清除日期")}</button>
         <span>{startDate && dueDate ? `${formatDate(startDate, language)} → ${formatDate(dueDate, language)}` : t("尚未设置项目日期")}</span></footer>
     </section>}
+    </>}
   </div>;
 }

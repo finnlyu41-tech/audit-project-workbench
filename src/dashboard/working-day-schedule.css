@@ -1,0 +1,29 @@
+@media screen {
+  .workbench-modal .schedule-entry-mode { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 10px; }
+  .workbench-modal .schedule-entry-mode button { min-height: 36px; padding: 6px 10px; border: 1px solid var(--border);
+    border-radius: 7px; cursor: pointer; background: var(--surface-raised); color: var(--text); font: inherit; font-size: 13px; }
+  .workbench-modal .schedule-entry-mode button[aria-pressed="true"] { border-color: var(--wb-accent);
+    background: var(--wb-accent-soft); color: var(--wb-accent-dark); }
+  .working-day-estimate { display: grid; gap: 10px; min-width: 0; }
+  .working-day-inputs { display: grid; grid-template-columns: 1.1fr .8fr 1fr; gap: 10px; align-items: end; min-width: 0; }
+  .working-day-inputs > label { display: grid; gap: 6px; min-width: 0; }
+  .workbench-modal .working-day-inputs :is(input,select) { height: 42px; box-sizing: border-box; min-width: 0;
+    width: 100%; font: inherit; font-size: 14px; padding: 8px 10px; border: 1px solid var(--border); border-radius: 8px;
+    background: var(--surface-raised); color: var(--text); }
+  .working-day-estimate :is(p,small) { margin: 0; font-size: 13px; line-height: 1.5; overflow-wrap: anywhere; }
+  .working-day-estimate small, .working-day-rule { color: var(--secondary); }
+  .working-day-preview { min-width: 0; padding: 10px 12px; border-radius: 8px; background: var(--wb-accent-soft); }
+  .working-day-preview dl { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); margin: 0 0 8px; gap: 10px; }
+  .working-day-preview dt { color: var(--secondary); font-size: 13px; }
+  .working-day-preview dd { margin: 4px 0 0; font-size: 16px; font-weight: 650; color: var(--text); }
+  .working-day-warning, .working-day-shift { border-left: 3px solid var(--wb-warning); padding-left: 8px; }
+  .working-day-estimate summary { cursor: pointer; width: fit-content; min-height: 28px; padding-block: 4px; font-size: 13px; }
+  .working-day-estimate details p { margin-top: 6px; }
+  .working-day-skipped ul { margin: 4px 0 0; padding: 0; list-style: none; max-height: 150px; overflow: auto; }
+  .working-day-skipped li { display: flex; flex-wrap: wrap; gap: 4px 10px; padding-block: 3px; font-size: 13px; }
+  .working-day-skipped time { flex: 0 0 100px; }
+  @container apw-dialog (max-width: 540px) {
+    .working-day-inputs { grid-template-columns: repeat(2,minmax(0,1fr)); }
+    .working-day-inputs > label:first-child { grid-column: 1/-1; }
+  }
+}

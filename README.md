@@ -142,3 +142,7 @@ Found a workflow problem? [Open an issue](https://github.com/finnlyu41-tech/audi
 ### 排期与首期报告期间 / Schedule and first reporting periods
 
 排期画布与 DOI 首期、跨年／18个月建议、后续实际期间衔接及其边界见 [操作说明](docs/schedule-and-first-period.md)。Work dates are separate from reporting periods; changing company DOI does not rewrite saved engagements.
+
+### Working-day estimates / 按工作日估算
+
+在排期编辑器选择“按工作日估算”，输入开始日和天数，自动跳过香港公众假期；规则、2025–2027覆盖及保存边界见 [操作说明](docs/working-day-schedule.md)。The first working day counts; saves remain ordinary work dates, separate from reporting periods.

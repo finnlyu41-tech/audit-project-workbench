@@ -1,5 +1,14 @@
 # Changelog
 
+## Working-day schedule estimates
+
+- Add an opt-in working-day mode inside the existing date editor, with inclusive start counting and explicit non-working start adjustment.
+- Skip verified Hong Kong public holidays for 2025–2027; support five/six-day working weeks and refuse calculations outside the known calendar.
+- Preview locally, protect unsaved estimates, and save only the resulting work-date pair; reporting periods, DOI, tax and other projects remain independent.
+- Preserve an unchanged historical period marker when only work dates are edited in the full annual form.
+- Validate date arithmetic against independent working-day enumeration, offline operation, actual backup recovery and three-language layouts.
+
+
 ## Schedule canvas and flexible first reporting periods
 
 - Reclaim the schedule canvas: temporary navigation/outstanding drawers, on-demand filters and help, responsive identity width, full remaining timeline height.

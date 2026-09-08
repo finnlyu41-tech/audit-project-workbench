@@ -1,6 +1,8 @@
 import { consolidationIsSimple } from "./consolidation-mode.js";
 import { calendarDate } from "./workspace-validation.js";
 import React from "react";
+import { estimateWorkingSchedule } from "./working-day-schedule.js";
+import { workingScheduleError } from "./working-day-fields.jsx";
 import { FirstPeriodGuidance } from "./first-period-guidance.jsx";
 import { suggestedReportingPeriod } from "./model.js";
 import { ProjectPrioritySelect } from "./project-priority.jsx";
@@ -220,6 +222,7 @@ export function EngagementForm({ store, entity, initial = null, preferredSourceI
     consolidationEnabled: initial?.consolidation?.enabled !== false,
     consolidationMode: consolidationIsSimple(initial || existing[0]) ? "simple" : "full",
   }));
+  const [scheduleEstimate, setScheduleEstimate] = React.useState(null);
   const previousDefault = existing.find((engagement) => !initial || engagement.id !== initial.id) || null;
   const [sourceMode, setSourceMode] = React.useState(templateStarter ? "template" : previousDefault ? "previous" : "template");
   const [sourceEngagementId, setSourceEngagementId] = React.useState(preferredSourceId || previousDefault?.id || "");
@@ -227,7 +230,7 @@ export function EngagementForm({ store, entity, initial = null, preferredSourceI
     store.selectedSampleIdsByCategory));
   const [customEngagementType, setCustomEngagementType] = React.useState("");
   const [error, setError] = React.useState("");
-  const { closeEditor, confirmTransition } = useModalDraft({ values, sourceMode, sourceEngagementId, selections, customEngagementType }, onClose);
+  const { closeEditor, confirmTransition } = useModalDraft({ values, sourceMode, sourceEngagementId, selections, customEngagementType, scheduleEstimate }, onClose);
   const update = (field) => (event) => setValues((current) => ({ ...current, [field]: event.target.value }));
   const updatePeriods = (updater) => setValues((current) => ({
     ...current,
@@ -309,6 +312,12 @@ export function EngagementForm({ store, entity, initial = null, preferredSourceI
       catch {
         event.currentTarget.querySelector(".engagement-source")?.focus(); return; }
     }
+    const computedSchedule = scheduleEstimate && (!quickField || quickField === "schedule")
+      ? estimateWorkingSchedule(scheduleEstimate) : null;
+    if (computedSchedule?.error) { setError(workingScheduleError(computedSchedule, t));
+      event.currentTarget.querySelector(".working-day-estimate input")?.focus(); return; }
+    const scheduleDates = computedSchedule ? { startDate: computedSchedule.startDate, dueDate: computedSchedule.dueDate }
+      : { startDate: values.startDate, dueDate: values.dueDate };
     const reportingPeriods = values.reportingPeriods.map(({ baseYear, ...period }) => period);
     if (!quickField) {
       if (!values.engagementTypes.length) {
@@ -332,18 +341,20 @@ export function EngagementForm({ store, entity, initial = null, preferredSourceI
         setError(t("这家公司已经有相同报告期间的项目，包括归档项目。")); return;
       }
     }
-    if ((!quickField || quickField === "schedule") && [values.startDate, values.dueDate].some(date => date && !calendarDate(date))) {
+    if ((!quickField || quickField === "schedule") && [scheduleDates.startDate, scheduleDates.dueDate].some(date => date && !calendarDate(date))) {
       setError(t("请填写有效日期。")); return;
     }
-    if (values.startDate && values.dueDate && values.dueDate < values.startDate) {
+    if (scheduleDates.startDate && scheduleDates.dueDate && scheduleDates.dueDate < scheduleDates.startDate) {
       setError(t("项目截止日不得早于开始日。")); return;
     }
     if (!validProjectPriority(values.priority)) { setError(t("请选择有效的项目优先级。")); return; }
     const sortedPeriods = engagementReportingPeriods({ reportingPeriods });
-    const result = onSubmit({ ...values, engagementType: values.engagementTypes[0] || "", entityId: entity.id, reportingPeriods: sortedPeriods,
+    // Editing work dates must not silently reinterpret an unchanged historical period marker.
+    const periodsUnchanged = initial && JSON.stringify(sortedPeriods) === JSON.stringify(engagementReportingPeriods(initial));
+    const result = onSubmit({ ...values, ...scheduleDates, engagementType: values.engagementTypes[0] || "", entityId: entity.id, reportingPeriods: sortedPeriods,
       periodStart: sortedPeriods[0]?.periodStart || initial?.periodStart || "",
       periodEnd: sortedPeriods.at(-1)?.periodEnd || initial?.periodEnd || "",
-      periodPreset: sortedPeriods.length === 1 ? sortedPeriods[0].periodPreset : "custom",
+      periodPreset: periodsUnchanged ? initial.periodPreset : sortedPeriods.length === 1 ? sortedPeriods[0].periodPreset : "custom",
       workstreamSelections: selections },
     { sourceMode, sourceEngagementId, sourceEngagement: sourceMode === "previous" ? source : null });
     if (result?.error) setError(result.error);
@@ -354,6 +365,7 @@ export function EngagementForm({ store, entity, initial = null, preferredSourceI
     <p className="form-help">{t("项目排期是实际工作的开始日和截止日，与财务报表的报告期间分开。")}</p>
     <div className="project-date-groups" data-single="true"><fieldset><legend>{t("项目排期")}</legend>
       <DateRangePicker autoFocus startDate={values.startDate} dueDate={values.dueDate}
+        estimate={scheduleEstimate} onEstimateChange={value => { setScheduleEstimate(value); setError(""); }}
         onChange={(startDate, dueDate) => setValues((current) => ({ ...current, startDate, dueDate }))} />
     </fieldset></div>
     {error && <div className="form-error" role="alert"><CircleAlert aria-hidden="true" />{error}</div>}
@@ -451,6 +463,7 @@ export function EngagementForm({ store, entity, initial = null, preferredSourceI
     <p className="form-help">{t("项目排期是实际工作的开始日和截止日，与财务报表的报告期间分开。")}</p>
     <div className="project-date-groups" data-single="true"><fieldset><legend>{t("项目排期")}</legend>
       <DateRangePicker startDate={values.startDate} dueDate={values.dueDate}
+        estimate={scheduleEstimate} onEstimateChange={value => { setScheduleEstimate(value); setError(""); }}
         onChange={(startDate, dueDate) => setValues((current) => ({ ...current, startDate, dueDate }))} />
     </fieldset></div>
     <AdvancedSection title={t("框架与高级设置")} hint={t("已有配置会保留；展开后可修改。")}
