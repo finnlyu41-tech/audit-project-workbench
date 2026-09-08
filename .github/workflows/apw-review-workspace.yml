@@ -1,0 +1,45 @@
+name: APW isolated review workspace
+
+on:
+  push:
+    branches: [feat/workflow-efficiency-20260909]
+    paths: [.github/workflows/apw-review-workspace.yml]
+
+permissions:
+  contents: read
+
+jobs:
+  prepare:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413
+        with:
+          version: 11.19.0
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm exec playwright install chromium --only-shell
+        env:
+          PLAYWRIGHT_BROWSERS_PATH: /tmp/apw-review-browsers
+      - name: Package public source and dependencies only
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/apw-review-export
+          git archive --format=tar HEAD | gzip > /tmp/apw-review-export/source.tar.gz
+          tar -czf /tmp/apw-review-export/dependencies.tar.gz node_modules
+          tar -czf /tmp/apw-review-export/browsers.tar.gz -C /tmp apw-review-browsers
+          printf '%s\n' "$GITHUB_SHA" > /tmp/apw-review-export/source-commit.txt
+          cd /tmp/apw-review-export
+          sha256sum *.tar.gz > SHA256SUMS
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: apw-isolated-review-workspace
+          path: /tmp/apw-review-export/
+          retention-days: 3
