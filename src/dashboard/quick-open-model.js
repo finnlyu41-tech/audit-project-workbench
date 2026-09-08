@@ -12,7 +12,7 @@ export function quickOpenIndex(store, language = "en") {
   const rows = [...entities.values()].map((entity) => ({ kind: "entity", id: entity.id,
     name: entity.legalName, owner: "", period: "", types: "", archived: Boolean(entity.archived),
     holding: entity.kind === "holding_company", key: recordKey("entity", entity.id),
-    search: fold(entity.legalName), nameSearch: fold(entity.legalName) }));
+    search: fold([entity.legalName, ...(entity.aliases || [])].join(" ")), nameSearch: fold(entity.legalName) }));
   for (const engagement of store.engagements || []) {
     const entity = entities.get(engagement.entityId);
     if (!entity) continue;
@@ -22,7 +22,7 @@ export function quickOpenIndex(store, language = "en") {
       name: entity.legalName, owner: engagement.owner || "", period: yearEndOrPeriodLabel(engagement, language), types,
       archived: Boolean(entity.archived || engagement.archived), holding: entity.kind === "holding_company",
       key: recordKey("project", engagement.id), nameSearch: fold(entity.legalName),
-      search: fold([entity.legalName, engagement.owner, dates, types, engagementTypesLabel(engagement, "en"),
+      search: fold([entity.legalName, ...(entity.aliases || []), engagement.owner, dates, types, engagementTypesLabel(engagement, "en"),
         engagementTypesLabel(engagement, "zh-Hans")].join(" ")) });
   }
   return rows;

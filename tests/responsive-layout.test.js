@@ -204,7 +204,7 @@ test("workstream cards reorder directly and contain long text inside each card",
 test("workstreams and stages disclose one level at a time while stages and criteria remain draggable", () => {
   assert.match(workbench, /current === workstream\.id \? null : workstream\.id/);
   assert.match(components, /setSelectedId\(\(current\) => current === node\.id \? null : node\.id\)/);
-  assert.match(components, /draggable={!readOnly} onDragStart={\(event\) => beginNodeDrag/);
+  assert.match(components, /draggable={!readOnly && !unfinishedOnly} onDragStart={\(event\) => beginNodeDrag/);
   assert.match(components, /className="condition-row"[\s\S]*?draggable={!readOnly}/);
   assert.doesNotMatch(components, /condition-drag-handle|node-track-grip/);
   assert.match(workbench, /reorderCondition:[\s\S]*?reorderWorkstreams\(node\.conditions/);
@@ -319,7 +319,7 @@ test("project summary facts open focused settings without exposing the full edit
   assert.match(v11Components, /data-quick-field={quickField}/);
   assert.match(v11Components, /<ScheduleFields autoFocus/);
   assert.match(v11Components, /<input autoFocus list="v11-quick-framework-options"/);
-  assert.match(v11Components, /: <input autoFocus value={values\[field\]}/);
+  assert.match(v11Components, /: <OwnerInput store={store} autoFocus value={values\[field\]}/);
   assert.match(css, /\.detail-fact-link::before\s*{[^}]*inset:\s*0/);
 });
 

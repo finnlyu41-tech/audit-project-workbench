@@ -1,3 +1,6 @@
+import { SavedFilters } from "./efficiency-controls.jsx";
+import { ReportTableExport } from "./report-export.jsx";
+import { dateOnly } from "./working-days.js";
 import React from "react";
 import { ReportRiskPanel, ReportTableRegion } from "./report-ui.jsx";
 import { AlertTriangle, ArrowDown, ArrowUp, ArrowUpDown, BarChart3, Building, Building2, CalendarRange, CircleAlert, Layers3, Printer, ReceiptText } from "lucide-react";
@@ -74,6 +77,12 @@ function PortfolioFilters({ store, filters, setFilters }) {
       <option value="open_outstanding">{t("有未清事项")}</option></select></label>
     <label><span>{t("项目开始范围")}</span><input type="date" value={filters.dateFrom} max={filters.dateTo || undefined} onChange={update("dateFrom")} /></label>
     <label><span>{t("项目截止范围")}</span><input type="date" value={filters.dateTo} min={filters.dateFrom || undefined} onChange={update("dateTo")} /></label>
+    <SavedFilters scope="report" values={filters} validate={v => ['active', 'completed', 'all', 'archived'].includes(v.status)
+      && (v.owner === 'all' || owners.includes(v.owner)) && (v.holdingCompanyId === 'all' || store.entities.some(e => e.id === v.holdingCompanyId && !e.archived))
+      && (v.categoryId === 'all' || store.workstreamCategories.some(c => c.id === v.categoryId))
+      && ['all', 'overdue', 'due_today', 'due_soon', 'open_outstanding'].includes(v.urgency)
+      && (!v.dateFrom || dateOnly(v.dateFrom)) && (!v.dateTo || dateOnly(v.dateTo)) && (!v.dateFrom || !v.dateTo || v.dateFrom <= v.dateTo)}
+      onApply={v => setFilters(Object.fromEntries(Object.keys(DEFAULT_MANAGEMENT_REPORT_FILTERS).map(key => [key, v[key]])))} />
     <button type="button" className="button secondary" onClick={() => setFilters(DEFAULT_MANAGEMENT_REPORT_FILTERS)}>{t("重置筛选")}</button>
   </section>;
 }
@@ -113,6 +122,7 @@ function PortfolioTable({ report, onOpen }) {
   }, [rows]);
   return <section className="management-report-section"><header><div><h3>{t("项目组合明细")}</h3>
     <span>{t("{count} 项记录", { count: report.rows.length })}</span></div></header>
+    <ReportTableExport rows={groups.flatMap(group => group.rows)} />
     {report.rows.length ? <ReportTableRegion label={t("项目组合明细")}><table className="management-report-table"><thead><tr>
       <SortableHeading name="name" label={t("公司／控股公司")} sort={sort} onSort={toggleSort} />
       <th>{t("年结／报告期间")}</th>

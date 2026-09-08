@@ -1,3 +1,4 @@
+import { validAliases, validNextAction, validRemainingWork, validFollowUp, OUTPUT_LANGUAGES } from "./efficiency-data.js";
 import { validSchedulePlan } from "./working-days.js";
 // Validate persisted structure before normalization can discard or reinterpret supplied data.
 // Historical component references may be missing; a live engagement's company may not.
@@ -36,7 +37,8 @@ export function validWorkspaceRecords(value, legacy = false) {
   const builtinTypes = ['quote_collection', 'bookkeeping', 'audit', 'tax_computation_filing', 'cdd', 'custom'];
   const workstream = row => (legacy || builtinTypes.includes(row.type)) && fields(row, ['type', 'categoryId', 'customName', 'owner'], [], ['dueDate'])
     && list(row, 'nodes', node);
-  const outstanding = row => fields(row, ['title', 'note', 'status'], [], [], ['workstreamId']);
+  const outstanding = row => fields(row, ['title', 'note', 'status'], [], [], ['workstreamId'])
+    && optional(row, 'followUp', validFollowUp);
   const period = row => fields(row, ['periodPreset', 'label'], [], ['periodStart', 'periodEnd'])
     && (!row.periodStart || !row.periodEnd || row.periodEnd >= row.periodStart);
   const revision = row => fields(row, ['reason', 'changedAt'], [], ['fromDueDate', 'toDueDate']);
@@ -55,8 +57,10 @@ export function validWorkspaceRecords(value, legacy = false) {
   const engagement = row => fields(row, ['internalName', 'name', 'entity', 'entityId', 'owner', 'notes', 'reportingFramework'],
     ['archived'], ['periodStart', 'periodEnd', 'startDate', 'dueDate'])
     && optional(row, 'priority', validProjectPriority)
+    && optional(row, 'nextAction', validNextAction) && optional(row, 'remainingWork', validRemainingWork)
     && optional(row, 'schedulePlan', plan => validSchedulePlan(plan) && calendarDate(row.startDate)
-      && calendarDate(row.dueDate) && row.startDate >= plan.requestedStartDate && row.dueDate >= row.startDate)
+      && calendarDate(row.dueDate) && row.startDate >= plan.requestedStartDate && row.dueDate >= row.startDate
+      && (plan.direction !== "backward" || row.dueDate <= plan.targetDueDate))
     && list(row, 'reportingPeriods', period) && list(row, 'workstreams', workstream)
     && list(row, 'outstandingItems', outstanding) && list(row, 'taxDeadlines', tax)
     && list(row, 'nodes', node) && list(row, 'members', component)
@@ -66,7 +70,8 @@ export function validWorkspaceRecords(value, legacy = false) {
       && optional(state, 'project', v => fields(v, ['entity', 'reportingFramework']) && list(v, 'workstreams', workstream))
       && optional(state, 'group', v => fields(v, [], ['consolidationEnabled']) && list(v, 'nodes', node)));
   const entity = row => fields(row, ['legalName', 'entityType', 'kind', 'relationshipRole', 'notes', 'fiscalYearPreset'],
-    ['archived'], ['incorporationDate'], ['parentEntityId']) && list(row, 'taxDeadlines', tax);
+    ['archived'], ['incorporationDate'], ['parentEntityId']) && list(row, 'taxDeadlines', tax)
+    && optional(row, 'aliases', validAliases) && optional(row, 'followUpLanguage', language => OUTPUT_LANGUAGES.includes(language));
   const sample = row => fields(row, ['name', 'description', 'workstreamType', 'categoryId']) && list(row, 'nodes', node)
     && optional(row, 'tags', strings) && optional(row, 'readinessTemplates', values => record(values)
       && Object.values(values).every(items => rows(items, condition, !legacy)));

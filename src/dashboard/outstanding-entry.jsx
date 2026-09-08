@@ -1,3 +1,4 @@
+import { useRecoverableDraft } from "./efficiency-controls.jsx";
 import React from 'react';
 import { useUiLanguage } from './i18n.jsx';
 import { reportingPeriodLabel, workstreamTypeLabel } from './model.js';
@@ -35,15 +36,19 @@ export function OutstandingEntry({ store, targetKind, targetId, initial, statuse
     {session.count > 0 && <div className="outstanding-entry-receipt" role="status" aria-live="polite">
       <strong>{t("本次已添加 {count} 项；上一项：{title}", { count: session.count, title: session.title })}</strong>
       <span>{t("已提交事项不会因取消下一项而删除；实际保存状态见备份菜单。")}</span></div>}
-    <OutstandingForm key={session.count} initial={initial} statuses={statuses} workstreams={workstreams}
+    <OutstandingForm key={session.count} initial={initial} recoveryScope={`${targetKind}:${targetId}`} recoveryBaseline={baseline} statuses={statuses} workstreams={workstreams}
       defaultWorkstreamId={session.module} onSubmit={submit} onClose={onClose} />
   </div>;
 }
-function OutstandingForm({ initial, statuses, workstreams, defaultWorkstreamId, onSubmit, onClose }) {
+function OutstandingForm({ initial, statuses, workstreams, defaultWorkstreamId, onSubmit, onClose, recoveryScope, recoveryBaseline }) {
   const { language, t } = useUiLanguage();
   const [values, setValues] = React.useState(() => initial ? { title: initial.title || '', note: initial.note || '',
     status: initial.status, workstreamId: initial.workstreamId || '' } : newOutstandingValues(statuses, defaultWorkstreamId));
   const [error, setError] = React.useState('');
+  const recovery = useRecoverableDraft(`outstanding:${recoveryScope}:${initial?.id || 'new'}`, { source: recoveryBaseline, initial }, values, data => {
+    if (['title', 'note', 'status', 'workstreamId'].some(key => typeof data[key] !== 'string')) throw new Error('invalid draft');
+    setValues(data);
+  });
   const form = React.useRef(null); const submitted = React.useRef(false); const composing = React.useRef(false);
   const { closeEditor } = useModalDraft(values, onClose);
   React.useLayoutEffect(() => {
@@ -58,11 +63,12 @@ function OutstandingForm({ initial, statuses, workstreams, defaultWorkstreamId, 
     if (submitted.current || composing.current || !values.title.trim()) return;
     submitted.current = true;
     const result = onSubmit(values, event.nativeEvent.submitter?.value === 'continue');
-    if (result?.error) { submitted.current = false; setError(result.error); }
+    if (result?.error) { submitted.current = false; setError(result.error); } else recovery.clear();
   };
   return <form ref={form} data-editor-guard className="workbench-form outstanding-entry-form" onSubmit={submit}
     onCompositionStart={() => { composing.current = true; }} onCompositionEnd={() => { composing.current = false; }}
     onKeyDownCapture={(event) => { if (event.key === 'Enter' && (composing.current || isComposingKey(event))) event.preventDefault(); }}>
+    {recovery.panel}
     <label><span>{t("待清事项 *")}</span><RequiredTextInput autoFocus aria-label={t("待清事项 *")}
       value={values.title} onChange={update('title')} placeholder={t("例如：尚欠银行月结单")} /></label>
     {workstreams.length > 0 && <label><span>{t("所属层级或业务模块")}</span><select value={values.workstreamId} onChange={update('workstreamId')}>

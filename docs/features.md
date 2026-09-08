@@ -4,6 +4,10 @@
 
 This reference retains the detailed capability list. For operating behavior and limitations, use the linked documents below. It is not a guarantee of regulatory compliance or support on every device.
 
+## 本轮减负功能 / Workflow efficiency
+
+工作日正推／倒推／计数、批量排期与年度创建、多行待清和单来源批量状态、客户语言与标题正文复制、公司别名、负责人建议、常用筛选、可选本地草稿恢复、集团缺口处理、范本大纲、当前表格输出与只读备份差异。具体入口、边界及数据保护见 [全流程减负](workflow-efficiency.md)。发布状态以对应 PR 和 Pages 验收为准。
+
 ## 中文功能详解
 
 - 默认首页把活跃项目、已完成项目、需关注期限和待清事项放在第一屏，并按逾期／今日到期、即将到期、资料不完整、尚未建立项目及待清事项排序“优先处理”清单；每项都可直接进入对应项目、期限或建立项目界面。

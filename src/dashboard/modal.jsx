@@ -26,12 +26,16 @@ export function Modal({ title, onClose, children, wide = false, large = false, c
   const textRef = React.useRef(t);
   closeRef.current = onClose; textRef.current = t;
   const [dirty, setDirty] = React.useState(false);
+  const discardHandlers = React.useRef(new Map());
   const registry = React.useMemo(() => createDraftRegistry(setDirty), []);
-  const context = React.useMemo(() => ({ registry, requestClose: (action) => {
+  const context = React.useMemo(() => ({ registry, registerDiscard: (key, handler) => {
+    discardHandlers.current.set(key, handler); return () => discardHandlers.current.delete(key);
+  }, requestClose: (action) => {
     if (closeDisabledRef.current) return false;
     if (registry.isDirty() && !window.confirm(textRef.current("有未保存的更改。确定放弃这些更改并离开此编辑器吗？"))) {
       lastFieldRef.current?.focus({ preventScroll: true }); return false;
     }
+    for (const handler of discardHandlers.current.values()) handler();
     (typeof action === "function" ? action : closeRef.current)?.(); return true;
   } }), [registry]);
   const titleId = React.useId();

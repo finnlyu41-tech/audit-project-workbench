@@ -1,3 +1,6 @@
+import { validCompanyDraft, validAnnualDraft } from "./local-productivity.js";
+import { OwnerInput, useRecoverableDraft } from "./efficiency-controls.jsx";
+import { AnnualSetupDifferences } from "./annual-setup-differences.jsx";
 import { consolidationIsSimple } from "./consolidation-mode.js";
 import { calendarDate } from "./workspace-validation.js";
 import React from "react";
@@ -47,11 +50,12 @@ function presetLabel(value, t) {
     custom: "每个项目自定义日期", doi_year_end: "成立日（DOI）→ 年结日" }[value] || "每个项目自定义日期");
 }
 
-export function CompanyForm({ store, initial = null, onSubmit, onClose, creationKind = null, submitLabel = null }) {
+export function CompanyForm({ store, initial = null, onSubmit, onClose, creationKind = null, submitLabel = null, onOpenExisting = null, allowContinue = false }) {
   const { t } = useUiLanguage();
   const [creationMode, setCreationMode] = React.useState("single");
   const [values, setValues] = React.useState(() => ({
     legalName: initial?.legalName || "",
+    aliasesText: (initial?.aliases || []).join("\n"),
     entityType: initial?.entityType || "",
     incorporationDate: initial?.incorporationDate || "",
     kind: initial?.kind || creationKind || "company",
@@ -60,6 +64,8 @@ export function CompanyForm({ store, initial = null, onSubmit, onClose, creation
     fiscalYearPreset: initial?.fiscalYearPreset || "calendar",
     notes: initial?.notes || "",
   }));
+  const companyBaseline = React.useRef(JSON.stringify(initial));
+  const continueAfterSave = React.useRef(false);
   const batchBaselines = React.useRef(new Map());
   const batchFields = React.useRef(new Map());
   const pendingBatchFocus = React.useRef(null);
@@ -70,7 +76,17 @@ export function CompanyForm({ store, initial = null, onSubmit, onClose, creation
   const [batchCompanies, setBatchCompanies] = React.useState(() => [makeBatchDraft("calendar")]);
   const initialBatchCompany = React.useRef(batchCompanies[0]);
   const batchHelpId = React.useId();
-  const { closeEditor } = useModalDraft({ values, creationMode, batchCompanies }, onClose);
+  const { closeEditor, confirmTransition } = useModalDraft({ values, creationMode, batchCompanies }, onClose);
+  const companyRecovery = useRecoverableDraft(`company:${initial?.id || creationKind || 'new'}`, initial || { creationKind },
+    { values, creationMode, batchCompanies }, data => {
+      if (!validCompanyDraft(data)) throw new Error('invalid draft');
+      setValues(data.values); setCreationMode(data.creationMode); setBatchCompanies(data.batchCompanies);
+      data.batchCompanies.forEach(row => batchBaselines.current.set(row.id, { ...row }));
+    });
+  const companyFold = value => String(value || '').normalize('NFKC').toLocaleLowerCase().replace(/\s+/gu, ' ').trim();
+  const duplicateCompanies = values.legalName.trim() ? store.entities.filter(e => e.id !== initial?.id
+    && companyFold(e.legalName) === companyFold(values.legalName)) : [];
+  const [companyError, setCompanyError] = React.useState('');
   const update = (field) => (event) => setValues((current) => ({ ...current, [field]: event.target.value }));
   const updateBatchCompany = (id, field) => (event) => setBatchCompanies((current) => current.map((company) =>
     company.id === id ? { ...company, [field]: event.target.value } : company));
@@ -112,10 +128,19 @@ export function CompanyForm({ store, initial = null, onSubmit, onClose, creation
     && entity.id !== initial?.id);
   return <form data-editor-guard className="workbench-form company-master-form" onSubmit={(event) => {
     event.preventDefault();
+    if (initial && JSON.stringify(store.entities.find(e => e.id === initial.id)) !== companyBaseline.current) {
+      setCompanyError(t('来源资料已变化，请保留草稿并重新打开。')); return;
+    }
     const result = prepareCompanyEntry(values, batchCompanies, !initial && creationMode === "group");
     if (result.error) { event.currentTarget.reportValidity(); return; }
-    onSubmit(result.values);
+    const aliases = values.aliasesText.split(/\r?\n/u).map(value => value.trim()).filter(Boolean);
+    if (aliases.length > 8 || aliases.some(value => value.length > 120)) { setCompanyError(t('搜索别名最多 8 个，每个不超过 120 字。')); return; }
+    const { aliasesText: _aliasesText, ...companyValues } = result.values;
+    const saved = onSubmit({ ...companyValues, aliases: [...new Set(aliases)] },
+      { createEngagement: continueAfterSave.current });
+    if (saved?.error) setCompanyError(saved.error); else companyRecovery.clear();
   }}>
+    {companyRecovery.panel}
     <div className="company-master-lead"><FolderTree aria-hidden="true" /><div><strong>{t(initial ? "编辑公司主档" : "建立公司主档")}</strong>
       <span>{t("公司主档保存长期资料；报告期间、项目排期和业务模块在年度项目中设置。")}</span></div></div>
     {!initial && !creationKind && <div className="company-creation-mode choice-tabs" role="group" aria-label={t("新建模式")}>
@@ -136,6 +161,14 @@ export function CompanyForm({ store, initial = null, onSubmit, onClose, creation
       <label><span>{t("成立／开始日期（DOI，可选）")}</span><input type="date" min="0001-01-01" max="9999-12-31" value={values.incorporationDate}
         onChange={update("incorporationDate")} /></label>
     </div><small className="form-help">{t("用于首个项目的 DOI → 年结日期间。")}</small>
+    {duplicateCompanies.length > 0 && <div className="efficiency-warning" role="status">
+      <strong>{t('已有同名公司；请检查，系统不会自动合并。')}</strong>
+      {duplicateCompanies.map(company => <div key={company.id}>{company.legalName}{company.archived ? ` · ${t('已归档')}` : ''}
+        {onOpenExisting && <button type="button" className="button secondary" onClick={() => confirmTransition(() => onOpenExisting(company.id))}>{t('打开已有公司')}</button>}</div>)}
+    </div>}
+    <details className="efficiency-compact"><summary>{t('搜索简称／别名')}</summary>
+      <label><span>{t('搜索别名（每行一个，可选）')}</span><textarea rows="2" maxLength="1000" value={values.aliasesText}
+        onChange={update('aliasesText')} /></label><small>{t('仅辅助查找；报告和客户草稿仍使用完整法律名称。')}</small></details>
     <AdvancedSection key={creationMode} title={t("公司关系与备注")} hint={t("高级设置，不影响先建立公司。")}
       defaultOpen={Boolean(initial) || creationMode === "group"}>
       <div className="form-grid"><label className="span-two"><span>{t("所属控股公司")}</span><select value={values.parentEntityId} onChange={updateParent}>
@@ -175,7 +208,14 @@ export function CompanyForm({ store, initial = null, onSubmit, onClose, creation
     <label><span>{t("公司备注")}</span><textarea rows="3" value={values.notes} onChange={update("notes")}
       placeholder={t("记录长期适用、不会随年度项目改变的公司资料")} /></label>
     </AdvancedSection>
+    {companyError && <p className="form-error" role="alert">{companyError}</p>}
     <footer className="modal-actions"><button type="button" className="button secondary" onClick={closeEditor}>{t("取消")}</button>
+      {allowContinue && !initial && <button type="button" className="button secondary" onClick={event => {
+        const form = event.currentTarget.form;
+        if (!form.reportValidity()) return;
+        continueAfterSave.current = true;
+        try { form.requestSubmit(); } finally { continueAfterSave.current = false; }
+      }}>{t('保存并建立年度项目')}</button>}
       <button type="submit" className="button primary" disabled={values.kind === "company" && children.length > 0}>
         {submitLabel || t(initial ? "保存公司主档" : creationMode === "group" ? "建立集团及公司" : "建立公司")}</button></footer>
   </form>;
@@ -191,7 +231,7 @@ function initialSelections(categories, selectedIds) {
 }
 
 export function EngagementForm({ store, entity, initial = null, preferredSourceId = "", quickField = null,
-  onCreateAnotherYear = null, onSubmit, onClose, templateStarter = null }) {
+  onCreateAnotherYear = null, onSubmit, onClose, templateStarter = null, proposedReportingPeriods = null, onOpenExisting = null }) {
   const { language, t } = useUiLanguage();
   const existing = engagementsForEntity(store, entity.id);
   const firstInitialPeriod = engagementReportingPeriods(initial)[0] || initial || {};
@@ -207,7 +247,7 @@ export function EngagementForm({ store, entity, initial = null, preferredSourceI
     internalName: initial?.internalName || "",
     engagementTypes: inheritedEngagementTypes,
     engagementType: inheritedEngagementTypes[0] || "",
-    reportingPeriods: (initial ? engagementReportingPeriods(initial) : [{
+    reportingPeriods: (initial ? engagementReportingPeriods(initial) : proposedReportingPeriods || [{
       id: uid("reporting-period"), periodPreset: initialPreset,
       periodStart: generated.periodStart || "", periodEnd: generated.periodEnd || "",
     }]).map((period, index) => ({ ...period, id: period.id || uid("reporting-period"),
@@ -223,7 +263,7 @@ export function EngagementForm({ store, entity, initial = null, preferredSourceI
   }));
   const [scheduleDraft, setScheduleDraft] = React.useState(() => initialScheduleDraft(initial || {}));
   const changeScheduleDraft = (draft) => {
-    setScheduleDraft(draft);
+    setScheduleDraft(draft); setError("");
     const result = resolveScheduleDraft(draft, values);
     if (!result.error) setValues(current => ({ ...current, startDate: result.startDate, dueDate: result.dueDate }));
   };
@@ -235,6 +275,21 @@ export function EngagementForm({ store, entity, initial = null, preferredSourceI
   const [customEngagementType, setCustomEngagementType] = React.useState("");
   const [error, setError] = React.useState("");
   const { closeEditor, confirmTransition } = useModalDraft({ values, scheduleDraft, sourceMode, sourceEngagementId, selections, customEngagementType }, onClose);
+  const annualFormRef = React.useRef(null);
+  const annualBaseline = React.useRef(JSON.stringify(initial));
+  const annualRecovery = useRecoverableDraft(`engagement:${entity.id}:${initial?.id || 'new'}:${quickField || 'full'}`,
+    { entity, initial, proposedReportingPeriods, template: templateStarter?.id },
+    { values, scheduleDraft, sourceMode, sourceEngagementId, selections, customEngagementType }, data => {
+      if (!validAnnualDraft(data)) throw new Error('invalid draft');
+      setValues(data.values); setScheduleDraft(data.scheduleDraft); setSourceMode(data.sourceMode);
+      setSourceEngagementId(data.sourceEngagementId); setSelections(data.selections); setCustomEngagementType(data.customEngagementType || '');
+    });
+  const periodConflict = period => store.engagements.find(e => e.entityId === entity.id && e.id !== initial?.id
+    && engagementReportingPeriods(e).some(p => p.periodStart === period.periodStart && p.periodEnd === period.periodEnd));
+  const focusPeriod = index => {
+    const row = annualFormRef.current?.querySelectorAll('.reporting-period-list > article')[index];
+    const input = row?.querySelector('input[type="date"]'); input?.focus(); row?.scrollIntoView({ block: 'nearest' });
+  };
   const update = (field) => (event) => setValues((current) => ({ ...current, [field]: event.target.value }));
   const updatePeriods = (updater) => setValues((current) => ({
     ...current,
@@ -311,6 +366,9 @@ export function EngagementForm({ store, entity, initial = null, preferredSourceI
   const source = existing.find((engagement) => engagement.id === sourceEngagementId) || null;
   const submit = (event) => {
     event.preventDefault(); setError("");
+    if (initial && JSON.stringify(store.engagements.find(e => e.id === initial.id)) !== annualBaseline.current) {
+      setError(t('来源资料已变化，请保留草稿并重新打开。')); return;
+    }
     if (!initial && !templateStarter) {
       try { resolveAnnualSource(store, entity.id, { sourceMode, sourceEngagementId }, selections); }
       catch {
@@ -322,21 +380,21 @@ export function EngagementForm({ store, entity, initial = null, preferredSourceI
         setError(t("请至少选择一个项目类型。")); return;
       }
       if (reportingPeriods.some((period) => !period.periodStart || !period.periodEnd)) {
-        setError(t("请填写每个报告期间的完整日期。")); return;
+        setError(t("请填写每个报告期间的完整日期。")); focusPeriod(reportingPeriods.findIndex(p => !p.periodStart || !p.periodEnd)); return;
       }
       if (reportingPeriods.some((period) => period.periodEnd < period.periodStart)) {
-        setError(t("报告结束日不得早于开始日。")); return;
+        setError(t("报告结束日不得早于开始日。")); focusPeriod(reportingPeriods.findIndex(p => p.periodEnd < p.periodStart)); return;
       }
       if (reportingPeriods.some(period => !calendarDate(period.periodStart) || !calendarDate(period.periodEnd))) {
         setError(t("请填写有效日期。")); return;
       }
       const keys = reportingPeriods.map((period) => `${period.periodStart}|${period.periodEnd}`);
       if (new Set(keys).size !== keys.length) {
-        setError(t("同一项目不能重复添加相同报告期间。")); return;
+        setError(t("同一项目不能重复添加相同报告期间。")); focusPeriod(keys.findIndex((key, index) => keys.indexOf(key) !== index)); return;
       }
       if (reportingPeriods.some((period) => engagementPeriodExists(store, entity.id,
         period.periodStart, period.periodEnd, initial?.id || ""))) {
-        setError(t("这家公司已经有相同报告期间的项目，包括归档项目。")); return;
+        setError(t("这家公司已经有相同报告期间的项目，包括归档项目。")); focusPeriod(reportingPeriods.findIndex(periodConflict)); return;
       }
     }
     if ((!quickField || quickField === "schedule") && [values.startDate, values.dueDate].some(date => date && !calendarDate(date))) {
@@ -353,16 +411,18 @@ export function EngagementForm({ store, entity, initial = null, preferredSourceI
     const scheduleValues = (!quickField || quickField === "schedule") ? {
       startDate: scheduleResult.startDate, dueDate: scheduleResult.dueDate, schedulePlan: scheduleResult.schedulePlan,
     } : {};
-    const sortedPeriods = engagementReportingPeriods({ reportingPeriods });
+    const periodsUnchanged = initial && JSON.stringify(reportingPeriods) === JSON.stringify(engagementReportingPeriods(initial));
+    const sortedPeriods = periodsUnchanged ? engagementReportingPeriods(initial) : engagementReportingPeriods({ reportingPeriods });
     const result = onSubmit({ ...values, ...scheduleValues, engagementType: values.engagementTypes[0] || "", entityId: entity.id, reportingPeriods: sortedPeriods,
       periodStart: sortedPeriods[0]?.periodStart || initial?.periodStart || "",
       periodEnd: sortedPeriods.at(-1)?.periodEnd || initial?.periodEnd || "",
-      periodPreset: sortedPeriods.length === 1 ? sortedPeriods[0].periodPreset : "custom",
+      periodPreset: periodsUnchanged ? initial.periodPreset : sortedPeriods.length === 1 ? sortedPeriods[0].periodPreset : "custom",
       workstreamSelections: selections },
     { sourceMode, sourceEngagementId, sourceEngagement: sourceMode === "previous" ? source : null });
-    if (result?.error) setError(result.error);
+    if (result?.error) setError(result.error); else annualRecovery.clear();
   };
-  if (quickField === "schedule") return <form data-editor-guard className="workbench-form" data-quick-field="schedule" onSubmit={submit}>
+  if (quickField === "schedule") return <form ref={annualFormRef} data-editor-guard className="workbench-form" data-quick-field="schedule" onSubmit={submit}>
+    {annualRecovery.panel}
     <div className="engagement-company-lock"><i>{entity.kind === "holding_company" ? <Building2 aria-hidden="true" /> : <Building aria-hidden="true" />}</i>
       <span><small>{t("年度项目")}</small><strong>{entity.legalName} · {yearEndOrPeriodLabel(initial, language)}</strong></span></div>
     <p className="form-help">{t("项目排期是实际工作的开始日和截止日，与财务报表的报告期间分开。")}</p>
@@ -377,19 +437,21 @@ export function EngagementForm({ store, entity, initial = null, preferredSourceI
   if (["owner", "framework"].includes(quickField)) {
     const field = quickField === "owner" ? "owner" : "reportingFramework";
     const label = quickField === "owner" ? "负责人" : "财务报告准则／框架";
-    return <form data-editor-guard className="workbench-form engagement-quick-form" data-quick-field={quickField} onSubmit={submit}>
-      <div className="engagement-company-lock"><i>{entity.kind === "holding_company" ? <Building2 aria-hidden="true" /> : <Building aria-hidden="true" />}</i>
+    return <form ref={annualFormRef} data-editor-guard className="workbench-form engagement-quick-form" data-quick-field={quickField} onSubmit={submit}>
+      {annualRecovery.panel}
+    <div className="engagement-company-lock"><i>{entity.kind === "holding_company" ? <Building2 aria-hidden="true" /> : <Building aria-hidden="true" />}</i>
         <span><small>{t("年度项目")}</small><strong>{entity.legalName} · {yearEndOrPeriodLabel(initial, language)}</strong></span></div>
       <label><span>{t(label)}</span>{quickField === "framework" ? <><input autoFocus list="v11-quick-framework-options"
         value={values[field]} onChange={update(field)} placeholder={t("选择常用框架或直接输入")} />
         <datalist id="v11-quick-framework-options">{FRAMEWORKS.map((framework) => <option key={framework} value={framework} />)}</datalist></>
-        : <input autoFocus value={values[field]} onChange={update(field)} placeholder={t("例如：项目经理或主审")} />}</label>
+        : <OwnerInput store={store} autoFocus value={values[field]} onChange={update(field)} placeholder={t("例如：项目经理或主审")} />}</label>
       {error && <div className="form-error" role="alert"><CircleAlert aria-hidden="true" />{error}</div>}
       <footer className="modal-actions"><button type="button" className="button secondary" onClick={closeEditor}>{t("取消")}</button>
         <button type="submit" className="button primary">{t("保存")}</button></footer>
     </form>;
   }
-  return <form data-editor-guard className="workbench-form annual-engagement-form" onSubmit={submit}>
+  return <form ref={annualFormRef} data-editor-guard className="workbench-form annual-engagement-form" onSubmit={submit}>
+    {annualRecovery.panel}
     <div className="engagement-company-lock"><i>{entity.kind === "holding_company" ? <Building2 aria-hidden="true" /> : <Building aria-hidden="true" />}</i>
       <span><small>{t("法律实体")}</small><strong>{entity.legalName}</strong></span></div>
     <section className="period-builder"><header><div><strong>{t("报告期间")} · {values.reportingPeriods.length}</strong>
@@ -413,6 +475,10 @@ export function EngagementForm({ store, entity, initial = null, preferredSourceI
             max={period.periodEnd || undefined} onChange={changeDate(period.id, "periodStart")} /></label>
           <label><span>{t("报告结束日 *")}</span><input type="date" required value={period.periodEnd}
             min={period.periodStart || undefined} onChange={changeDate(period.id, "periodEnd")} /></label></div>
+        {periodConflict(period) && <div className="efficiency-warning" role="status">
+          <span>{t('第 {number} 个期间与已有项目重复。', { number: index + 1 })} {yearEndOrPeriodLabel(periodConflict(period), language)}</span>
+          {onOpenExisting && <button type="button" className="button secondary" onClick={() => confirmTransition(() => onOpenExisting(periodConflict(period).id))}>{t('打开冲突项目')}</button>}
+        </div>}
         {period.periodPreset === "doi_year_end" && <FirstPeriodGuidance period={period} entity={entity}
           onChooseEnd={periodEnd => updatePeriods(periods => periods.map(p => p.id===period.id ? {...p,periodEnd}:p))} />}
         {period.periodStart && period.periodEnd && <div className="period-preview"><CalendarPlus aria-hidden="true" />
@@ -443,6 +509,7 @@ export function EngagementForm({ store, entity, initial = null, preferredSourceI
               {templates.map((template) => <option key={template.id} value={template.id}>{template.name}</option>)}</select>}</div>;
         })}</div></AdvancedSection>}
       <AnnualSourceSummary store={store} entityId={entity.id} options={{ sourceMode, sourceEngagementId }} selections={selections} />
+      {sourceMode === "previous" && source && <AnnualSetupDifferences source={source} values={values} entity={entity} store={store} />}
     </section>}
     <fieldset className="engagement-type-selector"><legend>{t("项目类型")} <span>{t("可多选")}</span></legend>
       <div className="engagement-type-options">{availableEngagementTypes.map((type) => <label key={type}
@@ -460,7 +527,7 @@ export function EngagementForm({ store, entity, initial = null, preferredSourceI
       <small className="form-help">{t("可同时选择多个预设类型，也可以添加自定义类型。")}</small>
     </fieldset>
     <div className="form-grid" data-columns="2"><label><span>{t("负责人")}</span>
-      <input value={values.owner} onChange={update("owner")} placeholder={t("例如：项目经理或主审")} /></label>
+      <OwnerInput store={store} value={values.owner} onChange={update("owner")} placeholder={t("例如：项目经理或主审")} /></label>
       <ProjectPrioritySelect value={values.priority} onChange={priority => setValues(current => ({ ...current, priority }))} /></div>
     <p className="form-help">{t("项目排期是实际工作的开始日和截止日，与财务报表的报告期间分开。")}</p>
     <div className="project-date-groups" data-single="true"><fieldset><legend>{t("项目排期")}</legend>
@@ -637,7 +704,7 @@ export function MergeEntitiesForm({ store, initialEntityId, onSubmit, onClose })
   </form>;
 }
 
-export function HoldingComponentsPanel({ store, engagement, readOnly = false, onOpen, onUpdate, onSync }) {
+export function HoldingComponentsPanel({ store, engagement, readOnly = false, onOpen, onUpdate, onSync, onCreateComponent = null }) {
   const { language, t } = useUiLanguage();
   const [filtersOpen, setFiltersOpen] = React.useState(false);
   const [query, setQuery] = React.useState("");
@@ -646,14 +713,14 @@ export function HoldingComponentsPanel({ store, engagement, readOnly = false, on
   const [showHistory, setShowHistory] = React.useState(readOnly);
   const rows = React.useMemo(() => holdingComponentRows(store, engagement), [store, engagement]);
   const historical = rows.filter(row => row.historical);
-  const searched = filterHoldingComponents(showHistory ? rows : rows.filter(row => !row.historical), query);
+  const searched = filterHoldingComponents(showHistory || status === "notready" ? rows : rows.filter(row => !row.historical), query);
   const visible = filterHoldingComponents(searched, "", status);
   const currentChildren = store.entities.filter((item) => item.parentEntityId === engagement.entityId);
   const snapshotIds = new Set(rows.map((row) => row.component.entityId));
   const currentIds = new Set(currentChildren.map((child) => child.id));
   const added = currentChildren.filter((child) => !snapshotIds.has(child.id));
   const removed = rows.filter((row) => !currentIds.has(row.component.entityId));
-  const labels = { all: "全部组成部分", unassigned: "待指定项目", mismatch: "期间不匹配" };
+  const labels = { all: "全部组成部分", notready: "只看未就绪", unassigned: "待指定项目", mismatch: "期间不匹配" };
   const clear = () => { setQuery(""); setStatus("all"); queryRef.current?.focus(); };
   const assign = (id, patch) => {
     // A newly assigned owner/period must not make the edited row vanish under old filters.
@@ -687,7 +754,7 @@ export function HoldingComponentsPanel({ store, engagement, readOnly = false, on
       {(query || status !== "all") && <button type="button" className="button secondary" onClick={clear}>{t("清除筛选")}</button>}
     </div>}
     {visible.length > 0 ? <div className="holding-component-rows">{visible.map((row) => <HoldingComponentRow key={row.component.id}
-      row={row} store={store} readOnly={readOnly} onOpen={onOpen} onAssign={assign} onUpdate={onUpdate} />)}</div>
+      row={row} store={store} readOnly={readOnly} onOpen={onOpen} onAssign={assign} onUpdate={onUpdate} onCreateComponent={onCreateComponent} />)}</div>
       : rows.length ? <div className="component-filter-empty"><strong>{t("没有符合筛选的组成部分")}</strong>
         <span>{t("清除筛选即可查看本年度完整范围。")}</span><button type="button" className="button secondary" onClick={clear}>{t("清除筛选")}</button></div>
         : <div className="entity-empty-projects"><FolderTree aria-hidden="true" /><strong>{t("本年度尚未保存组成部分")}</strong>
@@ -699,7 +766,7 @@ export function HoldingComponentsPanel({ store, engagement, readOnly = false, on
   </section>;
 }
 
-function HoldingComponentRow({ row, store, readOnly, onOpen, onAssign, onUpdate }) {
+function HoldingComponentRow({ row, store, readOnly, onOpen, onAssign, onUpdate, onCreateComponent }) {
   const { language, t } = useUiLanguage(); const hintId = React.useId();
   const { component, entity, target, candidates, matches, status, done, total } = row;
   const name = row.name || t("已删除的公司");
@@ -736,6 +803,15 @@ function HoldingComponentRow({ row, store, readOnly, onOpen, onAssign, onUpdate 
         ? "尚未指定年度项目。" : status === "mismatch" ? "所选报告期间与本年度完整范围不一致。" : "报告期间匹配；就绪条件仍需单独确认。")}
         {target && <small>{t("已选期间：{period}", { period: yearEndOrPeriodLabel(target, language) })}</small>}</span>
     </div>
+    {!row.ready && <details className="component-blockers efficiency-compact"><summary>{t('查看未就绪原因')}</summary>
+      {row.reasons.map((reason, index) => <p key={index}>{reason.kind === 'condition' ? reason.label : t({ missing: '公司来源已不存在，保留历史范围。',
+        archived: '来源已归档，不能视为就绪。', unassigned: '尚未指定对应年度项目。', mismatch: '所选年度与集团报告期间不匹配。',
+        child: '子集团尚未满足其本级完成要求。', 'no-conditions': '尚未设置合并就绪条件，不能按零项全部满足处理。' }[reason.kind])}</p>)}
+      {target && <button type="button" className="button secondary" onClick={() => onOpen(entity.kind === 'holding_company' ? 'group' : 'project', target.id)}>{t('前往来源项目')}</button>}
+    </details>}
+    {onCreateComponent && !readOnly && entity && !entity.archived && !matches.length && <div className="component-create">
+      <button type="button" className="button secondary" onClick={() => onCreateComponent(component.id)}>{t('建立缺少的对应年度')}</button>
+    </div>}
     {total > 0 && <div className="component-readiness-checks" role="group" aria-label={t("{name}的就绪条件", { name })}>
       {component.readinessConditions.map((condition) => <label key={condition.id}>
         <input type="checkbox" disabled={readOnly || row.archived || !entity} checked={condition.done} onChange={(event) => onUpdate(component.id, {

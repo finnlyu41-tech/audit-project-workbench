@@ -1,3 +1,6 @@
+import { SavedFilters } from "./efficiency-controls.jsx";
+import { followUpsDue } from "./efficiency-actions.js";
+import { localIsoDate } from "./efficiency-data.js";
 import React from "react";
 import { ProjectPriorityBadge } from "./project-priority.jsx";
 import { projectPriority, PRIORITY_LABELS, prioritizedActiveRecords } from "./project-priority.js";
@@ -21,7 +24,7 @@ function deadlineBadge(item, t) {
 }
 
 export function HomeOverview({ store, now, onOpen, onOpenDeadline, onNewCompany, onNewEngagement,
-  onShowDeadlines, onShowProjects, onShowSchedule, recentVisits = [], onClearRecent, onOpenOutstanding }) {
+  onShowDeadlines, onShowProjects, onShowSchedule, recentVisits = [], onClearRecent, onOpenOutstanding, onBatchAnnual }) {
   const { language, t } = useUiLanguage();
   const overview = React.useMemo(() => {
     const data = homeOverviewData(store, now);
@@ -33,6 +36,7 @@ export function HomeOverview({ store, now, onOpen, onOpenDeadline, onNewCompany,
   const [priorityFilter, setPriorityFilter] = React.useState("all");
   const [owner, setOwner] = React.useState("");
   const [priorityLimit, setPriorityLimit] = React.useState(5);
+  const dueFollowUps = followUpsDue(store, localIsoDate(now));
   const recent = recentRecordsFor(store, recentVisits);
   const owners = [...new Set([...overview.records.map((record) => record.engagement.owner),
     ...overview.alerts.map((alert) => alert.owner)].filter(Boolean))].sort();
@@ -131,6 +135,18 @@ export function HomeOverview({ store, now, onOpen, onOpenDeadline, onNewCompany,
       <option value="">{t("全部负责人")}</option>{owners.map((name) => <option key={name} value={name}>{name}</option>)}</select></label>
       {(owner || priorityFilter !== "all") && <button type="button" className="button secondary"
         onClick={() => { setOwner(""); changeFilter("all"); }}>{t("清除筛选")}</button>}</div>
+    <details className="efficiency-compact"><summary>{t('常用筛选与年度工具')}</summary>
+      <SavedFilters scope="home" values={{ owner, priorityFilter }}
+        validate={v => PRIORITY_FILTERS.includes(v.priorityFilter) && (!v.owner || owners.includes(v.owner))}
+        onApply={v => { setOwner(v.owner || ''); changeFilter(v.priorityFilter); }} />
+      {onBatchAnnual && <button type="button" className="button secondary" onClick={onBatchAnnual}>{t('批量建立下一年度')}</button>}
+    </details>
+    {dueFollowUps.length > 0 && <details className="efficiency-compact"><summary>{t('已到下次跟进日期')} · {dueFollowUps.length}</summary>
+      {dueFollowUps.map(({ engagement, entity, item }) => <button key={`${engagement.id}:${item.id}`} type="button" className="efficiency-row"
+        onClick={() => onOpenOutstanding?.(entity.kind === 'holding_company' ? 'group' : 'project', engagement.id, item.id)}>
+        <strong>{entity.legalName} · {yearEndOrPeriodLabel(engagement, language)}</strong><span>{item.title} · {item.followUp.dueDate}</span></button>)}
+      <p>{t('仅根据你记录的实际发送与跟进日期显示；未自动发送或推送。')}</p>
+    </details>}
     <div className="home-overview-columns">
       <section className="home-overview-panel home-priority-panel" ref={priorityRef} tabIndex="-1"><header><div><span>{t("下一步")}</span>
         <h3>{t("优先处理")}</h3></div><strong aria-live="polite">{filteredPriorities.length}</strong></header>
@@ -156,7 +172,7 @@ export function HomeOverview({ store, now, onOpen, onOpenDeadline, onNewCompany,
           <button type="button" className="home-project-row" data-engagement-id={record.id} key={record.id} onClick={() => onOpen(record.kind, record.id)}>
             <ProgressBar value={record.percentage} compact /><span><strong>{record.entity.legalName}<ProjectPriorityBadge record={record.engagement} /></strong>
               <small>{engagementTypesLabel(record.engagement, language) || t("项目类型未设置")}</small>
-              {nextEngagementAction(record.engagement)?.node && <small className="home-card-next">{t("下一步")}：{nextEngagementAction(record.engagement).node.title}</small>}</span><span><strong>{yearEndOrPeriodLabel(record.engagement, language)}</strong>
+              {nextEngagementAction(record.engagement, store.outstandingStatuses) && <small className="home-card-next">{t("下一步")}：{(nextEngagementAction(record.engagement, store.outstandingStatuses).item || nextEngagementAction(record.engagement, store.outstandingStatuses).node)?.title}</small>}</span><span><strong>{yearEndOrPeriodLabel(record.engagement, language)}</strong>
                 <small>{record.engagement.owner || t("未设置负责人")}</small></span><time>{record.engagement.dueDate
                   ? t("截止：{date}", { date: formatDate(record.engagement.dueDate, language) }) : t("未设置截止日")}</time>
             <ChevronRight aria-hidden="true" /></button>)}</div>

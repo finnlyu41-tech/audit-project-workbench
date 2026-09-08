@@ -30,7 +30,7 @@ export function scheduleRows(store, filter, language = "en") {
       const row = {
         id: engagement.id,
         kind,
-        name: entity.legalName,
+        name: entity.legalName, aliases: entity.aliases || [],
         engagement,
         periodLabel: yearEndOrPeriodLabel(engagement, language),
         engagementTypes: engagement.engagementTypes || [],
@@ -87,7 +87,7 @@ export function filterScheduleRows(rows, { query = "", dateScope = "all", langua
   return rows.filter((row) => {
     const scheduled = Boolean(row.startDate && row.dueDate);
     if (dateScope === "incomplete" && scheduled || dateScope === "scheduled" && !scheduled) return false;
-    const text = normalizeQuery([row.name, row.secondaryName, row.owner, row.periodLabel,
+    const text = normalizeQuery([row.name, ...(row.aliases || []), row.secondaryName, row.owner, row.periodLabel,
       engagementTypesLabel(row, language), ...engagementTypeValues(row),
       ...engagementReportingYears(row.engagement || row)].join(" "));
     return tokens.every((token) => text.includes(token));

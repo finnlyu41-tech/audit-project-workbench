@@ -1,9 +1,10 @@
+import { reportingPeriodLabel } from "./model.js";
 import React from "react";
 import { Building2, CalendarDays, Search } from "lucide-react";
 import { useUiLanguage } from "./i18n.jsx";
 import { findQuickOpenRecords, quickOpenIndex } from "./quick-open-model.js";
 
-export function QuickOpen({ store, recent, onOpen }) {
+export function QuickOpen({ store, recent, onOpen, currentRecord = null, onAction = null }) {
   const { language, t } = useUiLanguage();
   const [query, setQuery] = React.useState("");
   const [includeArchived, setIncludeArchived] = React.useState(false);
@@ -34,6 +35,11 @@ export function QuickOpen({ store, recent, onOpen }) {
     <div className="quick-open-options"><label className="check-option"><input type="checkbox" checked={includeArchived}
       onChange={(event) => { setIncludeArchived(event.target.checked); setActiveIndex(0); }} /><span>{t("包含归档记录")}</span></label>
       <span role="status">{t("找到 {count} 项", { count: total })}</span></div>
+    {currentRecord && onAction && !currentRecord.entity.archived && !currentRecord.engagement.archived && <details className="efficiency-compact">
+      <summary>{t('当前项目快捷操作')}</summary><strong>{currentRecord.entity.legalName} · {reportingPeriodLabel(currentRecord.engagement, language)}</strong>
+      <div className="efficiency-actions">{[['outstanding', '添加待清'], ['schedule', '编辑工作排期'], ['annual', '建立下一年度']].map(([action, label]) =>
+        <button key={action} type="button" className="button secondary" onClick={() => onAction(action)}>{t(label)}</button>)}</div>
+    </details>}
     <ul className="quick-open-results" id={listId} ref={listRef} role="listbox" aria-label={t("快速打开结果")}>
       {records.map((record, i) => <li id={`${listId}-${i}`} key={record.key} role="option" aria-selected={i === active}
         onMouseDown={(event) => event.preventDefault()} onClick={() => onOpen(record)}>

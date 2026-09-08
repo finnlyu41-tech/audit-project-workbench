@@ -1,3 +1,4 @@
+import { SavedFilters } from "./efficiency-controls.jsx";
 import { outstandingEntriesForScope } from "./outstanding-scope.js";
 import React from 'react';
 import { ChevronDown, ChevronRight, Ellipsis, ListFilter, ListPlus, MessageSquareText, Palette, Pencil, Trash2 } from 'lucide-react';
@@ -17,6 +18,7 @@ export function OutstandingCenter({ store, target, targetKind, statuses, updateP
   const [expandedItemKey, setExpandedItemKey] = React.useState(null);
   const [filtersOpen, setFiltersOpen] = React.useState(false);
   const [moreOpen, setMoreOpen] = React.useState(false);
+  const [selecting, setSelecting] = React.useState(false), [bulk, setBulk] = React.useState({ sourceId: '', ids: [] });
   const panelId = React.useId(); const filterRef = React.useRef(null); const moreRef = React.useRef(null);
   const searchRef = React.useRef(null);
   const cardsRef = React.useRef(new Map());
@@ -36,6 +38,20 @@ export function OutstandingCenter({ store, target, targetKind, statuses, updateP
       moduleLabel: workstream ? workstreamTypeLabel(workstream.type, language, workstream.customName)
         : t(entry.sourceType === "group" ? "集团级" : "项目级") };
   });
+  const selectedEntries = entries.filter(entry => entry.sourceId === bulk.sourceId && bulk.ids.includes(entry.item.id));
+  const completeSelection = bulk.ids.length > 0 && selectedEntries.length === bulk.ids.length && selectedEntries.every(e => !e.readOnly);
+  const allSelectedOpen = completeSelection && selectedEntries.every(e => outstandingIsOpen(e.item, store.outstandingStatuses));
+  const toggleSelected = entry => {
+    setBulk(current => {
+      if (entry.readOnly || (current.ids.length && current.sourceId !== entry.sourceId)) return current;
+      const ids = current.ids.includes(entry.item.id) ? current.ids.filter(id => id !== entry.item.id) : [...current.ids, entry.item.id];
+      return { sourceId: ids.length ? entry.sourceId : '', ids };
+    });
+  };
+  const openBulk = mode => {
+    if (!completeSelection || (mode === 'follow-up' && !allSelectedOpen)) return;
+    setModal({ type: 'efficiency-outstanding', mode, targetId: bulk.sourceId, itemIds: [...bulk.ids] });
+  };
   const moduleOptions = [...new Map(entries.map((entry) => [entry.moduleKey,
     targetKind !== "project" ? `${entry.companyName} · ${entry.moduleLabel}` : entry.moduleLabel])).entries()];
   const visibilityCounts = outstandingVisibilityCounts(entries, store.outstandingStatuses);
@@ -132,8 +148,23 @@ export function OutstandingCenter({ store, target, targetKind, statuses, updateP
         {singleSource && <button type="button" className="button secondary outstanding-followup-trigger"
           disabled={!entries.some(entry => !entry.readOnly && outstandingIsOpen(entry.item, store.outstandingStatuses))}
           onClick={event => { event.currentTarget.focus(); setModal({ type: 'client-follow-up', targetKind, targetId: target.id }); }}>{t("客户跟进草稿")}</button>}
+        {singleSource && <button type="button" className="button secondary" onClick={() => setModal({ type: 'efficiency-lines', targetId: target.id,
+          workstreamId: targetKind === 'project' ? activeWorkstreamId : null })}>{t('粘贴多行待清')}</button>}
+        <button type="button" className="button secondary" onClick={() => { setSelecting(value => !value); setBulk({ sourceId: '', ids: [] }); setMoreOpen(false); }}>{t(selecting ? '退出多选' : '选择多项事项')}</button>
         <button type="button" className="button secondary" onClick={event => { event.currentTarget.focus(); setModal({ type: 'outstanding-statuses' }); }}>
           <Palette aria-hidden="true" />{t("状态与颜色")}</button>
+      </div>}
+      {selecting && <div className="outstanding-bulk-bar" aria-label={t('多选待清操作')}>
+        <strong>{t('已选 {count} 项', { count: bulk.ids.length })}</strong>
+        <small>{t('每次仅选择一个公司及年度的事项；其他来源不可混选。')}</small>
+        {selectedEntries[0] && <span>{selectedEntries[0].companyName} · {selectedEntries[0].periodLabel}</span>}
+        <div className="efficiency-actions">
+          <button type="button" className="button secondary" disabled={!completeSelection} onClick={() => openBulk('status')}>{t('批量修改状态')}</button>
+          <button type="button" className="button secondary" disabled={!allSelectedOpen} onClick={() => openBulk('follow-up')}>{t('记录已发送与下次跟进')}</button>
+          <button type="button" className="button secondary" disabled={!allSelectedOpen} onClick={() => setModal({ type: 'client-follow-up',
+            targetKind: selectedEntries[0].sourceType, targetId: bulk.sourceId, selectedIds: [...bulk.ids], initialSourceId: bulk.sourceId })}>{t('为所选事项生成跟进草稿')}</button>
+          <button type="button" className="button secondary" onClick={() => { setBulk({ sourceId: '', ids: [] }); setSelecting(false); }}>{t('退出多选')}</button>
+        </div>
       </div>}
       {filtersOpen && <div id={`${panelId}-filters`} className="outstanding-tools-panel" role="group" aria-label={t("搜索与筛选待清事项")}
         onKeyDown={event => { if (event.key === 'Escape') { event.preventDefault(); event.stopPropagation(); setFiltersOpen(false); filterRef.current?.focus(); } }}>
@@ -145,6 +176,10 @@ export function OutstandingCenter({ store, target, targetKind, statuses, updateP
             aria-pressed={visibilityFilter === value} onClick={() => { setVisibilityFilter(value); setStatusFilter('all'); }}>
             <span>{t(value === 'open' ? "未清" : value === 'closed' ? "已清／归档" : "全部")}</span><strong>{visibilityCounts[value]}</strong></button>)}
         </div>
+        <SavedFilters scope={`outstanding:${targetKind}:${target.id}`} values={filters}
+          validate={v => typeof v.query === 'string' && ['all', 'open', 'closed'].includes(v.visibility)
+            && (v.status === 'all' || statuses.some(s => s.id === v.status)) && (v.module === 'all' || moduleOptions.some(([key]) => key === v.module))}
+          onApply={v => { setQuery(v.query); setVisibilityFilter(v.visibility); setStatusFilter(v.status); setModuleFilter(v.module); }} />
         <div className="outstanding-filter-selects">
           <label><span>{t("按业务模块筛选")}</span><select value={moduleFilter} onChange={event => setModuleFilter(event.target.value)}>
             <option value="all">{t("全部层级与模块")}</option>{moduleOptions.map(([value, label]) => <option value={value} key={value}>{label}</option>)}</select></label>
@@ -167,7 +202,10 @@ export function OutstandingCenter({ store, target, targetKind, statuses, updateP
             {group.readOnly ? ` · ${t("已归档，只读")}` : ''}</small></header>}
         {group.entries.map(entry => {
           const key = outstandingEntryKey(entry);
-          return <OutstandingRow key={key} entry={entry} statuses={statuses} expanded={expandedItemKey === key}
+          return <OutstandingRow key={key} entry={entry} selecting={selecting}
+            selected={bulk.sourceId === entry.sourceId && bulk.ids.includes(entry.item.id)}
+            selectionDisabled={Boolean(entry.readOnly || (bulk.ids.length && bulk.sourceId !== entry.sourceId))}
+            onSelect={() => toggleSelected(entry)} statuses={statuses} expanded={expandedItemKey === key}
             revealed={revealedItemKey === key} register={element => { if (element) cardsRef.current.set(key, element); else cardsRef.current.delete(key); }}
             onExpand={() => setExpandedItemKey(value => value === key ? null : key)} onStatus={status => updateStatus(entry, status)}
             onEdit={() => setModal({ type: 'outstanding', targetKind: entry.sourceType, targetId: entry.sourceId, item: entry.item })}
@@ -180,7 +218,7 @@ export function OutstandingCenter({ store, target, targetKind, statuses, updateP
   </div>;
 }
 
-function OutstandingRow({ entry, statuses, expanded, revealed, register, onExpand, onStatus, onEdit, onOpen, onDelete }) {
+function OutstandingRow({ entry, statuses, expanded, revealed, register, onExpand, onStatus, onEdit, onOpen, onDelete, selecting, selected, selectionDisabled, onSelect }) {
   const { t } = useUiLanguage(); const detailsId = React.useId();
   const [more, setMore] = React.useState(false); const moreRef = React.useRef(null);
   const status = statuses.find(option => option.id === entry.item.status);
@@ -188,6 +226,8 @@ function OutstandingRow({ entry, statuses, expanded, revealed, register, onExpan
   return <article className="outstanding-item" tabIndex="-1" aria-label={entry.item.title}
     data-outstanding-key={outstandingEntryKey(entry)} data-revealed={revealed || undefined} data-expanded={expanded || undefined}
     ref={register} style={{ '--status-color': status?.color || '#778078' }}>
+    {selecting && <label className="check-option outstanding-bulk-select"><input type="checkbox" checked={selected} disabled={selectionDisabled}
+      onChange={onSelect} /><span>{t('选择事项：{title}', { title: entry.item.title })}</span></label>}
     <div className="outstanding-item-summary">
       <button type="button" className="outstanding-item-toggle" aria-expanded={expanded} aria-controls={detailsId}
         onClick={onExpand}><ChevronRight aria-hidden="true" /><span><strong>{entry.item.title}</strong>
@@ -205,6 +245,8 @@ function OutstandingRow({ entry, statuses, expanded, revealed, register, onExpan
     </div>
     {expanded && <div id={detailsId} className="outstanding-item-details">
       <div className="outstanding-context">{[entry.periodLabel, entry.sourceOwner].filter(Boolean).join(' · ')}</div>
+      {entry.item.followUp && <p className="efficiency-note">{t('已发送日期：{sent}；下次跟进：{due}。', {
+        sent: entry.item.followUp.sentDate, due: entry.item.followUp.dueDate })}</p>}
       {entry.item.note && <p className="outstanding-note">{entry.item.note}</p>}
       <div className="outstanding-source"><button type="button" onClick={onOpen}>{t("查看原事项")}</button></div>
       {!entry.readOnly && <div className="outstanding-item-actions">

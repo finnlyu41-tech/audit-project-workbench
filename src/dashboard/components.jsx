@@ -1,8 +1,9 @@
+import { OutlineImporter } from "./efficiency-controls.jsx";
 import React from "react";
 import { RequiredTextInput } from "./required-text-input.jsx";
 import { ArrowDown, ArrowLeft, ArrowRight, ArrowRightLeft, ArrowUp, Copy, Pencil, Play, Plus, Search, Settings2, Trash2, X } from "lucide-react";
 import { GROUP_AUDIT_TYPES, GROUP_AUDIT_TYPE_KEYS, createDefaultWorkstreamCategories, dueTone, formatDate,
-  nodeStatus, normalizeTemplateTags, outstandingIsOpen, projectStats, reportingPeriodLabel, uid, workstreamCategoryLabel, workstreamStats,
+  nodeStatus, nodeIsComplete, normalizeTemplateTags, outstandingIsOpen, projectStats, reportingPeriodLabel, uid, workstreamCategoryLabel, workstreamStats,
   workstreamTypeLabel } from "./model.js";
 import { useUiLanguage } from "./i18n.jsx";
 import { handleTabListKeyDown, tabIndexFor } from "./a11y.js";
@@ -628,6 +629,7 @@ export function SampleEditor({ sample, categories = createDefaultWorkstreamCateg
         placeholder={t("说明本次范本修改")} /></label>
       <small>{t("{nodes} 个节点 · {conditions} 项条件", { nodes: draft.nodes.length, conditions: totalConditions })}</small>
     </div>
+    <OutlineImporter onAppend={nodes => setDraft(current => ({ ...current, nodes: [...current.nodes, ...nodes] }))} />
     <div className="sample-editor-list">{draft.nodes.map((node, index) => <section className="sample-edit-node" key={node.id}>
       <header><span>{index + 1}</span><input required value={node.title} aria-label={t("节点 {index} 名称", { index: index + 1 })}
         onChange={(event) => updateNode(node.id, (current) => ({ ...current, title: event.target.value }))} />
@@ -711,11 +713,13 @@ export function NodeBoard({ nodes, readOnly = false, actions, label = "", title 
   revealRequest = null, onRevealHandled }) {
   const { t } = useUiLanguage();
   const currentNode = nodes.find((node) => !workstreamStats({ nodes: [node] }).complete);
+  const [unfinishedOnly, setUnfinishedOnly] = React.useState(false);
+  const visibleNodes = unfinishedOnly ? nodes.filter(node => !nodeIsComplete(node)) : nodes;
   const [selectedId, setSelectedId] = React.useState(null);
   const boardRef = React.useRef(null);
   const detailRef = React.useRef(null);
   React.useEffect(() => {
-    if (revealRequest) setSelectedId(nodes.some((node) => node.id === revealRequest.nodeId) ? revealRequest.nodeId : null);
+    if (revealRequest) { setUnfinishedOnly(false); setSelectedId(nodes.some((node) => node.id === revealRequest.nodeId) ? revealRequest.nodeId : null); }
   }, [revealRequest]);
   React.useEffect(() => {
     if (!revealRequest) return;
@@ -737,7 +741,7 @@ export function NodeBoard({ nodes, readOnly = false, actions, label = "", title 
   React.useEffect(() => {
     if (selectedId && !nodes.some((node) => node.id === selectedId)) setSelectedId(null);
   }, [nodes, selectedId]);
-  const selected = nodes.find((node) => node.id === selectedId) || null;
+  const selected = visibleNodes.find((node) => node.id === selectedId) || null;
   const finishNodeDrag = () => {
     draggingNodeRef.current = null;
     setDraggingNodeId(null);
@@ -767,7 +771,7 @@ export function NodeBoard({ nodes, readOnly = false, actions, label = "", title 
     finishNodeDrag();
   };
   const reorderNodeWithKeyboard = (event, node, index) => {
-    if (readOnly || !event.altKey || !["ArrowLeft", "ArrowRight"].includes(event.key)) return;
+    if (readOnly || unfinishedOnly || !event.altKey || !["ArrowLeft", "ArrowRight"].includes(event.key)) return;
     const target = nodes[index + (event.key === "ArrowLeft" ? -1 : 1)];
     if (!target) return;
     event.preventDefault();
@@ -810,9 +814,12 @@ export function NodeBoard({ nodes, readOnly = false, actions, label = "", title 
     event.preventDefault();
     actions.reorderCondition(selected.id, condition.id, target.id, event.key === "ArrowUp" ? "before" : "after");
   };
-  return <div className="node-board" ref={boardRef} role="group" tabIndex="-1" aria-label={title || t("项目节点")} style={{ "--node-count": Math.max(nodes.length, 1) }}>
+  return <div className="node-board" ref={boardRef} role="group" tabIndex="-1" aria-label={title || t("项目节点")} style={{ "--node-count": Math.max(visibleNodes.length, 1) }}>
     <header className="node-board-toolbar"><div className="node-board-heading">{label && <span>{label}</span>}
       {title && <h3>{title}</h3>}{description && <p>{description}</p>}</div>
+      {nodes.some(nodeIsComplete) && <label className="node-filter-toggle"><input type="checkbox" checked={unfinishedOnly}
+        onChange={event => { setUnfinishedOnly(event.target.checked); if (event.target.checked && nodes.find(n => n.id === selectedId && nodeIsComplete(n))) setSelectedId(null); }} />
+        <span>{t('只看未完成节点')}</span></label>}
       {percentage !== null && <div className="workflow-panel-progress"><ProgressBar value={percentage} compact /></div>}
       {!readOnly && <div className="node-structure-actions"><button type="button" className="button secondary icon-only"
         aria-label={t("添加节点")} data-tooltip={t("添加节点")} onClick={actions.addNode}><Plus aria-hidden="true" /></button>
@@ -820,14 +827,15 @@ export function NodeBoard({ nodes, readOnly = false, actions, label = "", title 
           data-tooltip={t("删除所选节点")} data-tooltip-side="left"
           onClick={() => selected && actions.deleteNode(selected)}><Trash2 aria-hidden="true" /></button></div>}
     </header>
-    {nodes.length ? <div className="node-track" role="tablist" aria-label={t("项目节点")} onKeyDown={handleTabListKeyDown}>{nodes.map((node, index) => {
+    {nodes.length ? <div className="node-track" role="tablist" aria-label={t("项目节点")} onKeyDown={handleTabListKeyDown}>{visibleNodes.map((node, visibleIndex) => {
+      const index = nodes.indexOf(node);
       const status = nodeStatus(node); const done = node.conditions.filter((condition) => condition.done).length;
       return <button type="button" role="tab" aria-selected={selected?.id === node.id} aria-expanded={selected?.id === node.id}
-        tabIndex={selected ? tabIndexFor(selected.id === node.id) : index === 0 ? 0 : -1} className="node-track-card" title={node.title}
+        tabIndex={selected ? tabIndexFor(selected.id === node.id) : visibleIndex === 0 ? 0 : -1} className="node-track-card" title={node.title}
         aria-description={!readOnly ? t("拖动调整节点顺序；Alt + 左右方向键也可移动") : undefined}
         data-status={status} data-current={currentNode?.id === node.id || undefined} data-dragging={draggingNodeId === node.id || undefined}
         data-drop-position={nodeDropTarget?.id === node.id ? nodeDropTarget.position : undefined} key={node.id}
-        draggable={!readOnly} onDragStart={(event) => beginNodeDrag(event, node.id)} onDragEnd={finishNodeDrag}
+        draggable={!readOnly && !unfinishedOnly} onDragStart={(event) => beginNodeDrag(event, node.id)} onDragEnd={finishNodeDrag}
         onDragOver={(event) => dragOverNode(event, node.id)} onDrop={(event) => dropNode(event, node.id)}
         onKeyDown={(event) => reorderNodeWithKeyboard(event, node, index)}
         onClick={() => setSelectedId((current) => current === node.id ? null : node.id)}>
@@ -835,6 +843,7 @@ export function NodeBoard({ nodes, readOnly = false, actions, label = "", title 
           <small>{done}/{node.conditions.length} {t("项条件")}</small></span><i>{t(status)}</i></button>;
     })}</div> : <div className="inline-empty"><strong>{t("还没有节点")}</strong>
       <span>{readOnly ? t("此记录没有保存节点。") : t("添加第一个节点后，即可设置完成条件。")}</span></div>}
+    {unfinishedOnly && <p className="efficiency-note" role="status">{t('已收起 {count} 个已完成节点；记录和进度计算不变。', { count: nodes.length - visibleNodes.length })}</p>}
     {selected && <section className="node-detail-panel" ref={detailRef} tabIndex="-1" aria-label={selected.title}><header><div><span>{t("节点详情")}</span><h4>{selected.title}</h4>
       {selected.description && <p>{selected.description}</p>}</div>{!readOnly && <div className="node-detail-actions">
         <button type="button" className="icon-only" disabled={nodes.indexOf(selected) === 0} onClick={() => actions.move(selected.id, -1)}

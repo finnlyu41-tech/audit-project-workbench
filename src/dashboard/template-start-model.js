@@ -24,7 +24,7 @@ export function templateStarterCompanies(store, starter, query = '') {
   const normalize = (value) => String(value || '').normalize('NFKC').toLocaleLowerCase();
   const terms = normalize(query).trim().split(/\s+/u).filter(Boolean);
   return store.entities.filter((entity) => !entity.archived && entity.kind === starter.entityKind
-    && terms.every((term) => normalize(entity.legalName).includes(term)))
+    && terms.every((term) => normalize([entity.legalName, ...(entity.aliases || [])].join(" ")).includes(term)))
     .sort((left, right) => left.legalName.localeCompare(right.legalName));
 }
 

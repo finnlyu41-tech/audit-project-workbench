@@ -1,0 +1,126 @@
+import fs from 'node:fs/promises';
+import { test, expect } from '@playwright/test';
+import AxeBuilder from '@axe-core/playwright';
+import { readStoredWorkspace, seriousViolations } from './helpers.js';
+import { openEfficiency, openRecord, dialog, scheduleDialog, dismissChanged, alpha, recordErrors } from './efficiency-helpers.js';
+import { openOutstandingPane, closeOutstandingPane } from './panel-helpers.js';
+recordErrors(test);
+
+test('existing owners, optional aliases and early company duplicates reuse identities without rewriting them', async ({ page }) => {
+  await openEfficiency(page); const before = await readStoredWorkspace(page);
+  await page.getByRole('button', { name: 'Quick edit', exact: true }).click();
+  const form = page.locator('.quick-update-form'), owner = form.getByLabel('Owner', { exact: true });
+  expect(await owner.getAttribute('list')).toBeTruthy();
+  const options = await page.locator(`datalist[id="${await owner.getAttribute('list')}"] option`).evaluateAll(rows => rows.map(r => r.value));
+  expect(options).toEqual(['Alex Example', 'Blair Example']);
+  await form.getByRole('button', { name: 'Cancel', exact: true }).click();
+  await openRecord(page, 'Efficiency Alpha', true); await page.getByRole('button', { name: 'Edit company master', exact: true }).click();
+  await dialog(page).getByText('Search shorthand / aliases', { exact: true }).click();
+  await dialog(page).getByLabel('Search aliases (one per line, optional)').fill('EAL\nAlpha short');
+  await dialog(page).getByRole('button', { name: 'Save company master', exact: true }).click();
+  await openRecord(page, 'Alpha short Alex');
+  await expect(page.locator('.detail-title > p')).toContainText('Efficiency Alpha Limited');
+  expect((await readStoredWorkspace(page)).entities[0].legalName).toBe(before.entities[0].legalName);
+  await page.locator('.app-rail-button[aria-label="Home"]').click();
+  await page.locator('.home-overview').getByRole('button', { name: 'New company', exact: true }).click();
+  await dialog(page).getByLabel('Legal entity *', { exact: true }).fill('Efficiency Alpha Limited');
+  await expect(dialog(page)).toContainText('A company with the same name exists');
+  page.once('dialog', d => d.accept()); await dialog(page).getByRole('button', { name: 'Open existing company', exact: true }).click();
+  await expect(dialog(page)).toHaveCount(0);
+  expect((await readStoredWorkspace(page)).entities).toHaveLength(2);
+});
+
+test('save company and continue creates exactly one master; cancelling annual does not invent a project', async ({ page }) => {
+  await openEfficiency(page, undefined, { home: true });
+  await page.locator('.home-overview').getByRole('button', { name: 'New company', exact: true }).click();
+  await dialog(page).getByLabel('Legal entity *', { exact: true }).fill('Continuation Example Limited');
+  await dialog(page).getByRole('button', { name: 'Save and create annual engagement', exact: true }).click();
+  await expect(dialog(page)).toContainText('New annual engagement');
+  const mid = await readStoredWorkspace(page); expect(mid.entities).toHaveLength(3); expect(mid.engagements).toHaveLength(2);
+  await dialog(page).getByRole('button', { name: 'Cancel', exact: true }).click();
+  expect(await readStoredWorkspace(page)).toEqual(mid);
+});
+
+test('annual source differences are visible and duplicate period errors focus the conflicting row', async ({ page }) => {
+  await openEfficiency(page); const before = await readStoredWorkspace(page);
+  await page.getByRole('button', { name: 'Quick open', exact: true }).click();
+  await dialog(page).getByText('Current engagement quick actions', { exact: true }).click();
+  await dialog(page).getByRole('button', { name: 'Create next year', exact: true }).click();
+  await dialog(page).getByText(/^Compare setup with the source year/).click();
+  await expect(dialog(page)).toContainText('2026-01-01');
+  const period = dialog(page).locator('.reporting-period-list > article').first();
+  await period.getByLabel('Reporting start date *', { exact: true }).fill('2025-01-01');
+  await period.getByLabel('Reporting end date *', { exact: true }).fill('2025-12-31');
+  await expect(dialog(page)).toContainText('Period 1 duplicates an existing engagement');
+  await dialog(page).getByRole('button', { name: 'Create annual engagement', exact: true }).click();
+  await expect(period.getByLabel('Reporting start date *', { exact: true })).toBeFocused();
+  await dismissChanged(page); expect(await readStoredWorkspace(page)).toEqual(before);
+});
+
+test('all date entry points share backwards, counting, buffer and manual rules', async ({ page }) => {
+  await openEfficiency(page); await scheduleDialog(page);
+  await dialog(page).getByRole('button', { name: 'Working days', exact: true }).click();
+  await dialog(page).getByLabel('Calculation direction').selectOption('backward');
+  await dialog(page).getByLabel('Estimated working days', { exact: true }).fill('3');
+  await dialog(page).getByLabel('Latest finish date', { exact: true }).fill('2026-10-05');
+  await dialog(page).getByLabel('Finish early (working-day buffer, optional)', { exact: true }).fill('1');
+  await expect(dialog(page).getByLabel('Calculated start date', { exact: true })).toHaveValue('2026-09-29');
+  await dialog(page).getByRole('button', { name: 'Save engagement schedule', exact: true }).click();
+  expect(await alpha(page)).toMatchObject({ startDate: '2026-09-29', dueDate: '2026-10-02', schedulePlan: { direction: 'backward', targetDueDate: '2026-10-05', bufferDays: 1 } });
+  await openRecord(page, 'EAL Alex'); await page.getByRole('button', { name: 'Quick edit', exact: true }).click();
+  const form = page.locator('.quick-update-form');
+  await expect(form.getByLabel('Calculation direction')).toHaveValue('backward');
+  await form.getByLabel('Calculation direction').selectOption('count');
+  await form.getByLabel('Project start', { exact: true }).fill('2026-09-30');
+  await form.getByLabel('Deadline', { exact: true }).fill('2026-10-05');
+  await expect(form.getByLabel('Calculation direction')).toHaveValue('count');
+  await expect(form.locator('.working-day-preview')).toContainText('3 working days');
+  await form.getByRole('combobox', { name: 'Working week', exact: true }).selectOption('mon-sat');
+  await expect(form.locator('.working-day-preview')).toContainText('4 working days');
+  await form.getByRole('button', { name: 'Save updates', exact: true }).click();
+  const saved = await alpha(page); expect(saved.schedulePlan).toBeUndefined(); expect(saved.dueDate).toBe('2026-10-05');
+  expect(saved.periodEnd).toBe('2025-12-31');
+});
+
+test('pinning an existing item, an explicit remaining estimate and hiding finished stages do not change completion', async ({ page }) => {
+  await openEfficiency(page); const before = await alpha(page);
+  await page.getByText('Next-action and remaining-work settings', { exact: true }).click();
+  await page.getByText('Choose next action', { exact: true }).click();
+  await page.getByLabel('Choose a next action from existing items').selectOption({ label: 'Open · Bank statement' });
+  await page.getByRole('button', { name: 'Save next action', exact: true }).click();
+  await expect(page.locator('.next-action-link')).toContainText('Bank statement');
+  await page.getByText('Remaining work and deadline', { exact: true }).click();
+  await page.getByLabel('Estimated remaining working days (optional)').fill('30');
+  await page.getByLabel('Estimate as-of date').fill('2026-09-09');
+  await page.getByRole('button', { name: 'Save estimate', exact: true }).click();
+  await page.getByLabel('Estimated remaining working days (optional)').fill('29');
+  await page.getByRole('button', { name: 'Save estimate', exact: true }).click();
+  expect((await alpha(page)).remainingWork.days).toBe(29);
+  await page.locator('.next-action-link').click();
+  await expect(page.locator('.outstanding-item[data-revealed]')).toContainText('Bank statement');
+  await closeOutstandingPane(page);
+  await page.locator('.workstream-card-select').first().click();
+  await page.getByRole('checkbox', { name: 'Show unfinished stages only', exact: true }).check();
+  await expect(page.getByRole('tab', { name: /Completed planning/ })).toHaveCount(0);
+  const after = await alpha(page); expect(after.workstreams).toEqual(before.workstreams); expect(after.startDate).toBe(before.startDate);
+});
+
+test('saved owner filters survive reload and quick commands retain exact target identity', async ({ page }) => {
+  await openEfficiency(page, undefined, { home: true }); const before = await readStoredWorkspace(page);
+  await page.getByLabel('Action list owner').selectOption('Alex Example');
+  await page.getByText('Saved filters and annual tools', { exact: true }).click();
+  await page.locator('.home-overview .saved-filter-control > summary').click();
+  const saved = page.locator('.home-overview .saved-filter-control');
+  await saved.getByLabel('Filter name').fill('Alpha work'); await saved.getByRole('button', { name: 'Save current filters' }).click();
+  await page.reload(); await page.getByText('Saved filters and annual tools', { exact: true }).click();
+  await page.locator('.home-overview .saved-filter-control > summary').click();
+  await saved.getByLabel('Choose saved filters').selectOption('Alpha work');
+  await saved.getByRole('button', { name: 'Apply filters', exact: true }).click();
+  await expect(page.getByLabel('Action list owner')).toHaveValue('Alex Example');
+  expect(await readStoredWorkspace(page)).toEqual(before);
+  await openRecord(page, 'EAL Alex'); await page.getByRole('button', { name: 'Quick open', exact: true }).click();
+  await dialog(page).getByText('Current engagement quick actions', { exact: true }).click();
+  await expect(dialog(page).locator('.efficiency-compact')).toContainText('2025');
+  await dialog(page).getByRole('button', { name: 'Add outstanding item', exact: true }).click();
+  await expect(dialog(page)).toContainText('Efficiency Alpha Limited');
+});
