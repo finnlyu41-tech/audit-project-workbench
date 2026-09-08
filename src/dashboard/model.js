@@ -1,3 +1,4 @@
+import { schedulePlanFields } from "./working-days.js";
 import { periodAfterEnd } from "./reporting-period-tools.js";
 import { priorityFields, projectPriority } from "./project-priority.js";
 import { consolidationIsSimple, simpleModeField } from "./consolidation-mode.js";
@@ -762,6 +763,7 @@ export function makeGroup(values, useStarter = true, groupSample = createDefault
     consolidationEnabled,
     ...(consolidationIsSimple(values) ? { consolidationMode: "simple" } : {}),
     ...priorityFields(values),
+    ...schedulePlanFields(values),
     archived: false,
     createdAt: now,
     updatedAt: now,
@@ -1409,6 +1411,7 @@ function normalizeEngagementRecord(value = {}, context = {}) {
     reportingFramework: typeof value.reportingFramework === "string" ? value.reportingFramework.trim() : "",
     owner,
     ...priorityFields(value),
+    ...schedulePlanFields(value),
     startDate: typeof value.startDate === "string" ? value.startDate : "",
     dueDate,
     notes: typeof value.notes === "string" ? value.notes : "",
@@ -1496,6 +1499,7 @@ function addRuntimeViews(store) {
       dueDate: engagement.dueDate,
       owner: engagement.owner,
       ...priorityFields(engagement),
+      ...schedulePlanFields(engagement),
       notes: engagement.notes,
       archived: engagement.archived,
       createdAt: engagement.createdAt,
@@ -1807,7 +1811,7 @@ function syncCanonicalFromLegacyViews(previous, candidate) {
       periodStart: record.periodStart, periodEnd: record.periodEnd,
       reportingPeriods: record.reportingPeriods || previousEngagement?.reportingPeriods, legacyPeriod: record.period,
       reportingFramework: record.reportingFramework, owner: record.owner, startDate: record.startDate,
-      priority: record.priority, dueDate: record.dueDate, notes: record.notes, archived: record.archived,
+      schedulePlan: record.schedulePlan, priority: record.priority, dueDate: record.dueDate, notes: record.notes, archived: record.archived,
       workstreams, outstandingItems: record.outstandingItems, consolidation,
       conversionState: record.conversionState, createdAt: record.createdAt, updatedAt: record.updatedAt || now }, {
       categoryById: new Map(candidate.workstreamCategories.map((category) => [category.id, category])),
@@ -1983,6 +1987,7 @@ export function makeEngagement(values = {}, options = {}) {
     dueDate: values.dueDate || "",
     notes: values.notes || "",
     ...priorityFields(values),
+    ...schedulePlanFields(values),
     archived: false,
     workstreams,
     outstandingItems: [],
@@ -2153,6 +2158,7 @@ export function makeProject(values, useStarter = true, sampleSource = null, cate
     owner: values.owner?.trim() || "",
     notes: values.notes?.trim() || "",
     ...priorityFields(values),
+    ...schedulePlanFields(values),
     archived: false,
     createdAt: now,
     updatedAt: now,

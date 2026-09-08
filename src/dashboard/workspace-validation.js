@@ -1,3 +1,4 @@
+import { validSchedulePlan } from "./working-days.js";
 // Validate persisted structure before normalization can discard or reinterpret supplied data.
 // Historical component references may be missing; a live engagement's company may not.
 import { validProjectPriority } from "./project-priority.js";
@@ -54,6 +55,8 @@ export function validWorkspaceRecords(value, legacy = false) {
   const engagement = row => fields(row, ['internalName', 'name', 'entity', 'entityId', 'owner', 'notes', 'reportingFramework'],
     ['archived'], ['periodStart', 'periodEnd', 'startDate', 'dueDate'])
     && optional(row, 'priority', validProjectPriority)
+    && optional(row, 'schedulePlan', plan => validSchedulePlan(plan) && calendarDate(row.startDate)
+      && calendarDate(row.dueDate) && row.startDate >= plan.requestedStartDate && row.dueDate >= row.startDate)
     && list(row, 'reportingPeriods', period) && list(row, 'workstreams', workstream)
     && list(row, 'outstandingItems', outstanding) && list(row, 'taxDeadlines', tax)
     && list(row, 'nodes', node) && list(row, 'members', component)

@@ -4,6 +4,20 @@ import { toTraditional } from "./traditional.js";
 export const LANGUAGE_PREFERENCE_KEY = "audit-progress-workbench:language";
 
 const english = {
+  "排期方式": "Scheduling mode",
+  "手动日期": "Manual dates",
+  "按工作天数": "Working days",
+  "预计工作天数": "Estimated working days",
+  "自动结束日": "Calculated end date",
+  "香港公共假期 · 周一至周五工作 · 第一个工作日算第 1 天。": "Hong Kong public holidays · Monday–Friday · The first working day counts as day 1.",
+  "内置官方假期：2025—2027，可离线计算；不含个人休假或公司额外假期。": "Official holidays: 2025–2027. Works offline; personal leave and extra company holidays are not included.",
+  "{days} 个工作天：{start} → {end}": "{days} working days: {start} → {end}",
+  "已跳过 {count} 天周末／公共假期。": "Skipped {count} weekend / public-holiday days.",
+  "所选开始日为休息日，实际开始日顺延至 {date}。": "The selected start is a non-working day; work starts on {date}.",
+  "保留已保存日期；修改天数或开始日后才重新计算。": "Saved dates are retained. Change the estimate or start date to recalculate.",
+  "请选择有效的项目开始日。": "Choose a valid project start date.",
+  "预计工作天数须为 1 至 1000 的整数。": "Estimated working days must be a whole number from 1 to 1000.",
+  "排期超出香港假期数据范围（2025—2027）；请缩短工期或切换为手动日期。": "The schedule exceeds Hong Kong holiday coverage (2025–2027). Shorten it or switch to manual dates.",
   "日期跨度较大，刻度已自动概括；完整排期与日期仍保留。": "The date range is large, so ticks are summarized. All schedules and exact dates are retained.",
   "筛选": "Filters",
   "搜索和筛选排期": "Search and filter schedules",

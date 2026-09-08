@@ -1220,7 +1220,7 @@ function DashboardWorkbench({ initialSnapshot }) {
           sourceEngagementId: modalTargetEngagement.id }) : null}
         onClose={() => setModal(null)} onSubmit={(values) => {
           if (modalTargetEntity.archived || modalTargetEngagement.archived) return { error: t("归档记录不能编辑；恢复后才可继续更新。") };
-          const quickFields = { owner: ["owner"], schedule: ["startDate", "dueDate"], framework: ["reportingFramework"] }[modal.quickField];
+          const quickFields = { owner: ["owner"], schedule: ["startDate", "dueDate", "schedulePlan"], framework: ["reportingFramework"] }[modal.quickField];
           updateEngagement(modalTargetEngagement.id, (engagement) => quickFields
             ? { ...engagement, ...Object.fromEntries(quickFields.map(field => [field, values[field]])) }
             : ({ ...engagement,
@@ -1229,7 +1229,7 @@ function DashboardWorkbench({ initialSnapshot }) {
             periodPreset: values.periodPreset, periodStart: values.periodStart,
             periodEnd: values.periodEnd, reportingPeriods: values.reportingPeriods,
             reportingFramework: values.reportingFramework, owner: values.owner,
-            startDate: values.startDate, dueDate: values.dueDate, notes: values.notes,
+            startDate: values.startDate, dueDate: values.dueDate, notes: values.notes, schedulePlan: values.schedulePlan,
             consolidation: (engagement.consolidation || values.consolidationMode === "simple") ? { ...engagement.consolidation,
               ...withConsolidationMode(engagement.consolidation, values.consolidationMode || "full"),
               enabled: values.consolidationMode === "simple" || values.consolidationEnabled !== false } : engagement.consolidation }));

@@ -17,7 +17,8 @@ import { entityMergeProblem, engagementPeriodExists, engagementReportingPeriods,
   outstandingIsOpen, outstandingStatusLabel, projectStats, suggestNextFiscalYear, taxDeadlineSummary,
   uid, workstreamCategoryLabel, yearEndOrPeriodLabel } from "./model.js";
 import { useUiLanguage } from "./i18n.jsx";
-import { DateRangePicker } from "./date-range-picker.jsx";
+import { ScheduleFields } from "./schedule-fields.jsx";
+import { initialScheduleDraft, resolveScheduleDraft, SCHEDULE_ERRORS } from "./working-days.js";
 import { filterHoldingComponents, holdingComponentRows } from "./holding-components-model.js";
 import { companyAnnualRows, filterAnnualProjects } from "./company-overview-model.js";
 import { AdvancedSection } from "./ux-components.jsx";
@@ -220,6 +221,12 @@ export function EngagementForm({ store, entity, initial = null, preferredSourceI
     consolidationEnabled: initial?.consolidation?.enabled !== false,
     consolidationMode: consolidationIsSimple(initial || existing[0]) ? "simple" : "full",
   }));
+  const [scheduleDraft, setScheduleDraft] = React.useState(() => initialScheduleDraft(initial || {}));
+  const changeScheduleDraft = (draft) => {
+    setScheduleDraft(draft);
+    const result = resolveScheduleDraft(draft, values);
+    if (!result.error) setValues(current => ({ ...current, startDate: result.startDate, dueDate: result.dueDate }));
+  };
   const previousDefault = existing.find((engagement) => !initial || engagement.id !== initial.id) || null;
   const [sourceMode, setSourceMode] = React.useState(templateStarter ? "template" : previousDefault ? "previous" : "template");
   const [sourceEngagementId, setSourceEngagementId] = React.useState(preferredSourceId || previousDefault?.id || "");
@@ -227,7 +234,7 @@ export function EngagementForm({ store, entity, initial = null, preferredSourceI
     store.selectedSampleIdsByCategory));
   const [customEngagementType, setCustomEngagementType] = React.useState("");
   const [error, setError] = React.useState("");
-  const { closeEditor, confirmTransition } = useModalDraft({ values, sourceMode, sourceEngagementId, selections, customEngagementType }, onClose);
+  const { closeEditor, confirmTransition } = useModalDraft({ values, scheduleDraft, sourceMode, sourceEngagementId, selections, customEngagementType }, onClose);
   const update = (field) => (event) => setValues((current) => ({ ...current, [field]: event.target.value }));
   const updatePeriods = (updater) => setValues((current) => ({
     ...current,
@@ -339,8 +346,15 @@ export function EngagementForm({ store, entity, initial = null, preferredSourceI
       setError(t("项目截止日不得早于开始日。")); return;
     }
     if (!validProjectPriority(values.priority)) { setError(t("请选择有效的项目优先级。")); return; }
+    const scheduleResult = resolveScheduleDraft(scheduleDraft, values);
+    if ((!quickField || quickField === "schedule") && scheduleResult.error) {
+      setError(t(SCHEDULE_ERRORS[scheduleResult.error])); return;
+    }
+    const scheduleValues = (!quickField || quickField === "schedule") ? {
+      startDate: scheduleResult.startDate, dueDate: scheduleResult.dueDate, schedulePlan: scheduleResult.schedulePlan,
+    } : {};
     const sortedPeriods = engagementReportingPeriods({ reportingPeriods });
-    const result = onSubmit({ ...values, engagementType: values.engagementTypes[0] || "", entityId: entity.id, reportingPeriods: sortedPeriods,
+    const result = onSubmit({ ...values, ...scheduleValues, engagementType: values.engagementTypes[0] || "", entityId: entity.id, reportingPeriods: sortedPeriods,
       periodStart: sortedPeriods[0]?.periodStart || initial?.periodStart || "",
       periodEnd: sortedPeriods.at(-1)?.periodEnd || initial?.periodEnd || "",
       periodPreset: sortedPeriods.length === 1 ? sortedPeriods[0].periodPreset : "custom",
@@ -353,7 +367,7 @@ export function EngagementForm({ store, entity, initial = null, preferredSourceI
       <span><small>{t("年度项目")}</small><strong>{entity.legalName} · {yearEndOrPeriodLabel(initial, language)}</strong></span></div>
     <p className="form-help">{t("项目排期是实际工作的开始日和截止日，与财务报表的报告期间分开。")}</p>
     <div className="project-date-groups" data-single="true"><fieldset><legend>{t("项目排期")}</legend>
-      <DateRangePicker autoFocus startDate={values.startDate} dueDate={values.dueDate}
+      <ScheduleFields autoFocus draft={scheduleDraft} onDraftChange={changeScheduleDraft} startDate={values.startDate} dueDate={values.dueDate}
         onChange={(startDate, dueDate) => setValues((current) => ({ ...current, startDate, dueDate }))} />
     </fieldset></div>
     {error && <div className="form-error" role="alert"><CircleAlert aria-hidden="true" />{error}</div>}
@@ -450,7 +464,7 @@ export function EngagementForm({ store, entity, initial = null, preferredSourceI
       <ProjectPrioritySelect value={values.priority} onChange={priority => setValues(current => ({ ...current, priority }))} /></div>
     <p className="form-help">{t("项目排期是实际工作的开始日和截止日，与财务报表的报告期间分开。")}</p>
     <div className="project-date-groups" data-single="true"><fieldset><legend>{t("项目排期")}</legend>
-      <DateRangePicker startDate={values.startDate} dueDate={values.dueDate}
+      <ScheduleFields draft={scheduleDraft} onDraftChange={changeScheduleDraft} startDate={values.startDate} dueDate={values.dueDate}
         onChange={(startDate, dueDate) => setValues((current) => ({ ...current, startDate, dueDate }))} />
     </fieldset></div>
     <AdvancedSection title={t("框架与高级设置")} hint={t("已有配置会保留；展开后可修改。")}

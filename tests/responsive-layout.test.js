@@ -151,7 +151,7 @@ test("consolidation readiness and structure conversion use aligned compact contr
 
 test("project schedule uses a two-click date range picker and day, week or month canvas", () => {
   assert.match(workbench, /<CalendarRange aria-hidden="true"/);
-  assert.match(v11Components, /<DateRangePicker[\s\S]*?startDate={values\.startDate}[\s\S]*?dueDate={values\.dueDate}/);
+  assert.match(v11Components, /<ScheduleFields[\s\S]*?startDate={values\.startDate}[\s\S]*?dueDate={values\.dueDate}/);
   assert.match(dateRangePicker, /if \(!anchorDate\)[\s\S]*?setAnchorDate\(dateValue\)[\s\S]*?orderedRange\(anchorDate, dateValue\)/);
   assert.match(timeline, /className="schedule-grid"/);
   assert.match(timeline, /SCHEDULE_PRECISIONS = \["day", "week", "month"\]/);
@@ -317,7 +317,7 @@ test("project summary facts open focused settings without exposing the full edit
   assert.match(workbench, /设置所选业务模块[\s\S]*?activeRawWorkstream && setModal\(\{ type: "workstream-edit"/);
   assert.match(v11Components, /data-quick-field="schedule"/);
   assert.match(v11Components, /data-quick-field={quickField}/);
-  assert.match(v11Components, /<DateRangePicker autoFocus/);
+  assert.match(v11Components, /<ScheduleFields autoFocus/);
   assert.match(v11Components, /<input autoFocus list="v11-quick-framework-options"/);
   assert.match(v11Components, /: <input autoFocus value={values\[field\]}/);
   assert.match(css, /\.detail-fact-link::before\s*{[^}]*inset:\s*0/);
