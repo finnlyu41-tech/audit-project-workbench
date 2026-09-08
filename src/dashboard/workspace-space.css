@@ -87,3 +87,15 @@
 @container workspace (max-width: 560px) {
   .audit-workbench .group-status-strip { grid-template-columns: repeat(3,minmax(0,1fr)); }
 }
+
+/* Reserve the narrow work area immediately, even before React receives resize.
+   The temporary rule never changes the saved wide-screen navigation preference. */
+@media screen and (min-width: 761px) and (max-width: 1100px) {
+  .audit-workbench .workbench-layout:not([data-navigation-overlay]) {
+    grid-template-columns: 0 minmax(0, 1fr) 48px !important;
+    transition: none;
+  }
+  .audit-workbench .workbench-layout:not([data-navigation-overlay]) > .project-panel {
+    position: absolute; visibility: hidden; pointer-events: none;
+  }
+}

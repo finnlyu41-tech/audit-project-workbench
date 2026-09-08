@@ -147,3 +147,25 @@ test('narrow workspace does not depend on a timely media-query change notificati
   await page.setViewportSize({width:1440,height:900});
   await expect(page.locator('.project-panel')).toBeVisible();
 });
+
+test('CSS reserves the narrow work area before any resize callback arrives', async ({page}) => {
+  await page.addInitScript(() => {
+    const add = window.addEventListener;
+    window.addEventListener = function(type, ...args) {
+      if (type !== 'resize') return add.call(this, type, ...args);
+    };
+  });
+  await start(page, 'Group'); await control(page).selectOption('urgent');
+  const before = await readStoredWorkspace(page);
+  for (const width of [800, 1024, 1280, 800, 1440, 800]) {
+    await page.setViewportSize({width, height:640});
+    // Re-selecting the same value must not be needed to trigger a React render.
+    const quick = page.getByRole('region', {name:'Quick update', exact:true});
+    expect((await quick.boundingBox()).height).toBeLessThanOrEqual(90);
+    if (width <= 1100) {
+      expect((await page.locator('.project-detail').boundingBox()).width).toBeGreaterThan(650);
+      await expect(page.locator('.project-panel')).toBeHidden();
+    }
+  }
+  expect(await readStoredWorkspace(page)).toEqual(before);
+});
