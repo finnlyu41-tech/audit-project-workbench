@@ -2,6 +2,7 @@ import { test, expect } from "@playwright/test";
 import AxeBuilder from "@axe-core/playwright";
 import { openWorkbench, readStoredWorkspace } from "./helpers.js";
 import { scheduleWorkspace } from "../tests/fixtures/schedule-workspace.js";
+import { annualSourceFixture } from "../tests/fixtures/annual-source.js";
 import { canonicalStorePayload, emptyStore, makeEntity } from "../src/dashboard/model.js";
 const modal = page => page.getByRole("dialog");
 const errors = new WeakMap();
@@ -71,6 +72,23 @@ test("new annual engagement accepts a working-day plan without altering reportin
   const job = (await readStoredWorkspace(page)).engagements[0];
   expect(job).toMatchObject({ startDate: "2026-04-02", dueDate: "2026-04-08", schedulePlan: { workdays: 2 } });
   expect(job.periodStart).toBe("2025-01-01"); expect(job.periodEnd).toBe("2025-12-31");
+});
+test("working-day edits preserve an unchanged historical custom period marker", async ({ page }) => {
+  const fixture = annualSourceFixture();
+  const historical = fixture.store.engagements.find((item) => item.id === fixture.currentId);
+  historical.periodPreset = "custom";
+  historical.reportingPeriods = historical.reportingPeriods.map((period) => ({ ...period, periodPreset: "custom" }));
+  await openWorkbench(page, fixture.store); const before = await readStoredWorkspace(page);
+  await page.getByRole("button", { name: "Edit annual engagement", exact: true }).click();
+  await estimate(page, "2026-09-30", "3");
+  await modal(page).getByRole("button", { name: "Save engagement", exact: true }).click();
+  await expect(modal(page)).toHaveCount(0);
+  const after = await readStoredWorkspace(page), saved = after.engagements.find((item) => item.id === fixture.currentId);
+  const original = before.engagements.find((item) => item.id === fixture.currentId);
+  expect(saved.periodPreset).toBe("custom");
+  expect(saved.reportingPeriods).toEqual(original.reportingPeriods);
+  expect(saved.periodStart).toBe(original.periodStart); expect(saved.periodEnd).toBe(original.periodEnd);
+  expect(saved).toMatchObject({ startDate: "2026-09-30", dueDate: "2026-10-05", schedulePlan: { workdays: 3 } });
 });
 for (const [language, width, label] of [["en", 1440, "Working days"], ["zh-Hans", 800, "按工作天数"], ["zh-Hant", 800, "按工作天數"]])
   test(`schedule controls align and remain accessible in ${language}`, async ({ page }, testInfo) => {
