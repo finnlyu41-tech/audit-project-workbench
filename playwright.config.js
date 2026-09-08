@@ -26,7 +26,7 @@ export default defineConfig({
   },
   projects: [
     { name: "chromium", use: { ...devices["Desktop Chrome"], viewport: { width: 1440, height: 900 } } },
-    { name: "webkit-stability", testMatch: ["**/schedule-doi.spec.js", "**/schedule-usability.spec.js", "**/project-priority.spec.js", "**/workspace-space.spec.js", "**/group-usability.spec.js", "**/linked-file-safety.spec.js", "**/edge-safety.spec.js", "**/operation-boundaries.spec.js", "**/outstanding-light.spec.js", "**/outstanding-center.spec.js", "**/workspace-session.spec.js", "**/stability-recovery.spec.js", "**/group-quick-update.spec.js",
+    { name: "webkit-stability", testMatch: ["**/efficiency-entry.spec.js", "**/efficiency-batch.spec.js", "**/efficiency-output.spec.js", "**/efficiency-recovery.spec.js", "**/working-days.spec.js", "**/schedule-doi.spec.js", "**/schedule-usability.spec.js", "**/project-priority.spec.js", "**/workspace-space.spec.js", "**/group-usability.spec.js", "**/linked-file-safety.spec.js", "**/edge-safety.spec.js", "**/operation-boundaries.spec.js", "**/outstanding-light.spec.js", "**/outstanding-center.spec.js", "**/workspace-session.spec.js", "**/stability-recovery.spec.js", "**/group-quick-update.spec.js",
         "**/action-workbench.spec.js", "**/holding-components.spec.js", "**/outstanding-continuous.spec.js",
         "**/client-follow-up.spec.js", "**/workflow-effort.spec.js"],
       use: { browserName: "webkit", viewport: { width: 1440, height: 900 } } },

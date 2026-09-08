@@ -1,4 +1,5 @@
-import { nodeIsComplete } from "./model.js";
+import { resolveScheduleDraft } from "./working-days.js";
+import { nodeIsComplete, engagementReportingPeriods } from "./model.js";
 
 export const RECENT_RECORDS_KEY = "audit-progress-workbench:recent-records:v1";
 export const PRIORITY_FILTERS = ["all", "today", "overdue", "week", "manual", "outstanding", "setup"];
@@ -54,13 +55,24 @@ export function recentRecordsFor(store, entries) {
   });
 }
 
-export function nextEngagementAction(engagement) {
+export function nextEngagementAction(engagement, statuses = []) {
+  const pin = engagement?.nextAction;
+  if (pin?.kind === 'outstanding') {
+    const item = engagement.outstandingItems?.find(row => row.id === pin.itemId);
+    if (item && !statuses.find(s => s.id === item.status)?.closed) return { item, workstreamId: item.workstreamId, node: null };
+  }
+  if (pin?.kind === 'workflow') {
+    const nodes = pin.workstreamId ? engagement.workstreams?.find(w => w.id === pin.workstreamId)?.nodes : engagement.consolidation?.nodes;
+    const node = nodes?.find(n => n.id === pin.nodeId && !nodeIsComplete(n));
+    if (node) return { workstreamId: pin.workstreamId, node };
+  }
   for (const workstream of engagement?.workstreams || []) {
     const node = (workstream.nodes || []).find((item) => !nodeIsComplete(item));
     if (node) return { workstreamId: workstream.id, node };
     if (!(workstream.nodes || []).length) return { workstreamId: workstream.id, node: null };
   }
-  return null;
+  const node = engagement?.consolidation?.nodes?.find(n => !nodeIsComplete(n));
+  return node ? { workstreamId: null, node } : null;
 }
 export function quickUpdateValues(engagement) {
   return Object.fromEntries(QUICK_FIELDS.map((key) => [key, String(engagement?.[key] || "")]));
@@ -72,10 +84,12 @@ function validDate(value) {
   return Number.isFinite(date.getTime()) && date.toISOString().slice(0, 10) === value;
 }
 // Patch edited fields only; retain reporting periods, progress and concurrent edits.
-export function prepareQuickUpdate(store, id, baseline, values) {
+export const quickUpdateContext = e => JSON.stringify([e?.entityId, engagementReportingPeriods(e).map(p => [p.periodStart, p.periodEnd])]);
+export function prepareQuickUpdate(store, id, baseline, values, scheduleRequest = null) {
   const engagement = store.engagements.find((item) => item.id === id);
   const entity = store.entities.find((item) => item.id === engagement?.entityId);
   if (!engagement || !entity || engagement.archived || entity.archived) return { error: "readonly" };
+  if (scheduleRequest?.baselineContext && scheduleRequest.baselineContext !== quickUpdateContext(engagement)) return { error: "conflict" };
   const current = quickUpdateValues(engagement);
   const cleaned = quickUpdateValues(values);
   cleaned.owner = cleaned.owner.trim();
@@ -85,7 +99,26 @@ export function prepareQuickUpdate(store, id, baseline, values) {
     if (current[field] !== baseline[field] && current[field] !== cleaned[field]) return { error: "conflict" };
     if (current[field] !== cleaned[field]) patch[field] = cleaned[field];
   }
-  const merged = { ...current, ...patch };
+  let merged = { ...current, ...patch };
+  if (scheduleRequest) {
+    const result = resolveScheduleDraft(scheduleRequest.draft, merged);
+    if (result.error) return { error: result.error };
+    for (const field of ['startDate', 'dueDate']) {
+      if (result[field] === baseline[field]) continue;
+      if (current[field] !== baseline[field] && current[field] !== result[field]) return { error: 'conflict' };
+      if (current[field] !== result[field]) patch[field] = result[field];
+    }
+    const changedPlan = JSON.stringify(result.schedulePlan) !== JSON.stringify(scheduleRequest.baselinePlan);
+    if (changedPlan || (('startDate' in patch || 'dueDate' in patch) && !result.schedulePlan && engagement.schedulePlan)) {
+      if (JSON.stringify(engagement.schedulePlan) !== JSON.stringify(scheduleRequest.baselinePlan)
+        && JSON.stringify(engagement.schedulePlan) !== JSON.stringify(result.schedulePlan)) return { error: 'conflict' };
+      patch.schedulePlan = result.schedulePlan;
+    }
+    merged = { ...current, ...patch };
+  } else if (Object.hasOwn(patch, 'startDate') || Object.hasOwn(patch, 'dueDate')) {
+    // Legacy callers explicitly editing dates must not leave a stale formula.
+    if (engagement.schedulePlan) patch.schedulePlan = undefined;
+  }
   if (!validDate(merged.startDate) || !validDate(merged.dueDate)) return { error: "date" };
   if (merged.startDate && merged.dueDate && merged.dueDate < merged.startDate) return { error: "range" };
   return { patch };

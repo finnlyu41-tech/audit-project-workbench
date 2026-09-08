@@ -1,5 +1,14 @@
 # Changelog
 
+## Workflow efficiency — 2026-09-09
+
+- Consolidates working-day scheduling into shared full/quick/timeline entry with five/six-day workweeks, backwards latest-finish/buffer and interval counts; previews bulk shifts/sequences and per-company next-year creation.
+- Adds owner suggestions, search aliases and early duplicate hints; company-to-annual continuation, focused errors, annual-source differences, pinned next action and unfinished-stage views.
+- Adds local saved filters, contextual quick commands, multiline outstanding entry, single-source bulk updates/undo, selected-item follow-up, company output-language preference, subject/body copy, distinguishable filenames and explicit sent/next-follow-up metadata.
+- Adds opt-in seven-day local draft recovery, guarded against source changes and cleared on workspace replacement; no cloud storage or inclusion of drafts in business backups.
+- Adds explicit group readiness reasons/in-context annual creation, template outline preview, current-table CSV/TSV, read-only record differences and actionable archive blockers.
+- Preserves audit/tax/annual boundaries, local-only data, original build budgets and zero automatic test retries. See [usage and limitations](docs/workflow-efficiency.md) and issue #73 for release evidence.
+
 ## Schedule canvas and flexible first reporting periods
 
 - Reclaim the schedule canvas: temporary navigation/outstanding drawers, on-demand filters and help, responsive identity width, full remaining timeline height.

@@ -1,3 +1,13 @@
+import { BackupCompare } from "./efficiency-backup.jsx";
+import { SavedFilters } from "./efficiency-controls.jsx";
+import { ScheduleBatchForm, OutstandingLinesForm, OutstandingBulkForm, AnnualBatchForm, EFFICIENCY_ERRORS } from "./efficiency-batch.jsx";
+import { ArchiveBlockers } from "./efficiency-archive.jsx";
+import { sourceFor, makePatchTransaction, applyPatchTransaction, applyPreparedCandidate,
+  componentCreationContext, componentContextCurrent, linkCreatedComponent } from "./efficiency-actions.js";
+import { OUTPUT_LANGUAGES } from "./efficiency-data.js";
+import { outputFileName, workspaceDifferences } from "./efficiency-export.js";
+import { resetLocalProductivity, LOCAL_PRODUCTIVITY_EVENT } from "./local-productivity.js";
+import "./efficiency.css";
 import { useWorkspaceViewportWidth } from "./workspace-viewport.js";
 import { prepareProjectPriority, withProjectPriority } from "./project-priority.js";
 import { outstandingEntriesForScope } from "./outstanding-scope.js";
@@ -121,6 +131,10 @@ function DashboardWorkbench({ initialSnapshot }) {
   const setStore = React.useCallback((action) => setRawStore((current) => reconcileWorkbenchStore(current,
     typeof action === "function" ? action(current) : action)), []);
   const persistence = useWorkbenchPersistence({ store, setStore });
+  const currentStoreRef = React.useRef(store); currentStoreRef.current = store;
+  const [undoTransaction, setUndoTransaction] = React.useState(null);
+  const [undoError, setUndoError] = React.useState('');
+  const [componentLinkError, setComponentLinkError] = React.useState('');
   const [selection, setSelection] = React.useState(null);
   const [activeWorkstreamId, setActiveWorkstreamId] = React.useState(null);
   const [workflowReveal, setWorkflowReveal] = React.useState(null);
@@ -132,6 +146,13 @@ function DashboardWorkbench({ initialSnapshot }) {
     try { return sanitizeRecentRecords(JSON.parse(localStorage.getItem(RECENT_RECORDS_KEY) || "[]")); }
     catch { return []; }
   });
+  React.useEffect(() => {
+    const replaced = event => { if (!event.detail?.workspaceReplaced) return;
+      quickDrafts.current.clear(); setUndoTransaction(null); setUndoError('');
+    };
+    window.addEventListener(LOCAL_PRODUCTIVITY_EVENT, replaced);
+    return () => window.removeEventListener(LOCAL_PRODUCTIVITY_EVENT, replaced);
+  }, []);
   const [filter, setFilter] = React.useState("active");
   const [navigationFiltersOpen, setNavigationFiltersOpen] = React.useState(false);
   const [navigationFilters, setNavigationFilters] = React.useState({ owner: "", engagementType: "", reportingYear: "" });
@@ -183,6 +204,7 @@ function DashboardWorkbench({ initialSnapshot }) {
   React.useEffect(() => { setNavigationDrawerOpen(false);
     if (workspaceView === "schedule") setCompactOutstandingOpen(false); }, [workspaceView]);
   const importRef = React.useRef(null);
+  const compareBackupRef = React.useRef(null);
   const templateImportRef = React.useRef(null);
   const toolbarRef = React.useRef(null);
   const toolbarMenuRefs = React.useRef([]);
@@ -360,8 +382,9 @@ function DashboardWorkbench({ initialSnapshot }) {
   const revealNextStep = (id) => {
     const target = resolveWorkspaceTarget(store, "project", id);
     if (!target || target.filter === "archived") return;
-    const next = nextEngagementAction(target.engagement);
+    const next = nextEngagementAction(target.engagement, store.outstandingStatuses);
     if (!next) return;
+    if (next.item) { revealOutstandingItem(target.kind, id, next.item.id); return; }
     setActiveWorkstreamId(next.workstreamId);
     setWorkflowReveal({ targetId: id, workstreamId: next.workstreamId, nodeId: next.node?.id || null,
       sequence: ++revealSequence.current });
@@ -485,8 +508,8 @@ function DashboardWorkbench({ initialSnapshot }) {
     });
     notify(t("项目优先级已更新")); return result;
   };
-  const saveQuickUpdate = (id, baseline, values) => {
-    const result = prepareQuickUpdate(store, id, baseline, values);
+  const saveQuickUpdate = (id, baseline, values, scheduleRequest = null) => {
+    const result = prepareQuickUpdate(store, id, baseline, values, scheduleRequest);
     if (!result.error && Object.keys(result.patch).length) {
       updateEngagement(id, (current) => ({ ...current, ...result.patch }));
       if (Object.prototype.hasOwnProperty.call(result.patch, "owner")) {
@@ -497,6 +520,38 @@ function DashboardWorkbench({ initialSnapshot }) {
       notify(t("项目资料已更新"));
     }
     return result;
+  };
+  const commitEfficiency = (preview) => {
+    const current = currentStoreRef.current;
+    const result = preview.transaction ? applyPatchTransaction(current, preview.transaction) : applyPreparedCandidate(current, preview);
+    if (result.error) return result;
+    setStore(result.store); setUndoError(''); setUndoTransaction(preview.transaction || null); setModal(null);
+    notify(t('更改已应用；浏览器及文件保存状态见备份菜单。')); return result;
+  };
+  const patchEngagementExtras = (id, patch, baseline) => {
+    const current = currentStoreRef.current, source = sourceFor(current, id);
+    if (!source || source.readOnly || JSON.stringify(source.engagement) !== JSON.stringify(baseline)) return { error: 'changed' };
+    const preview = makePatchTransaction(current, [{ id, patch }]);
+    if (preview.error) return preview;
+    const result = applyPatchTransaction(current, preview.transaction);
+    if (!result.error) setStore(result.store); return result;
+  };
+  const rememberFollowUpLanguage = (entityId, language, baselineLanguage) => {
+    const current = currentStoreRef.current, entity = current.entities.find(e => e.id === entityId);
+    if (!entity || entity.archived || !OUTPUT_LANGUAGES.includes(language)
+      || (entity.followUpLanguage !== baselineLanguage && entity.followUpLanguage !== language)) return { error: 'changed' };
+    updateEntity(entityId, e => ({ ...e, followUpLanguage: language })); return {};
+  };
+  const openMissingComponent = (groupId, componentId) => {
+    const request = componentCreationContext(currentStoreRef.current, groupId, componentId);
+    if (!request) { notify(t(EFFICIENCY_ERRORS.readonly)); return; }
+    setModal({ type: 'create-engagement', entityId: request.entityId, linkRequest: request });
+  };
+  const finishComponentLink = request => {
+    const result = linkCreatedComponent(currentStoreRef.current, request.context, request.engagementId);
+    if (result.error) { setComponentLinkError(t(EFFICIENCY_ERRORS[result.error] || EFFICIENCY_ERRORS.changed)); return; }
+    setStore(result.store); setModal(null); revealWorkspaceRecord('group', request.context.groupId);
+    notify(t('已关联所建立的年度项目；未自动勾选就绪条件。'));
   };
   const saveTaxDeadline = React.useCallback((kind, targetId, existing, values, revisionReason = "") => {
     const result = prepareTaxDeadlineSave(store, kind, targetId, existing, values, revisionReason);
@@ -557,7 +612,7 @@ function DashboardWorkbench({ initialSnapshot }) {
       workstream.id === workstreamId ? { ...workstream, nodes: updater(workstream.nodes), updatedAt: new Date().toISOString() } : workstream) }));
   };
 
-  const createEntity = (values) => {
+  const createEntity = (values, { createEngagement = false } = {}) => {
     const { batchCompanies = [], ...entityValues } = values;
     const entity = makeEntity(entityValues);
     const members = batchCompanies.map((company) => makeEntity({ ...company,
@@ -567,19 +622,23 @@ function DashboardWorkbench({ initialSnapshot }) {
       entityOrder: [...createdIds, ...(current.entityOrder || []).filter((id) => !createdIds.includes(id))] }));
     setSearch(""); setNavigationFilters({ owner: "", engagementType: "", reportingYear: "" });
     setNavigationView("companies"); pendingWorkspaceFocus.current = true;
-    setSelection({ kind: "entity", id: entity.id }); setWorkspaceView("detail"); setFilter("all"); setModal(null);
-    notify(t(members.length ? "集团及 {count} 家公司已建立并自动保存" : "公司主档已建立并自动保存",
+    setSelection({ kind: "entity", id: entity.id }); setWorkspaceView("detail"); setFilter("all");
+    setModal(createEngagement ? { type: "create-engagement", entityId: entity.id } : null);
+    notify(t(members.length ? "集团及 {count} 家公司已应用；实际保存状态见备份菜单。" : "公司主档已应用；实际保存状态见备份菜单。",
       { count: members.length }));
   };
   const createAnnualEngagement = (entity, values, options) => {
     try {
+      if (modal?.linkRequest && !componentContextCurrent(currentStoreRef.current, modal.linkRequest)) return { error: t(EFFICIENCY_ERRORS.changed) };
       const { engagement, kind } = buildAnnualEngagement(store, entity?.id, values, options, language);
       setStore((current) => ({ ...current, engagements: [engagement, ...current.engagements],
         scheduleOrder: [`${kind}:${engagement.id}`, ...(current.scheduleOrder || []).filter((key) => !key.endsWith(`:${engagement.id}`))] }));
       setSearch(""); setNavigationFilters({ owner: "", engagementType: "", reportingYear: "" });
       pendingWorkspaceFocus.current = true;
       setSelection({ kind, id: engagement.id }); setWorkspaceView("detail"); setFilter("active"); setModal(null);
-      setActiveWorkstreamId(null); notify(t("年度项目已建立并自动保存"));
+      setActiveWorkstreamId(null); notify(t("年度项目已应用；实际保存状态见备份菜单。"));
+      if (modal?.linkRequest) { setComponentLinkError(''); setModal({ type: 'confirm-component-link', context: modal.linkRequest, engagementId: engagement.id }); }
+      return { engagement, kind };
     } catch (error) { return { error: t(ANNUAL_SOURCE_ERRORS[error.code] || (error.message.includes("already exists")
       ? "这家公司已经有相同报告期间的项目，包括归档项目。" : "请检查报告期间后再建立项目。")) }; }
   };
@@ -639,7 +698,7 @@ function DashboardWorkbench({ initialSnapshot }) {
     setStore(result.store);
     setSearch(""); clearNavigationFilters(); setFilter("active");
     setSelection({ kind: result.kind, id: result.engagement.id }); setWorkspaceView("detail");
-    setActiveWorkstreamId(null); setModal(null); notify(t("年度项目已建立并自动保存"));
+    setActiveWorkstreamId(null); setModal(null); notify(t("年度项目已应用；实际保存状态见备份菜单。"));
   };
 
   const saveSample = (sample) => {
@@ -719,8 +778,8 @@ function DashboardWorkbench({ initialSnapshot }) {
   const exportBackup = () => {
     const blob = new Blob([JSON.stringify(canonicalStorePayload(store), null, 2)], { type: "application/json" });
     const url = URL.createObjectURL(blob); const anchor = document.createElement("a");
-    anchor.href = url; anchor.download = `audit-project-workbench-${new Date().toISOString().slice(0, 10)}.json`; anchor.click();
-    URL.revokeObjectURL(url); closeMenu(); notify(t("备份已导出"));
+    anchor.href = url; anchor.download = outputFileName({ purpose: "audit-project-workbench", generic: true, extension: "json" }); anchor.click();
+    URL.revokeObjectURL(url); closeMenu(); notify(t("已请求下载备份，请确认文件已保存。"));
   };
   const hasV10Recovery = (() => { try { return Boolean(localStorage.getItem(V10_RECOVERY_KEY)); } catch { return false; } })();
   const downloadV10Recovery = () => {
@@ -730,7 +789,7 @@ function DashboardWorkbench({ initialSnapshot }) {
       const blob = new Blob([`${JSON.stringify(JSON.parse(payload), null, 2)}\n`], { type: "application/json" });
       const url = URL.createObjectURL(blob); const anchor = document.createElement("a");
       anchor.href = url; anchor.download = `audit-project-workbench-v10-recovery-${new Date().toISOString().slice(0, 10)}.json`; anchor.click();
-      URL.revokeObjectURL(url); closeMenu(); notify(t("V10 恢复副本已下载"));
+      URL.revokeObjectURL(url); closeMenu(); notify(t("已请求下载 V10 恢复副本，请确认文件已保存。"));
     } catch { window.alert(t("无法读取 V10 恢复副本。")); }
   };
   const templatePackageErrorText = (error) => t({
@@ -761,10 +820,11 @@ function DashboardWorkbench({ initialSnapshot }) {
       const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
       const url = URL.createObjectURL(blob); const anchor = document.createElement("a");
       anchor.href = url; anchor.download = `apw-template-package-${new Date().toISOString().slice(0, 10)}.apw-template.json`; anchor.click();
-      URL.revokeObjectURL(url); setModal({ type: "template-library" }); notify(t("范本包已导出"));
+      URL.revokeObjectURL(url); setModal({ type: "template-library" }); notify(t("已请求下载范本包，请确认文件已保存。"));
     } catch (error) { window.alert(templatePackageErrorText(error)); }
   };
   const resetReplacedWorkspaceSession = () => {
+    resetLocalProductivity(); setUndoTransaction(null); setUndoError('');
     quickDrafts.current.clear(); setRecentVisits([]);
     pendingScrollRef.current = null; pendingWorkspaceFocus.current = false;
     navigationHistoryRef.current = { entries: [], index: -1, restoring: false };
@@ -792,13 +852,17 @@ function DashboardWorkbench({ initialSnapshot }) {
       const engagementCount = Array.isArray(parsed.engagements) ? parsed.engagements.length
         : (parsed.projects?.length || 0) + (parsed.groups?.length || 0);
       const entityCount = Array.isArray(parsed.entities) ? parsed.entities.length : engagementCount;
-      if (!window.confirm(t(confirmKey, { entities: entityCount, engagements: engagementCount }))) return;
+      const diff = workspaceDifferences(canonicalStorePayload(currentStoreRef.current), parsed);
+      const changes = diff.unavailable ? '' : '\n\n' + t('发现 {count} 项差异；仅比较，不修改资料。', { count: diff.total })
+        + '\n' + diff.rows.slice(0, 12).map(row => `${row.name} ${row.period} · ${row.field}: ${row.before} → ${row.after}`).join('\n');
+      if (!window.confirm(t(confirmKey, { entities: entityCount, engagements: engagementCount }) + changes)) return;
       preserveLegacyRecovery(parsed);
       const normalized = normalizeStore(parsed); resetReplacedWorkspaceSession(); setStore(normalized); notify(t("备份已恢复"));
     } catch { window.alert(t("这不是有效的工作台备份文件。")); }
     finally { if (importRef.current) importRef.current.value = ""; closeMenu(); }
   };
   const initializeWorkbench = async () => {
+    resetLocalProductivity(); setUndoTransaction(null); setUndoError("");
     if (persistence.settings.mode === "linked_file") await persistence.disconnect();
     setRecentVisits([]); quickDrafts.current.clear();
     setStore(emptyStore()); setSelection(null); setWorkspaceView("home"); setActiveWorkstreamId(null); setFilter("active"); setSearch("");
@@ -991,6 +1055,10 @@ function DashboardWorkbench({ initialSnapshot }) {
               <span className="persistence-save-dot" data-status={persistence.status} aria-hidden="true" /></summary>
             <div className="toolbar-menu-popover"><input ref={importRef} type="file" accept="application/json" hidden
               onChange={(event) => importBackup(event.target.files?.[0])} />
+              <input ref={compareBackupRef} type="file" accept="application/json" hidden onChange={event => {
+                const file = event.target.files?.[0]; if (file) setModal({ type: 'compare-backup', file });
+                event.target.value = ''; closeMenu();
+              }} />
               <div className="persistence-menu-status" role="status" aria-label={saveStateLabel}>
                 <span className="persistence-save-dot" data-status={persistence.status} />
                 <strong>{saveStateLabel}</strong></div>
@@ -999,6 +1067,7 @@ function DashboardWorkbench({ initialSnapshot }) {
                 notify(t(saved ? "资料已保存" : "资料尚未同步，请检查保存设置"));
               }}>{t("立即保存")}</button>}
               <button type="button" aria-label={t("恢复备份")} onClick={() => { closeMenu(); importRef.current?.click(); }}>{t("恢复备份")}…</button>
+              <button type="button" onClick={() => { closeMenu(); compareBackupRef.current?.click(); }}>{t("比较备份")}</button>
               <button type="button" aria-label={t("导出备份")} onClick={exportBackup}>{t("导出备份")}</button>
               {hasV10Recovery && <button type="button" aria-label={t("下载 V10 恢复副本")} onClick={downloadV10Recovery}>{t("下载 V10 恢复副本")}</button>}
               <button type="button" className="toolbar-menu-danger" aria-label={t("初始化工作台")}
@@ -1060,6 +1129,13 @@ function DashboardWorkbench({ initialSnapshot }) {
               <label><span>{t("报告年度")}</span><select value={navigationFilters.reportingYear}
                 aria-label={t("报告年度筛选")} onChange={updateNavigationFilter("reportingYear")}><option value="">{t("全部报告年度")}</option>
                 {navigationYearOptions.map((year) => <option value={year} key={year}>{year}</option>)}</select></label>
+              <SavedFilters scope="navigation" values={{ ...navigationFilters, search, filter, navigationView }}
+                validate={v => ['active', 'completed', 'all', 'archived'].includes(v.filter) && ['companies', 'projects'].includes(v.navigationView)
+                  && typeof v.search === 'string' && (!v.owner || navigationOwnerOptions.includes(v.owner))
+                  && (!v.engagementType || navigationTypeOptions.some(o => o.value === v.engagementType))
+                  && (!v.reportingYear || navigationYearOptions.includes(v.reportingYear))}
+                onApply={v => { setNavigationFilters({ owner: v.owner || '', engagementType: v.engagementType || '', reportingYear: v.reportingYear || '' });
+                  setSearch(v.search); setFilter(v.filter); setNavigationView(v.navigationView); }} />
               <button type="button" className="navigation-filter-clear" disabled={!activeNavigationFilterCount}
                 onClick={clearNavigationFilters}><X aria-hidden="true" />{t("清除筛选")}</button></section>}
             <div className="filter-tabs" role="tablist" aria-label={t("项目状态")} onKeyDown={handleTabListKeyDown}>{[["active", "活跃"], ["completed", "已完成"],
@@ -1099,9 +1175,9 @@ function DashboardWorkbench({ initialSnapshot }) {
           onNewEngagement={(entityId) => setModal({ type: "create-engagement", entityId })}
           onShowProjects={(status = "all") => { clearNavigationFilters(); setSearch(""); setSidebarCollapsed(false);
             setNavigationView("projects"); setFilter(status); setWorkspaceView("detail"); }}
-          onShowSchedule={() => setWorkspaceView("schedule")} />
+          onShowSchedule={() => setWorkspaceView("schedule")} onBatchAnnual={() => setModal({ type: "efficiency-annual" })} />
           : workspaceView === "schedule" ? <ProjectSchedule store={store} filter={filter} onFilterChange={setFilter} onOpen={revealWorkspaceRecord}
-          onEditSchedule={openScheduleEditor} onOpenTaxDeadline={openTaxDeadlineCentre} onReorder={reorderSchedule}
+          onEditSchedule={openScheduleEditor} onBatchSchedule={() => setModal({ type: "efficiency-schedule" })} onOpenTaxDeadline={openTaxDeadlineCentre} onReorder={reorderSchedule}
           simplifiedView={simplifiedView} onToggleSimplifiedView={() => setSimplifiedView((current) => !current)} />
           : workspaceView === "report" ? <ManagementReport store={store} selection={selection} now={deadlineClock}
             onOpen={revealWorkspaceRecord} onOpenOutstanding={revealOutstandingItem} onOpenTaxDeadline={openTaxDeadlineCentre} />
@@ -1116,8 +1192,7 @@ function DashboardWorkbench({ initialSnapshot }) {
             onTax={() => openTaxDeadlineCentre("entity", selectedEntitySource.id)}
             onArchive={() => {
               const active = engagementsForEntity(store, selectedEntitySource.id).filter((engagement) => !engagement.archived);
-              if (active.length) { window.alert(t("归档公司前，请先归档以下 {count} 个活跃项目：{projects}", {
-                count: active.length, projects: active.map((engagement) => reportingPeriodLabel(engagement, language)).join("、") })); return; }
+              if (active.length) { setModal({ type: 'archive-blockers', entityId: selectedEntitySource.id }); return; }
               const openTax = selectedEntitySource.taxDeadlines.filter((deadline) => deadline.state === "open").length;
               if (openTax && !window.confirm(t("这家公司还有 {count} 项未完成税务期限。归档后相关提醒会隐藏，是否继续？", { count: openTax }))) return;
               updateEntity(selectedEntitySource.id, (entity) => ({ ...entity, archived: true })); notify(t("公司已归档"));
@@ -1129,14 +1204,16 @@ function DashboardWorkbench({ initialSnapshot }) {
           parentMembership={selectedProjectMembership} onWorkflowRevealed={() => setWorkflowReveal(null)} workflowReveal={workflowReveal?.targetId === selectedProjectSource.id ? workflowReveal : null}
           quickUpdate={selectedEngagement && <QuickUpdate key={`quick-update:${selectedEngagement.id}`} engagement={selectedEngagement}
             readOnly={Boolean(selectedEngagement.archived || selectedRecordEntity?.archived)} drafts={quickDrafts.current}
-            showSummary={false} onSave={saveQuickUpdate} onPriorityChange={saveProjectPriority} onContinue={() => revealNextStep(selectedEngagement.id)} />}
+            showSummary={false} onSave={saveQuickUpdate} onPriorityChange={saveProjectPriority} store={store}
+            onPatch={(patch, baseline) => patchEngagementExtras(selectedEngagement.id, patch, baseline)} onContinue={() => revealNextStep(selectedEngagement.id)} />}
           activeWorkstreamId={activeWorkstreamId} setActiveWorkstreamId={setActiveWorkstreamId} updateWorkflowNodes={updateWorkflowNodes}
           setModal={setModal} duplicateProject={duplicateProject} archiveTarget={archiveTarget} restoreTarget={restoreTarget}
           onReorderWorkstreams={reorderProjectWorkstreams} deadlineClock={deadlineClock} />
           : selectedGroup ? <GroupDetail store={store} group={selectedGroup} statuses={outstandingStatusViews}
             quickUpdate={selectedEngagement && <QuickUpdate key={`quick-update:${selectedEngagement.id}`} engagement={selectedEngagement}
               readOnly={Boolean(selectedEngagement.archived || selectedRecordEntity?.archived)}
-              drafts={quickDrafts.current} onSave={saveQuickUpdate} onPriorityChange={saveProjectPriority} />}
+              drafts={quickDrafts.current} onSave={saveQuickUpdate} onPriorityChange={saveProjectPriority} store={store}
+              onPatch={(patch, baseline) => patchEngagementExtras(selectedEngagement.id, patch, baseline)} onContinue={() => revealNextStep(selectedEngagement.id)} />}
             onChangeMode={mode => {
               if (selectedEngagement.archived || selectedRecordEntity?.archived) return;
               updateEngagement(selectedEngagement.id, current => ({ ...current,
@@ -1144,6 +1221,8 @@ function DashboardWorkbench({ initialSnapshot }) {
               setFilter("all");
             }}
             updateWorkflowNodes={updateWorkflowNodes} setModal={setModal} onOpenComponent={revealWorkspaceRecord}
+            onCreateComponent={componentId => openMissingComponent(selectedEngagement.id, componentId)}
+            workflowReveal={workflowReveal?.targetId === selectedEngagement.id ? workflowReveal : null} onWorkflowRevealed={() => setWorkflowReveal(null)}
             updateEngagement={updateEngagement} setStore={setStore} selectedGroupSample={selectedGroupSample}
             archiveTarget={archiveTarget} restoreTarget={restoreTarget} deadlineClock={deadlineClock} />
             : <div className="detail-empty"><span className="empty-mark">◎</span><h2>{t("选择公司或年度项目")}</h2>
@@ -1166,8 +1245,48 @@ function DashboardWorkbench({ initialSnapshot }) {
       </aside>
     </section>
 
+    {undoTransaction && <div className="efficiency-undo" role="status"><span>{t('批量更改已应用。')}</span>
+      <button type="button" className="button secondary" onClick={() => {
+        const result = applyPatchTransaction(currentStoreRef.current, undoTransaction, true);
+        if (result.error) { setUndoError(t('相关字段或来源已变化，不能安全撤销；其他更改保持不变。')); return; }
+        setStore(result.store); setUndoTransaction(null); setUndoError(''); notify(t('已撤销该次批量更改。'));
+      }}>{t('撤销本次批量更改')}</button>
+      <button type="button" className="button secondary" onClick={() => { setUndoTransaction(null); setUndoError(''); }}>{t('关闭')}</button>
+      {undoError && <span>{undoError}</span>}
+    </div>}
+    {modal?.type === 'efficiency-schedule' && <Modal title={t('批量调整工作排期')} onClose={() => setModal(null)} large>
+      <ScheduleBatchForm store={store} onClose={() => setModal(null)} onCommit={commitEfficiency} /></Modal>}
+    {modal?.type === 'efficiency-annual' && <Modal title={t('批量建立下一年度')} onClose={() => setModal(null)} large>
+      <AnnualBatchForm store={store} onClose={() => setModal(null)} onCommit={commitEfficiency} /></Modal>}
+    {modal?.type === 'efficiency-lines' && <Modal title={t('粘贴多行待清')} onClose={() => setModal(null)} large>
+      <OutstandingLinesForm store={store} engagementId={modal.targetId} defaultWorkstreamId={modal.workstreamId}
+        onClose={() => setModal(null)} onCommit={commitEfficiency} /></Modal>}
+    {modal?.type === 'efficiency-outstanding' && <Modal title={t(modal.mode === 'follow-up' ? '记录已发送与下次跟进' : '批量修改待清状态')}
+      onClose={() => setModal(null)} large><OutstandingBulkForm store={store} engagementId={modal.targetId} itemIds={modal.itemIds}
+        mode={modal.mode} onClose={() => setModal(null)} onCommit={commitEfficiency} /></Modal>}
+    {modal?.type === 'archive-blockers' && <Modal title={t('归档前需要处理的事项')} onClose={() => setModal(null)} large>
+      <ArchiveBlockers store={store} entityId={modal.entityId} onClose={() => setModal(null)}
+        onOpen={(kind, id) => { setModal(null); revealWorkspaceRecord(kind, id); }} onTax={() => openTaxDeadlineCentre('entity', modal.entityId)} /></Modal>}
+    {modal?.type === 'confirm-component-link' && <Modal title={t('确认关联新建年度')} onClose={() => setModal(null)}>
+      <div className="workbench-form"><p>{t('年度项目已经建立；取消关联不会删除该项目。确认后只更新当前组成部分的关联，不改其他范围或就绪条件。')}</p>
+        <strong>{store.entities.find(e => e.id === modal.context.entityId)?.legalName}</strong>
+        <p>{reportingPeriodLabel(store.engagements.find(e => e.id === modal.engagementId) || {}, language)}</p>
+        {componentLinkError && <p role="alert" className="form-error">{componentLinkError}</p>}
+        <footer className="modal-actions"><button type="button" className="button secondary" onClick={() => setModal(null)}>{t('取消关联')}</button>
+          <button type="button" className="button primary" onClick={() => finishComponentLink(modal)}>{t('确认关联')}</button></footer></div>
+    </Modal>}
+    {modal?.type === 'compare-backup' && <Modal title={t('比较备份')} large onClose={() => setModal(null)}>
+      <BackupCompare store={store} file={modal.file} onClose={() => setModal(null)} onRestore={importBackup} /></Modal>}
     {modal?.type === "quick-open" && <Modal title={t("快速打开")} onClose={() => setModal(null)} wide>
-      <QuickOpen store={store} recent={recentVisits} onOpen={(record) => {
+      <QuickOpen store={store} recent={recentVisits}
+        currentRecord={selectedEngagement && selectedRecordEntity ? { engagement: selectedEngagement, entity: selectedRecordEntity } : null}
+        onAction={action => {
+          if (!selectedEngagement || !selectedRecordEntity || selectedEngagement.archived || selectedRecordEntity.archived) return;
+          const kind = selectedRecordEntity.kind === 'holding_company' ? 'group' : 'project';
+          if (action === 'schedule') setModal({ type: 'edit-engagement', targetKind: kind, targetId: selectedEngagement.id, quickField: 'schedule' });
+          else if (action === 'outstanding') setModal({ type: 'outstanding', targetKind: kind, targetId: selectedEngagement.id });
+          else if (action === 'annual') setModal({ type: 'create-engagement', entityId: selectedRecordEntity.id });
+        }} onOpen={(record) => {
         if (!revealWorkspaceRecord(record.kind, record.id)) return;
         pendingScrollRef.current = 0; pendingWorkspaceFocus.current = true; setModal(null);
       }} /></Modal>}
@@ -1181,7 +1300,8 @@ function DashboardWorkbench({ initialSnapshot }) {
         onSave={saveTaxDeadline} onDelete={deleteTaxDeadline}
         onOpenSource={(kind, id, deadlineId) => openTaxDeadlineCentre(kind, id, deadlineId)} /></Modal>}
     {modal?.type === "create-entity" && <Modal title={t("新建公司")} onClose={() => setModal(null)} large>
-      <CompanyForm store={store} onSubmit={createEntity} onClose={() => setModal(null)} /></Modal>}
+      <CompanyForm store={store} onSubmit={createEntity} onClose={() => setModal(null)} allowContinue
+        onOpenExisting={id => { setModal(null); revealWorkspaceRecord('entity', id); }} /></Modal>}
     {modal?.type === "edit-entity" && store.entities.find((entity) => entity.id === modal.entityId) && <Modal title={t("编辑公司主档")}
       onClose={() => setModal(null)} wide><CompanyForm store={store} initial={store.entities.find((entity) => entity.id === modal.entityId)}
         onClose={() => setModal(null)} onSubmit={(values) => {
@@ -1210,17 +1330,19 @@ function DashboardWorkbench({ initialSnapshot }) {
     {modal?.type === "create-engagement" && store.entities.find((entity) => entity.id === modal.entityId) && <Modal
       title={`${t("新建年度项目")} · ${store.entities.find((entity) => entity.id === modal.entityId).legalName}`} onClose={() => setModal(null)} large>
       <EngagementForm store={store} entity={store.entities.find((entity) => entity.id === modal.entityId)}
-        preferredSourceId={modal.sourceEngagementId} onClose={() => setModal(null)}
+        preferredSourceId={modal.sourceEngagementId} proposedReportingPeriods={modal.linkRequest?.reportingPeriods}
+        onOpenExisting={id => { setModal(null); revealWorkspaceRecord('project', id); }} onClose={() => setModal(null)}
         onSubmit={(values, options) => createAnnualEngagement(store.entities.find((entity) => entity.id === modal.entityId), values,
           options)} /></Modal>}
     {modal?.type === "edit-engagement" && modalTargetEngagement && modalTargetEntity && <Modal title={`${t(quickProjectTitle || "编辑年度项目")} · ${modalTargetEntity.legalName}`}
       onClose={() => setModal(null)} large={!modal.quickField}>
       <EngagementForm store={store} entity={modalTargetEntity} initial={modalTargetEngagement} quickField={modal.quickField}
+        onOpenExisting={id => { setModal(null); revealWorkspaceRecord('project', id); }}
         onCreateAnotherYear={!modal.quickField ? () => setModal({ type: "create-engagement", entityId: modalTargetEntity.id,
           sourceEngagementId: modalTargetEngagement.id }) : null}
         onClose={() => setModal(null)} onSubmit={(values) => {
           if (modalTargetEntity.archived || modalTargetEngagement.archived) return { error: t("归档记录不能编辑；恢复后才可继续更新。") };
-          const quickFields = { owner: ["owner"], schedule: ["startDate", "dueDate"], framework: ["reportingFramework"] }[modal.quickField];
+          const quickFields = { owner: ["owner"], schedule: ["startDate", "dueDate", "schedulePlan"], framework: ["reportingFramework"] }[modal.quickField];
           updateEngagement(modalTargetEngagement.id, (engagement) => quickFields
             ? { ...engagement, ...Object.fromEntries(quickFields.map(field => [field, values[field]])) }
             : ({ ...engagement,
@@ -1229,7 +1351,7 @@ function DashboardWorkbench({ initialSnapshot }) {
             periodPreset: values.periodPreset, periodStart: values.periodStart,
             periodEnd: values.periodEnd, reportingPeriods: values.reportingPeriods,
             reportingFramework: values.reportingFramework, owner: values.owner,
-            startDate: values.startDate, dueDate: values.dueDate, notes: values.notes,
+            startDate: values.startDate, dueDate: values.dueDate, notes: values.notes, schedulePlan: values.schedulePlan,
             consolidation: (engagement.consolidation || values.consolidationMode === "simple") ? { ...engagement.consolidation,
               ...withConsolidationMode(engagement.consolidation, values.consolidationMode || "full"),
               enabled: values.consolidationMode === "simple" || values.consolidationEnabled !== false } : engagement.consolidation }));
@@ -1288,7 +1410,8 @@ function DashboardWorkbench({ initialSnapshot }) {
         }} /></Modal>}
     {modal?.type === "client-follow-up" && <Modal title={t("客户跟进草稿")} onClose={() => setModal(null)} wide>
       <FollowUpComposer key={`${modal.targetKind}:${modal.targetId}`} store={store} targetKind={modal.targetKind}
-        targetId={modal.targetId} onClose={() => setModal(null)} onOpenItem={(kind, id, itemId) => {
+        targetId={modal.targetId} initialSelected={modal.selectedIds || []} initialSourceId={modal.initialSourceId || ""}
+        onRememberLanguage={rememberFollowUpLanguage} onClose={() => setModal(null)} onOpenItem={(kind, id, itemId) => {
           setModal(null); revealOutstandingItem(kind, id, itemId);
         }} /></Modal>}
     {modal?.type === "template-library" && <Modal title={t("范本库")} onClose={() => setModal(null)} large>
@@ -1570,9 +1693,10 @@ function ProjectDetail({ project, rawProject, entityArchived = false, statuses, 
 }
 
 function GroupDetail({ store, group, statuses, updateWorkflowNodes, setModal, onOpenComponent, updateEngagement, setStore,
-  selectedGroupSample, archiveTarget, restoreTarget, deadlineClock, quickUpdate, onChangeMode }) {
+  selectedGroupSample, archiveTarget, restoreTarget, deadlineClock, quickUpdate, onChangeMode, onCreateComponent, workflowReveal, onWorkflowRevealed }) {
   const { language, t } = useUiLanguage();
   const [tabChoice, setTab] = React.useState("overview");
+  React.useEffect(() => { if (workflowReveal) setTab('workflow'); }, [workflowReveal]);
   const rawGroup = store.groups.find((item) => item.id === group.id);
   const engagement = store.engagements.find((item) => item.id === group.id);
   const readOnly = Boolean(rawGroup?.archived || entityForEngagement(store, engagement)?.archived);
@@ -1622,7 +1746,7 @@ function GroupDetail({ store, group, statuses, updateWorkflowNodes, setModal, on
       .map(([value, label]) => <button type="button" role="tab" aria-selected={tab === value} key={value}
         tabIndex={tabIndexFor(tab === value)} onClick={() => setTab(value)}>{t(label)}</button>)}</div>
     {!simple && tab === "overview" && engagement && <HoldingComponentsPanel key={`holding-components:${engagement.id}`} store={store} engagement={engagement} readOnly={readOnly}
-      onOpen={onOpenComponent}
+      onOpen={onOpenComponent} onCreateComponent={onCreateComponent}
       onUpdate={(componentId, patch) => updateEngagement(engagement.id, (current) => ({ ...current,
         consolidation: { ...current.consolidation, components: (current.consolidation?.components || []).map((component) =>
           component.id === componentId ? { ...component, ...patch } : component) } }))}
@@ -1632,7 +1756,7 @@ function GroupDetail({ store, group, statuses, updateWorkflowNodes, setModal, on
           selectedGroupSample || EMPTY_GROUP_SAMPLE));
       }} />}
     {tab === "workflow" && <section className="workflow-panel">
-      {group.consolidationEnabled ? <WorkflowNodes targetKind="group" targetId={group.id} nodes={group.nodes}
+      {group.consolidationEnabled ? <WorkflowNodes targetKind="group" targetId={group.id} nodes={group.nodes} revealRequest={workflowReveal} onRevealHandled={onWorkflowRevealed}
         updateWorkflowNodes={updateWorkflowNodes} setModal={setModal} readOnly={readOnly} title={t("集团合并节点")}
         description={t("横向查看本级合并节点，并在下方管理完成条件。")}
         percentage={stats.consolidationPercentage} />

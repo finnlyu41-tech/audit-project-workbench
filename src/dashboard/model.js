@@ -1,3 +1,5 @@
+import { entityEfficiencyFields, engagementEfficiencyFields, outstandingEfficiencyFields } from "./efficiency-data.js";
+import { schedulePlanFields } from "./working-days.js";
 import { periodAfterEnd } from "./reporting-period-tools.js";
 import { priorityFields, projectPriority } from "./project-priority.js";
 import { consolidationIsSimple, simpleModeField } from "./consolidation-mode.js";
@@ -762,6 +764,8 @@ export function makeGroup(values, useStarter = true, groupSample = createDefault
     consolidationEnabled,
     ...(consolidationIsSimple(values) ? { consolidationMode: "simple" } : {}),
     ...priorityFields(values),
+    ...schedulePlanFields(values),
+    ...engagementEfficiencyFields(values),
     archived: false,
     createdAt: now,
     updatedAt: now,
@@ -781,6 +785,7 @@ export function makeOutstandingItem(values = {}, statuses = createDefaultOutstan
   const allowedStatuses = statuses.map((status) => status.id);
   const defaultStatus = statuses.find((status) => !status.closed)?.id || statuses[0]?.id || "missing_document";
   return {
+    ...outstandingEfficiencyFields(values),
     id: values.id || uid("outstanding"),
     title: typeof values.title === "string" ? values.title.trim() : "",
     status: allowedStatuses.includes(values.status) ? values.status : defaultStatus,
@@ -1303,6 +1308,7 @@ function normalizeEntityRecord(value = {}) {
   const now = new Date().toISOString();
   const parentEntityId = typeof value.parentEntityId === "string" && value.parentEntityId ? value.parentEntityId : null;
   return {
+    ...entityEfficiencyFields(value),
     id: value.id || uid("entity"),
     legalName: typeof value.legalName === "string" && value.legalName.trim()
       ? value.legalName.trim() : "未命名公司",
@@ -1409,6 +1415,8 @@ function normalizeEngagementRecord(value = {}, context = {}) {
     reportingFramework: typeof value.reportingFramework === "string" ? value.reportingFramework.trim() : "",
     owner,
     ...priorityFields(value),
+    ...schedulePlanFields(value),
+    ...engagementEfficiencyFields(value),
     startDate: typeof value.startDate === "string" ? value.startDate : "",
     dueDate,
     notes: typeof value.notes === "string" ? value.notes : "",
@@ -1496,6 +1504,8 @@ function addRuntimeViews(store) {
       dueDate: engagement.dueDate,
       owner: engagement.owner,
       ...priorityFields(engagement),
+      ...schedulePlanFields(engagement),
+      ...engagementEfficiencyFields(engagement),
       notes: engagement.notes,
       archived: engagement.archived,
       createdAt: engagement.createdAt,
@@ -1807,7 +1817,8 @@ function syncCanonicalFromLegacyViews(previous, candidate) {
       periodStart: record.periodStart, periodEnd: record.periodEnd,
       reportingPeriods: record.reportingPeriods || previousEngagement?.reportingPeriods, legacyPeriod: record.period,
       reportingFramework: record.reportingFramework, owner: record.owner, startDate: record.startDate,
-      priority: record.priority, dueDate: record.dueDate, notes: record.notes, archived: record.archived,
+      nextAction: record.nextAction, remainingWork: record.remainingWork,
+      schedulePlan: record.schedulePlan, priority: record.priority, dueDate: record.dueDate, notes: record.notes, archived: record.archived,
       workstreams, outstandingItems: record.outstandingItems, consolidation,
       conversionState: record.conversionState, createdAt: record.createdAt, updatedAt: record.updatedAt || now }, {
       categoryById: new Map(candidate.workstreamCategories.map((category) => [category.id, category])),
@@ -1983,6 +1994,8 @@ export function makeEngagement(values = {}, options = {}) {
     dueDate: values.dueDate || "",
     notes: values.notes || "",
     ...priorityFields(values),
+    ...schedulePlanFields(values),
+    ...engagementEfficiencyFields(values),
     archived: false,
     workstreams,
     outstandingItems: [],
@@ -2063,9 +2076,10 @@ export function entityMergeProblem(store, sourceEntityId, targetEntityId) {
   };
   if (holdingEntityContains(store.entities, source.id, target.id) || holdingEntityContains(store.entities, target.id, source.id)
     || historicalContains(source.id, target.id) || historicalContains(target.id, source.id)) return 'relationship';
-  for (const key of ['entityType', 'incorporationDate', 'fiscalYearPreset', 'notes', 'parentEntityId', 'relationshipRole']) {
+  for (const key of ['entityType', 'incorporationDate', 'fiscalYearPreset', 'notes', 'parentEntityId', 'relationshipRole', 'followUpLanguage']) {
     if (String(source[key] || '').trim() && String(target[key] || '').trim() && source[key] !== target[key]) return 'metadata';
   }
+  if (new Set([...(source.aliases || []), ...(target.aliases || [])]).size > 8) return 'metadata';
   const sourceJobs = engagementsForEntity(store, source.id); const targetJobs = engagementsForEntity(store, target.id);
   if (sourceJobs.some(e => engagementReportingPeriods(e).some(p => targetJobs.some(other =>
     engagementReportingPeriods(other).some(q => reportingPeriodKey(p) === reportingPeriodKey(q)))))) return 'periods';
@@ -2088,6 +2102,8 @@ export function mergeEntities(store, sourceEntityId, targetEntityId) {
     if (entity.id === targetEntityId) return { ...entity,
       ...Object.fromEntries(['entityType', 'incorporationDate', 'notes', 'parentEntityId', 'relationshipRole'].map(key =>
         [key, String(entity[key] || '').trim() ? entity[key] : source[key]])),
+      ...entityEfficiencyFields({ aliases: [...new Set([...(entity.aliases || []), ...(source.aliases || [])])],
+        followUpLanguage: entity.followUpLanguage || source.followUpLanguage }),
       taxDeadlines: [...entity.taxDeadlines, ...sourceTax], updatedAt: now };
     if (entity.parentEntityId === sourceEntityId) return { ...entity, parentEntityId: targetEntityId, updatedAt: now };
     return entity;
@@ -2153,6 +2169,8 @@ export function makeProject(values, useStarter = true, sampleSource = null, cate
     owner: values.owner?.trim() || "",
     notes: values.notes?.trim() || "",
     ...priorityFields(values),
+    ...schedulePlanFields(values),
+    ...engagementEfficiencyFields(values),
     archived: false,
     createdAt: now,
     updatedAt: now,

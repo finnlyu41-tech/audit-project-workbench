@@ -1,3 +1,4 @@
+import { resetLocalProductivity } from "./local-productivity.js";
 import { readUnchangedFile, writeUnchangedFile, fileConflictSnapshot } from './linked-file-guard.js';
 import React from "react";
 import { STORAGE_KEY, isValidStore, normalizeStore, preserveLegacyRecovery } from "./model.js";
@@ -221,6 +222,7 @@ export function useWorkbenchPersistence({ store, setStore }) {
     if (resolution === "file_newer") {
       preserveLegacyRecovery(snapshot.sourcePayload);
       lastSyncedPayloadRef.current = snapshot.payload;
+      resetLocalProductivity();
       setStore(snapshot.store);
       await updateLinkedMetaFromPayload(snapshot.payload, handle,
         snapshot.lastModified ? new Date(snapshot.lastModified).toISOString() : new Date().toISOString(), snapshot);
@@ -365,6 +367,7 @@ export function useWorkbenchPersistence({ store, setStore }) {
       fileHandleRef.current = candidate.handle; fileReadyRef.current = true;
       lastSyncedPayloadRef.current = snapshot.payload;
       applySettings({ mode: "linked_file" }); setConflict(null); preserveLegacyRecovery(snapshot.sourcePayload);
+      resetLocalProductivity();
       setStore(snapshot.store);
       await updateLinkedMetaFromPayload(snapshot.payload, candidate.handle,
         snapshot.lastModified ? new Date(snapshot.lastModified).toISOString() : new Date().toISOString(), snapshot);
@@ -455,6 +458,7 @@ export function useWorkbenchPersistence({ store, setStore }) {
       if (browserPayload !== currentPayloadRef.current) { markConflict(handle, final, true); return false; }
       downloadStorePayload(browserPayload, recoveryFileName('browser'));
       fileHandleRef.current = handle; fileReadyRef.current = true; lastSyncedPayloadRef.current = final.payload;
+      if (choice === 'file') resetLocalProductivity();
       applySettings({ mode: 'linked_file' }); setConflict(null); setStore(final.store);
       await updateLinkedMetaFromPayload(final.payload, handle,
         final.lastModified ? new Date(final.lastModified).toISOString() : new Date().toISOString(), final);

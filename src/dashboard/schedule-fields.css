@@ -1,0 +1,20 @@
+.workbench-modal .project-date-groups fieldset > .schedule-fields {
+  display: grid; grid-template-columns: minmax(0, 1fr); gap: 12px; min-width: 0;
+}
+.schedule-fields .schedule-range-picker { position: relative; display: grid; gap: 7px; min-width: 0; }
+.schedule-fields .schedule-mode { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 4px; }
+.schedule-fields .schedule-mode button { min-height: 42px; white-space: normal; }
+.schedule-fields .working-day-inputs { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; align-items: end; }
+.schedule-fields .working-day-inputs label { min-width: 0; }
+.workbench-modal .schedule-fields .working-day-inputs input { width: 100%; height: 42px; min-width: 0; box-sizing: border-box; }
+.schedule-fields input[readonly] { background: var(--wb-accent-soft); color: var(--wb-accent-dark); }
+.schedule-fields .working-day-help, .schedule-fields .working-day-coverage { margin: 0; font-size: 12px; line-height: 1.5; color: var(--secondary); }
+.schedule-fields .working-day-preview { display: grid; gap: 6px; border: 1px solid var(--border); border-radius: 8px;
+  background: var(--wb-accent-soft); padding: 12px; font-size: 12px; line-height: 1.5; overflow-wrap: anywhere; }
+.schedule-fields .working-day-preview strong { color: var(--wb-accent-dark); }
+.schedule-fields .working-day-preview span { color: var(--secondary); }
+@media (max-width: 700px) {
+  .schedule-fields .working-day-inputs { grid-template-columns: minmax(0, 1fr); }
+}
+
+.schedule-fields .schedule-mode button[aria-pressed="true"] { background: var(--wb-accent); color: white; border-color: var(--wb-accent); }

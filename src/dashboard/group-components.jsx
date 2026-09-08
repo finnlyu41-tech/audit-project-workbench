@@ -1,3 +1,4 @@
+import { OutlineImporter } from "./efficiency-controls.jsx";
 import React from "react";
 import { ProjectPriorityBadge } from "./project-priority.jsx";
 import { compareProjectPriority } from "./project-priority.js";
@@ -178,7 +179,7 @@ function EntityEngagementWorkspaceList({ store, selection, onSelect, search, fil
     const archived = Boolean(entity.archived || engagement.archived);
     const periodLabel = yearEndOrPeriodLabel(engagement, language) || t("未设置报告期间");
     const typeLabel = engagementTypesLabel(engagement, language) || t("项目类型未设置");
-    const searchable = [entity.legalName, ...engagementTypeValues(engagement), engagement.internalName, engagement.owner,
+    const searchable = [entity.legalName, ...(entity.aliases || []), ...engagementTypeValues(engagement), engagement.internalName, engagement.owner,
       periodLabel, reportingPeriodLabel(engagement, language)];
     if (!engagementMatchesNavigationFilters(engagement, navigationFilters)) return null;
     if (filter === "archived" ? !archived : archived) return null;
@@ -251,7 +252,7 @@ function EntityWorkspaceTree({ store, selection, onSelect, onMove, search, filte
     const complete = engagementComplete(engagement, entity);
     if (filter === "active" && complete) return false;
     if (filter === "completed" && !complete) return false;
-    if (query && ![entity.legalName, ...engagementTypeValues(engagement), engagement.internalName, engagement.owner,
+    if (query && ![entity.legalName, ...(entity.aliases || []), ...engagementTypeValues(engagement), engagement.internalName, engagement.owner,
       fiscalPeriodShortLabel(engagement, language), yearEndOrPeriodLabel(engagement, language), reportingPeriodLabel(engagement, language)]
       .some((value) => String(value || "").toLocaleLowerCase().includes(query))) return false;
     return true;
@@ -260,7 +261,7 @@ function EntityWorkspaceTree({ store, selection, onSelect, onMove, search, filte
     const archivedMode = filter === "archived";
     const ownArchiveMatch = archivedMode ? entity.archived : !entity.archived;
     const engagements = entityEngagements(entity.id).filter((engagement) => engagementMatches(engagement, entity));
-    const ownText = !query || [entity.legalName, entity.entityType, entity.relationshipRole].some((value) =>
+    const ownText = !query || [entity.legalName, ...(entity.aliases || []), entity.entityType, entity.relationshipRole].some((value) =>
       String(value || "").toLocaleLowerCase().includes(query));
     const zeroEngagementVisible = !advancedFiltersActive && ["active", "all", "archived"].includes(filter) && ownArchiveMatch
       && !entityEngagements(entity.id).length && ownText;
@@ -712,6 +713,7 @@ export function GroupSampleEditor({ sample, onSave, onClose, onReset }) {
         onChange={(event) => setDraft((current) => ({ ...current, versionNote: event.target.value }))}
         placeholder={t("说明本次范本修改")} /></label>
       <small>{t("{count} 个合并节点", { count: draft.nodes.length })}</small></div>
+    <OutlineImporter onAppend={nodes => setDraft(current => ({ ...current, nodes: [...current.nodes, ...nodes] }))} />
     <section className="group-sample-section"><header><strong>{t("合并工作流")}</strong>
       <span>{t("用于每一级选择“需要合并”的集团。")}</span></header>
       <div className="sample-editor-list">{draft.nodes.map((node, index) => <section className="sample-edit-node" key={node.id}>

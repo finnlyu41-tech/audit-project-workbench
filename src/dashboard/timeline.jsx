@@ -39,7 +39,7 @@ function savePrecision(value) {
   catch { /* Layout preferences can safely fall back to the weekly view. */ }
 }
 
-export function ProjectSchedule({ store, filter, onFilterChange, onOpen, onEditSchedule, onOpenTaxDeadline, onReorder,
+export function ProjectSchedule({ store, filter, onFilterChange, onOpen, onEditSchedule, onBatchSchedule, onOpenTaxDeadline, onReorder,
   simplifiedView = false, onToggleSimplifiedView }) {
   const { language, t } = useUiLanguage();
   const scrollRef = React.useRef(null);
@@ -210,7 +210,7 @@ export function ProjectSchedule({ store, filter, onFilterChange, onOpen, onEditS
       {(query || dateScope!=="all") && <button type="button" className="text-button" onClick={resetFilters}>{t("筛选已启用，清除")}</button>}
       <span>{t("时间轴显示工作排期，不是报告期间。")}</span></div>
     {(timeline.precision!==precision || timeline.coarse) && <p className="timeline-range-notice" role="note">{t("日期跨度较大，刻度已自动概括；完整排期与日期仍保留。")}</p>}
-    {filtersOpen && <div className="schedule-filters">
+    {filtersOpen && <div className="schedule-filters">{onBatchSchedule && <button type="button" className="button secondary" onClick={onBatchSchedule}>{t('批量调整工作排期')}</button>}
       <label><span>{t("查找排期")}</span><span className="schedule-search"><Search aria-hidden="true" />
         <input ref={searchRef} type="search" value={query} onChange={(event) => setQuery(event.target.value)}
           aria-label={t("查找排期")} placeholder={t("公司、报告年度、项目类型或负责人")} /></span></label>

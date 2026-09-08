@@ -7,7 +7,7 @@ const valid = () => JSON.stringify(canonicalStorePayload(emptyStore()));
 function memory(raw = null) {
   const data = new Map(raw === null ? [] : [[STORAGE_KEY, raw]]); const writes = [];
   return { data, writes, getItem: (key) => data.get(key) ?? null,
-    setItem(key, value) { writes.push(key); data.set(key, value); } };
+    setItem(key, value) { writes.push(key); data.set(key, value); }, removeItem(key) { data.delete(key); } };
 }
 test('an absent workspace is distinct from damaged, empty or future data', () => {
   assert.ok(parseStartupPayload(null).store);

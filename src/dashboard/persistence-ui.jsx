@@ -1,3 +1,4 @@
+import { LocalDraftSettings, WorkspaceDifferences } from "./efficiency-controls.jsx";
 import React from "react";
 import {
   CheckCircle2,
@@ -117,6 +118,7 @@ export function PersistenceSettingsPanel({ persistence, onOpenExisting, onResolv
           <small>{t("正常保存完成后不会提示；浏览器原生提示的文字和按钮由浏览器决定。")}</small></span></label>
     </section>
 
+    <LocalDraftSettings />
     <p className="persistence-privacy"><ShieldCheck aria-hidden="true" />
       <span>{t("工作台不会上传项目或税务资料；本地文件也不会自动成为多人协作文件。")}</span></p>
     <footer className="modal-actions"><button type="button" className="button primary" disabled={persistence.busy} onClick={onClose}>{t("完成")}</button></footer>
@@ -143,6 +145,8 @@ export function OpenWorkspaceFileConfirm({ candidate, onConfirm, onClose, failur
     <div className="workspace-version-grid"><SummaryCard label="当前浏览器资料" summary={candidate.currentSummary} />
       <SummaryCard label="所选文件" summary={candidate.summary}
         timestamp={candidate.lastModified ? new Date(candidate.lastModified).toISOString() : ""} /></div>
+    <WorkspaceDifferences before={candidate.browserPayload} after={candidate.store} />
+    <p>{t('替换工作台时会清除本浏览器临时草稿和常用筛选，不自动合并。')}</p>
     <p className="workspace-file-warning"><CircleAlert aria-hidden="true" />
       {t("如需保留当前资料，请先取消并从备份菜单导出备份。")}</p>
     <footer className="modal-actions"><button type="button" className="button secondary" disabled={busy || operationBusy} onClick={onClose}>{t("取消")}</button>
@@ -167,6 +171,8 @@ export function PersistenceConflictDialog({ conflict, onResolve, onClose, failur
     <div className="workspace-version-grid"><SummaryCard label="浏览器副本" summary={conflict.browserSummary} />
       <SummaryCard label="本地文件" summary={conflict.fileSummary}
         timestamp={conflict.fileLastModified ? new Date(conflict.fileLastModified).toISOString() : ""} /></div>
+    <WorkspaceDifferences before={conflict.browserPayload} after={conflict.fileStore} />
+    <p>{t('选择文件版本将清除本浏览器临时草稿和常用筛选。')}</p>
     <p className="workspace-file-warning"><ShieldCheck aria-hidden="true" />
       {t("选择一个版本继续；被替换的版本会先下载为恢复备份。")}</p>
     <div className="conflict-actions"><button type="button" className="button secondary" disabled={busy || operationBusy}

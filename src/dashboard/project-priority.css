@@ -22,7 +22,7 @@
   .audit-workbench .priority-title-line { display: flex; min-width: 0; flex-wrap: wrap; align-items: center; gap: 2px; }
   .audit-workbench .priority-title-line > strong { min-width: 0; overflow-wrap: anywhere; }
 }
-@container workspace (max-width: 760px) {
+@container workspace (max-width: 960px) {
   /* Avoid squeezing the new control into a half-width quick-update strip. */
   .audit-workbench .group-command-row:has(.project-priority-field) { grid-template-columns: minmax(0, 1fr); gap: 4px; }
   .audit-workbench .group-command-row:has(.project-priority-field) .group-mode-bar { padding-block: 2px; max-width: none; }

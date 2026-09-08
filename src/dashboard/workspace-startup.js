@@ -1,3 +1,4 @@
+import { resetLocalProductivity } from "./local-productivity.js";
 import { emptyStore, isValidStore, normalizeStore, STORAGE_KEY, STORE_VERSION } from './model.js';
 import { loadPersistenceSettings, savePersistenceSettings, serializeStore } from './persistence.js';
 
@@ -23,6 +24,7 @@ export function restoreStartupBackup(snapshot, raw, storage) {
   if (snapshot.error === 'read_failed' || target.getItem(STORAGE_KEY) !== snapshot.raw) throw new Error('source_changed');
   // Pause file linking before changing browser data, so an old handle cannot autosync over a file.
   savePersistenceSettings({ ...loadPersistenceSettings(target), mode: 'browser' }, target);
+  resetLocalProductivity(target);
   target.setItem(STORAGE_KEY, serializeStore(next.store));
   return next;
 }
