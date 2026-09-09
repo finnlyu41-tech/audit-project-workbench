@@ -4,6 +4,7 @@ import AxeBuilder from '@axe-core/playwright';
 import { readStoredWorkspace, seriousViolations } from './helpers.js';
 import { openEfficiency, openRecord, dialog, scheduleDialog, dismissChanged, alpha, recordErrors } from './efficiency-helpers.js';
 import { openOutstandingPane, closeOutstandingPane } from './panel-helpers.js';
+import { efficiencyWorkspace } from '../tests/fixtures/efficiency-workspace.js';
 recordErrors(test);
 
 test('existing owners, optional aliases and early company duplicates reuse identities without rewriting them', async ({ page }) => {
@@ -28,6 +29,41 @@ test('existing owners, optional aliases and early company duplicates reuse ident
   page.once('dialog', d => d.accept()); await dialog(page).getByRole('button', { name: 'Open existing company', exact: true }).click();
   await expect(dialog(page)).toHaveCount(0);
   expect((await readStoredWorkspace(page)).entities).toHaveLength(2);
+});
+
+test('existing custom frameworks are suggested without overwriting a blank framework', async ({ page }) => {
+  const store = efficiencyWorkspace();
+  store.engagements.find(e => e.id === 'eff-alpha-year').reportingFramework = '';
+  store.engagements.find(e => e.id === 'eff-beta-year').reportingFramework = 'Fictional statutory framework';
+  await openEfficiency(page, store); const before = await readStoredWorkspace(page);
+  await page.getByRole('button', { name: 'Edit project details：Financial reporting standard / framework', exact: true }).click();
+  const field = dialog(page).getByLabel('Financial reporting standard / framework', { exact: true });
+  await expect(field).toHaveValue('');
+  const listId = await field.getAttribute('list'); expect(listId).toBeTruthy();
+  const options = await page.locator(`datalist[id="${listId}"] option`).evaluateAll(rows => rows.map(row => row.value));
+  const expectedOptions = ['HKFRS Accounting Standards', 'SME-FRF and SME-FRS', 'IFRS Accounting Standards',
+    'HKFRS for Private Entities', 'Fictional statutory framework'];
+  expect(options).toEqual(expectedOptions);
+  await dialog(page).getByRole('button', { name: 'Cancel', exact: true }).click();
+  await page.getByRole('button', { name: 'Edit annual engagement', exact: true }).click();
+  await dialog(page).getByText('Framework and advanced options', { exact: true }).click();
+  const fullField = dialog(page).getByLabel('Financial reporting standard / framework', { exact: true });
+  const fullListId = await fullField.getAttribute('list'); expect(fullListId).toBeTruthy();
+  expect(await page.locator(`datalist[id="${fullListId}"] option`).evaluateAll(rows => rows.map(row => row.value))).toEqual(expectedOptions);
+  await dialog(page).getByRole('button', { name: 'Cancel', exact: true }).click();
+  await page.getByRole('button', { name: 'Edit project details：Financial reporting standard / framework', exact: true }).click();
+  const saveField = dialog(page).getByLabel('Financial reporting standard / framework', { exact: true });
+  await saveField.fill('Fictional statutory framework');
+  await dialog(page).getByRole('button', { name: 'Save', exact: true }).click();
+  const after = await readStoredWorkspace(page);
+  const alphaBefore = before.engagements.find(e => e.id === 'eff-alpha-year');
+  const alphaAfter = after.engagements.find(e => e.id === 'eff-alpha-year');
+  const { reportingFramework: _oldFramework, updatedAt: _oldUpdatedAt, ...beforeRest } = alphaBefore;
+  const { reportingFramework, updatedAt, ...afterRest } = alphaAfter;
+  expect(reportingFramework).toBe('Fictional statutory framework'); expect(Date.parse(updatedAt)).not.toBeNaN();
+  expect(afterRest).toEqual(beforeRest);
+  expect(after.entities).toEqual(before.entities);
+  expect(after.engagements.filter(e => e.id !== 'eff-alpha-year')).toEqual(before.engagements.filter(e => e.id !== 'eff-alpha-year'));
 });
 
 test('save company and continue creates exactly one master; cancelling annual does not invent a project', async ({ page }) => {
