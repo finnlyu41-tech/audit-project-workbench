@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { decideAutomationAction as decide } from '../scripts/automation-status.mjs';
+import { decideAutomationAction as decide, pagesDeploymentVerified } from '../scripts/automation-status.mjs';
 const main = 'a'.repeat(40), head = 'b'.repeat(40), old = 'c'.repeat(40);
 const run = (id, sha, kind='ci', status='completed', conclusion='success') => ({ id, head_sha:sha,
   path:`.github/workflows/${kind}.yml`, status, conclusion, html_url:`https://example.test/runs/${id}` });
@@ -27,9 +27,24 @@ test('release status distinguishes missing, failed, running and stale-public gat
  assert.equal(decide({...base,runs:[run(1,main),run(2,main,'pages','in_progress',null)]}).action,'WAIT_RELEASE');
  assert.equal(decide({...base,liveSha:old}).action,'VERIFY_DEPLOYMENT');
  assert.equal(decide({...base,liveSha:main}).action,'READY_FOR_SCOPED_WORK');
+ const attested=decide({...base,liveSha:null,liveCheck:'unavailable',deploymentVerified:true});
+ assert.equal(attested.action,'READY_FOR_SCOPED_WORK'); assert.equal(attested.verification_source,'pages_post_deploy');
+ assert.equal(decide({...base,liveSha:null,liveCheck:'HTTP 404',deploymentVerified:true}).action,'VERIFY_DEPLOYMENT');
+ assert.equal(decide({...base,liveSha:null,liveCheck:'HTTP 200',deploymentVerified:true}).action,'VERIFY_DEPLOYMENT');
+ assert.equal(decide({...base,liveSha:old,liveCheck:'HTTP 200',deploymentVerified:true}).action,'VERIFY_DEPLOYMENT');
 });
 test('missing identity fails closed and classification is read-only', () => {
  assert.throws(()=>decide({mainSha:'main'}));
  assert.throws(()=>decide(snapshot({pulls:[{number:75}]})));
  const input=snapshot();const before=JSON.stringify(input);decide(input);assert.equal(JSON.stringify(input),before);
+});
+
+test('Pages verification fallback requires the exact successful deploy verification step', () => {
+ const step=(name='Verify deployed commit and core assets',conclusion='success')=>({name,status:'completed',conclusion});
+ const job=(sha=main,steps=[step()])=>({name:'deploy',head_sha:sha,status:'completed',conclusion:'success',steps});
+ assert.equal(pagesDeploymentVerified([job()],main),true);
+ assert.equal(pagesDeploymentVerified([job(old)],main),false);
+ assert.equal(pagesDeploymentVerified([{...job(),conclusion:'failure'}],main),false);
+ assert.equal(pagesDeploymentVerified([job(main,[step('Deploy to GitHub Pages')])],main),false);
+ assert.equal(pagesDeploymentVerified([job(main,[step(undefined,'failure')])],main),false);
 });

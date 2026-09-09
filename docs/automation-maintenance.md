@@ -10,7 +10,7 @@ The repair waits for the complete selected-file payload to reach browser storage
 
 ## Every maintenance invocation
 
-1. Read current main, open PRs and exact-head workflow states. `pnpm automation:status` does this without writes, retries or task creation. `TOOL_BLOCKED` means the inventory is incomplete, not that work is complete.
+1. Read current main, open PRs and exact-head workflow states. `pnpm automation:status` does this without writes, retries or task creation. `TOOL_BLOCKED` means the inventory is incomplete, not that work is complete. Only if the local public-marker fetch fails at the network/TLS request layer, the status command may accept the exact main Pages run only when its `deploy` job itself succeeded and the named `Verify deployed commit and core assets` step succeeded for that same SHA. An explicit public SHA mismatch still fails closed and requires deployment verification.
 2. Resume a pending PR before proposing new work. If CI is running, link that run and stop launching duplicate work. If it failed, inspect the named phase and attached receipt/trace. Keep action polling read-only.
 3. Apply only a focused, authorized repair. Preserve unrelated commits. Check the remote head again before pushing, and match the head before merge.
 4. Distinguish local checks, PR checks, merge, main CI, Pages and actual public verification. Report every invocation, even when there is no code change. Never substitute an old passing SHA for the current one.
