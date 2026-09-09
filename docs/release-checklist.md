@@ -8,6 +8,7 @@ Run `pnpm check` before publishing. The command must complete the unit tests, fu
 - All Playwright tests pass without retries locally.
 - No serious or critical axe violations are reported on the company, holding-company, template, report, settings or tax-deadline surfaces.
 - A production build is created only after both test suites pass.
+- GitHub Pages must publish `apw-build-sha.txt`, then the post-deploy smoke step must confirm it equals the workflow commit and that the deployed index plus referenced JS/CSS assets are reachable.
 
 ## Desktop smoke test
 
@@ -75,3 +76,10 @@ Run `pnpm test:stability` for the focused dual-engine gate and follow `docs/stab
 - Stale opening/decision previews must stay uncommitted; refreshed conflict downloads must contain the latest replaced side.
 - Duplicate activation, cancelled pickers and delayed startup after disconnect must not launch another file operation.
 - Validate unchanged legacy opening and the first canonical write. Keep mocked file APIs separate from native browser-private-file and OS-picker coverage.
+
+## Automated maintenance receipts
+
+- Begin recurring maintenance with `pnpm automation:status` or equivalent connected GitHub reads. Resume exact-head pending/failed work; do not manufacture new PRs.
+- CI and Pages retain separate development/production JSON reports and `playwright-results/receipt.json`, including head SHA, tested merge SHA, run ID/attempt and phase outcomes on success or failure.
+- Pages `verify-pages.mjs` compares the commit marker, release manifest and exact public index/JS/CSS bytes. HTTP 200 alone is not sufficient, and a fresh marker with stale HTML must fail.
+- Repository checks do not verify an external scheduler. Record scheduler task identity/status separately when the actual management interface is available.

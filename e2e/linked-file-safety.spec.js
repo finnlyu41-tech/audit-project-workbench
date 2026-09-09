@@ -102,8 +102,16 @@ test('choosing the file cannot discard browser edits made after the conflict pre
   const download = page.waitForEvent('download'); await dialog.getByRole('button', { name: 'Use local file', exact: true }).click();
   const fs = await import('node:fs/promises'); const backup = JSON.parse(await fs.readFile(await (await download).path(), 'utf8'));
   expect(backup).toEqual(later); await expect(dialog).toHaveCount(0);
-  expect((await readStoredWorkspace(page)).engagements[0].notes).toBe('First external conflict');
+  // Closing the dialog confirms the action, not React's passive persistence effect.
+  // Wait for the exact selected file snapshot, not a timeout or a weaker note check.
+  const selectedFile = await page.evaluate(() => JSON.parse(window.__memoryFiles.selected.text));
+  expect(selectedFile.engagements[0].notes).toBe('First external conflict');
+  await expect.poll(() => readStoredWorkspace(page), {
+    message: 'the complete selected file is persisted after conflict resolution',
+  }).toEqual(selectedFile);
   expect(await page.evaluate(() => window.__memoryFiles.selected.writes.length)).toBe(1);
+  await page.reload();
+  await expect.poll(() => readStoredWorkspace(page)).toEqual(selectedFile);
 });
 test('duplicate file-link clicks run once and a pending activation cannot be dismissed', async ({ page }) => {
   await start(page); await page.evaluate(() => { window.__memoryFiles.selected.hold = true; });
@@ -124,7 +132,9 @@ test('opening an unchanged reviewed file succeeds without writing into that file
   await openSettings(page); await settings(page).getByRole('button', { name: 'Open existing workbench file', exact: true }).click();
   const confirm = page.getByRole('dialog', { name: 'Open workbench file', exact: true });
   await confirm.getByRole('button', { name: 'Open and link', exact: true }).click(); await expect(confirm).toHaveCount(0);
-  expect((await readStoredWorkspace(page)).engagements[0].owner).toBe('Reviewed file owner');
+  const selectedFile = await page.evaluate(() => JSON.parse(window.__memoryFiles.selected.text));
+  expect(selectedFile.engagements[0].owner).toBe('Reviewed file owner');
+  await expect.poll(() => readStoredWorkspace(page)).toEqual(selectedFile);
   expect(await page.evaluate(() => window.__memoryFiles.selected.writes.length)).toBe(0);
 });
 test('cancelling a file preview leaves browser records and the selected file unchanged', async ({ page }) => {

@@ -12,11 +12,12 @@ permissions:
 
 concurrency:
   group: github-pages
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 jobs:
   build:
     runs-on: ubuntu-latest
+    timeout-minutes: 40
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -35,10 +36,31 @@ jobs:
         run: pnpm install --frozen-lockfile
       - name: Install browser test runtime
         run: pnpm exec playwright install --with-deps chromium webkit
-      - name: Verify and build
-        run: pnpm check
+      - name: Unit tests
+        id: unit
+        run: pnpm test
+      - name: Browser regression
+        id: browser
+        run: pnpm test:e2e
+      - name: Production build
+        id: build
+        run: pnpm build
+      - name: Production browser regression
+        id: production
+        run: pnpm test:production
+      - name: Stamp build commit
+        run: node scripts/verify-pages.mjs stamp dist "$GITHUB_SHA"
+      - name: Record exact-commit verification receipt
+        if: always()
+        env:
+          HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+          OUTCOME_UNIT: ${{ steps.unit.outcome }}
+          OUTCOME_BROWSER: ${{ steps.browser.outcome }}
+          OUTCOME_BUILD: ${{ steps.build.outcome }}
+          OUTCOME_PRODUCTION: ${{ steps.production.outcome }}
+        run: node scripts/verification-receipt.mjs
       - name: Upload browser-test report
-        if: failure()
+        if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: pages-playwright-report
@@ -46,7 +68,8 @@ jobs:
             playwright-report
             test-results
             test-results-production
-          if-no-files-found: ignore
+            playwright-results
+          if-no-files-found: warn
           retention-days: 14
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
@@ -58,8 +81,23 @@ jobs:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
     runs-on: ubuntu-latest
+    timeout-minutes: 40
     needs: build
     steps:
+      - name: Checkout verification code for this commit
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          ref: ${{ github.sha }}
+      - name: Set up verification runtime
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 22
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@368f82528645a54fb793d4d04e342629a3f51346 # v5.0.1
+      - name: Verify deployed commit and core assets
+        env:
+          PAGE_URL: ${{ steps.deployment.outputs.page_url }}
+          EXPECTED_SHA: ${{ github.sha }}
+        run: node scripts/verify-pages.mjs verify "$PAGE_URL" "$EXPECTED_SHA"

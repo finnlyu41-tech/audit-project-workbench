@@ -22,7 +22,8 @@
     "test:e2e:headed": "playwright test --headed",
     "check": "pnpm test && pnpm test:e2e && pnpm build && pnpm test:production",
     "test:stability": "playwright test e2e/efficiency-entry.spec.js e2e/efficiency-batch.spec.js e2e/efficiency-output.spec.js e2e/efficiency-recovery.spec.js e2e/working-days.spec.js e2e/schedule-doi.spec.js e2e/schedule-usability.spec.js e2e/project-priority.spec.js e2e/group-usability.spec.js e2e/workspace-space.spec.js e2e/linked-file-safety.spec.js e2e/operation-boundaries.spec.js e2e/stability-recovery.spec.js e2e/group-quick-update.spec.js e2e/action-workbench.spec.js e2e/holding-components.spec.js e2e/outstanding-continuous.spec.js e2e/client-follow-up.spec.js e2e/workflow-effort.spec.js e2e/workspace-session.spec.js e2e/edge-safety.spec.js",
-    "test:production": "playwright test --config=playwright.production.config.js"
+    "test:production": "playwright test --config=playwright.production.config.js",
+    "automation:status": "node scripts/automation-status.mjs"
   },
   "dependencies": {
     "lucide-react": "^1.39.0",

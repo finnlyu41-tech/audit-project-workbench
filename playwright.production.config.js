@@ -3,6 +3,8 @@ import base from './playwright.config.js';
 // Run existing functional checks against emitted files, not Vite's development server.
 export default {
   ...base,
+  reporter: process.env.CI ? [['line'], ['html', {open:'never',outputFolder:'playwright-report/production'}],
+    ['json', {outputFile:'playwright-results/production.json'}]] : base.reporter,
   use: { ...base.use, baseURL: 'http://127.0.0.1:4185/audit-project-workbench/' },
   webServer: {
     command: 'pnpm preview --host 127.0.0.1 --port 4185 --strictPort',

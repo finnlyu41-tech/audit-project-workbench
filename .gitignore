@@ -15,3 +15,5 @@ playwright-report/
 test-results/
 
 test-results-production/
+
+playwright-results/

@@ -7,7 +7,7 @@ export default defineConfig({
   retries: 0,
   workers: process.env.CI ? 2 : undefined,
   reporter: process.env.CI
-    ? [["line"], ["html", { open: "never", outputFolder: "playwright-report" }]]
+    ? [["line"], ["html", { open: "never", outputFolder: "playwright-report/dev" }], ["json", { outputFile: "playwright-results/dev.json" }]]
     : [["list"], ["html", { open: "never", outputFolder: "playwright-report" }]],
   use: {
     baseURL: "http://127.0.0.1:4173/audit-project-workbench/",
@@ -19,7 +19,7 @@ export default defineConfig({
   },
   expect: { timeout: 8_000 },
   webServer: {
-    command: "pnpm dev --host 127.0.0.1 --port 4173",
+    command: "pnpm dev --host 127.0.0.1 --port 4173 --strictPort",
     url: "http://127.0.0.1:4173/audit-project-workbench/",
     reuseExistingServer: !process.env.CI,
     timeout: 120_000,
