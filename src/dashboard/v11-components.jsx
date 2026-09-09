@@ -36,6 +36,12 @@ const FRAMEWORKS = [
   "HKFRS for Private Entities",
 ];
 
+function frameworkOptions(store) {
+  const custom = [...new Set((store?.engagements || []).map((engagement) => String(engagement.reportingFramework || "").trim())
+    .filter((framework) => framework && !FRAMEWORKS.includes(framework)))].sort((a, b) => a.localeCompare(b));
+  return [...FRAMEWORKS, ...custom];
+}
+
 const ENGAGEMENT_TYPES = [
   "Audit",
   "Bookkeeping",
@@ -234,6 +240,7 @@ export function EngagementForm({ store, entity, initial = null, preferredSourceI
   onCreateAnotherYear = null, onSubmit, onClose, templateStarter = null, proposedReportingPeriods = null, onOpenExisting = null }) {
   const { language, t } = useUiLanguage();
   const existing = engagementsForEntity(store, entity.id);
+  const frameworks = frameworkOptions(store);
   const firstInitialPeriod = engagementReportingPeriods(initial)[0] || initial || {};
   const suggestedYear = initial ? Number(firstInitialPeriod.periodStart?.slice(0, 4)) || new Date().getFullYear()
     : suggestNextFiscalYear(entity, store.engagements) || new Date().getFullYear();
@@ -443,7 +450,7 @@ export function EngagementForm({ store, entity, initial = null, preferredSourceI
         <span><small>{t("年度项目")}</small><strong>{entity.legalName} · {yearEndOrPeriodLabel(initial, language)}</strong></span></div>
       <label><span>{t(label)}</span>{quickField === "framework" ? <><input autoFocus list="v11-quick-framework-options"
         value={values[field]} onChange={update(field)} placeholder={t("选择常用框架或直接输入")} />
-        <datalist id="v11-quick-framework-options">{FRAMEWORKS.map((framework) => <option key={framework} value={framework} />)}</datalist></>
+        <datalist id="v11-quick-framework-options">{frameworks.map((framework) => <option key={framework} value={framework} />)}</datalist></>
         : <OwnerInput store={store} autoFocus value={values[field]} onChange={update(field)} placeholder={t("例如：项目经理或主审")} />}</label>
       {error && <div className="form-error" role="alert"><CircleAlert aria-hidden="true" />{error}</div>}
       <footer className="modal-actions"><button type="button" className="button secondary" onClick={closeEditor}>{t("取消")}</button>
@@ -538,7 +545,7 @@ export function EngagementForm({ store, entity, initial = null, preferredSourceI
       defaultOpen={Boolean(initial?.reportingFramework) || entity.kind === "holding_company"}>
       <label><span>{t("财务报告准则／框架")}</span><input list="v11-framework-options" value={values.reportingFramework}
         onChange={update("reportingFramework")} placeholder={t("选择常用框架或直接输入")} />
-        <datalist id="v11-framework-options">{FRAMEWORKS.map((framework) => <option key={framework} value={framework} />)}</datalist></label>
+        <datalist id="v11-framework-options">{frameworks.map((framework) => <option key={framework} value={framework} />)}</datalist></label>
     {entity.kind === "holding_company" && values.consolidationEnabled && <label><span>{t("合并模式")}</span>
       <select value={values.consolidationMode} onChange={update("consolidationMode")}>
         <option value="full">{t("完整模式")}</option><option value="simple">{t("简易模式")}</option></select>
