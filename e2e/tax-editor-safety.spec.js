@@ -18,6 +18,18 @@ async function openTax(page, { edit = true } = {}) {
   return dialog;
 }
 
+test("tax owner field reuses existing owner suggestions without restricting new names", async ({ page }) => {
+  const dialog = await openTax(page); const before = await readStoredWorkspace(page);
+  const owner = dialog.getByLabel("Owner", { exact: true });
+  const listId = await owner.getAttribute("list"); expect(listId).toBeTruthy();
+  const options = await dialog.locator(`datalist[id="${listId}"] option`).evaluateAll(rows => rows.map(row => row.value));
+  expect(options).toContain("Alex Chan");
+  await owner.fill("Jamie Lee");
+  await dialog.getByRole("button", { name: "Save deadline", exact: true }).click();
+  const after = await readStoredWorkspace(page);
+  expect(after.entities[0].taxDeadlines[0].owner).toBe("Jamie Lee");
+  expect(after.engagements).toEqual(before.engagements);
+});
 test("tax draft cannot be lost by closing its outer window", async ({ page }) => {
   const dialog = await openTax(page); const before = await readStoredWorkspace(page);
   await dialog.getByLabel("Owner", { exact: true }).fill("Unsaved owner");

@@ -1,5 +1,6 @@
 import React from "react";
 import { useModalDraft } from "./modal-draft.jsx";
+import { OwnerInput } from "./efficiency-controls.jsx";
 import { RequiredTextInput } from "./required-text-input.jsx";
 import { Ban, Check, ExternalLink, History, Pencil, Plus, ReceiptText, Trash2 } from "lucide-react";
 import { TAX_DEADLINE_CATEGORIES, TAX_DEADLINE_STATES, collectGroupTaxDeadlineEntries, formatDate,
@@ -52,7 +53,7 @@ export function TaxDeadlineSummaryButton({ deadlines = [], now = new Date(), onC
   </button>;
 }
 
-function TaxDeadlineForm({ initial: initialValue, engagements = [], initialEngagementId = "", onSubmit, onDelete, onCancel }) {
+function TaxDeadlineForm({ store, initial: initialValue, engagements = [], initialEngagementId = "", onSubmit, onDelete, onCancel }) {
   const { language, t } = useUiLanguage();
   const initial = React.useRef(initialValue).current;
   const [saveError, setSaveError] = React.useState("");
@@ -108,7 +109,7 @@ function TaxDeadlineForm({ initial: initialValue, engagements = [], initialEngag
       <label><span>{t("课税年度")}</span><input value={values.taxYear} onChange={update("taxYear")}
         placeholder={t("例如：2025/26")} /></label>
       <label><span>{t("当前期限 *")}</span><input required type="date" min="0001-01-01" max="9999-12-31" value={values.dueDate} onChange={update("dueDate")} /></label>
-      <label><span>{t("负责人")}</span><input value={values.owner} onChange={update("owner")} /></label>
+      <label><span>{t("负责人")}</span><OwnerInput store={store} value={values.owner} onChange={update("owner")} /></label>
       <label><span>{t("提前提醒天数")}</span><input type="number" min="0" max="365" step="1"
         value={values.reminderDays} onChange={update("reminderDays")} /></label>
       <label><span>{t("状态")}</span><select value={values.state} onChange={update("state")}>
@@ -221,7 +222,7 @@ export function TaxDeadlineManager({ store, targetKind, targetId, focusDeadlineI
 
   if (!target) return null;
   if (editing) return <TaxDeadlineForm key={`${editing.sourceType}-${editing.sourceId}-${editing.deadlineId || "new"}`}
-    initial={activeEdit} engagements={engagements} initialEngagementId={initialEngagementId} onCancel={() => finishEditing(editing.deadlineId)}
+    store={store} initial={activeEdit} engagements={engagements} initialEngagementId={initialEngagementId} onCancel={() => finishEditing(editing.deadlineId)}
     onSubmit={(values, reason, baseline) => {
       const result = onSave(editing.sourceType, editing.sourceId, baseline || (editing.deadlineId ? { id: editing.deadlineId } : null), values, reason);
       if (!result?.error) finishEditing(result?.deadline?.id || baseline?.id, true);
