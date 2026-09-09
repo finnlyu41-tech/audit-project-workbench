@@ -14,8 +14,16 @@ const describe = run => run ? { id: run.id, sha: run.head_sha, status: run.statu
 
 // This classifier never writes, merges, retries, creates tasks or assumes a
 // previous commit's passing check applies to the current commit.
+export function pagesDeploymentVerified(jobs, sha) {
+  if (!/^[0-9a-f]{40}$/.test(sha || '') || !Array.isArray(jobs)) return false;
+  return jobs.some(job => job?.name === 'deploy' && job.head_sha === sha
+    && job.status === 'completed' && job.conclusion === 'success'
+    && Array.isArray(job.steps) && job.steps.some(step => step?.name === 'Verify deployed commit and core assets'
+      && step.status === 'completed' && step.conclusion === 'success'));
+}
+
 export function decideAutomationAction(snapshot) {
-  const { mainSha, pulls = [], runs = [], liveSha = null } = snapshot;
+  const { mainSha, pulls = [], runs = [], liveSha = null, liveCheck = 'not-needed', deploymentVerified = false } = snapshot;
   if (!/^[0-9a-f]{40}$/.test(mainSha || '')) throw new Error('Missing or invalid main SHA');
   const state = { repository: REPOSITORY, main_sha: mainSha, open_prs: pulls.map(pr => pr.number) };
   if (pulls.length > 1) return { ...state, action: 'CONSOLIDATE_OPEN_PRS', reason: 'Review overlapping work before starting another branch.' };
@@ -35,10 +43,14 @@ export function decideAutomationAction(snapshot) {
     return { ...detail, action: 'DIAGNOSE_RELEASE_FAILURE', reason: 'The exact main commit has a failed or cancelled release gate.' };
   if (!ci || !pages || !completed(ci) || !completed(pages))
     return { ...detail, action: 'WAIT_RELEASE', reason: 'Main CI and Pages must both finish for this exact commit.' };
-  if (liveSha !== mainSha) return { ...detail, action: 'VERIFY_DEPLOYMENT', live_sha: liveSha,
-    reason: 'A green deployment is not proof that the public site serves the expected commit.' };
-  return { ...detail, action: 'READY_FOR_SCOPED_WORK', live_sha: liveSha,
+  if (liveSha === mainSha) return { ...detail, action: 'READY_FOR_SCOPED_WORK', live_sha: liveSha,
+    deployment_verified: true, verification_source: 'live_marker',
     reason: 'Current release gates and public commit marker agree. Report no-change runs too; a new change is not mandatory.' };
+  if (liveSha === null && liveCheck === 'unavailable' && deploymentVerified) return { ...detail, action: 'READY_FOR_SCOPED_WORK', live_sha: null,
+    deployment_verified: true, verification_source: 'pages_post_deploy',
+    reason: 'The exact main Pages run completed its public commit-and-asset verification; the local live-marker fetch was unavailable.' };
+  return { ...detail, action: 'VERIFY_DEPLOYMENT', live_sha: liveSha, deployment_verified: false,
+    reason: 'A green deployment alone is not proof that the public site serves the expected commit.' };
 }
 
 function github(endpoint) {
@@ -64,7 +76,7 @@ export async function collectAutomationStatus() {
     if (data.total_count > 100) throw new Error('Workflow history exceeds this bounded read; manual inspection required');
     return data.workflow_runs;
   });
-  let liveSha = null, liveCheck = 'not-needed';
+  let liveSha = null, liveCheck = 'not-needed', deploymentVerified = false;
   if (!pulls.length) {
     try {
       const response = await fetch(`${LIVE_URL}apw-build-sha.txt?verify=${mainSha}`, {
@@ -74,8 +86,19 @@ export async function collectAutomationStatus() {
       liveCheck = `HTTP ${response.status}`;
     } catch { liveCheck = 'unavailable'; }
   }
+  if (!pulls.length && liveSha === null) {
+    const pages = latest(runs, mainSha, PAGES);
+    if (pages && completed(pages) && pages.conclusion === 'success') {
+      try {
+        const jobs = github(`repos/${REPOSITORY}/actions/runs/${pages.id}/jobs?per_page=100`);
+        if (jobs.total_count > 100) throw new Error('Pages job history exceeds this bounded read; manual inspection required');
+        deploymentVerified = pagesDeploymentVerified(jobs.jobs, mainSha);
+      } catch { deploymentVerified = false; }
+    }
+  }
   return { checked_at: new Date().toISOString(), scheduler_inspected: false, live_check: liveCheck,
-    ...decideAutomationAction({ mainSha, pulls, runs, liveSha }) };
+    ...decideAutomationAction({ mainSha, pulls, runs, liveSha, liveCheck, deploymentVerified }) };
+
 }
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
   try { console.log(JSON.stringify(await collectAutomationStatus(), null, 2)); }
