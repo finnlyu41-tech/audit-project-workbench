@@ -8,6 +8,7 @@ Run `pnpm check` before publishing. The command must complete the unit tests, fu
 - All Playwright tests pass without retries locally.
 - No serious or critical axe violations are reported on the company, holding-company, template, report, settings or tax-deadline surfaces.
 - A production build is created only after both test suites pass.
+- GitHub Pages must publish `apw-build-sha.txt`, then the post-deploy smoke step must confirm it equals the workflow commit and that the deployed index plus referenced JS/CSS assets are reachable.
 
 ## Desktop smoke test
 
