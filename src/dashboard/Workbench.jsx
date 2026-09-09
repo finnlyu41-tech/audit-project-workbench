@@ -835,7 +835,8 @@ function DashboardWorkbench({ initialSnapshot }) {
   };
   const revealSavedOutstanding = (sourceId, itemId) => {
     setOutstandingCollapsed(false); setCompactOutstandingOpen(true);
-    setOutstandingReveal({ targetId: selectedGroupSource?.id || selectedProjectSource?.id || sourceId,
+    // Reveal in the list being used (including company/portfolio), not the source annual view.
+    setOutstandingReveal({ targetId: outstandingTarget.id,
       sourceId, itemId, sequence: ++revealSequence.current });
   };
   const closeOutstandingEditor = () => {

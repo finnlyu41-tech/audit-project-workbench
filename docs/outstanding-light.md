@@ -10,6 +10,8 @@ The sidebar is a list first. It does not introduce another editor, client direct
 - Each item shows its full title, module, a note indicator where applicable and one readable status chip. The chip is a native select with a fully wrapped visible label; no binary completion shortcut or status definition changes.
 - Expand a title for its full note, source link and Edit. Delete is inside item More and still requires confirmation. Only one item detail is open at a time. All controls work without hover.
 - Ordinary projects show company/period context once. Holding lists are grouped by source type and annual ID, not display names or item IDs. Each source header contains its company and full periods.
+- Saving from Home, the company overview, schedule or report outstanding list keeps that view open and reveals the exact saved source item, even after renaming it or changing its open/cleared status.
+- 从首页、公司总览、排期或报告旁的待清中心保存后，保留当前视图并定位刚保存的原事项；改标题或改为已清也不会被旧筛选隐藏，不必重新找公司和年度。
 - Saving or opening an item from reports/other views resets obstructing filters, expands the item and focuses it. Cancelling an edit keeps the existing draft protection and return focus. Closing/deleting an item retains a usable adjacent control or filter trigger.
 
 ## Boundaries / 边界

@@ -165,3 +165,112 @@ for (const [width, height] of [[800, 560], [1024, 900], [1440, 900], [1920, 900]
     expect(seriousViolations(await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa"]).analyze())).toEqual([]);
   });
 }
+
+// Aggregate lists must reveal a saved source item in the current list, not a hidden annual view.
+const aggregateViews = { workspace: 'Home', schedule: 'Project schedule', report: 'Management reports' };
+async function openAggregateCenter(page, scope) {
+  // Leave a real annual selection behind before entering an aggregate view.
+  await openCenter(page);
+  if (scope === 'entity') {
+    await page.getByRole('button', { name: 'Quick open', exact: true }).click();
+    const picker = page.getByRole('dialog', { name: 'Quick open' });
+    await picker.getByRole('combobox').fill('Overview Example');
+    await picker.getByRole('option').filter({ hasText: 'Company master' }).click();
+    await expect(page.locator('.entity-overview')).toBeVisible();
+  } else {
+    await page.locator('.app-rail').getByRole('button', { name: aggregateViews[scope], exact: true }).click();
+  }
+  await openOutstandingFilters(page);
+}
+async function assertOnlyOutstandingEdit(page, before, fields) {
+  await expect.poll(async () => {
+    const saved = (await readStoredWorkspace(page)).engagements.find(e => e.id === 'overview-combined').outstandingItems[0];
+    return Object.fromEntries(Object.keys(fields).map(key => [key, saved[key]]));
+  }).toEqual(fields);
+  const after = await readStoredWorkspace(page);
+  const edited = after.engagements.find(e => e.id === 'overview-combined');
+  const saved = edited.outstandingItems[0];
+  expect(Number.isFinite(Date.parse(saved.updatedAt))).toBe(true);
+  expect(Number.isFinite(Date.parse(edited.updatedAt))).toBe(true);
+  const expected = structuredClone(before);
+  const expectedEngagement = expected.engagements.find(e => e.id === edited.id);
+  expectedEngagement.updatedAt = edited.updatedAt;
+  Object.assign(expectedEngagement.outstandingItems[0], fields, { updatedAt: saved.updatedAt });
+  // Includes other years, masters, workflow completion, tax, group snapshots and shared item IDs.
+  expect(after).toEqual(expected);
+  return after;
+}
+for (const scope of ['workspace', 'entity', 'schedule', 'report']) {
+  for (const status of ['long-review', 'resolved']) {
+    test(`aggregate save keeps the edited item visible in the ${scope} list with ${status} status`, async ({ page }, testInfo) => {
+      await openAggregateCenter(page, scope);
+      const before = await readStoredWorkspace(page);
+      const search = center(page).getByRole('searchbox');
+      await search.fill('signed alex');
+      await center(page).getByRole('combobox', { name: 'Filter by outstanding status' }).selectOption('long-review');
+      const original = center(page).locator('.outstanding-item');
+      await expect(original).toHaveCount(1); await expandOutstandingItem(original);
+      await original.getByRole('button', { name: 'Edit', exact: true }).click();
+      const dialog = page.getByRole('dialog', { name: 'Edit outstanding item' });
+      const fields = { title: 'Confirmation reviewed in aggregate view', status };
+      await dialog.getByLabel('Outstanding item *').fill(fields.title);
+      await dialog.getByRole('combobox', { name: 'Outstanding status', exact: true }).selectOption(status);
+      await dialog.getByRole('button', { name: 'Save outstanding item' }).click();
+      const after = await assertOnlyOutstandingEdit(page, before, fields);
+      await expect(search).toHaveValue('');
+      await expect(center(page).getByRole('combobox', { name: 'Filter by outstanding status' })).toHaveValue('all');
+      await expect(center(page).locator('.outstanding-visibility-tabs button').nth(status === 'resolved' ? 1 : 0))
+        .toHaveAttribute('aria-pressed', 'true');
+      const revealed = center(page).locator('.outstanding-item[data-revealed="true"]');
+      await expect(revealed).toHaveCount(1); await expect(revealed).toContainText(fields.title);
+      await expect(revealed).toBeFocused(); await expect(revealed).toBeInViewport();
+      await expect(center(page).locator('[data-source-id="overview-combined"] .outstanding-item[data-revealed="true"]')).toHaveCount(1);
+      if (scope === 'entity') await expect(page.locator('.entity-overview')).toBeVisible();
+      else await expect(page.locator('.app-rail').getByRole('button', { name: aggregateViews[scope], exact: true })).toHaveAttribute('data-active', 'true');
+      await page.screenshot({ path: testInfo.outputPath(`${scope}-${status}-saved.png`) });
+      await page.reload();
+      await expect(page.locator('.audit-workbench')).toBeVisible();
+      expect(await readStoredWorkspace(page)).toEqual(after);
+    });
+  }
+}
+for (const scope of ['workspace', 'entity']) {
+  test(`aggregate cancel preserves filters, focus and all records in the ${scope} list`, async ({ page }) => {
+    await openAggregateCenter(page, scope); const before = await readStoredWorkspace(page);
+    const search = center(page).getByRole('searchbox'); await search.fill('signed alex');
+    const row = center(page).locator('.outstanding-item'); await expandOutstandingItem(row);
+    const trigger = row.getByRole('button', { name: 'Edit', exact: true }); await trigger.click();
+    const dialog = page.getByRole('dialog', { name: 'Edit outstanding item' });
+    await dialog.getByLabel('Outstanding item *').fill('Unsaved aggregate draft');
+    page.once('dialog', prompt => prompt.dismiss());
+    await dialog.getByRole('button', { name: 'Cancel', exact: true }).click();
+    await expect(dialog.getByLabel('Outstanding item *')).toHaveValue('Unsaved aggregate draft');
+    page.once('dialog', prompt => prompt.accept());
+    await dialog.getByRole('button', { name: 'Cancel', exact: true }).click();
+    await expect(search).toHaveValue('signed alex'); await expect(trigger).toBeFocused();
+    expect(await readStoredWorkspace(page)).toEqual(before);
+  });
+  for (const [language, languageIndex, saveLabel] of [['en', 2, 'Save outstanding item'], ['zh-Hans', 0, '保存待清事项'], ['zh-Hant', 1, '儲存待清事項']]) {
+    test(`aggregate saved-item reveal fits 480px in ${language} on the ${scope} list`, async ({ page }, testInfo) => {
+      await openAggregateCenter(page, scope);
+      await page.locator('.language-summary').click();
+      await page.locator('.language-menu button').nth(languageIndex).click();
+      await page.setViewportSize({ width: 480, height: 640 }); await openOutstandingFilters(page);
+      const before = await readStoredWorkspace(page);
+      await center(page).getByRole('searchbox').fill('signed alex');
+      const row = center(page).locator('.outstanding-item'); await expect(row).toHaveCount(1);
+      await expandOutstandingItem(row); await row.locator('.outstanding-item-actions > button').first().click();
+      const dialog = page.locator('.workbench-modal');
+      const title = 'Reviewed confirmation — 已核对';
+      await dialog.locator('input[required]').fill(title);
+      await dialog.getByRole('button', { name: saveLabel, exact: true }).click();
+      await assertOnlyOutstandingEdit(page, before, { title });
+      const revealed = center(page).locator('.outstanding-item[data-revealed="true"]');
+      await expect(revealed).toHaveCount(1); await expect(revealed).toBeFocused(); await expect(revealed).toBeInViewport();
+      await expect(revealed).toContainText(title);
+      expect(await revealed.evaluate(el => el.scrollWidth <= el.clientWidth + 1)).toBe(true);
+      expect(seriousViolations(await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa']).analyze())).toEqual([]);
+      await page.screenshot({ path: testInfo.outputPath(`${scope}-${language}-480-saved.png`) });
+    });
+  }
+}
