@@ -1,6 +1,6 @@
 import { expect, test } from '@playwright/test';
 import AxeBuilder from '@axe-core/playwright';
-import { openWorkbench, readStoredWorkspace, seriousViolations, workspaceFixture } from './helpers.js';
+import { hierarchyFixture, openWorkbench, readStoredWorkspace, seriousViolations, workspaceFixture } from './helpers.js';
 async function openCompany(page, batch = false) {
   await openWorkbench(page, workspaceFixture());
   await page.getByRole('button', { name: 'New company', exact: true }).click();
@@ -17,6 +17,25 @@ test('space-only legal names show a linked error without changing the workspace'
   await expect(dialog.locator('.field-validation')).toBeVisible(); await expect(name).toBeFocused();
   expect(await readStoredWorkspace(page)).toEqual(before);
 });
+test('relationship roles suggest saved and current batch values without restricting input', async ({ page }) => {
+  await openWorkbench(page, hierarchyFixture());
+  await page.getByRole('button', { name: 'New company', exact: true }).click();
+  const dialog = page.getByRole('dialog', { name: 'New company', exact: true });
+  await dialog.getByRole('button', { name: 'Holding company batch' }).click();
+  const roleOptions = dialog.locator('#v11-relationship-role-options option');
+  expect(await roleOptions.evaluateAll((options) => options.map((option) => option.value))).toEqual(
+    expect.arrayContaining(['Intermediate holding company', 'Subsidiary']));
+  const first = dialog.getByRole('group', { name: 'Member company 1', exact: true });
+  const firstRole = first.getByLabel('Ownership role');
+  await expect(firstRole).toHaveAttribute('list', 'v11-relationship-role-options');
+  await firstRole.fill('Regional service company');
+  await dialog.getByRole('button', { name: 'Add company', exact: true }).click();
+  expect(await roleOptions.evaluateAll((options) => options.map((option) => option.value))).toContain('Regional service company');
+  const secondRole = dialog.getByRole('group', { name: 'Member company 2', exact: true }).getByLabel('Ownership role');
+  await secondRole.fill('Associate');
+  await expect(secondRole).toHaveValue('Associate');
+});
+
 test('a later batch row with metadata but no company name is not silently discarded', async ({ page }) => {
   const dialog = await openCompany(page, true); const before = await readStoredWorkspace(page);
   await dialog.getByLabel('Legal entity *', { exact: true }).fill('Fictional Entry Holdings');

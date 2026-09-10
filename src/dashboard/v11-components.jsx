@@ -132,6 +132,10 @@ export function CompanyForm({ store, initial = null, onSubmit, onClose, creation
   const children = initial ? store.entities.filter((entity) => entity.parentEntityId === initial.id) : [];
   const parentOptions = store.entities.filter((entity) => entity.kind === "holding_company" && !entity.archived
     && entity.id !== initial?.id);
+  const relationshipRoleOptions = [...new Set([
+    ...store.entities.map((entity) => entity.relationshipRole), values.relationshipRole,
+    ...batchCompanies.map((company) => company.relationshipRole),
+  ].map((value) => String(value || "").trim()).filter(Boolean))].sort((left, right) => left.localeCompare(right));
   return <form data-editor-guard className="workbench-form company-master-form" onSubmit={(event) => {
     event.preventDefault();
     if (initial && JSON.stringify(store.entities.find(e => e.id === initial.id)) !== companyBaseline.current) {
@@ -175,13 +179,14 @@ export function CompanyForm({ store, initial = null, onSubmit, onClose, creation
     <details className="efficiency-compact"><summary>{t('搜索简称／别名')}</summary>
       <label><span>{t('搜索别名（每行一个，可选）')}</span><textarea rows="2" maxLength="1000" value={values.aliasesText}
         onChange={update('aliasesText')} /></label><small>{t('仅辅助查找；报告和客户草稿仍使用完整法律名称。')}</small></details>
+    <datalist id="v11-relationship-role-options">{relationshipRoleOptions.map((role) => <option key={role} value={role} />)}</datalist>
     <AdvancedSection key={creationMode} title={t("公司关系与备注")} hint={t("高级设置，不影响先建立公司。")}
       defaultOpen={Boolean(initial) || creationMode === "group"}>
       <div className="form-grid"><label className="span-two"><span>{t("所属控股公司")}</span><select value={values.parentEntityId} onChange={updateParent}>
         <option value="">{t("独立主体（不属于控股公司）")}</option>
         {parentOptions.map((entity) => <option key={entity.id} value={entity.id}>{entity.legalName}</option>)}</select></label>
       {values.parentEntityId && <label className="span-two"><span>{t("控股公司归属角色")}</span>
-        <input value={values.relationshipRole} onChange={update("relationshipRole")}
+        <input list="v11-relationship-role-options" value={values.relationshipRole} onChange={update("relationshipRole")}
           placeholder={t("例如：子公司、联营公司或中间控股公司")} /></label>}</div>
     {!creationKind && (!initial || creationMode === "single") && creationMode !== "group" && <label className="check-option company-holding-toggle"><input type="checkbox" role="switch"
       checked={values.kind === "holding_company"} onChange={(event) => setValues((current) => ({ ...current,
@@ -205,7 +210,7 @@ export function CompanyForm({ store, initial = null, onSubmit, onClose, creation
         <label><span>{t("默认会计年度")}</span><select value={company.fiscalYearPreset}
           onChange={updateBatchCompany(company.id, "fiscalYearPreset")}>
           {["calendar", "apr_mar", "custom"].map((preset) => <option value={preset} key={preset}>{presetLabel(preset, t)}</option>)}</select></label>
-        <label><span>{t("集团角色")}</span><input value={company.relationshipRole}
+        <label><span>{t("集团角色")}</span><input list="v11-relationship-role-options" value={company.relationshipRole}
           onChange={updateBatchCompany(company.id, "relationshipRole")} placeholder={t("例如：子公司或联营公司")} /></label>
       </article>)}</div>
     </section>}
