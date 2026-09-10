@@ -35,6 +35,25 @@ test('relationship roles suggest saved and current batch values without restrict
   await secondRole.fill('Associate');
   await expect(secondRole).toHaveValue('Associate');
 });
+test('entity types suggest saved and current batch values without restricting input', async ({ page }) => {
+  const store = workspaceFixture();
+  store.projects[0].entityType = 'Private company limited by shares';
+  await openWorkbench(page, store);
+  await page.getByRole('button', { name: 'New company', exact: true }).click();
+  const dialog = page.getByRole('dialog', { name: 'New company', exact: true });
+  const typeOptions = dialog.locator('#v11-entity-type-options option');
+  expect(await typeOptions.evaluateAll((options) => options.map((option) => option.value))).toContain(
+    'Private company limited by shares');
+  await dialog.getByRole('button', { name: 'Holding company batch' }).click();
+  const firstType = dialog.getByRole('group', { name: 'Member company 1', exact: true }).getByLabel('Entity type (optional)');
+  await firstType.fill('Charitable company limited by guarantee');
+  await dialog.getByRole('button', { name: 'Add company', exact: true }).click();
+  expect(await typeOptions.evaluateAll((options) => options.map((option) => option.value))).toContain(
+    'Charitable company limited by guarantee');
+  const secondType = dialog.getByRole('group', { name: 'Member company 2', exact: true }).getByLabel('Entity type (optional)');
+  await secondType.fill('Branch office');
+  await expect(secondType).toHaveValue('Branch office');
+});
 
 test('a later batch row with metadata but no company name is not silently discarded', async ({ page }) => {
   const dialog = await openCompany(page, true); const before = await readStoredWorkspace(page);
