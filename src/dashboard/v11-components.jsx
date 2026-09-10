@@ -136,6 +136,11 @@ export function CompanyForm({ store, initial = null, onSubmit, onClose, creation
     ...store.entities.map((entity) => entity.relationshipRole), values.relationshipRole,
     ...batchCompanies.map((company) => company.relationshipRole),
   ].map((value) => String(value || "").trim()).filter(Boolean))].sort((left, right) => left.localeCompare(right));
+  const entityTypeOptions = [...new Set([
+    ...["有限公司", "个人独资", "合伙企业", "个人"].map((type) => t(type)),
+    ...store.entities.map((entity) => entity.entityType), values.entityType,
+    ...batchCompanies.map((company) => company.entityType),
+  ].map((value) => String(value || "").trim()).filter(Boolean))].sort((left, right) => left.localeCompare(right));
   return <form data-editor-guard className="workbench-form company-master-form" onSubmit={(event) => {
     event.preventDefault();
     if (initial && JSON.stringify(store.entities.find(e => e.id === initial.id)) !== companyBaseline.current) {
@@ -164,8 +169,8 @@ export function CompanyForm({ store, initial = null, onSubmit, onClose, creation
         placeholder={t(creationMode === "group" && !initial ? "集团完整名称" : "公司完整名称")} /></label>
       <label><span>{t("主体类型（可选）")}</span><input list="v11-entity-type-options" value={values.entityType}
         onChange={update("entityType")} placeholder={t("例如：有限公司、个人独资、合伙企业或直接输入")} />
-        <datalist id="v11-entity-type-options">{["有限公司", "个人独资", "合伙企业", "个人"].map((type) =>
-          <option key={type} value={t(type)} />)}</datalist></label>
+        <datalist id="v11-entity-type-options">{entityTypeOptions.map((type) =>
+          <option key={type} value={type} />)}</datalist></label>
       <label><span>{t("默认会计年度")}</span><select value={values.fiscalYearPreset} onChange={update("fiscalYearPreset")}>
         {["calendar", "apr_mar", "custom"].map((preset) => <option value={preset} key={preset}>{presetLabel(preset, t)}</option>)}</select></label>
       <label><span>{t("成立／开始日期（DOI，可选）")}</span><input type="date" min="0001-01-01" max="9999-12-31" value={values.incorporationDate}
