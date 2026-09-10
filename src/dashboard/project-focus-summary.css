@@ -1,0 +1,56 @@
+@media screen {
+  .quick-update-panel[data-project-focus] > header h3 {
+    color: var(--secondary);
+    font-size: 13px;
+    font-weight: 650;
+  }
+  .project-focus-summary {
+    order: -1;
+    display: grid;
+    min-width: 0;
+    grid-template-columns: minmax(240px, 1.35fr) minmax(360px, 1fr);
+    gap: 14px;
+    align-items: stretch;
+    padding-bottom: 12px;
+    border-bottom: 1px solid var(--border);
+  }
+  .project-focus-next {
+    display: flex;
+    min-width: 0;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 10px 12px;
+    border: 1px solid var(--border);
+    border-radius: 9px;
+    background: var(--surface-raised);
+    color: var(--text);
+    text-align: left;
+  }
+  button.project-focus-next { cursor: pointer; }
+  button.project-focus-next:hover { background: var(--control-hover); }
+  button.project-focus-next:focus-visible { outline: 2px solid var(--wb-accent); outline-offset: 2px; }
+  .project-focus-next > span { display: grid; min-width: 0; gap: 3px; }
+  .project-focus-next small, .project-focus-facts dt { color: var(--secondary); font-size: 11px; line-height: 1.3; }
+  .project-focus-next strong { overflow-wrap: anywhere; font-size: 15px; line-height: 1.35; }
+  .project-focus-next > svg { width: 18px; height: 18px; flex: 0 0 18px; color: var(--wb-accent-dark); }
+  .project-focus-facts {
+    display: grid;
+    min-width: 0;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 0;
+    margin: 0;
+    align-items: center;
+  }
+  .project-focus-facts > div { min-width: 0; padding: 4px 10px; }
+  .project-focus-facts > div + div { border-left: 1px solid var(--border); }
+  .project-focus-facts dd { margin: 3px 0 0; overflow-wrap: anywhere; font-size: 13px; line-height: 1.4; }
+  @container workspace (max-width: 760px) {
+    .project-focus-summary { grid-template-columns: minmax(0, 1fr); gap: 10px; }
+  }
+  @container workspace (max-width: 460px) {
+    .project-focus-facts { grid-template-columns: minmax(0, 1fr); gap: 7px; }
+    .project-focus-facts > div { padding: 3px 0; }
+    .project-focus-facts > div + div { border-left: 0; }
+  }
+}
