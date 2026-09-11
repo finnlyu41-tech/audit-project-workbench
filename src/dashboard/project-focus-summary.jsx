@@ -15,7 +15,7 @@ export function ProjectFocusSummary({ engagement, store, next, onContinue, readO
   const nextContent = <span><small>{t("下一步")}</small><strong>{nextLabel}</strong></span>;
 
   return <div className="project-focus-summary" data-testid="project-focus-summary">
-    {canContinue ? <button type="button" className="project-focus-next" onClick={() => onContinue(next)}>
+    {canContinue ? <button type="button" className="project-focus-next next-action-link" onClick={() => onContinue(next)}>
       {nextContent}<ArrowRight aria-hidden="true" />
     </button> : <div className="project-focus-next" data-readonly="true">{nextContent}</div>}
     <dl className="project-focus-facts">

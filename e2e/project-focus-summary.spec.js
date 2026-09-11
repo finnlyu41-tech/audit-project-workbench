@@ -3,7 +3,7 @@ import AxeBuilder from "@axe-core/playwright";
 import { openWorkbench, readStoredWorkspace, seriousViolations, workspaceFixture } from "./helpers.js";
 
 const panel = (page) => page.getByRole("region", { name: "Quick update" });
-const summary = (page) => panel(page).getByTestId("project-focus-summary");
+const summary = (page) => page.getByTestId("project-focus-summary");
 
 test("project workspace leads with next action, deadline and separate work-state counts", async ({ page }) => {
   const store = workspaceFixture();
