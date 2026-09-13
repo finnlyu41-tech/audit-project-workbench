@@ -58,7 +58,8 @@ export function FollowUpComposer({ store, targetKind, targetId, onOpenItem, onCl
         const parts = mode === 'copy' ? ['subject', 'body'] : [...new Set([...copiedParts, mode])]; setCopiedParts(parts);
         if (parts.includes('subject') && parts.includes('body')) setDraft(previous => previous?.text === text ? { ...previous, exported: text } : previous);
       }
-      setMessage(t(isCopy ? "草稿已复制，尚未发送。" : "已请求下载草稿，请确认文件已保存；尚未发送。"));
+      const successMessage = mode === 'subject' ? "标题已复制，尚未发送。" : mode === 'body' ? "正文已复制，尚未发送。" : "草稿已复制，尚未发送。";
+      setMessage(t(isCopy ? successMessage : "已请求下载草稿，请确认文件已保存；尚未发送。"));
     } catch {
       setError(t(isCopy ? "无法自动复制。请选取下方文字手动复制，或下载文本草稿。" : "无法下载草稿，请保留此页面并手动复制。"));
       fallbackFocus.current = true;
