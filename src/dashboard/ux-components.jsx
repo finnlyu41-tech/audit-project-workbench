@@ -10,6 +10,7 @@ import { ArrowRight, ChevronDown, Pencil, Save } from "lucide-react";
 import { formatDate } from "./model.js";
 import { useUiLanguage } from "./i18n.jsx";
 import { nextEngagementAction, quickUpdateValues, quickUpdateContext } from "./ux-model.js";
+import { ProjectFocusSummary } from "./project-focus-summary.jsx";
 
 export function AdvancedSection({ title, hint, defaultOpen = false, children }) {
   const [open, setOpen] = React.useState(defaultOpen);
@@ -72,7 +73,7 @@ export function QuickUpdate({ engagement, readOnly = false, drafts, onSave, onCo
     }
     close(); setApplied(true);
   };
-  return <section className="quick-update-panel" data-density="compact" aria-label={t("快速更新")}>
+  return <section className="quick-update-panel" data-density="compact" data-project-focus={!showSummary || undefined} aria-label={t("快速更新")}>
     <header><h3>{t("快速更新")}</h3>
       {!editor && showSummary && <dl className="quick-update-summary">
         <div><dt>{t("负责人")}</dt><dd>{engagement.owner || t("未设置")}</dd></div>
@@ -83,6 +84,8 @@ export function QuickUpdate({ engagement, readOnly = false, drafts, onSave, onCo
         onChange={value => onPriorityChange(engagement.id, value, projectPriority(engagement))} />}
       {!readOnly && !editor && <button type="button" ref={trigger} className="button secondary" onClick={edit}>
         <Pencil aria-hidden="true" />{t("快速编辑")}</button>}</header>
+    {!editor && !showSummary && <ProjectFocusSummary engagement={engagement} store={store} next={next}
+      onContinue={onContinue} readOnly={readOnly} holding={holding} />}
     {!readOnly && recovery.panel}
     {editor && !readOnly ? <form className="quick-update-form" onSubmit={submit}>
       <div className="quick-update-fields">
@@ -110,7 +113,7 @@ export function QuickUpdate({ engagement, readOnly = false, drafts, onSave, onCo
       <RemainingWork record={engagement} onPatch={onPatch} readOnly={readOnly} />
     </details>}
       </div>
-      {!readOnly && next && onContinue && (!holding || engagement.nextAction) && <button type="button" className="next-action-link" onClick={() => onContinue(next)}>
+      {showSummary && !readOnly && next && onContinue && (!holding || engagement.nextAction) && <button type="button" className="next-action-link" onClick={() => onContinue(next)}>
         <span><small>{t("下一步")}</small><strong>{next.item?.title || next.node?.title || t("为业务模块添加节点")}</strong></span>
         <ArrowRight aria-hidden="true" /></button>}
     </>}
