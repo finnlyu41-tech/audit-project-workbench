@@ -1634,7 +1634,7 @@ function ProjectDetail({ project, rawProject, entityArchived = false, statuses, 
           data-tooltip={t("归档项目")} onClick={() => archiveTarget("project", rawProject.id)}><Archive aria-hidden="true" /></button></>}</div>
     </header>
     {quickUpdate}
-    <dl className="detail-facts"><DetailFactAction label={t("负责人")} actionLabel={`${t("编辑项目资料")}：${t("负责人")}`}
+    <dl className="detail-facts"><DetailFactAction className="detail-fact-secondary" label={t("负责人")} actionLabel={`${t("编辑项目资料")}：${t("负责人")}`}
       onClick={!readOnly ? () => setModal({ type: "edit-engagement", targetKind: "project", targetId: rawProject.id, quickField: "owner" }) : null}>
       {project.owner || t("未设置")}</DetailFactAction>
       <DetailFactAction className="date-range-fact" label={t("项目排期")} icon={CalendarRange}
@@ -1643,10 +1643,10 @@ function ProjectDetail({ project, rawProject, entityArchived = false, statuses, 
         <time>{project.startDate ? formatDate(project.startDate, language) : t("未设置开始日")}</time>
         <span aria-hidden="true">→</span><time>{project.dueDate ? formatDate(project.dueDate, language) : t("未设置截止日")}</time>
       </DetailFactAction>
-      <DetailFactAction label={t("财务报告准则／框架")} actionLabel={`${t("编辑项目资料")}：${t("财务报告准则／框架")}`}
+      <DetailFactAction className="detail-fact-secondary" label={t("财务报告准则／框架")} actionLabel={`${t("编辑项目资料")}：${t("财务报告准则／框架")}`}
         onClick={!readOnly ? () => setModal({ type: "edit-engagement", targetKind: "project", targetId: rawProject.id, quickField: "framework" }) : null}>
         {project.reportingFramework ? t(project.reportingFramework) : t("未设置")}</DetailFactAction>
-      <DetailFactAction label={t("所属控股公司")} actionLabel={t("编辑公司主档")}
+      <DetailFactAction className="detail-fact-secondary" label={t("所属控股公司")} actionLabel={t("编辑公司主档")}
         onClick={!readOnly ? () => setModal({ type: "edit-entity", entityId: rawProject.entityId }) : null}>
         {parentMembership?.group.name || t("独立公司")}</DetailFactAction>
       <DetailFactAction label={t("业务模块")}>
