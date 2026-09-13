@@ -327,6 +327,8 @@ const english = {
   "客户跟进草稿": "Client follow-up draft",
   "请选择当前公司及至少一条未清事项。": "Select a current company and at least one open item.",
   "草稿已复制，尚未发送。": "Draft copied. Nothing has been sent.",
+  "标题已复制，尚未发送。": "Subject copied. Nothing has been sent.",
+  "正文已复制，尚未发送。": "Body copied. Nothing has been sent.",
   "已请求下载草稿，请确认文件已保存；尚未发送。": "Draft download requested. Check that the file was saved; nothing has been sent.",
   "无法自动复制。请选取下方文字手动复制，或下载文本草稿。": "Automatic copying failed. Select the text below to copy manually, or download the text draft.",
   "无法下载草稿，请保留此页面并手动复制。": "The draft could not be downloaded. Keep this page open and copy it manually.",

@@ -69,6 +69,21 @@ test('copy failures remain explicit and a successful copy uses only the reviewed
   expect(await page.evaluate(() => window.syntheticCopiedText)).toBe(await body(page).inputValue());
   expect(await readStoredWorkspace(page)).toEqual(before);
 });
+test('separate subject and body copies confirm the exact part copied without sending', async ({ page }) => {
+  const before = await open(page); await generate(page);
+  await dialog(page).getByRole('checkbox', { name: 'I have checked the source and draft content before copying or downloading.' }).check();
+  await page.evaluate(() => Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText: async text => { (window.syntheticCopiedParts ||= []).push(text); } } }));
+  const full = await body(page).inputValue(); const [firstLine, ...rest] = full.split(/\r?\n/);
+  const subject = firstLine.replace(/^(?:Subject\s*[:：]|主题\s*[:：]|主題\s*[:：])\s*/iu, '');
+  const messageBody = rest.join('\n').replace(/^\n+/u, '');
+  await dialog(page).getByRole('button', { name: 'Copy subject' }).click();
+  await expect(dialog(page).getByRole('status')).toHaveText('Subject copied. Nothing has been sent.');
+  await dialog(page).getByRole('button', { name: 'Copy body' }).click();
+  await expect(dialog(page).getByRole('status')).toHaveText('Body copied. Nothing has been sent.');
+  expect(await page.evaluate(() => window.syntheticCopiedParts)).toEqual([subject, messageBody]);
+  expect(await readStoredWorkspace(page)).toEqual(before);
+});
+
 test('changing the source item through the backing UI invalidates an open preview', async ({ page }) => {
   await open(page); await generate(page);
   await dialog(page).getByRole('checkbox', { name: 'I have checked the source and draft content before copying or downloading.' }).check();
