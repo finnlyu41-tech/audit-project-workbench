@@ -4,6 +4,8 @@ import { toTraditional } from "./traditional.js";
 export const LANGUAGE_PREFERENCE_KEY = "audit-progress-workbench:language";
 
 const english = {
+  "显示筛选": "Show filters",
+  "收起筛选": "Hide filters",
   "{done}/{total} 个阶段已完成": "{done}/{total} stages completed",
   "下一阶段：{name}": "Next stage: {name}",
   "所有阶段已完成": "All stages completed",

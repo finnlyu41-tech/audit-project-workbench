@@ -69,6 +69,12 @@ This reference retains the detailed capability list. For operating behavior and 
 - V1–V10 browser data, backups and linked files can migrate to V11 without name-based merging. The first migration retains a downloadable V10 recovery source, while a previewed tool lets the user merge genuine duplicate company masters intentionally.
 - Browser-local autosave by default, with an optional continuously synced `.apw.json` local file, a browser safety copy, explicit save status, permission recovery, two-sided conflict protection, unsynced-leave warnings, JSON backup and protected initialisation.
 
+## Priority-action empty state / 优先事项空状态
+
+When the complete priority-action list is empty and no owner/category filter is active, Home hides the zero-value category row and owner selector behind Show filters. One short empty message replaces the redundant count and instruction. Any priority item or active filter keeps the controls and Clear filters available, even when the filtered result is empty. Owner filtering still applies to the active-project list; saved filters and annual tools remain reachable. The disclosure is temporary view state, not new workspace data.
+
+完整优先事项清单为空且未套用负责人／类别筛选时，首页用「显示筛选」按需展开零值类别与负责人控件，空状态只保留一条简短提示。有优先事项或任何生效筛选时，控件与「清除筛选」保持可见，不能把筛选后无结果当作没有工作。负责人继续筛选进行中项目，常用筛选与年度工具保持可访问；展开状态只留在当前视图，不写入业务资料。
+
 ## Workflow and data boundaries
 
 See [continuous entry and client follow-up](client-follow-up.md), [lightweight outstanding centre](outstanding-light.md), [data and privacy](privacy.md), [window ownership](workspace-window-safety.md), [architecture](architecture.md), and [licensing](licensing.md).

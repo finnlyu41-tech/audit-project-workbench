@@ -14,6 +14,9 @@
   .advanced-section-body { display: grid; min-width: 0; gap: 16px; padding: 16px; }
   .advanced-section-body > label { min-width: 0; }
   .home-action-filters { display: flex; flex-wrap: wrap; align-items: end; gap: 10px; }
+  .home-action-filters[hidden], .home-priority-filters[hidden] { display: none; }
+  .home-empty-filter-toggle { justify-self: start; }
+  .home-priority-panel .home-priority-empty { min-height: 96px; padding: 20px; }
   .home-action-filters label { display: grid; min-width: min(240px, 100%); max-width: 100%; gap: 5px; }
   .home-action-filters select { min-width: 0; width: 100%; min-height: 38px; padding: 7px 32px 7px 10px;
     border: 1px solid var(--border); border-radius: 8px; background: var(--surface-raised); color: var(--text); }
@@ -96,7 +99,7 @@
   }
 }
 @media print {
-  .quick-update-panel, .navigation-recent, .home-action-filters, .home-priority-filters { display: none !important; }
+  .quick-update-panel, .navigation-recent, .home-action-filters, .home-priority-filters, .home-empty-filter-toggle { display: none !important; }
 }
 @media screen {
   .audit-workbench .home-project-row {
