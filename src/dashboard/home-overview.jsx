@@ -36,6 +36,13 @@ export function HomeOverview({ store, now, onOpen, onOpenDeadline, onNewCompany,
   const [priorityFilter, setPriorityFilter] = React.useState("all");
   const [owner, setOwner] = React.useState("");
   const [priorityLimit, setPriorityLimit] = React.useState(5);
+  const [emptyFiltersOpen, setEmptyFiltersOpen] = React.useState(false);
+  const hasPriorities = overview.priorityItems.length > 0;
+  const hasFilter = Boolean(owner || priorityFilter !== "all");
+  const showFilters = hasPriorities || hasFilter || emptyFiltersOpen;
+  const filterId = React.useId();
+  const filterToggleRef = React.useRef(null);
+  const ownerRef = React.useRef(null);
   const dueFollowUps = followUpsDue(store, localIsoDate(now));
   const recent = recentRecordsFor(store, recentVisits);
   const owners = [...new Set([...overview.records.map((record) => record.engagement.owner),
@@ -45,6 +52,10 @@ export function HomeOverview({ store, now, onOpen, onOpenDeadline, onNewCompany,
   const filterLabels = { all: "全部事项", manual: "手工优先", today: "今天到期", overdue: "已逾期", week: "未来 7 天", outstanding: "待清事项", setup: "待完善" };
   const changeFilter = (value) => { setPriorityFilter(value); setPriorityLimit(5); };
   const priorityRef = React.useRef(null);
+  const clearFilters = () => {
+    setOwner(""); changeFilter("all"); setEmptyFiltersOpen(false);
+    window.requestAnimationFrame(() => (filterToggleRef.current || ownerRef.current || priorityRef.current)?.focus());
+  };
   const summary = overview.immediateDeadlineCount
     ? t("先处理 {count} 项今天到期或已经逾期的工作。", { count: overview.immediateDeadlineCount })
     : overview.activeRecords.some(record => ['urgent', 'high'].includes(projectPriority(record.engagement)))
@@ -130,11 +141,16 @@ export function HomeOverview({ store, now, onOpen, onOpenDeadline, onNewCompany,
         <span><strong>{record.entity.legalName}</strong><small>{record.engagement
           ? `${engagementTypesLabel(record.engagement, language)} · ${yearEndOrPeriodLabel(record.engagement, language)}` : t("公司主档")}</small></span>
         <ChevronRight aria-hidden="true" /></button>)}</div></section>}
-    <div className="home-action-filters"><label><span>{t("行动清单负责人")}</span><select value={owner}
+    {!hasPriorities && !hasFilter && <button type="button" className="button secondary home-empty-filter-toggle"
+      ref={filterToggleRef} aria-expanded={showFilters} aria-controls={`${filterId}-owner ${filterId}-priority`}
+      onClick={() => setEmptyFiltersOpen((open) => !open)}><ListFilter aria-hidden="true" />
+      {t(emptyFiltersOpen ? "收起筛选" : "显示筛选")}</button>}
+    <div className="home-action-filters" id={`${filterId}-owner`} hidden={!showFilters}>
+      <label><span>{t("行动清单负责人")}</span><select ref={ownerRef} value={owner}
       onChange={(event) => { setOwner(event.target.value); setPriorityLimit(5); }}>
       <option value="">{t("全部负责人")}</option>{owners.map((name) => <option key={name} value={name}>{name}</option>)}</select></label>
-      {(owner || priorityFilter !== "all") && <button type="button" className="button secondary"
-        onClick={() => { setOwner(""); changeFilter("all"); }}>{t("清除筛选")}</button>}</div>
+      {hasFilter && <button type="button" className="button secondary"
+        onClick={clearFilters}>{t("清除筛选")}</button>}</div>
     <details className="efficiency-compact"><summary>{t('常用筛选与年度工具')}</summary>
       <SavedFilters scope="home" values={{ owner, priorityFilter }}
         validate={v => PRIORITY_FILTERS.includes(v.priorityFilter) && (!v.owner || owners.includes(v.owner))}
@@ -149,8 +165,9 @@ export function HomeOverview({ store, now, onOpen, onOpenDeadline, onNewCompany,
     </details>}
     <div className="home-overview-columns">
       <section className="home-overview-panel home-priority-panel" ref={priorityRef} tabIndex="-1"><header><div><span>{t("下一步")}</span>
-        <h3>{t("优先处理")}</h3></div><strong aria-live="polite">{filteredPriorities.length}</strong></header>
-        <div className="home-priority-filters" role="group" aria-label={t("优先事项筛选")}>{PRIORITY_FILTERS.map((value) =>
+        <h3>{t("优先处理")}</h3></div>{(hasPriorities || hasFilter) && <strong aria-live="polite">{filteredPriorities.length}</strong>}</header>
+        <div className="home-priority-filters" id={`${filterId}-priority`} hidden={!showFilters}
+          role="group" aria-label={t("优先事项筛选")}>{PRIORITY_FILTERS.map((value) =>
           <button type="button" key={value} aria-pressed={priorityFilter === value} onClick={() => changeFilter(value)}>
             <span>{t(filterLabels[value])}</span><strong>{priorityItemsFor(overview, value, owner).length}</strong></button>)}</div>
         {visiblePriorities.length ? <div className="home-priority-list">{visiblePriorities.map((item, index) => {
@@ -159,8 +176,9 @@ export function HomeOverview({ store, now, onOpen, onOpenDeadline, onNewCompany,
             data-urgency={item.urgency} data-category={item.category} data-engagement-id={item.record?.id} onClick={() => openPriority(item)} aria-label={`${presentation.title} · ${presentation.context}`}>
             <i aria-hidden="true" /><span><strong>{presentation.title}</strong><small>{presentation.context}</small>
               <small>{presentation.detail}</small></span><em>{presentation.badge}</em><ChevronRight aria-hidden="true" /></button>;
-        })}</div> : <div className="home-overview-empty"><CheckCircle2 aria-hidden="true" /><strong>{t("目前没有需要优先处理的事项")}</strong>
-          <span>{t(owner || priorityFilter !== "all" ? "当前筛选没有事项；清除筛选可查看其他工作。" : "可以从右侧选择一个项目继续推进。")}</span></div>}
+        })}</div> : <div className="home-overview-empty home-priority-empty">
+          {hasFilter ? <ListFilter aria-hidden="true" /> : <CheckCircle2 aria-hidden="true" />}
+          <strong>{t(hasFilter ? "当前筛选没有事项；清除筛选可查看其他工作。" : "目前没有需要优先处理的事项")}</strong></div>}
         {filteredPriorities.length > visiblePriorities.length && <footer><button type="button" className="button secondary"
           onClick={() => setPriorityLimit((value) => value + 5)}>{t("显示更多（剩余 {count} 项）", { count: filteredPriorities.length - visiblePriorities.length })}</button></footer>}
         {priorityLimit > 5 && <footer><button type="button" className="text-button" onClick={() => setPriorityLimit(5)}>{t("只显示前 5 项")}</button></footer>}
