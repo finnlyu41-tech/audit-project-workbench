@@ -198,7 +198,14 @@ test("workstream cards reorder directly and contain long text inside each card",
   assert.match(css, /\.workstream-card-meta\s*{[^}]*flex-wrap:\s*wrap/);
   assert.doesNotMatch(components, /workstream\.owner \|\| t\("未设置负责人"\)/);
   assert.doesNotMatch(components, /dueTone\(workstream\)/);
-  assert.doesNotMatch(components, /stats\.completedNodes/);
+  // The approved collapsed-card summary replaces the former no-stage-count design.
+  // Keep the owner/date, ordering and containment protections above unchanged.
+  const card = components.split("export function WorkstreamCard(")[1].split("export function SampleLibrary(")[0];
+  assert.match(card, /const stats = workstreamStats\(workstream\)/);
+  assert.match(card, /className="workstream-card-stage-count"[\s\S]*?done: stats\.completedNodes, total: stats\.nodes/);
+  assert.match(card, /find\(\(node\) => !nodeIsComplete\(node\)\)/);
+  assert.match(card, /className="workstream-card-next-stage"/);
+  assert.doesNotMatch(card, /projectStats\(|\.sort\(|\.splice\(/);
 });
 
 test("workstreams and stages disclose one level at a time while stages and criteria remain draggable", () => {
