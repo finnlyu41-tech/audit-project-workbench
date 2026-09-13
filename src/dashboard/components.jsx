@@ -225,6 +225,7 @@ export function WorkstreamCard({ workstream, selected, openItems = 0, onSelect, 
   const { language, t } = useUiLanguage();
   const stats = workstreamStats(workstream);
   const label = workstreamTypeLabel(workstream.type, language, workstream.customName);
+  const nextNode = (workstream.nodes || []).find((node) => !nodeIsComplete(node));
   return <article className="workstream-card" data-selected={selected || undefined} data-complete={stats.complete || undefined}
     data-editable={!readOnly || undefined} data-dragging={dragging || undefined} data-drop-position={dropPosition}
     draggable={!readOnly} onDragStart={onDragStart} onDragEnd={onDragEnd} onDragOver={onDragOver} onDrop={onDrop}>
@@ -233,7 +234,12 @@ export function WorkstreamCard({ workstream, selected, openItems = 0, onSelect, 
       aria-keyshortcuts={!readOnly ? "Alt+ArrowLeft Alt+ArrowRight Alt+ArrowUp Alt+ArrowDown" : undefined}
       onKeyDown={onReorderKeyDown}>
     <span className="workstream-card-top"><ProgressBar value={stats.percentage} compact />
-      <span><strong>{label}</strong></span></span>
+      <span><strong>{label}</strong>
+        <small className="workstream-card-stage-count">{stats.nodes
+          ? t("{done}/{total} 个阶段已完成", { done: stats.completedNodes, total: stats.nodes }) : t("未开始")}</small>
+        <small className="workstream-card-next-stage">{nextNode
+          ? t("下一阶段：{name}", { name: nextNode.title }) : t(stats.complete ? "所有阶段已完成" : "尚未添加阶段")}</small>
+      </span></span>
     {openItems > 0 && <span className="workstream-card-meta"><small>{t("{count} 项未清", { count: openItems })}</small></span>}</button>
   </article>;
 }

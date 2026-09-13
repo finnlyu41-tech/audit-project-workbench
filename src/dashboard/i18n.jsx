@@ -4,6 +4,10 @@ import { toTraditional } from "./traditional.js";
 export const LANGUAGE_PREFERENCE_KEY = "audit-progress-workbench:language";
 
 const english = {
+  "{done}/{total} 个阶段已完成": "{done}/{total} stages completed",
+  "下一阶段：{name}": "Next stage: {name}",
+  "所有阶段已完成": "All stages completed",
+  "尚未添加阶段": "No stages added",
   "集团及 {count} 家公司已应用；实际保存状态见备份菜单。": "Holding company and {count} companies applied; check Backup for actual save status.",
   "公司主档已应用；实际保存状态见备份菜单。": "Company master applied; check Backup for actual save status.",
   "年度项目已应用；实际保存状态见备份菜单。": "Annual engagement applied; check Backup for actual save status.",
