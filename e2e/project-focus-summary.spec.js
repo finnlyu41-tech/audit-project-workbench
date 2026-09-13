@@ -68,3 +68,42 @@ test("focused project summary stays readable across desktop width and zoom equiv
   }
   expect(seriousViolations(await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa"]).analyze())).toEqual([]);
 });
+
+test("stable project metadata stays visible and editable without competing with current work", async ({ page }) => {
+  await openWorkbench(page, workspaceFixture());
+  const focus = summary(page);
+  const facts = page.locator(".detail-facts");
+  const secondary = facts.locator(".detail-fact-secondary");
+
+  await expect(focus).toBeVisible();
+  await expect(secondary).toHaveCount(3);
+  await expect(secondary.nth(0).locator("dt")).toHaveText("Owner");
+  await expect(secondary.nth(1).locator("dt")).toHaveText("Financial reporting standard / framework");
+  await expect(secondary.nth(2).locator("dt")).toHaveText("Parent holding company");
+  await expect(secondary.getByRole("button")).toHaveCount(3);
+
+  const hierarchy = await page.evaluate(() => {
+    const focusBox = document.querySelector(".project-focus-summary").getBoundingClientRect();
+    const factsBox = document.querySelector(".detail-facts").getBoundingClientRect();
+    const cells = [...document.querySelectorAll(".detail-facts > .detail-fact")];
+    const owner = cells[0].getBoundingClientRect();
+    const schedule = cells[1].getBoundingClientRect();
+    const secondaryWeight = getComputedStyle(cells[0].querySelector("dd")).fontWeight;
+    const workStateWeight = getComputedStyle(cells[4].querySelector("dd")).fontWeight;
+    return {
+      focusTop: focusBox.top, factsTop: factsBox.top,
+      ownerWidth: owner.width, scheduleWidth: schedule.width,
+      secondaryWeight: Number(secondaryWeight), workStateWeight: Number(workStateWeight),
+      pageWidth: document.documentElement.scrollWidth, viewportWidth: document.documentElement.clientWidth,
+    };
+  });
+  expect(hierarchy.focusTop).toBeLessThan(hierarchy.factsTop);
+  expect(hierarchy.scheduleWidth).toBeGreaterThan(hierarchy.ownerWidth + 20);
+  expect(hierarchy.secondaryWeight).toBeLessThan(hierarchy.workStateWeight);
+  expect(hierarchy.pageWidth).toBeLessThanOrEqual(hierarchy.viewportWidth + 1);
+
+  await secondary.nth(0).getByRole("button").click();
+  await expect(page.getByRole("dialog", { name: /Owner/ })).toBeVisible();
+  await page.getByRole("dialog", { name: /Owner/ }).getByRole("button", { name: "Cancel" }).click();
+  await expect(seriousViolations(await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa"]).analyze())).toEqual([]);
+});
