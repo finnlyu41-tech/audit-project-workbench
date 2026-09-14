@@ -94,3 +94,62 @@ test('real backup download round-trips optional fields and approved restoration 
     await fresh.reload(); expect(await readStoredWorkspace(fresh)).toEqual(before);
   } finally { await context.close(); }
 });
+
+// Hold only the existing 350 ms draft-persistence callback, not browser input
+// or animation timers, so feedback arrives during one real pointer gesture.
+async function holdDraftFeedback(page) {
+  await page.evaluate(() => {
+    const original = window.setTimeout.bind(window);
+    window.syntheticHeldDraftFeedback = [];
+    window.setTimeout = (callback, delay, ...args) => {
+      if (delay !== 350 || typeof callback !== 'function') return original(callback, delay, ...args);
+      return original(() => window.syntheticHeldDraftFeedback.push(() => callback(...args)), delay);
+    };
+  });
+}
+// Compare layout coordinates, excluding the existing 1px :active transform.
+async function draftActionPosition(action) {
+  return action.evaluate(element => {
+    const box = element.getBoundingClientRect(), value = getComputedStyle(element).transform;
+    const transform = value === 'none' ? new DOMMatrixReadOnly() : new DOMMatrixReadOnly(value);
+    return { x: box.x - transform.m41, y: box.y - transform.m42, width: box.width, height: box.height };
+  });
+}
+for (const restored of [false, true]) for (const viewport of [{ width: 1440, height: 900 }, { width: 800, height: 560 }]) {
+  test(`draft feedback cannot move Save during a ${restored ? 'restored' : 'new'} quick edit at ${viewport.width}px`, async ({ page }) => {
+    await page.setViewportSize(viewport); await openEfficiency(page);
+    const before = await readStoredWorkspace(page); await enableDrafts(page);
+    const notes = 'FICTIONAL-POINTER-SAVE';
+    if (restored) {
+      await page.getByRole('button', { name: 'Quick edit', exact: true }).click();
+      await page.locator('.quick-update-form').getByRole('textbox', { name: 'Project notes', exact: true }).fill(notes);
+      await waitDraft(page); await refreshDiscardBrowserPrompt(page); await openRecord(page, 'EAL Alex');
+    }
+    await holdDraftFeedback(page);
+    await page.getByRole('button', { name: restored ? 'Restore into form' : 'Quick edit', exact: true }).click();
+    const form = page.locator('.quick-update-form');
+    if (!restored) await form.getByRole('textbox', { name: 'Project notes', exact: true }).fill(notes);
+    await expect(form.getByRole('textbox', { name: 'Project notes', exact: true })).toHaveValue(notes);
+    await expect.poll(() => page.evaluate(() => window.syntheticHeldDraftFeedback.length)).toBeGreaterThan(0);
+    const save = form.getByRole('button', { name: 'Save updates', exact: true });
+    await save.scrollIntoViewIfNeeded(); const position = await draftActionPosition(save);
+    await page.mouse.move(position.x + position.width / 2, position.y + position.height / 2);
+    await page.mouse.down();
+    let afterFeedback;
+    try {
+      await page.evaluate(() => window.syntheticHeldDraftFeedback.splice(0).forEach(callback => callback()));
+      await expect(page.locator('.local-draft-offer').getByRole('status')).toHaveText('Temporary draft retained in this browser; not submitted.');
+      afterFeedback = await draftActionPosition(save);
+    } finally { await page.mouse.up(); }
+    expect(afterFeedback.y).toBeCloseTo(position.y, 1);
+    expect(afterFeedback.x).toBeCloseTo(position.x, 1);
+    await expect(form).toHaveCount(0);
+    await expect.poll(() => draftRows(page)).toEqual([]);
+    await expect.poll(async () => (await alpha(page)).notes).toBe(notes);
+    const after = await readStoredWorkspace(page), saved = after.engagements.find(e => e.id === 'eff-alpha-year');
+    expect(after).toEqual({ ...before, engagements: before.engagements.map(e => e.id === saved.id ? { ...e, notes, updatedAt: saved.updatedAt } : e) });
+    await page.reload(); await openRecord(page, 'EAL Alex');
+    expect(await readStoredWorkspace(page)).toEqual(after);
+    await expect(page.getByRole('button', { name: 'Restore into form', exact: true })).toHaveCount(0);
+  });
+}
