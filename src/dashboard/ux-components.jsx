@@ -86,7 +86,6 @@ export function QuickUpdate({ engagement, readOnly = false, drafts, onSave, onCo
         <Pencil aria-hidden="true" />{t("快速编辑")}</button>}</header>
     {!editor && !showSummary && <ProjectFocusSummary engagement={engagement} store={store} next={next}
       onContinue={onContinue} readOnly={readOnly} holding={holding} />}
-    {!readOnly && recovery.panel}
     {editor && !readOnly ? <form className="quick-update-form" onSubmit={submit}>
       <div className="quick-update-fields">
         <label><span>{t("负责人")}</span><OwnerInput store={store} autoFocus value={editor.values.owner} onChange={update("owner")} /></label>
@@ -117,6 +116,9 @@ export function QuickUpdate({ engagement, readOnly = false, drafts, onSave, onCo
         <span><small>{t("下一步")}</small><strong>{next.item?.title || next.node?.title || t("为业务模块添加节点")}</strong></span>
         <ArrowRight aria-hidden="true" /></button>}
     </>}
+
+    {/* Async draft feedback must not move fields or action targets during input. */}
+    {!readOnly && recovery.panel}
 
     {applied && <p className="quick-update-feedback" role="status">{t("更新已应用；保存状态见备份菜单。")}</p>}
   </section>;
