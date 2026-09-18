@@ -22,7 +22,7 @@ export function AnnualSourceSummary({ store, entityId, options, selections }) {
     {sourceMode === 'template' && <ul>{selections.map((selection) => {
       const category = store.workstreamCategories.find((item) => item.id === selection.categoryId);
       const sample = store.samples.find((item) => item.id === selection.sampleId);
-      return <li key={selection.categoryId}>{workstreamCategoryLabel(category, language)}：{sample ? localizeSample(sample, language).name : t("空白流程")}</li>;
+      return <li key={selection.categoryId}>{workstreamCategoryLabel(category, language)}{store.businessMode !== "simple" && <>：{sample ? localizeSample(sample, language).name : t("空白流程")}</>}</li>;
     })}{preview.entity.kind === 'holding_company' && <li>{t("本级合并流程")}：{groupSample.name ? localizeGroupSample(groupSample, language).name : t("空白流程")}</li>}</ul>}
     <p>{t("将建立 {modules} 个业务模块、{nodes} 个节点、{conditions} 项完成条件。", preview)}</p>
     <small>{t("只复制流程结构，完成勾选、模块负责人和模块截止日重新开始。项目负责人和排期以本次填写为准。")}</small>

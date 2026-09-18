@@ -39,7 +39,7 @@ import { activeOutstandingItems,
   assignProjectToGroup, canMoveEntity, canMoveWorkspaceItem, canNestGroup, collectGroupOutstandingEntries, collectGroupTaxDeadlineEntries,
   componentsForCurrentStructure,
   createDefaultGroupSample, createDefaultSample, duplicateGroupSample,
-  canonicalStorePayload,
+  canonicalStorePayload, setBusinessMode,
   convertGroupToProject, convertProjectToGroup, deadlineAlerts, duplicateSample, emptyStore, engagementsForEntity,
   engagementMatchesNavigationFilters, engagementReportingYears, engagementTypeLabel, engagementTypeValues, engagementTypesLabel, entityForEngagement, findParentMembership, formatDate, groupProgress, isValidStore, localizeGroupSample,
   localizeGroupWorkflowNodes, localizeOutstandingStatuses, localizeReadinessConditions, localizeSample, localizeWorkstream, makeBlankGroupSample,
@@ -128,10 +128,12 @@ function revealOverflowText(event) {
 
 function DashboardWorkbench({ initialSnapshot }) {
   const { language, setLanguage, t } = useUiLanguage();
-  const [store, setRawStore] = React.useState(() => initialSnapshot.store);
+  const [store, setRawStore] = React.useState(() => setBusinessMode(initialSnapshot.store, initialSnapshot.store.businessMode));
   React.useEffect(() => { if (initialSnapshot.raw !== null) preserveLegacyRecovery(initialSnapshot.raw); }, [initialSnapshot]);
-  const setStore = React.useCallback((action) => setRawStore((current) => reconcileWorkbenchStore(current,
-    typeof action === "function" ? action(current) : action)), []);
+  const setStore = React.useCallback((action) => setRawStore((current) => {
+    const next = reconcileWorkbenchStore(current, typeof action === "function" ? action(current) : action);
+    return next.businessMode ? next : setBusinessMode(next);
+  }), []);
   const persistence = useWorkbenchPersistence({ store, setStore });
   const currentStoreRef = React.useRef(store); currentStoreRef.current = store;
   const [undoTransaction, setUndoTransaction] = React.useState(null);
@@ -1013,6 +1015,13 @@ function DashboardWorkbench({ initialSnapshot }) {
         <PanelsTopLeft aria-hidden="true" /></button>
       <nav className="app-rail-actions" aria-label={t("工作台操作")} ref={toolbarRef}>
         <div className="app-rail-primary">
+          <button type="button" className="app-rail-button business-mode-toggle" role="switch"
+            aria-label={t("Pro 模式")} aria-checked={store.businessMode === "pro"}
+            data-active={store.businessMode === "pro" || undefined}
+            data-tooltip={t(store.businessMode === "pro" ? "切换至简化模式：所有公司业务模块" : "开启 Pro：所有公司业务模块")}
+            data-tooltip-side="right" onClick={() => { closeMenu();
+              setStore(current => setBusinessMode(current, current.businessMode === "pro" ? "simple" : "pro"));
+            }}><span>Pro</span><span className="business-mode-indicator" aria-hidden="true" /></button>
           <button type="button" className="app-rail-button" aria-label={t("快速打开")} aria-haspopup="dialog"
             aria-keyshortcuts="Meta+K Control+K" data-tooltip={`${t("快速打开")} · ⌘K / Ctrl+K`} data-tooltip-side="right"
             onClick={(event) => { event.currentTarget.focus(); closeMenu(); setModal({ type: "quick-open" }); }}>
@@ -1380,12 +1389,12 @@ function DashboardWorkbench({ initialSnapshot }) {
         } catch (error) { return { error: t(ENTITY_MERGE_ERRORS[error.code] || "公司无法合并，请先处理相同报告期间。") }; }
       }} /></Modal>}
     {modal?.type === "workstream-add" && modalTargetProject && <Modal title={t("添加业务模块")} onClose={() => setModal(null)}>
-      <WorkstreamForm availableCategories={workstreamCategoryViews.filter((category) => !category.builtinType
+      <WorkstreamForm businessMode={store.businessMode} availableCategories={workstreamCategoryViews.filter((category) => !category.builtinType
         || category.builtinType === "custom" || !modalTargetProject.workstreams.some((item) => item.type === category.builtinType))}
         samples={sampleViews} selectedSampleIdsByCategory={store.selectedSampleIdsByCategory} onSubmit={(values) => addWorkstream(modalTargetProject.id, values)}
         onClose={() => setModal(null)} /></Modal>}
     {modal?.type === "workstream-edit" && modalTargetProject && modalTargetWorkstream && <Modal title={t("业务模块设置")} onClose={() => setModal(null)}>
-      <WorkstreamForm initial={modalTargetWorkstream} availableCategories={workstreamCategoryViews} samples={sampleViews}
+      <WorkstreamForm businessMode={store.businessMode} initial={modalTargetWorkstream} availableCategories={workstreamCategoryViews} samples={sampleViews}
         selectedSampleIdsByCategory={store.selectedSampleIdsByCategory}
         onSubmit={(values) => updateWorkstream(modalTargetProject.id, modalTargetWorkstream.id, values)}
         onRemove={() => removeWorkstream(modalTargetProject.id, modalTargetWorkstream.id)} onClose={() => setModal(null)} /></Modal>}
@@ -1661,7 +1670,7 @@ function ProjectDetail({ updateWorkstream, project, rawProject, entityArchived =
           ...(readOnly ? {} : { editDeadlineId: taxSummary.next?.id ?? null }) })}>{taxFactValue}</DetailFactAction></dl>
 
     <section className="workstream-overview"><header className="section-heading"><div><h3>{t("业务模块")}</h3>
-      <p>{t("点击模块查看详情；再次点击可收起。可在模块设置中选择完整或简化模式。")}</p></div>
+      <p>{t("点击模块查看详情；左上角 Pro 开关统一切换所有公司的业务模块。")}</p></div>
       {!readOnly && <div className="section-heading-actions"><button type="button" className="button secondary icon-only"
         aria-label={t("添加业务模块")} data-tooltip={t("添加业务模块")} onClick={() => setModal({ type: "workstream-add",
           targetKind: "project", targetId: rawProject.id })}><ListPlus aria-hidden="true" /></button>

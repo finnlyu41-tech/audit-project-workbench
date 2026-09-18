@@ -112,7 +112,7 @@ export function OutlineImporter({ onAppend }) {
     </div>}
   </details>;
 }
-const DIFF_LABELS = { added: '新增记录', removed: '移除记录', legalName: '法律实体', entityType: '主体类型（可选）',
+const DIFF_LABELS = { businessMode: 'Pro 模式', added: '新增记录', removed: '移除记录', legalName: '法律实体', entityType: '主体类型（可选）',
   incorporationDate: '成立／开始日期（DOI，可选）', parentEntityId: '所属控股公司', archived: '归档', owner: '负责人',
   startDate: '项目开始日', dueDate: '项目截止日', priority: '项目优先级', reportingFramework: '财务报告准则／框架', periods: '报告期间',
   outstanding: '待清事项', workflow: '流程内容或完成状态变化', components: '组成部分', tax: '税务期限', 'private-note': '内部备注变化（内容不显示）',

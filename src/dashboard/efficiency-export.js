@@ -47,6 +47,7 @@ export function workspaceDifferences(before, after, limit = 200) {
       || !Array.isArray(before.engagements) || !Array.isArray(after.engagements)) return { unavailable: true, rows: [] };
     const rows = []; let total = 0;
     const push = row => { total += 1; if (rows.length < limit) rows.push(row); };
+    if ((before.businessMode || 'simple') !== (after.businessMode || 'simple')) push({ collection: 'workspace', id: 'business-mode', field: 'businessMode', name: 'Pro', before: before.businessMode === 'pro' ? 'ON' : 'OFF', after: after.businessMode === 'pro' ? 'ON' : 'OFF' });
     for (const [collection, keys] of [['entities', ['legalName', 'entityType', 'incorporationDate', 'parentEntityId', 'archived']],
       ['engagements', ['owner', 'startDate', 'dueDate', 'archived', 'priority', 'reportingFramework']]]) {
       const left = new Map(before[collection].map(r => [r.id, r])); const right = new Map(after[collection].map(r => [r.id, r]));

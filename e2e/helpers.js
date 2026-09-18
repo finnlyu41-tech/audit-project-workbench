@@ -38,13 +38,13 @@ export function makeCompany(store, overrides = {}) {
 }
 
 export function workspaceFixture() {
-  const store = emptyStore();
+  const store = { ...emptyStore(), businessMode: "pro" };
   store.projects.push(makeCompany(store));
   return store;
 }
 
 export function hierarchyFixture() {
-  const store = emptyStore();
+  const store = { ...emptyStore(), businessMode: "pro" };
   const existing = makeCompany(store, { name: "Existing subsidiary", entity: "Existing Subsidiary Limited" });
   const standalone = makeCompany(store, { name: "Standalone company", entity: "Standalone Company Limited" });
   const parent = makeGroup({ name: "Global Holdings", owner: "Group Partner", consolidationEnabled: true }, false);
@@ -77,14 +77,14 @@ export function localDateOffset(days) {
   return `${year}-${month}-${day}`;
 }
 
-export async function openWorkbench(page, store = emptyStore(), { home = false } = {}) {
+export async function openWorkbench(page, store = emptyStore(), { home = false, businessMode = store.businessMode || "pro" } = {}) {
   await page.addInitScript(({ storageKey, languageKey, initialStore }) => {
     if (sessionStorage.getItem("apw-e2e-seeded")) return;
     localStorage.clear();
     localStorage.setItem(storageKey, JSON.stringify(initialStore));
     localStorage.setItem(languageKey, "en");
     sessionStorage.setItem("apw-e2e-seeded", "true");
-  }, { storageKey: STORAGE_KEY, languageKey: LANGUAGE_KEY, initialStore: store });
+  }, { storageKey: STORAGE_KEY, languageKey: LANGUAGE_KEY, initialStore: businessMode ? { ...store, businessMode } : store });
   await page.goto(home ? "./" : "./?view=detail");
   await expect(page.locator(".audit-workbench")).toBeVisible();
   await expect.poll(() => page.evaluate((storageKey) => {

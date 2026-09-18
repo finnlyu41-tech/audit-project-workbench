@@ -10,3 +10,9 @@
 .simple-workstream-notes p { white-space: pre-wrap; overflow-wrap: anywhere; }
 .workstream-card[data-simple] .workstream-card-top { grid-template-columns: max-content minmax(0, 1fr); }
 .workstream-card-status { min-width: 54px; font-weight: 600; white-space: nowrap; }
+
+.business-mode-toggle { display: flex; flex-direction: column; gap: 3px; font-size: 12px; font-weight: 700; }
+.business-mode-indicator { width: 22px; height: 10px; border-radius: 8px; background: var(--secondary); padding: 2px; }
+.business-mode-indicator::after { content: ""; display: block; width: 6px; height: 6px; border-radius: 50%; background: var(--control); }
+.business-mode-toggle[aria-checked="true"] .business-mode-indicator { background: var(--wb-accent); }
+.business-mode-toggle[aria-checked="true"] .business-mode-indicator::after { margin-left: auto; }

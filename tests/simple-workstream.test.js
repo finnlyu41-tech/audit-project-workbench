@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { emptyStore, makeProject, makeWorkstream, makeNode, normalizeStore, normalizeWorkstream,
-  canonicalStorePayload, isValidStore, workstreamStats, projectStats, makeEngagement, makeOutstandingItem } from '../src/dashboard/model.js';
+  canonicalStorePayload, setBusinessMode, isValidStore, workstreamStats, projectStats, makeEngagement, makeOutstandingItem } from '../src/dashboard/model.js';
 import { activeWorkstreamNodes, workstreamIsSimple } from '../src/dashboard/workstream-mode.js';
 import { nextEngagementAction } from '../src/dashboard/ux-model.js';
 import { buildRecordReport, buildPortfolioReport } from '../src/dashboard/reporting.js';
@@ -119,4 +119,37 @@ test('backup comparison signals simple status changes without exposing notes', (
   const changes = workspaceDifferences(a, b);
   assert.ok(changes.rows.some(r => r.field === 'workflow'));
   assert.equal(JSON.stringify(changes).includes('Private note'), false);
+});
+
+
+test('global mode covers every active company and year, preserving archives, nodes and independent fields', () => {
+  const source = fixture(), original = canonicalStorePayload(source);
+  const annual = source.engagements[0];
+  source.engagements.push({ ...structuredClone(annual), id: 'another-year', periodStart: '2025-01-01', periodEnd: '2025-12-31' });
+  source.engagements.push({ ...structuredClone(annual), id: 'archived-year', archived: true });
+  source.entities.push({ ...structuredClone(source.entities[0]), id: 'archived-company', archived: true });
+  source.engagements.push({ ...structuredClone(annual), id: 'archived-company-year', entityId: 'archived-company' });
+  const before = canonicalStorePayload(source);
+  const simple = setBusinessMode(source);
+  assert.equal(simple.businessMode, 'simple');
+  assert.ok(simple.engagements.slice(0, 2).every(e => e.workstreams.every(workstreamIsSimple)));
+  assert.deepEqual(simple.engagements.slice(2), before.engagements.slice(2));
+  assert.deepEqual(simple.entities, before.entities);
+  const pro = setBusinessMode(simple, 'pro');
+  assert.ok(pro.engagements.slice(0, 2).every(e => e.workstreams.every(w => !workstreamIsSimple(w))));
+  assert.deepEqual(pro.engagements[0].workstreams.map(w => w.nodes), original.engagements[0].workstreams.map(w => w.nodes));
+  assert.deepEqual(pro.engagements[0].outstandingItems, original.engagements[0].outstandingItems);
+  assert.deepEqual(setBusinessMode(pro), simple);
+  const restored = normalizeStore(JSON.parse(JSON.stringify(canonicalStorePayload(pro))));
+  assert.equal(restored.businessMode, 'pro');
+  assert.deepEqual(canonicalStorePayload(restored), canonicalStorePayload(pro));
+  assert.equal(isValidStore({ ...canonicalStorePayload(simple), businessMode: 'invalid' }), false);
+});
+
+test('global Simple applies to new annual modules without instantiating template nodes', () => {
+  const store = setBusinessMode(fixture());
+  const source = store.engagements[0];
+  const next = makeEngagement({ entityId: source.entityId, periodStart: '2027-01-01', periodEnd: '2027-12-31' },
+    { store, sourceMode: 'previous', sourceEngagement: source });
+  assert.ok(next.workstreams.every(w => w.mode === 'simple' && w.nodes.length === 0 && w.simpleStatus === 'not_started'));
 });

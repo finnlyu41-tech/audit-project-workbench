@@ -1545,6 +1545,7 @@ function addRuntimeViews(store) {
 function sharedStoreFields(value) {
   const legacy = normalizeLegacyStore({ ...value, projects: [], groups: [], scheduleOrder: [] });
   return {
+    ...(["simple", "pro"].includes(value.businessMode) ? { businessMode: value.businessMode } : {}),
     samples: legacy.samples,
     workstreamCategories: legacy.workstreamCategories,
     selectedSampleIdsByCategory: legacy.selectedSampleIdsByCategory,
@@ -1574,6 +1575,13 @@ function normalizeCanonicalStore(value) {
     });
     if (seenEngagementIds.has(engagement.id)) engagement.id = uid("engagement");
     seenEngagementIds.add(engagement.id);
+    const entity = entityById.get(engagement.entityId);
+    if (shared.businessMode && entity?.kind === "company" && !entity.archived && !engagement.archived) {
+      engagement.workstreams = engagement.workstreams.map(workstream => {
+        const { mode: _mode, ...retained } = workstream;
+        return shared.businessMode === "simple" ? { ...retained, mode: "simple" } : retained;
+      });
+    }
     return engagement;
   }).filter((engagement) => entityById.has(engagement.entityId));
   const engagementById = new Map(engagements.map((engagement) => [engagement.id, engagement]));
@@ -1709,6 +1717,7 @@ function migrateLegacyStore(value) {
         structureSyncedAt: group.updatedAt || now } };
   });
   return normalizeCanonicalStore({
+    businessMode: value.businessMode,
     version: STORE_VERSION,
     entities,
     engagements,
@@ -1881,6 +1890,11 @@ export function reconcileWorkbenchStore(previous, candidate) {
   return addRuntimeViews({ ...candidate, entities: previous.entities, engagements: previous.engagements });
 }
 
+// A workspace-wide choice; normalization keeps archived records and retained nodes intact.
+export function setBusinessMode(store, businessMode = "simple") {
+  return normalizeCanonicalStore({ ...store, businessMode: businessMode === "pro" ? "pro" : "simple" });
+}
+
 export function canonicalStorePayload(store) {
   const { projects: _projects, groups: _groups, ...canonical } = normalizeCanonicalStore(store);
   return canonical;
@@ -1952,6 +1966,11 @@ export function makeEngagement(values = {}, options = {}) {
     const project = makeProject({ ...values, name: values.internalName || "", entity: "",
       workstreamSelections: values.workstreamSelections || [] }, true, options.samples || [], options.workstreamCategories || []);
     workstreams = project.workstreams;
+  }
+  if (options.store?.businessMode === "simple") {
+    workstreams = workstreams.map(workstream => ({ ...workstream, mode: "simple", simpleStatus: "not_started", nodes: [] }));
+  } else if (options.store?.businessMode === "pro") {
+    workstreams = workstreams.map(({ mode: _mode, ...workstream }) => workstream);
   }
   let reportingPeriods = engagementReportingPeriods(values);
   if (!reportingPeriods.length || reportingPeriods.some((period) => !validIsoDate(period.periodStart)

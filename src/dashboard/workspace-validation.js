@@ -15,7 +15,7 @@ export function calendarDate(value) {
   return Number.isFinite(date.getTime()) && date.toISOString().slice(0, 10) === value;
 }
 export function validWorkspaceRecords(value, legacy = false) {
-  if (!record(value)) return false;
+  if (!record(value) || !optional(value, "businessMode", mode => ["simple", "pro"].includes(mode))) return false;
   const date = value => string(value) && (legacy || value === '' || calendarDate(value));
   const fields = (row, texts = [], flags = [], dates = [], refs = []) => record(row)
     && texts.every(key => optional(row, key, string)) && flags.every(key => optional(row, key, boolean))

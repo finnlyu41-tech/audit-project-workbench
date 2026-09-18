@@ -176,7 +176,7 @@ export function ProjectForm({ initial, onSubmit, onClose, submitLabel, allowWork
   </form>;
 }
 
-export function WorkstreamForm({ initial, availableCategories = createDefaultWorkstreamCategories(), samples = [],
+export function WorkstreamForm({ initial, businessMode = "simple", availableCategories = createDefaultWorkstreamCategories(), samples = [],
   selectedSampleIdsByCategory = {}, onSubmit, onRemove, onClose }) {
   const { language, t } = useUiLanguage();
   const initialCategory = availableCategories.find((category) => category.id === initial?.categoryId)
@@ -188,7 +188,7 @@ export function WorkstreamForm({ initial, availableCategories = createDefaultWor
   const firstType = firstCategory.builtinType || "custom";
   const [values, setValues] = React.useState(() => ({
     type: firstType,
-    mode: workstreamIsSimple(initial) ? "simple" : "full",
+    mode: businessMode === "pro" ? "full" : "simple",
     simpleStatus: workstreamStatus(initial), owner: initial?.owner || "",
     startDate: initial?.startDate || "", dueDate: initial?.dueDate || "", notes: initial?.notes || "",
     categoryId: firstCategory.id,
@@ -220,11 +220,9 @@ export function WorkstreamForm({ initial, availableCategories = createDefaultWor
     </select></label>
     {values.type === "custom" && values.categoryId === "custom" && <label><span>{t("自定义模块名称 *")}</span><RequiredTextInput autoFocus aria-label={t("自定义模块名称 *")} value={values.customName}
       onChange={update("customName")} placeholder={t("例如：公司秘书服务")} /></label>}
-    <label><span>{t("模块模式")}</span><select value={values.mode} onChange={update("mode")}>
-      <option value="full">{t("完整模式")}</option><option value="simple">{t("简化模式")}</option></select></label>
     {values.mode === "simple" && <>
       <p className="muted">{t("直接管理整个模块的状态，不设节点或完成条件。")}</p>
-      {initial?.nodes?.length > 0 && <p>{t("原有节点保留，切回完整模式后恢复；简化状态独立记录。")}</p>}
+      {initial?.nodes?.length > 0 && <p>{t("原有节点保留，开启 Pro 后恢复；简化状态独立记录。")}</p>}
       <label><span>{t("模块状态")}</span><select value={values.simpleStatus} onChange={update("simpleStatus")}>
         {WORKSTREAM_STATUSES.map(simpleStatus => <option key={simpleStatus} value={simpleStatus}>{t(workstreamStatusLabel({ simpleStatus }))}</option>)}</select></label>
       <label><span>{t("负责人")}</span><input value={values.owner} onChange={update("owner")} /></label>
