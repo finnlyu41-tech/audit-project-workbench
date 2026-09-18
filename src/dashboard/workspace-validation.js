@@ -1,3 +1,4 @@
+import { WORKSTREAM_STATUSES } from "./workstream-mode.js";
 import { validAliases, validNextAction, validRemainingWork, validFollowUp, OUTPUT_LANGUAGES } from "./efficiency-data.js";
 import { validSchedulePlan } from "./working-days.js";
 // Validate persisted structure before normalization can discard or reinterpret supplied data.
@@ -35,7 +36,10 @@ export function validWorkspaceRecords(value, legacy = false) {
   const condition = row => fields(row, ['label'], ['done']);
   const node = row => fields(row, ['title', 'description']) && list(row, 'conditions', condition, !legacy);
   const builtinTypes = ['quote_collection', 'bookkeeping', 'audit', 'tax_computation_filing', 'cdd', 'custom'];
-  const workstream = row => (legacy || builtinTypes.includes(row.type)) && fields(row, ['type', 'categoryId', 'customName', 'owner'], [], ['dueDate'])
+  const workstream = row => (legacy || builtinTypes.includes(row.type)) && fields(row, ['type', 'categoryId', 'customName', 'owner', 'notes'], [], ['startDate', 'dueDate'])
+    && optional(row, 'mode', v => ['simple', 'full'].includes(v))
+    && optional(row, 'simpleStatus', v => WORKSTREAM_STATUSES.includes(v))
+    && (!row.startDate || !row.dueDate || row.dueDate >= row.startDate)
     && list(row, 'nodes', node);
   const outstanding = row => fields(row, ['title', 'note', 'status'], [], [], ['workstreamId'])
     && optional(row, 'followUp', validFollowUp);

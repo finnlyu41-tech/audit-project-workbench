@@ -113,7 +113,7 @@ export function QuickUpdate({ engagement, readOnly = false, drafts, onSave, onCo
     </details>}
       </div>
       {showSummary && !readOnly && next && onContinue && (!holding || engagement.nextAction) && <button type="button" className="next-action-link" onClick={() => onContinue(next)}>
-        <span><small>{t("下一步")}</small><strong>{next.item?.title || next.node?.title || t("为业务模块添加节点")}</strong></span>
+        <span><small>{t("下一步")}</small><strong>{next.item?.title || next.node?.title || (next?.simple ? t("更新模块状态") : t("为业务模块添加节点"))}</strong></span>
         <ArrowRight aria-hidden="true" /></button>}
     </>}
 

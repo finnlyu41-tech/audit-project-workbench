@@ -1,3 +1,4 @@
+import { activeWorkstreamNodes } from "./workstream-mode.js";
 import { componentsForCurrentStructure, localizeGroupSample, makeEngagement } from './model.js';
 
 export class AnnualSourceError extends Error {
@@ -36,7 +37,7 @@ export function annualSourcePreview(store, entityId, options, selections = []) {
       nodes: store.samples.find((sample) => sample.id === selection.sampleId)?.nodes || [] }));
   const consolidationNodes = entity.kind !== 'holding_company' || sourceMode === 'blank' ? []
     : sourceMode === 'previous' && sourceEngagement.consolidation ? sourceEngagement.consolidation.nodes : groupSample.nodes;
-  const nodes = [...workstreams.flatMap((workstream) => workstream.nodes), ...consolidationNodes];
+  const nodes = [...workstreams.flatMap(activeWorkstreamNodes), ...consolidationNodes];
   return { ...resolved, modules: workstreams.length, nodes: nodes.length,
     conditions: nodes.reduce((count, node) => count + node.conditions.length, 0),
     consolidationNodes: consolidationNodes.length };

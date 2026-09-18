@@ -1,3 +1,5 @@
+import { workstreamIsSimple } from "./workstream-mode.js";
+import { SimpleWorkstream } from "./simple-workstream.jsx";
 import { BackupCompare } from "./efficiency-backup.jsx";
 import { SavedFilters } from "./efficiency-controls.jsx";
 import { ScheduleBatchForm, OutstandingLinesForm, OutstandingBulkForm, AnnualBatchForm, EFFICIENCY_ERRORS } from "./efficiency-batch.jsx";
@@ -675,7 +677,9 @@ function DashboardWorkbench({ initialSnapshot }) {
   };
   const updateWorkstream = (projectId, workstreamId, values) => {
     updateProject(projectId, (project) => ({ ...project, workstreams: project.workstreams.map((workstream) =>
-      workstream.id === workstreamId ? { ...workstream, customName: values.customName,
+      workstream.id === workstreamId ? { ...workstream,
+        ...Object.fromEntries(["customName", "mode", "simpleStatus", "owner", "startDate", "dueDate", "notes"]
+          .filter(key => Object.hasOwn(values, key)).map(key => [key, values[key]])),
         updatedAt: new Date().toISOString() } : workstream) }));
     setModal(null); notify(t("业务模块已更新"));
   };
@@ -1201,7 +1205,7 @@ function DashboardWorkbench({ initialSnapshot }) {
             onRestore={() => { updateEntity(selectedEntitySource.id, (entity) => ({ ...entity, archived: false })); setFilter("all"); notify(t("公司已恢复")); }}
             onDelete={() => setModal({ type: "delete-entity", targetId: selectedEntitySource.id, name: selectedEntitySource.legalName })}
             onMerge={() => setModal({ type: "merge-entities", entityId: selectedEntitySource.id })} />
-          : selectedProject ? <ProjectDetail project={selectedProject} rawProject={selectedProjectSource} entityArchived={Boolean(selectedRecordEntity?.archived)} statuses={outstandingStatusViews}
+          : selectedProject ? <ProjectDetail updateWorkstream={updateWorkstream} project={selectedProject} rawProject={selectedProjectSource} entityArchived={Boolean(selectedRecordEntity?.archived)} statuses={outstandingStatusViews}
           parentMembership={selectedProjectMembership} onWorkflowRevealed={() => setWorkflowReveal(null)} workflowReveal={workflowReveal?.targetId === selectedProjectSource.id ? workflowReveal : null}
           quickUpdate={selectedEngagement && <QuickUpdate key={`quick-update:${selectedEngagement.id}`} engagement={selectedEngagement}
             readOnly={Boolean(selectedEngagement.archived || selectedRecordEntity?.archived)} drafts={quickDrafts.current}
@@ -1556,7 +1560,7 @@ function DetailFactAction({ label, children, onClick, actionLabel, icon: Icon = 
   </div>;
 }
 
-function ProjectDetail({ project, rawProject, entityArchived = false, statuses, parentMembership, activeWorkstreamId, setActiveWorkstreamId,
+function ProjectDetail({ updateWorkstream, project, rawProject, entityArchived = false, statuses, parentMembership, activeWorkstreamId, setActiveWorkstreamId,
   updateWorkflowNodes, setModal, duplicateProject, archiveTarget, restoreTarget, onReorderWorkstreams, deadlineClock, quickUpdate, workflowReveal, onWorkflowRevealed }) {
   const { language, t } = useUiLanguage();
   const draggingWorkstreamRef = React.useRef(null);
@@ -1657,7 +1661,7 @@ function ProjectDetail({ project, rawProject, entityArchived = false, statuses, 
           ...(readOnly ? {} : { editDeadlineId: taxSummary.next?.id ?? null }) })}>{taxFactValue}</DetailFactAction></dl>
 
     <section className="workstream-overview"><header className="section-heading"><div><h3>{t("业务模块")}</h3>
-      <p>{t("点击模块查看节点；再次点击可收起。模块只保留流程、完成条件和进度。")}</p></div>
+      <p>{t("点击模块查看详情；再次点击可收起。可在模块设置中选择完整或简化模式。")}</p></div>
       {!readOnly && <div className="section-heading-actions"><button type="button" className="button secondary icon-only"
         aria-label={t("添加业务模块")} data-tooltip={t("添加业务模块")} onClick={() => setModal({ type: "workstream-add",
           targetKind: "project", targetId: rawProject.id })}><ListPlus aria-hidden="true" /></button>
@@ -1683,12 +1687,15 @@ function ProjectDetail({ project, rawProject, entityArchived = false, statuses, 
     </section>
 
     {activeWorkstream && activeRawWorkstream && <section className="workflow-panel">
-      <WorkflowNodes key={activeRawWorkstream.id} targetKind="project" targetId={rawProject.id} workstreamId={activeRawWorkstream.id}
+      <>{workstreamIsSimple(activeRawWorkstream) ? <SimpleWorkstream workstream={activeRawWorkstream} readOnly={readOnly}
+        onStatus={simpleStatus => updateWorkstream(rawProject.id, activeRawWorkstream.id, { simpleStatus })}
+        onEdit={() => setModal({ type: "workstream-edit", targetKind: "project", targetId: rawProject.id, workstreamId: activeRawWorkstream.id })} />
+      : <WorkflowNodes key={activeRawWorkstream.id} targetKind="project" targetId={rawProject.id} workstreamId={activeRawWorkstream.id}
         revealRequest={workflowReveal?.workstreamId === activeRawWorkstream.id ? workflowReveal : null} onRevealHandled={onWorkflowRevealed}
         nodes={activeWorkstream.nodes} updateWorkflowNodes={updateWorkflowNodes} setModal={setModal} readOnly={readOnly}
         label={t("模块节点")} title={workstreamTypeLabel(activeWorkstream.type, language, activeWorkstream.customName)}
         description={t("点击节点查看完成条件；再次点击可收起详情。")}
-        percentage={workstreamStats(activeWorkstream).percentage} />
+        percentage={workstreamStats(activeWorkstream).percentage} />}</>
     </section>}
   </div>;
 }

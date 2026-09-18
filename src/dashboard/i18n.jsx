@@ -4,6 +4,16 @@ import { toTraditional } from "./traditional.js";
 export const LANGUAGE_PREFERENCE_KEY = "audit-progress-workbench:language";
 
 const english = {
+  "点击模块查看详情；再次点击可收起。可在模块设置中选择完整或简化模式。": "Choose a workstream to view its details; choose it again to collapse. Select full or simple mode in workstream settings.",
+  "简化模式": "Simple mode",
+  "待处理": "On hold",
+  "简化业务模块": "Simple workstream",
+  "模块模式": "Workstream mode",
+  "模块状态": "Workstream status",
+  "编辑模块资料": "Edit workstream details",
+  "更新模块状态": "Update workstream status",
+  "直接管理整个模块的状态，不设节点或完成条件。": "Manage the whole workstream by status, without stages or completion criteria.",
+  "原有节点保留，切回完整模式后恢复；简化状态独立记录。": "Existing stages are retained for full mode. The simple status is recorded independently.",
   "显示筛选": "Show filters",
   "收起筛选": "Hide filters",
   "{done}/{total} 个阶段已完成": "{done}/{total} stages completed",

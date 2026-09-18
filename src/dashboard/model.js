@@ -1,3 +1,4 @@
+import { workstreamIsSimple, workstreamModeFields, simpleWorkstreamStats } from "./workstream-mode.js";
 import { entityEfficiencyFields, engagementEfficiencyFields, outstandingEfficiencyFields } from "./efficiency-data.js";
 import { schedulePlanFields } from "./working-days.js";
 import { periodAfterEnd } from "./reporting-period-tools.js";
@@ -586,6 +587,7 @@ export function makeWorkstream(values = {}, sample = null) {
   const sourceNodes = Array.isArray(sample) ? sample : sample?.nodes;
   return {
     id: values.id || uid("workstream"),
+    ...workstreamModeFields(values),
     type,
     categoryId: typeof values.categoryId === "string" && values.categoryId.trim() ? values.categoryId.trim() : type,
     customName: values.customName?.trim() || (type === "custom" ? "自定义模块" : ""),
@@ -593,7 +595,7 @@ export function makeWorkstream(values = {}, sample = null) {
     dueDate: values.dueDate || "",
     createdAt: values.createdAt || now,
     updatedAt: values.updatedAt || now,
-    nodes: (sourceNodes || []).map((node) => makeNode({
+    nodes: (workstreamIsSimple(values) ? [] : sourceNodes || []).map((node) => makeNode({
       title: node.title,
       description: node.description,
       conditions: node.conditions.map((condition) => condition.label),
@@ -606,6 +608,7 @@ export function normalizeWorkstream(value, projectDefaults = {}) {
   const type = WORKSTREAM_TYPES.includes(value?.type) ? value.type : "audit";
   return {
     id: value?.id || uid("workstream"),
+    ...workstreamModeFields(value),
     type,
     categoryId: typeof value?.categoryId === "string" && value.categoryId.trim() ? value.categoryId.trim() : type,
     customName: typeof value?.customName === "string" && value.customName.trim()
@@ -1939,6 +1942,7 @@ export function makeEngagement(values = {}, options = {}) {
   if (sourceMode === "previous" && source) {
     workstreams = (source.workstreams || []).map((workstream) => makeWorkstream({
       type: workstream.type,
+      ...(workstreamIsSimple(workstream) ? { mode: "simple", simpleStatus: "not_started" } : {}),
       categoryId: workstream.categoryId,
       customName: workstream.customName,
       owner: "",
@@ -2403,7 +2407,7 @@ export function workflowStats(target) {
 }
 
 export function workstreamStats(workstream) {
-  return workflowStats(workstream?.nodes || []);
+  return workstreamIsSimple(workstream) ? simpleWorkstreamStats(workstream) : workflowStats(workstream?.nodes || []);
 }
 
 export function projectStats(project) {
@@ -2414,6 +2418,9 @@ export function projectStats(project) {
   const nodes = workstreamResults.reduce((sum, stats) => sum + stats.nodes, 0);
   const completedNodes = workstreamResults.reduce((sum, stats) => sum + stats.completedNodes, 0);
   const completedWorkstreams = workstreamResults.filter((stats) => stats.complete).length;
+  const simple = project.workstreams.filter(workstreamIsSimple);
+  const units = conditions + simple.length;
+  const done = completedConditions + simple.filter(w => simpleWorkstreamStats(w).complete).length;
   return {
     workstreams: workstreamResults.length,
     completedWorkstreams,
@@ -2422,9 +2429,9 @@ export function projectStats(project) {
     completedConditions,
     nodes,
     completedNodes,
-    percentage: conditions ? Math.round((completedConditions / conditions) * 100) : 0,
+    percentage: units ? Math.round((done / units) * 100) : 0,
     complete: workstreamResults.length > 0 && completedWorkstreams === workstreamResults.length,
-    started: completedConditions > 0,
+    started: workstreamResults.some(stats => stats.started),
   };
 }
 

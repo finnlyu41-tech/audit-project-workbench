@@ -10,7 +10,7 @@ export function ProjectFocusSummary({ engagement, store, next, onContinue, readO
   const openOutstanding = (engagement.outstandingItems || [])
     .filter((item) => outstandingIsOpen(item, store?.outstandingStatuses)).length;
   const nextLabel = next?.item?.title || next?.node?.title
-    || (next?.workstreamId ? t("为业务模块添加节点") : stats.complete ? t("已完成") : stats.workstreams ? t("未设置") : t("未开始"));
+    || (next?.workstreamId ? (next?.simple ? t("更新模块状态") : t("为业务模块添加节点")) : stats.complete ? t("已完成") : stats.workstreams ? t("未设置") : t("未开始"));
   const canContinue = Boolean(!readOnly && next && onContinue && (!holding || engagement.nextAction));
   const nextContent = <span><small>{t("下一步")}</small><strong>{nextLabel}</strong></span>;
 

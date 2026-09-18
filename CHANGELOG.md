@@ -1,5 +1,13 @@
 # Changelog
 
+## Simple business modules — 2026-09-18
+
+- Add a per-module simple mode with direct Not started, In progress, On hold and Completed states, owner, dates and notes, without stages or nested criteria.
+- Preserve existing nodes for reversible full-mode switching; exclude inactive nodes from progress, reports and next actions. Keep Outstanding, annual schedules and other years independent.
+- Preserve mode in workspace backup/restore and reset operational data on annual rollover. Include read-only archive, bilingual and dual-engine coverage.
+- Retain the existing build limits through lossless packing of repeated static translation words; verify every decoded translation and key index against the source dictionary.
+- See [simple business modules](docs/simple-workstreams.md).
+
 ## Workflow efficiency — 2026-09-09
 
 - Consolidates working-day scheduling into shared full/quick/timeline entry with five/six-day workweeks, backwards latest-finish/buffer and interval counts; previews bulk shifts/sequences and per-company next-year creation.
