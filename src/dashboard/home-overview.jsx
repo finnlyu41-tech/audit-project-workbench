@@ -190,7 +190,7 @@ export function HomeOverview({ store, now, onOpen, onOpenDeadline, onNewCompany,
           <button type="button" className="home-project-row" data-engagement-id={record.id} key={record.id} onClick={() => onOpen(record.kind, record.id)}>
             <ProgressBar value={record.percentage} compact /><span><strong>{record.entity.legalName}<ProjectPriorityBadge record={record.engagement} /></strong>
               <small>{engagementTypesLabel(record.engagement, language) || t("项目类型未设置")}</small>
-              {nextEngagementAction(record.engagement, store.outstandingStatuses) && <small className="home-card-next">{t("下一步")}：{(nextEngagementAction(record.engagement, store.outstandingStatuses).item || nextEngagementAction(record.engagement, store.outstandingStatuses).node)?.title}</small>}</span><span><strong>{yearEndOrPeriodLabel(record.engagement, language)}</strong>
+              {nextEngagementAction(record.engagement, store.outstandingStatuses) && <small className="home-card-next">{t("下一步")}：{nextEngagementAction(record.engagement, store.outstandingStatuses).simple ? t("更新模块状态") : (nextEngagementAction(record.engagement, store.outstandingStatuses).item || nextEngagementAction(record.engagement, store.outstandingStatuses).node)?.title}</small>}</span><span><strong>{yearEndOrPeriodLabel(record.engagement, language)}</strong>
                 <small>{record.engagement.owner || t("未设置负责人")}</small></span><time>{record.engagement.dueDate
                   ? t("截止：{date}", { date: formatDate(record.engagement.dueDate, language) }) : t("未设置截止日")}</time>
             <ChevronRight aria-hidden="true" /></button>)}</div>

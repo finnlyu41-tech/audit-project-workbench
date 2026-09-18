@@ -196,10 +196,10 @@ test("workstream cards reorder directly and contain long text inside each card",
   assert.match(css, /\.workstream-card\s*{[^}]*overflow:\s*hidden/);
   assert.match(css, /\.workstream-card-top strong, \.workstream-card-top small\s*{[^}]*overflow-wrap:\s*anywhere/);
   assert.match(css, /\.workstream-card-meta\s*{[^}]*flex-wrap:\s*wrap/);
-  assert.doesNotMatch(components, /workstream\.owner \|\| t\("未设置负责人"\)/);
+  assert.match(components, /simple \? \(workstream\.owner \|\| t\("未设置负责人"\)\) : nextNode/);
   assert.doesNotMatch(components, /dueTone\(workstream\)/);
   // The approved collapsed-card summary replaces the former no-stage-count design.
-  // Keep the owner/date, ordering and containment protections above unchanged.
+  // Simple mode explicitly exposes a module owner; full mode retains its stage summary.
   const card = components.split("export function WorkstreamCard(")[1].split("export function SampleLibrary(")[0];
   assert.match(card, /const stats = workstreamStats\(workstream\)/);
   assert.match(card, /className="workstream-card-stage-count"[\s\S]*?done: stats\.completedNodes, total: stats\.nodes/);
@@ -222,7 +222,7 @@ test("completion progress uses one compact green ring instead of horizontal bars
   assert.match(components, /--progress-angle/);
   assert.match(css, /\.progress-track\s*{[^}]*border-radius:\s*50%;[^}]*conic-gradient/);
   assert.match(css, /\.progress-track\[data-compact\]\s*{[^}]*width:\s*32px/);
-  assert.match(components, /className="workstream-card-top"><ProgressBar value={stats\.percentage} compact/);
+  assert.match(components, /className="workstream-card-top">{simple \?[^\n]+: <ProgressBar value={stats\.percentage} compact/);
   assert.doesNotMatch(components, /className="workstream-card-progress"/);
   assert.doesNotMatch(css, /\.progress-track > span\s*{[^}]*width:/);
 });
@@ -259,11 +259,12 @@ test("screen typography keeps supporting interface text readable", () => {
   assert.match(css, /\.schedule-corner strong, \.schedule-row-open strong\s*{\s*font-size:\s*14px/);
 });
 
-test("workstream settings omit owner and deadline because both belong to the annual engagement", () => {
+test("only simple workstreams expose independent owner and dates; annual deadlines keep their scope", () => {
   const workstreamForm = components.match(/export function WorkstreamForm[\s\S]*?export function WorkstreamCard/)?.[0] || "";
   assert.doesNotMatch(v11Components, /applyOwnerToWorkstreams/);
-  assert.doesNotMatch(workstreamForm, /模块截止日|values\.dueDate/);
-  assert.doesNotMatch(workstreamForm, /负责人|values\.owner/);
+  const fullFields = workstreamForm.replace(/{values\.mode === "simple" && <>[\s\S]*?<\/>}/, "");
+  assert.doesNotMatch(fullFields, /<input[^>]+value={values\.(owner|dueDate|startDate)}/);
+  assert.match(workstreamForm, /values\.mode === "simple" && <>[\s\S]*value={values\.owner}[\s\S]*value={values\.dueDate}/);
   assert.doesNotMatch(managementReport, /workstream\.owner|workstream\.dueDate/);
   assert.doesNotMatch(deadlineAlerts, /scope === "workstream"/);
 });

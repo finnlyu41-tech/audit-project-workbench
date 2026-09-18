@@ -1,3 +1,4 @@
+import { activeWorkstreamNodes } from "./workstream-mode.js";
 import React from 'react';
 import { useUiLanguage } from './i18n.jsx';
 import { outstandingIsOpen, nodeIsComplete } from './model.js';
@@ -6,7 +7,7 @@ import { localIsoDate } from './efficiency-data.js';
 import { EFFICIENCY_ERRORS } from './efficiency-batch.jsx';
 
 export function nextActionOptions(record, statuses) {
-  const nodes = [...(record.workstreams || []).flatMap(w => w.nodes.filter(n => !nodeIsComplete(n)).map(n => ({
+  const nodes = [...(record.workstreams || []).flatMap(w => activeWorkstreamNodes(w).filter(n => !nodeIsComplete(n)).map(n => ({
     value: { kind: 'workflow', workstreamId: w.id, nodeId: n.id }, label: n.title }))),
     ...(record.consolidation?.nodes || []).filter(n => !nodeIsComplete(n)).map(n => ({ value: { kind: 'workflow', workstreamId: null, nodeId: n.id }, label: n.title }))];
   return [...nodes, ...(record.outstandingItems || []).filter(item => outstandingIsOpen(item, statuses)).map(item => ({

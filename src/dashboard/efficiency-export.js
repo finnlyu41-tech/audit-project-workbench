@@ -47,6 +47,7 @@ export function workspaceDifferences(before, after, limit = 200) {
       || !Array.isArray(before.engagements) || !Array.isArray(after.engagements)) return { unavailable: true, rows: [] };
     const rows = []; let total = 0;
     const push = row => { total += 1; if (rows.length < limit) rows.push(row); };
+    if ((before.businessMode || 'simple') !== (after.businessMode || 'simple')) push({ collection: 'workspace', id: 'business-mode', field: 'businessMode', name: 'Pro', before: before.businessMode === 'pro' ? 'ON' : 'OFF', after: after.businessMode === 'pro' ? 'ON' : 'OFF' });
     for (const [collection, keys] of [['entities', ['legalName', 'entityType', 'incorporationDate', 'parentEntityId', 'archived']],
       ['engagements', ['owner', 'startDate', 'dueDate', 'archived', 'priority', 'reportingFramework']]]) {
       const left = new Map(before[collection].map(r => [r.id, r])); const right = new Map(after[collection].map(r => [r.id, r]));
@@ -65,6 +66,8 @@ export function workspaceDifferences(before, after, limit = 200) {
           const removed = [...aItems.keys()].filter(key => !bItems.has(key)).length, added = [...bItems.keys()].filter(key => !aItems.has(key)).length;
           const changed = [...aItems.keys()].filter(key => bItems.has(key) && JSON.stringify(aItems.get(key)) !== JSON.stringify(bItems.get(key))).length;
           if (removed || added || changed) push({ ...identity, field: 'outstanding', before: aItems.size, after: bItems.size, removed, added, changed });
+          const modules = e => (e.workstreams || []).map(({ id, mode, simpleStatus, owner, startDate, dueDate, notes }) => ({ id, mode, simpleStatus, owner, startDate, dueDate, notes }));
+          if (JSON.stringify(modules(a)) !== JSON.stringify(modules(b))) push({ ...identity, field: "workflow", before: "", after: "" });
           const workflow = e => (e.workstreams || []).flatMap(w => w.nodes || []).concat(e.consolidation?.nodes || []);
           if (JSON.stringify(workflow(a)) !== JSON.stringify(workflow(b))) push({ ...identity, field: 'workflow', before: '', after: '' });
           if (JSON.stringify(a.consolidation?.components) !== JSON.stringify(b.consolidation?.components)) push({ ...identity, field: 'components', before: a.consolidation?.components?.length || 0, after: b.consolidation?.components?.length || 0 });

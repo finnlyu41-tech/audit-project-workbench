@@ -1,3 +1,4 @@
+import { workstreamIsSimple, workstreamStatus, workstreamStatusLabel, WORKSTREAM_STATUSES } from "./workstream-mode.js";
 import { OutlineImporter } from "./efficiency-controls.jsx";
 import React from "react";
 import { RequiredTextInput } from "./required-text-input.jsx";
@@ -175,7 +176,7 @@ export function ProjectForm({ initial, onSubmit, onClose, submitLabel, allowWork
   </form>;
 }
 
-export function WorkstreamForm({ initial, availableCategories = createDefaultWorkstreamCategories(), samples = [],
+export function WorkstreamForm({ initial, businessMode = "simple", availableCategories = createDefaultWorkstreamCategories(), samples = [],
   selectedSampleIdsByCategory = {}, onSubmit, onRemove, onClose }) {
   const { language, t } = useUiLanguage();
   const initialCategory = availableCategories.find((category) => category.id === initial?.categoryId)
@@ -187,6 +188,9 @@ export function WorkstreamForm({ initial, availableCategories = createDefaultWor
   const firstType = firstCategory.builtinType || "custom";
   const [values, setValues] = React.useState(() => ({
     type: firstType,
+    mode: businessMode === "pro" ? "full" : "simple",
+    simpleStatus: workstreamStatus(initial), owner: initial?.owner || "",
+    startDate: initial?.startDate || "", dueDate: initial?.dueDate || "", notes: initial?.notes || "",
     categoryId: firstCategory.id,
     customName: initial?.customName || (firstType === "custom" && firstCategory.id !== "custom" ? firstCategory.name : ""),
     sampleId: initial ? "" : (selectedSampleIdsByCategory[firstCategory.id]
@@ -205,14 +209,28 @@ export function WorkstreamForm({ initial, availableCategories = createDefaultWor
   const typeSamples = samples.filter((sample) => sample.categoryId === values.categoryId);
   return <form data-editor-guard className="workbench-form" onSubmit={(event) => {
     event.preventDefault();
-    if (values.type !== "custom" || values.customName.trim()) onSubmit({ ...values, customName: values.customName.trim() });
+    if (values.type !== "custom" || values.customName.trim()) {
+      const { mode, simpleStatus, owner, startDate, dueDate, notes, ...base } = values;
+      onSubmit({ ...base, customName: values.customName.trim(), mode,
+        ...(mode === "simple" ? { simpleStatus, owner: owner.trim(), startDate, dueDate, notes } : {}) });
+    }
   }}>
     <label><span>{t("模块类别")}</span><select value={values.categoryId} disabled={Boolean(initial)} onChange={changeCategory}>
       {categoryOptions.map((category) => <option value={category.id} key={category.id}>{workstreamCategoryLabel(category, language)}</option>)}
     </select></label>
     {values.type === "custom" && values.categoryId === "custom" && <label><span>{t("自定义模块名称 *")}</span><RequiredTextInput autoFocus aria-label={t("自定义模块名称 *")} value={values.customName}
       onChange={update("customName")} placeholder={t("例如：公司秘书服务")} /></label>}
-    {!initial && <label><span>{t("业务范本")}</span><select value={values.sampleId} onChange={update("sampleId")}>
+    {values.mode === "simple" && <>
+      <p className="muted">{t("直接管理整个模块的状态，不设节点或完成条件。")}</p>
+      {initial?.nodes?.length > 0 && <p>{t("原有节点保留，开启 Pro 后恢复；简化状态独立记录。")}</p>}
+      <label><span>{t("模块状态")}</span><select value={values.simpleStatus} onChange={update("simpleStatus")}>
+        {WORKSTREAM_STATUSES.map(simpleStatus => <option key={simpleStatus} value={simpleStatus}>{t(workstreamStatusLabel({ simpleStatus }))}</option>)}</select></label>
+      <label><span>{t("负责人")}</span><input value={values.owner} onChange={update("owner")} /></label>
+      <label><span>{t("开始日")}</span><input type="date" max={values.dueDate || undefined} value={values.startDate} onChange={update("startDate")} /></label>
+      <label><span>{t("截止日")}</span><input type="date" min={values.startDate || undefined} value={values.dueDate} onChange={update("dueDate")} /></label>
+      <label><span>{t("备注")}</span><textarea value={values.notes} onChange={update("notes")} /></label>
+    </>}
+    {!initial && values.mode !== "simple" && <label><span>{t("业务范本")}</span><select value={values.sampleId} onChange={update("sampleId")}>
       <option value="">{t("空白流程")}</option>{typeSamples.map((sample) => <option value={sample.id} key={sample.id}>{sample.name}</option>)}</select></label>}
     <footer className="modal-actions">{onRemove && <button type="button" className="button danger-quiet" onClick={() => confirmTransition(onRemove)}>{t("移除模块")}</button>}
       <span className="modal-action-spacer" /><button type="button" className="button secondary" onClick={closeEditor}>{t("取消")}</button>
@@ -225,19 +243,21 @@ export function WorkstreamCard({ workstream, selected, openItems = 0, onSelect, 
   const { language, t } = useUiLanguage();
   const stats = workstreamStats(workstream);
   const label = workstreamTypeLabel(workstream.type, language, workstream.customName);
+  const simple = workstreamIsSimple(workstream);
   const nextNode = (workstream.nodes || []).find((node) => !nodeIsComplete(node));
   return <article className="workstream-card" data-selected={selected || undefined} data-complete={stats.complete || undefined}
+    data-simple={simple || undefined}
     data-editable={!readOnly || undefined} data-dragging={dragging || undefined} data-drop-position={dropPosition}
     draggable={!readOnly} onDragStart={onDragStart} onDragEnd={onDragEnd} onDragOver={onDragOver} onDrop={onDrop}>
     <button type="button" className="workstream-card-select" aria-pressed={selected} onClick={onSelect}
       aria-description={!readOnly ? t("按住模块卡片即可拖动排序；按 Alt 加方向键也可移动") : undefined}
       aria-keyshortcuts={!readOnly ? "Alt+ArrowLeft Alt+ArrowRight Alt+ArrowUp Alt+ArrowDown" : undefined}
       onKeyDown={onReorderKeyDown}>
-    <span className="workstream-card-top"><ProgressBar value={stats.percentage} compact />
+    <span className="workstream-card-top">{simple ? <span className="workstream-card-status">{t(workstreamStatusLabel(workstream))}</span> : <ProgressBar value={stats.percentage} compact />}
       <span><strong>{label}</strong>
-        <small className="workstream-card-stage-count">{stats.nodes
+        <small className="workstream-card-stage-count">{simple ? t("简化模式") : stats.nodes
           ? t("{done}/{total} 个阶段已完成", { done: stats.completedNodes, total: stats.nodes }) : t("未开始")}</small>
-        <small className="workstream-card-next-stage">{nextNode
+        <small className="workstream-card-next-stage">{simple ? (workstream.owner || t("未设置负责人")) : nextNode
           ? t("下一阶段：{name}", { name: nextNode.title }) : t(stats.complete ? "所有阶段已完成" : "尚未添加阶段")}</small>
       </span></span>
     {openItems > 0 && <span className="workstream-card-meta"><small>{t("{count} 项未清", { count: openItems })}</small></span>}</button>

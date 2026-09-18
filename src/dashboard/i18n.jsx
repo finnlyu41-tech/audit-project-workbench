@@ -4,6 +4,19 @@ import { toTraditional } from "./traditional.js";
 export const LANGUAGE_PREFERENCE_KEY = "audit-progress-workbench:language";
 
 const english = {
+  "Pro 模式": "Pro mode",
+  "切换至简化模式：所有公司业务模块": "Use Simple mode for all company workstreams",
+  "开启 Pro：所有公司业务模块": "Enable Pro for all company workstreams",
+  "点击模块查看详情；左上角 Pro 开关统一切换所有公司的业务模块。": "Choose a workstream for details. The Pro switch at the top left controls all company workstreams.",
+  "简化模式": "Simple mode",
+  "待处理": "On hold",
+  "简化业务模块": "Simple workstream",
+  "模块模式": "Workstream mode",
+  "模块状态": "Workstream status",
+  "编辑模块资料": "Edit workstream details",
+  "更新模块状态": "Update workstream status",
+  "直接管理整个模块的状态，不设节点或完成条件。": "Manage the whole workstream by status, without stages or completion criteria.",
+  "原有节点保留，开启 Pro 后恢复；简化状态独立记录。": "Existing stages return when Pro is enabled. The simple status is recorded independently.",
   "显示筛选": "Show filters",
   "收起筛选": "Hide filters",
   "{done}/{total} 个阶段已完成": "{done}/{total} stages completed",

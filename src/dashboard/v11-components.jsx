@@ -520,7 +520,7 @@ export function EngagementForm({ store, entity, initial = null, preferredSourceI
           const templates = store.samples.filter((sample) => sample.categoryId === category.id);
           return <div key={category.id} data-selected={Boolean(selected) || undefined}><label><input type="checkbox" checked={Boolean(selected)}
             onChange={() => toggleCategory(category)} /><span>{workstreamCategoryLabel(category, language)}</span></label>
-            {selected && <select aria-label={`${workstreamCategoryLabel(category, language)} · ${t("起始范本")}`}
+            {selected && store.businessMode !== "simple" && <select aria-label={`${workstreamCategoryLabel(category, language)} · ${t("起始范本")}`}
               value={selected.sampleId} onChange={(event) => setSelections((current) => current.map((item) => item.categoryId === category.id
                 ? { ...item, sampleId: event.target.value } : item))}><option value="">{t("空白流程")}</option>
               {templates.map((template) => <option key={template.id} value={template.id}>{template.name}</option>)}</select>}</div>;

@@ -1,3 +1,4 @@
+import { workstreamIsSimple, workstreamModeFields, simpleWorkstreamStats } from "./workstream-mode.js";
 import { entityEfficiencyFields, engagementEfficiencyFields, outstandingEfficiencyFields } from "./efficiency-data.js";
 import { schedulePlanFields } from "./working-days.js";
 import { periodAfterEnd } from "./reporting-period-tools.js";
@@ -586,6 +587,7 @@ export function makeWorkstream(values = {}, sample = null) {
   const sourceNodes = Array.isArray(sample) ? sample : sample?.nodes;
   return {
     id: values.id || uid("workstream"),
+    ...workstreamModeFields(values),
     type,
     categoryId: typeof values.categoryId === "string" && values.categoryId.trim() ? values.categoryId.trim() : type,
     customName: values.customName?.trim() || (type === "custom" ? "自定义模块" : ""),
@@ -593,7 +595,7 @@ export function makeWorkstream(values = {}, sample = null) {
     dueDate: values.dueDate || "",
     createdAt: values.createdAt || now,
     updatedAt: values.updatedAt || now,
-    nodes: (sourceNodes || []).map((node) => makeNode({
+    nodes: (workstreamIsSimple(values) ? [] : sourceNodes || []).map((node) => makeNode({
       title: node.title,
       description: node.description,
       conditions: node.conditions.map((condition) => condition.label),
@@ -606,6 +608,7 @@ export function normalizeWorkstream(value, projectDefaults = {}) {
   const type = WORKSTREAM_TYPES.includes(value?.type) ? value.type : "audit";
   return {
     id: value?.id || uid("workstream"),
+    ...workstreamModeFields(value),
     type,
     categoryId: typeof value?.categoryId === "string" && value.categoryId.trim() ? value.categoryId.trim() : type,
     customName: typeof value?.customName === "string" && value.customName.trim()
@@ -1542,6 +1545,7 @@ function addRuntimeViews(store) {
 function sharedStoreFields(value) {
   const legacy = normalizeLegacyStore({ ...value, projects: [], groups: [], scheduleOrder: [] });
   return {
+    ...(["simple", "pro"].includes(value.businessMode) ? { businessMode: value.businessMode } : {}),
     samples: legacy.samples,
     workstreamCategories: legacy.workstreamCategories,
     selectedSampleIdsByCategory: legacy.selectedSampleIdsByCategory,
@@ -1571,6 +1575,13 @@ function normalizeCanonicalStore(value) {
     });
     if (seenEngagementIds.has(engagement.id)) engagement.id = uid("engagement");
     seenEngagementIds.add(engagement.id);
+    const entity = entityById.get(engagement.entityId);
+    if (shared.businessMode && entity?.kind === "company" && !entity.archived && !engagement.archived) {
+      engagement.workstreams = engagement.workstreams.map(workstream => {
+        const { mode: _mode, ...retained } = workstream;
+        return shared.businessMode === "simple" ? { ...retained, mode: "simple" } : retained;
+      });
+    }
     return engagement;
   }).filter((engagement) => entityById.has(engagement.entityId));
   const engagementById = new Map(engagements.map((engagement) => [engagement.id, engagement]));
@@ -1706,6 +1717,7 @@ function migrateLegacyStore(value) {
         structureSyncedAt: group.updatedAt || now } };
   });
   return normalizeCanonicalStore({
+    businessMode: value.businessMode,
     version: STORE_VERSION,
     entities,
     engagements,
@@ -1878,6 +1890,11 @@ export function reconcileWorkbenchStore(previous, candidate) {
   return addRuntimeViews({ ...candidate, entities: previous.entities, engagements: previous.engagements });
 }
 
+// A workspace-wide choice; normalization keeps archived records and retained nodes intact.
+export function setBusinessMode(store, businessMode = "simple") {
+  return normalizeCanonicalStore({ ...store, businessMode: businessMode === "pro" ? "pro" : "simple" });
+}
+
 export function canonicalStorePayload(store) {
   const { projects: _projects, groups: _groups, ...canonical } = normalizeCanonicalStore(store);
   return canonical;
@@ -1939,6 +1956,7 @@ export function makeEngagement(values = {}, options = {}) {
   if (sourceMode === "previous" && source) {
     workstreams = (source.workstreams || []).map((workstream) => makeWorkstream({
       type: workstream.type,
+      ...(workstreamIsSimple(workstream) ? { mode: "simple", simpleStatus: "not_started" } : {}),
       categoryId: workstream.categoryId,
       customName: workstream.customName,
       owner: "",
@@ -1948,6 +1966,11 @@ export function makeEngagement(values = {}, options = {}) {
     const project = makeProject({ ...values, name: values.internalName || "", entity: "",
       workstreamSelections: values.workstreamSelections || [] }, true, options.samples || [], options.workstreamCategories || []);
     workstreams = project.workstreams;
+  }
+  if (options.store?.businessMode === "simple") {
+    workstreams = workstreams.map(workstream => ({ ...workstream, mode: "simple", simpleStatus: "not_started", nodes: [] }));
+  } else if (options.store?.businessMode === "pro") {
+    workstreams = workstreams.map(({ mode: _mode, ...workstream }) => workstream);
   }
   let reportingPeriods = engagementReportingPeriods(values);
   if (!reportingPeriods.length || reportingPeriods.some((period) => !validIsoDate(period.periodStart)
@@ -2403,7 +2426,7 @@ export function workflowStats(target) {
 }
 
 export function workstreamStats(workstream) {
-  return workflowStats(workstream?.nodes || []);
+  return workstreamIsSimple(workstream) ? simpleWorkstreamStats(workstream) : workflowStats(workstream?.nodes || []);
 }
 
 export function projectStats(project) {
@@ -2414,6 +2437,9 @@ export function projectStats(project) {
   const nodes = workstreamResults.reduce((sum, stats) => sum + stats.nodes, 0);
   const completedNodes = workstreamResults.reduce((sum, stats) => sum + stats.completedNodes, 0);
   const completedWorkstreams = workstreamResults.filter((stats) => stats.complete).length;
+  const simple = project.workstreams.filter(workstreamIsSimple);
+  const units = conditions + simple.length;
+  const done = completedConditions + simple.filter(w => simpleWorkstreamStats(w).complete).length;
   return {
     workstreams: workstreamResults.length,
     completedWorkstreams,
@@ -2422,9 +2448,9 @@ export function projectStats(project) {
     completedConditions,
     nodes,
     completedNodes,
-    percentage: conditions ? Math.round((completedConditions / conditions) * 100) : 0,
+    percentage: units ? Math.round((done / units) * 100) : 0,
     complete: workstreamResults.length > 0 && completedWorkstreams === workstreamResults.length,
-    started: completedConditions > 0,
+    started: workstreamResults.some(stats => stats.started),
   };
 }
 

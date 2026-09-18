@@ -1,3 +1,4 @@
+import { workstreamIsSimple, workstreamStatusLabel, activeWorkstreamNodes } from "./workstream-mode.js";
 import { resolveScheduleDraft } from "./working-days.js";
 import { nodeIsComplete, engagementReportingPeriods } from "./model.js";
 
@@ -62,11 +63,15 @@ export function nextEngagementAction(engagement, statuses = []) {
     if (item && !statuses.find(s => s.id === item.status)?.closed) return { item, workstreamId: item.workstreamId, node: null };
   }
   if (pin?.kind === 'workflow') {
-    const nodes = pin.workstreamId ? engagement.workstreams?.find(w => w.id === pin.workstreamId)?.nodes : engagement.consolidation?.nodes;
+    const nodes = pin.workstreamId ? activeWorkstreamNodes(engagement.workstreams?.find(w => w.id === pin.workstreamId)) : engagement.consolidation?.nodes;
     const node = nodes?.find(n => n.id === pin.nodeId && !nodeIsComplete(n));
     if (node) return { workstreamId: pin.workstreamId, node };
   }
   for (const workstream of engagement?.workstreams || []) {
+    if (workstreamIsSimple(workstream)) {
+      if (workstream.simpleStatus !== "completed") return { workstreamId: workstream.id, node: null, simple: true };
+      continue;
+    }
     const node = (workstream.nodes || []).find((item) => !nodeIsComplete(item));
     if (node) return { workstreamId: workstream.id, node };
     if (!(workstream.nodes || []).length) return { workstreamId: workstream.id, node: null };
