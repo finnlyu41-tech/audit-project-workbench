@@ -573,6 +573,7 @@ export function EngagementForm({ store, entity, initial = null, preferredSourceI
 export function EntityOverview({ store, entity, onEdit, onNewEngagement, onOpenEngagement, onEditEngagement,
   onTax, onArchive, onRestore, onDelete, onMerge, onOpenOutstanding }) {
   const { language, t } = useUiLanguage();
+  const simple = store.businessMode !== "pro";
   const engagements = engagementsForEntity(store, entity.id);
   const [annualQuery, setAnnualQuery] = React.useState("");
   const [annualScope, setAnnualScope] = React.useState("all");
@@ -590,7 +591,10 @@ export function EntityOverview({ store, entity, onEdit, onNewEngagement, onOpenE
     .filter((item) => outstandingIsOpen(item, store.outstandingStatuses))
     .map((item) => ({ engagement, item }))).sort((left, right) =>
     (right.item.createdAt || "").localeCompare(left.item.createdAt || ""));
-  return <section className="entity-overview">
+  const companyDetails = <><button type="button" disabled={entity.archived} onClick={onEdit}><span>{t("所属控股公司")}</span>
+    <strong>{parent?.legalName || t("独立公司")}</strong><Settings2 aria-hidden="true" /></button>
+    <div><span>{t("年度项目")}</span><strong>{engagements.length}</strong></div></>;
+  return <section className="entity-overview" data-simple={simple || undefined}>
     {entity.archived && <div className="archive-banner"><strong>{t("已归档，只读")}</strong><span>{t("归档记录不能编辑；恢复后才可继续更新。")}</span></div>}
     <header className="entity-overview-header"><div className="entity-overview-title"><i>{entity.kind === "holding_company"
       ? <Building2 aria-hidden="true" /> : <Building aria-hidden="true" />}</i><div><span>{t("公司主档")}</span>
@@ -609,13 +613,12 @@ export function EntityOverview({ store, entity, onEdit, onNewEngagement, onOpenE
       onClick={() => latestEngagement ? (entity.archived || latestEngagement.archived ? onOpenEngagement(latestEngagement) : onEditEngagement(latestEngagement)) : onNewEngagement()}
       aria-label={`${t("最新年结／报告期间")}：${latestPeriodLabel}`} title={latestPeriodLabel}>
       <span>{t("最新年结／报告期间")}</span><strong>{latestPeriodLabel}</strong><CalendarDays aria-hidden="true" /></button>
-      <button type="button" disabled={entity.archived} onClick={onEdit}><span>{t("所属控股公司")}</span>
-        <strong>{parent?.legalName || t("独立公司")}</strong><Settings2 aria-hidden="true" /></button>
       <button type="button" onClick={onTax} data-urgency={taxSummary.urgency}><span>{t("税务期限")}</span>
         <strong>{taxSummary.next ? `${formatDate(taxSummary.next.dueDate, language)} · ${taxSummary.openCount}` : t("没有未完成期限")}</strong>
-        <ReceiptText aria-hidden="true" /></button><div><span>{t("年度项目")}</span><strong>{engagements.length}</strong></div></div>
+        <ReceiptText aria-hidden="true" /></button>{!simple && companyDetails}</div>
+    {simple && <details className="simple-project-details"><summary>{t("更多资料")}</summary><div className="entity-facts">{companyDetails}</div></details>}
     <section className="annual-project-list"><header><div><h3>{t("历年项目")}</h3>
-      <p>{t("一个项目可包含多个报告年度，并共用模块、负责人、排期、待清事项和进度。")}</p></div>
+      {!simple && <p>{t("一个项目可包含多个报告年度，并共用模块、负责人、排期、待清事项和进度。")}</p>}</div>
       {!entity.archived && <button type="button" className="button secondary" onClick={onNewEngagement}><CalendarPlus aria-hidden="true" />{t("新建年度项目")}</button>}</header>
       {engagements.length > 0 && <div className="annual-filters">
         <label><span>{t("查找历年项目")}</span><span className="annual-search-control"><Search aria-hidden="true" />
@@ -634,15 +637,15 @@ export function EntityOverview({ store, entity, onEdit, onNewEngagement, onOpenE
           <button type="button" className="annual-project-open" onClick={() => onOpenEngagement(engagement)}>
             <span className="annual-period"><strong>{yearEndOrPeriodLabel(engagement, language)}</strong>
               <small>{engagementTypesLabel(engagement, language) || t("项目类型未设置")}</small>
-              <small>{engagementReportingPeriods(engagement).map((period) =>
-                `${formatDate(period.periodStart, language)} → ${formatDate(period.periodEnd, language)}`).join(" · ")}</small>
+              {!simple && <small>{engagementReportingPeriods(engagement).map((period) =>
+                `${formatDate(period.periodStart, language)} → ${formatDate(period.periodEnd, language)}`).join(" · ")}</small>}
               {archived && <small className="annual-archive-label">{t("已归档，只读")}</small>}</span>
             <span className="annual-owner"><small>{t("负责人")}</small><strong>{engagement.owner || t("未设置")}</strong></span>
-            <span className="annual-schedule"><small>{t("项目排期")}</small><strong>
-              <span>{engagement.startDate ? formatDate(engagement.startDate, language) : t("未设置开始日")}</span>
-              <span aria-hidden="true"> → </span><span>{engagement.dueDate ? formatDate(engagement.dueDate, language) : t("未设置截止日")}</span>
+            <span className="annual-schedule"><small>{t(simple ? "截止日" : "项目排期")}</small><strong>
+              {!simple && <><span>{engagement.startDate ? formatDate(engagement.startDate, language) : t("未设置开始日")}</span>
+                <span aria-hidden="true"> → </span></>}<span>{engagement.dueDate ? formatDate(engagement.dueDate, language) : t("未设置截止日")}</span>
             </strong></span>
-            <span className="annual-progress"><ProgressBar value={percentage} compact /></span>
+            {!simple && <span className="annual-progress"><ProgressBar value={percentage} compact /></span>}
             <ChevronRight aria-hidden="true" /></button>
           {!archived && <button type="button" className="icon-only" onClick={() => onEditEngagement(engagement)}
             aria-label={t("编辑年度项目")} data-tooltip={t("编辑年度项目")} data-tooltip-side="left"><Settings2 aria-hidden="true" /></button>}

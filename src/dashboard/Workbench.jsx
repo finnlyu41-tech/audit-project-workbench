@@ -29,7 +29,7 @@ import { TemplateLibrarySurface } from "./template-library-surface.jsx";
 import { OutstandingCenter } from "./outstanding-center.jsx";
 import { prepareTaxDeadlineSave, prepareTaxDeadlineRemoval } from "./tax-editor-state.js";
 import { RequiredTextInput } from "./required-text-input.jsx";
-import { Archive, ArchiveRestore, ArrowLeft, ArrowRight, BarChart3, BellRing, BookOpen, Building, Building2, CalendarRange, Copy, DatabaseBackup, Eye, EyeOff, House, Languages, LibraryBig, ListPlus,
+import { Archive, ArchiveRestore, ArrowLeft, ArrowRight, BarChart3, BellRing, BookOpen, Building, Building2, CalendarRange, Copy, DatabaseBackup, House, Languages, LibraryBig, ListPlus,
   ListFilter, PanelRightClose, PanelRightOpen, PanelsTopLeft, Pencil, Plus, ReceiptText, Search, Settings, Settings2, Trash2, X } from "lucide-react";
 import { Modal, NodeBoard, NodeForm, OutstandingStatusEditor, ProgressBar, ProjectForm, SampleEditor,
   SampleLibrary, UserGuide, WorkstreamCard, WorkstreamCategoryEditor, WorkstreamForm } from "./components.jsx";
@@ -73,7 +73,6 @@ const SIDEBAR_PREFERENCE_KEY = "audit-progress-workbench:sidebar-collapsed";
 const OUTSTANDING_PREFERENCE_KEY = "audit-progress-workbench:outstanding-collapsed";
 const NAVIGATION_WIDTH_KEY = "audit-progress-workbench:navigation-width";
 const NAVIGATION_VIEW_KEY = "audit-progress-workbench:navigation-view";
-const SIMPLIFIED_VIEW_KEY = "audit-progress-workbench:simplified-view";
 const DEFAULT_NAVIGATION_WIDTH = 260;
 const MIN_NAVIGATION_WIDTH = 220;
 const MAX_NAVIGATION_WIDTH = 520;
@@ -164,10 +163,7 @@ function DashboardWorkbench({ initialSnapshot }) {
     try { return localStorage.getItem(NAVIGATION_VIEW_KEY) === "projects" ? "projects" : "companies"; }
     catch { return "companies"; }
   });
-  const [simplifiedView, setSimplifiedView] = React.useState(() => {
-    try { return localStorage.getItem(SIMPLIFIED_VIEW_KEY) === "true"; }
-    catch { return false; }
-  });
+  const simplifiedView = store.businessMode !== "pro";
   const [templateType, setTemplateType] = React.useState("audit");
   const [templateTag, setTemplateTag] = React.useState("all");
   const [templateSort, setTemplateSort] = React.useState("updated");
@@ -181,6 +177,11 @@ function DashboardWorkbench({ initialSnapshot }) {
   };
   const [workspaceView, setWorkspaceView] = React.useState(loadInitialWorkspaceView);
   const [modal, setModal] = React.useState(null);
+  React.useEffect(() => {
+    if (!simplifiedView) return;
+    if (["schedule", "report"].includes(workspaceView)) setWorkspaceView("home");
+    if (modal?.type === "template-library") setModal(null);
+  }, [simplifiedView, workspaceView, modal?.type]);
   const feedback = useFeedbackController();
   const setMessage = feedback.publish;
   const [deadlineClock, setDeadlineClock] = React.useState(() => new Date());
@@ -243,9 +244,6 @@ function DashboardWorkbench({ initialSnapshot }) {
   React.useEffect(() => {
     try { localStorage.setItem(NAVIGATION_VIEW_KEY, navigationView); } catch { /* optional */ }
   }, [navigationView]);
-  React.useEffect(() => {
-    try { localStorage.setItem(SIMPLIFIED_VIEW_KEY, String(simplifiedView)); } catch { /* optional */ }
-  }, [simplifiedView]);
   React.useEffect(() => { if (!compactLayout) setCompactOutstandingOpen(false); }, [compactLayout]);
   React.useEffect(() => {
     const advancedFiltersActive = Object.values(navigationFilters).some(Boolean);
@@ -679,13 +677,13 @@ function DashboardWorkbench({ initialSnapshot }) {
     updateProject(projectId, (project) => ({ ...project, workstreams: [...project.workstreams, workstream] }));
     setActiveWorkstreamId(null); setModal(null); notify(t("业务模块已添加"));
   };
-  const updateWorkstream = (projectId, workstreamId, values) => {
+  const updateWorkstream = (projectId, workstreamId, values, inline = false) => {
     updateProject(projectId, (project) => ({ ...project, workstreams: project.workstreams.map((workstream) =>
       workstream.id === workstreamId ? { ...workstream,
         ...Object.fromEntries(["customName", "mode", "simpleStatus", "owner", "startDate", "dueDate", "notes"]
           .filter(key => Object.hasOwn(values, key)).map(key => [key, values[key]])),
         updatedAt: new Date().toISOString() } : workstream) }));
-    setModal(null); notify(t("业务模块已更新"));
+    if (!inline) { setModal(null); notify(t("业务模块已更新")); }
   };
   const removeWorkstream = (projectId, workstreamId) => {
     const project = store.projects.find((item) => item.id === projectId);
@@ -1032,14 +1030,14 @@ function DashboardWorkbench({ initialSnapshot }) {
             aria-label={t("首页")} data-tooltip={t("首页")} data-tooltip-side="right"
             onClick={() => { closeMenu(); setModal(null); setWorkspaceView("home"); }}>
             <House aria-hidden="true" /></button>
-          <button type="button" className="app-rail-button" data-active={workspaceView === "schedule" || undefined}
+          {!simplifiedView && <button type="button" className="app-rail-button" data-active={workspaceView === "schedule" || undefined}
             aria-label={t("项目排期")} data-tooltip={t("项目排期")} data-tooltip-side="right"
             onClick={() => { closeMenu(); setWorkspaceView("schedule"); }}>
-            <CalendarRange aria-hidden="true" /></button>
-          <button type="button" className="app-rail-button" data-active={workspaceView === "report" || undefined}
+            <CalendarRange aria-hidden="true" /></button>}
+          {!simplifiedView && <button type="button" className="app-rail-button" data-active={workspaceView === "report" || undefined}
             aria-label={t("管理层报告")} data-tooltip={t("管理层报告")} data-tooltip-side="right"
             onClick={() => { closeMenu(); setWorkspaceView("report"); }}>
-            <BarChart3 aria-hidden="true" /></button>
+            <BarChart3 aria-hidden="true" /></button>}
           <button type="button" className="app-rail-button deadline-alert-trigger" aria-haspopup="dialog"
             data-active={modal?.type === "deadline-alerts" || undefined} data-alert={deadlineAlertItems.length > 0 || undefined}
             aria-label={deadlineAlertItems.length ? t("期限提醒 · {count}", { count: deadlineAlertItems.length }) : t("期限提醒")}
@@ -1047,11 +1045,11 @@ function DashboardWorkbench({ initialSnapshot }) {
             data-tooltip-side="right" onClick={() => { closeMenu(); setModal({ type: "deadline-alerts" }); }}>
             <BellRing aria-hidden="true" />{deadlineAlertItems.length > 0 && <strong className="app-rail-badge">
               {deadlineAlertItems.length > 99 ? "99+" : deadlineAlertItems.length}</strong>}</button>
-          <button type="button" className="app-rail-button" aria-haspopup="dialog"
+          {!simplifiedView && <button type="button" className="app-rail-button" aria-haspopup="dialog"
             data-active={modal?.type === "template-library" || undefined}
             aria-label={t("范本库")} data-tooltip={t("范本库")} data-tooltip-side="right"
             onClick={() => { closeMenu(); setModal({ type: "template-library" }); }}>
-            <LibraryBig aria-hidden="true" /></button>
+            <LibraryBig aria-hidden="true" /></button>}
           <button type="button" className="app-rail-button" aria-haspopup="dialog"
             data-active={modal?.type === "user-guide" || undefined}
             aria-label={t("使用指南")} data-tooltip={t("使用指南")} data-tooltip-side="right"
@@ -1112,10 +1110,6 @@ function DashboardWorkbench({ initialSnapshot }) {
         {!sidebarCollapsed && <>
           <div className="project-panel-controls"><div className="project-panel-title"><div>
             <strong>{t(navigationView === "projects" ? "项目列表" : "公司列表")}</strong></div><div className="project-panel-actions">
-              <button type="button" className="navigation-density-toggle" aria-pressed={simplifiedView}
-                aria-label={t("简化视图")} data-tooltip={t(simplifiedView ? "显示导航和排期详情" : "隐藏导航和排期详情")}
-                onClick={() => setSimplifiedView((current) => !current)}>
-                {simplifiedView ? <Eye aria-hidden="true" /> : <EyeOff aria-hidden="true" />}<span>{t("简化")}</span></button>
               <button type="button" className="project-panel-new"
               aria-label={t("新建公司")} data-tooltip={t("新建公司")} data-tooltip-side="left"
               onClick={(event) => {
@@ -1194,7 +1188,7 @@ function DashboardWorkbench({ initialSnapshot }) {
           onShowSchedule={() => setWorkspaceView("schedule")} onBatchAnnual={() => setModal({ type: "efficiency-annual" })} />
           : workspaceView === "schedule" ? <ProjectSchedule store={store} filter={filter} onFilterChange={setFilter} onOpen={revealWorkspaceRecord}
           onEditSchedule={openScheduleEditor} onBatchSchedule={() => setModal({ type: "efficiency-schedule" })} onOpenTaxDeadline={openTaxDeadlineCentre} onReorder={reorderSchedule}
-          simplifiedView={simplifiedView} onToggleSimplifiedView={() => setSimplifiedView((current) => !current)} />
+          simplifiedView={simplifiedView} />
           : workspaceView === "report" ? <ManagementReport store={store} selection={selection} now={deadlineClock}
             onOpen={revealWorkspaceRecord} onOpenOutstanding={revealOutstandingItem} onOpenTaxDeadline={openTaxDeadlineCentre} />
           : selectedEntitySource ? <EntityOverview key={selectedEntitySource.id} store={store} entity={selectedEntitySource}
@@ -1216,7 +1210,7 @@ function DashboardWorkbench({ initialSnapshot }) {
             onRestore={() => { updateEntity(selectedEntitySource.id, (entity) => ({ ...entity, archived: false })); setFilter("all"); notify(t("公司已恢复")); }}
             onDelete={() => setModal({ type: "delete-entity", targetId: selectedEntitySource.id, name: selectedEntitySource.legalName })}
             onMerge={() => setModal({ type: "merge-entities", entityId: selectedEntitySource.id })} />
-          : selectedProject ? <ProjectDetail updateWorkstream={updateWorkstream} project={selectedProject} rawProject={selectedProjectSource} entityArchived={Boolean(selectedRecordEntity?.archived)} statuses={outstandingStatusViews}
+          : selectedProject ? <ProjectDetail simplifiedView={simplifiedView} updateWorkstream={updateWorkstream} project={selectedProject} rawProject={selectedProjectSource} entityArchived={Boolean(selectedRecordEntity?.archived)} statuses={outstandingStatusViews}
           parentMembership={selectedProjectMembership} onWorkflowRevealed={() => setWorkflowReveal(null)} workflowReveal={workflowReveal?.targetId === selectedProjectSource.id ? workflowReveal : null}
           quickUpdate={selectedEngagement && <QuickUpdate key={`quick-update:${selectedEngagement.id}`} engagement={selectedEngagement}
             readOnly={Boolean(selectedEngagement.archived || selectedRecordEntity?.archived)} drafts={quickDrafts.current}
@@ -1571,7 +1565,7 @@ function DetailFactAction({ label, children, onClick, actionLabel, icon: Icon = 
   </div>;
 }
 
-function ProjectDetail({ updateWorkstream, project, rawProject, entityArchived = false, statuses, parentMembership, activeWorkstreamId, setActiveWorkstreamId,
+function ProjectDetail({ simplifiedView, updateWorkstream, project, rawProject, entityArchived = false, statuses, parentMembership, activeWorkstreamId, setActiveWorkstreamId,
   updateWorkflowNodes, setModal, duplicateProject, archiveTarget, restoreTarget, onReorderWorkstreams, deadlineClock, quickUpdate, workflowReveal, onWorkflowRevealed }) {
   const { language, t } = useUiLanguage();
   const draggingWorkstreamRef = React.useRef(null);
@@ -1630,24 +1624,7 @@ function ProjectDetail({ updateWorkstream, project, rawProject, entityArchived =
     event.preventDefault();
     onReorderWorkstreams?.(rawProject.id, workstreamId, target.id, moveEarlier ? "before" : "after");
   };
-  return <div className="workspace-detail-inner">
-    {readOnly && <div className="archive-banner"><strong>{t("已归档，只读")}</strong>
-      <span>{t("归档记录不能编辑；恢复后才可继续更新。")}</span></div>}
-    <header className="detail-header"><div className="detail-title"><div><span className="workspace-label">{t("项目工作区")}</span><h2>{primaryName}</h2></div>
-      <p>{subtitle}</p></div>
-      <div className="detail-actions">{readOnly ? <>
-        <button type="button" className="button secondary icon-only" aria-label={t("恢复")} data-tooltip={t("恢复")}
-          onClick={() => restoreTarget("project", rawProject.id)}><ArchiveRestore aria-hidden="true" /></button>
-        <button type="button" className="button danger-quiet icon-only" aria-label={t("永久删除")}
-          data-tooltip={t("永久删除")} onClick={() => setModal({ type: "delete-target", targetKind: "project",
-            targetId: rawProject.id, name: rawProject.name })}><Trash2 aria-hidden="true" /></button></> : <>
-        <button type="button" className="button primary icon-only" aria-label={t("编辑年度项目")}
-          data-tooltip={t("编辑年度项目")} onClick={() => setModal({ type: "edit-engagement", targetKind: "project", targetId: rawProject.id })}><Pencil aria-hidden="true" /></button>
-        <button type="button" className="button secondary icon-only" aria-label={t("复制项目")}
-          data-tooltip={t("复制项目")} onClick={() => duplicateProject(rawProject)}><Copy aria-hidden="true" /></button>
-        <button type="button" className="button secondary icon-only" aria-label={t("归档项目")}
-          data-tooltip={t("归档项目")} onClick={() => archiveTarget("project", rawProject.id)}><Archive aria-hidden="true" /></button></>}</div>
-    </header>
+  const moreDetails = <>
     {quickUpdate}
     <dl className="detail-facts"><DetailFactAction className="detail-fact-secondary" label={t("负责人")} actionLabel={`${t("编辑项目资料")}：${t("负责人")}`}
       onClick={!readOnly ? () => setModal({ type: "edit-engagement", targetKind: "project", targetId: rawProject.id, quickField: "owner" }) : null}>
@@ -1670,43 +1647,72 @@ function ProjectDetail({ updateWorkstream, project, rawProject, entityArchived =
         urgency={taxSummary.urgency} actionLabel={readOnly ? t("税务期限") : t(taxSummary.next ? "编辑税务期限" : "新增税务期限")}
         onClick={() => setModal({ type: "tax-deadlines", targetKind: "project", targetId: rawProject.id,
           ...(readOnly ? {} : { editDeadlineId: taxSummary.next?.id ?? null }) })}>{taxFactValue}</DetailFactAction></dl>
+  </>;
+  return <div className="workspace-detail-inner">
+    {readOnly && <div className="archive-banner"><strong>{t("已归档，只读")}</strong>
+      <span>{t("归档记录不能编辑；恢复后才可继续更新。")}</span></div>}
+    <header className="detail-header"><div className="detail-title"><div><span className="workspace-label">{t("项目工作区")}</span><h2>{primaryName}</h2></div>
+      <p>{subtitle}</p></div>
+      <div className="detail-actions">{readOnly ? <>
+        <button type="button" className="button secondary icon-only" aria-label={t("恢复")} data-tooltip={t("恢复")}
+          onClick={() => restoreTarget("project", rawProject.id)}><ArchiveRestore aria-hidden="true" /></button>
+        <button type="button" className="button danger-quiet icon-only" aria-label={t("永久删除")}
+          data-tooltip={t("永久删除")} onClick={() => setModal({ type: "delete-target", targetKind: "project",
+            targetId: rawProject.id, name: rawProject.name })}><Trash2 aria-hidden="true" /></button></> : <>
+        <button type="button" className="button primary icon-only" aria-label={t("编辑年度项目")}
+          data-tooltip={t("编辑年度项目")} onClick={() => setModal({ type: "edit-engagement", targetKind: "project", targetId: rawProject.id })}><Pencil aria-hidden="true" /></button>
+        <button type="button" className="button secondary icon-only" aria-label={t("复制项目")}
+          data-tooltip={t("复制项目")} onClick={() => duplicateProject(rawProject)}><Copy aria-hidden="true" /></button>
+        <button type="button" className="button secondary icon-only" aria-label={t("归档项目")}
+          data-tooltip={t("归档项目")} onClick={() => archiveTarget("project", rawProject.id)}><Archive aria-hidden="true" /></button></>}</div>
+    </header>
+    {simplifiedView ? <>
+      <div className="simple-project-summary"><strong>{t("已完成 {done}/{total}", { done: stats.completedWorkstreams, total: stats.workstreams })}</strong>
+        {project.dueDate && <span>{t("截止：{date}", { date: formatDate(project.dueDate, language) })}</span>}
+        <TaxDeadlineSummaryButton deadlines={rawProject.taxDeadlines} now={deadlineClock} compact
+          onClick={() => setModal({ type: "tax-deadlines", targetKind: "project", targetId: rawProject.id })} /></div>
+      <details className="simple-project-details"><summary>{t("更多项目资料")}</summary>{moreDetails}</details>
+    </> : moreDetails}
 
     <section className="workstream-overview"><header className="section-heading"><div><h3>{t("业务模块")}</h3>
-      <p>{t("点击模块查看详情；左上角 Pro 开关统一切换所有公司的业务模块。")}</p></div>
-      {!readOnly && <div className="section-heading-actions"><button type="button" className="button secondary icon-only"
+      {!simplifiedView && <p>{t("点击模块查看详情；左上角 Pro 开关统一切换所有公司的业务模块。")}</p>}</div>
+      {!readOnly && <div className="section-heading-actions"><button type="button" className={`button secondary${simplifiedView ? "" : " icon-only"}`}
         aria-label={t("添加业务模块")} data-tooltip={t("添加业务模块")} onClick={() => setModal({ type: "workstream-add",
-          targetKind: "project", targetId: rawProject.id })}><ListPlus aria-hidden="true" /></button>
-        <button type="button" className="button secondary icon-only" disabled={!activeRawWorkstream}
+          targetKind: "project", targetId: rawProject.id })}><ListPlus aria-hidden="true" />{simplifiedView && t("添加业务模块")}</button>
+        {!simplifiedView && <button type="button" className="button secondary icon-only" disabled={!activeRawWorkstream}
           aria-label={t("设置所选业务模块")} data-tooltip={t(activeRawWorkstream ? "设置所选业务模块" : "请先选择一个业务模块")}
           onClick={() => activeRawWorkstream && setModal({ type: "workstream-edit", targetKind: "project",
-            targetId: rawProject.id, workstreamId: activeRawWorkstream.id })}><Settings2 aria-hidden="true" /></button></div>}</header>
-      {project.workstreams.length ? <div className="workstream-card-grid">{project.workstreams.map((workstream) => <WorkstreamCard key={workstream.id}
-        workstream={workstream} selected={workstream.id === activeWorkstream?.id}
-        openItems={rawProject.outstandingItems.filter((item) => item.workstreamId === workstream.id
-          && outstandingIsOpen(item, statuses)).length} readOnly={readOnly}
-        dragging={draggingWorkstreamId === workstream.id}
-        dropPosition={workstreamDropTarget?.id === workstream.id ? workstreamDropTarget.position : undefined}
-        onDragStart={(event) => beginWorkstreamDrag(event, workstream.id)} onDragEnd={finishWorkstreamDrag}
-        onDragOver={(event) => dragOverWorkstream(event, workstream.id)}
-        onDrop={(event) => dropWorkstream(event, workstream.id)}
-        onReorderKeyDown={(event) => reorderWorkstreamWithKeyboard(event, workstream.id)}
-        onSelect={() => setActiveWorkstreamId((current) => current === workstream.id ? null : workstream.id)} />)}</div>
+            targetId: rawProject.id, workstreamId: activeRawWorkstream.id })}><Settings2 aria-hidden="true" /></button>}</div>}</header>
+      {project.workstreams.length ? <div className={project.workstreams.some(workstreamIsSimple) ? "simple-workstream-list" : "workstream-card-grid"}>
+        {project.workstreams.map((workstream) => {
+          const shared = { selected: workstream.id === activeWorkstream?.id, readOnly,
+            openItems: rawProject.outstandingItems.filter(item => item.workstreamId === workstream.id && outstandingIsOpen(item, statuses)).length,
+            dragging: draggingWorkstreamId === workstream.id,
+            dropPosition: workstreamDropTarget?.id === workstream.id ? workstreamDropTarget.position : undefined,
+            onDragStart: event => beginWorkstreamDrag(event, workstream.id), onDragEnd: finishWorkstreamDrag,
+            onDragOver: event => dragOverWorkstream(event, workstream.id), onDrop: event => dropWorkstream(event, workstream.id),
+            onReorderKeyDown: event => { if (!readOnly) reorderWorkstreamWithKeyboard(event, workstream.id); } };
+          return workstreamIsSimple(workstream) ? <SimpleWorkstream key={workstream.id} {...shared}
+            workstream={rawProject.workstreams.find(item => item.id === workstream.id)}
+            onSelect={() => setActiveWorkstreamId(workstream.id)}
+            onChange={values => updateWorkstream(rawProject.id, workstream.id, values, true)}
+            onEdit={() => setModal({ type: "workstream-edit", targetKind: "project", targetId: rawProject.id, workstreamId: workstream.id })} />
+            : <WorkstreamCard key={workstream.id} {...shared} workstream={workstream}
+              onSelect={() => setActiveWorkstreamId(current => current === workstream.id ? null : workstream.id)} />;
+        })}</div>
         : <button type="button" className="workstream-empty" disabled={readOnly}
           onClick={() => setModal({ type: "workstream-add", targetKind: "project", targetId: rawProject.id })}>
           <ListPlus aria-hidden="true" /><span><strong>{t("尚未启用业务模块")}</strong>
             <small>{t(readOnly ? "此公司没有业务模块。" : "选择此处添加第一个业务模块。")}</small></span></button>}
     </section>
 
-    {activeWorkstream && activeRawWorkstream && <section className="workflow-panel">
-      <>{workstreamIsSimple(activeRawWorkstream) ? <SimpleWorkstream workstream={activeRawWorkstream} readOnly={readOnly}
-        onStatus={simpleStatus => updateWorkstream(rawProject.id, activeRawWorkstream.id, { simpleStatus })}
-        onEdit={() => setModal({ type: "workstream-edit", targetKind: "project", targetId: rawProject.id, workstreamId: activeRawWorkstream.id })} />
-      : <WorkflowNodes key={activeRawWorkstream.id} targetKind="project" targetId={rawProject.id} workstreamId={activeRawWorkstream.id}
+    {activeWorkstream && activeRawWorkstream && !workstreamIsSimple(activeRawWorkstream) && <section className="workflow-panel">
+      <WorkflowNodes key={activeRawWorkstream.id} targetKind="project" targetId={rawProject.id} workstreamId={activeRawWorkstream.id}
         revealRequest={workflowReveal?.workstreamId === activeRawWorkstream.id ? workflowReveal : null} onRevealHandled={onWorkflowRevealed}
         nodes={activeWorkstream.nodes} updateWorkflowNodes={updateWorkflowNodes} setModal={setModal} readOnly={readOnly}
         label={t("模块节点")} title={workstreamTypeLabel(activeWorkstream.type, language, activeWorkstream.customName)}
         description={t("点击节点查看完成条件；再次点击可收起详情。")}
-        percentage={workstreamStats(activeWorkstream).percentage} />}</>
+        percentage={workstreamStats(activeWorkstream).percentage} />
     </section>}
   </div>;
 }

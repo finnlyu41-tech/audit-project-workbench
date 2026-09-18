@@ -1,4 +1,4 @@
-import { closeOutstandingPane } from './panel-helpers.js';
+import { closeOutstandingPane, openProjectNavigation } from './panel-helpers.js';
 import { addOutstandingItem } from './panel-helpers.js';
 import { openOutstandingFilters, openOutstandingMore, expandOutstandingItem } from './outstanding-helpers.js';
 import fs from "node:fs/promises";
@@ -185,8 +185,9 @@ test("one engagement can add and save three reporting years with one shared work
   await expect(scheduleSummary.locator(".period-summary-value")).toHaveText([
     "December 31, 2023", "December 31, 2024", "December 31, 2025",
   ]);
-  await page.locator(".schedule-detail-toggle").click();
-  await expect(page.locator(".schedule-row-meta .period-summary-compact"))
+  await page.getByRole("switch", { name: "Pro mode", exact: true }).click();
+  await openProjectNavigation(page);
+  await expect(page.locator(".tree-engagement-row .period-summary-compact"))
     .toHaveText("3 year-end dates · 2023–2025");
 });
 

@@ -1,5 +1,12 @@
 # Changelog
 
+## Compact Simple workspace — 2026-09-18
+
+- Use one global Pro switch for business workflows, navigation density and advanced schedule/report/template entry points.
+- Edit Simple status, owner and due date directly in module rows; expand secondary details. Preserve date validation, keyboard input, archived read-only records and original workflow data.
+- Focus Simple home on deadlines, outstanding work and recent visits; fold secondary metadata and omit progress rings and duplicate next-step summaries. Keep reminders and backup/recovery available.
+- 简化模式改为模块行内编辑；低频资料折叠，首页聚焦期限、待办和最近访问。Pro 统一恢复详细界面，保留原有资料、提醒及备份恢复。
+
 ## Simple business modules — 2026-09-18
 
 - Default to Simple with one workspace-wide Pro switch for all active company modules; remove per-module mode selection.

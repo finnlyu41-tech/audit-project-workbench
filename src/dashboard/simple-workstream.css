@@ -1,13 +1,29 @@
-.simple-workstream { padding: 20px; min-width: 0; }
-.simple-workstream header { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; }
-.simple-workstream h3 { margin: 4px 0 16px; }
-.simple-workstream-status { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
-.simple-workstream select { min-height: 42px; min-width: 160px; max-width: 100%; padding: 9px 11px;
-  border: 1px solid var(--border); border-radius: 9px; background: var(--control); color: var(--text); font: inherit; }
-.simple-workstream dl { display: flex; flex-wrap: wrap; gap: 16px 40px; }
-.simple-workstream dt { color: var(--secondary); }
-.simple-workstream dd { margin: 4px 0 0; overflow-wrap: anywhere; }
-.simple-workstream-notes p { white-space: pre-wrap; overflow-wrap: anywhere; }
+.simple-workstream-list { display: grid; gap: 8px; container-type: inline-size; }
+.simple-workstream { display: grid; grid-template-columns: minmax(130px, 1fr) 130px minmax(100px, .8fr) 150px;
+  align-items: start; gap: 10px 14px; padding: 12px; min-width: 0; border: 1px solid var(--border); border-radius: 10px; background: var(--surface); }
+.simple-workstream[data-selected] { border-color: var(--wb-accent); }
+.simple-workstream[data-dragging] { opacity: .5; }
+.simple-workstream[data-drop-position="before"] { box-shadow: inset 0 3px var(--wb-accent); }
+.simple-workstream[data-drop-position="after"] { box-shadow: inset 0 -3px var(--wb-accent); }
+.simple-workstream-name { display: grid; gap: 4px; align-self: center; min-width: 0; min-height: 42px;
+  border: 0; background: transparent; color: var(--text); text-align: left; font: inherit; cursor: pointer; overflow-wrap: anywhere; }
+.simple-workstream-name small, .simple-workstream label > span { color: var(--secondary); font-size: 13px; }
+.simple-workstream label { display: grid; gap: 4px; min-width: 0; }
+.simple-workstream input, .simple-workstream select, .simple-workstream textarea { box-sizing: border-box; width: 100%; min-width: 0; min-height: 38px;
+  padding: 7px 9px; border: 1px solid var(--border); border-radius: 7px; background: var(--control); color: var(--text); font: inherit; }
+.simple-workstream-more { grid-column: 1 / -1; min-width: 0; font-size: 13px; }
+.simple-workstream-more > summary { cursor: pointer; width: fit-content; color: var(--secondary); padding: 3px 0; }
+.simple-workstream-more > div { display: grid; grid-template-columns: 150px minmax(0, 1fr) auto; gap: 12px; align-items: start; padding-top: 10px; }
+.simple-workstream textarea { min-height: 74px; resize: vertical; }
+@container (max-width: 620px) {
+  .simple-workstream { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .simple-workstream-more > div { grid-template-columns: minmax(0, 1fr); }
+}
+@container (max-width: 330px) { .simple-workstream { grid-template-columns: minmax(0, 1fr); } }
+.simple-project-summary { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 18px; margin-block: 10px; }
+.simple-project-details { margin-block: 12px; }
+.simple-project-details > summary { cursor: pointer; color: var(--secondary); padding: 8px 0; }
+.home-overview[data-simple] .home-overview-columns { grid-template-columns: minmax(0, 1fr); }
 .workstream-card[data-simple] .workstream-card-top { grid-template-columns: max-content minmax(0, 1fr); }
 .workstream-card-status { min-width: 54px; font-weight: 600; white-space: nowrap; }
 

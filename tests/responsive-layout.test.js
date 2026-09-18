@@ -89,14 +89,14 @@ test("navigation switches between a company hierarchy and a flat annual-project 
   assert.match(groupComponents, /className="workspace-tree-bulk-actions"/);
 });
 
-test("one persistent simplified-view toggle compacts both navigation and project schedule details", () => {
-  assert.match(workbench, /SIMPLIFIED_VIEW_KEY = "audit-progress-workbench:simplified-view"/);
-  assert.match(workbench, /localStorage\.setItem\(SIMPLIFIED_VIEW_KEY, String\(simplifiedView\)\)/);
+test("the workspace Pro mode is the only switch for navigation density and advanced views", () => {
+  assert.match(workbench, /const simplifiedView = store\.businessMode !== "pro"/);
+  assert.doesNotMatch(workbench, /SIMPLIFIED_VIEW_KEY|navigation-density-toggle|onToggleSimplifiedView/);
   assert.match(workbench, /viewMode={navigationView} simplifiedView={simplifiedView}/);
-  assert.match(workbench, /simplifiedView={simplifiedView} onToggleSimplifiedView=/);
+  assert.match(workbench, /!simplifiedView && <button[^>]*data-active={workspaceView === "schedule"/);
   assert.match(workbench, /--effective-project-panel-width/);
   assert.match(groupComponents, /data-simplified={simplifiedView \|\| undefined}/);
-  assert.match(timeline, /className="button secondary schedule-detail-toggle" aria-pressed={simplifiedView}/);
+  assert.doesNotMatch(timeline, /schedule-detail-toggle|onToggleSimplifiedView/);
   assert.match(timeline, /data-simplified={simplifiedView \|\| undefined}/);
   assert.match(css, /\.workspace-tree\[data-simplified\] \.tree-row\s*{[^}]*grid-template-columns:\s*minmax\(0, 1fr\)/);
   assert.match(css, /\.workbench-layout\[data-simplified-view\] \.project-panel-resizer\s*{\s*display:\s*none/);
