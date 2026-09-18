@@ -1,5 +1,5 @@
 import React from "react";
-import { Building, Building2, CalendarClock, CircleAlert, Eye, EyeOff, LocateFixed, ReceiptText, Search, ListFilter } from "lucide-react";
+import { Building, Building2, CalendarClock, CircleAlert, LocateFixed, ReceiptText, Search, ListFilter } from "lucide-react";
 import { engagementTypesLabel, formatDate, taxDeadlineCategoryLabel, taxDeadlineUrgency } from "./model.js";
 import { filterScheduleRows, scheduleRows } from "./schedule-view-model.js";
 import { useUiLanguage } from "./i18n.jsx";
@@ -40,7 +40,7 @@ function savePrecision(value) {
 }
 
 export function ProjectSchedule({ store, filter, onFilterChange, onOpen, onEditSchedule, onBatchSchedule, onOpenTaxDeadline, onReorder,
-  simplifiedView = false, onToggleSimplifiedView }) {
+  simplifiedView = false }) {
   const { language, t } = useUiLanguage();
   const scrollRef = React.useRef(null);
   const viewRef = React.useRef(null);
@@ -194,10 +194,6 @@ export function ProjectSchedule({ store, filter, onFilterChange, onOpen, onEditS
       <div className="schedule-heading-actions"><div className="schedule-summary">
         <span>{t("{count} 项已排期", { count: scheduledCount })}</span>
         <span data-alert={incompleteCount > 0 || undefined}>{t("{count} 项日期待补", { count: incompleteCount })}</span></div>
-        <button type="button" className="button secondary schedule-detail-toggle" aria-pressed={simplifiedView}
-          data-tooltip={t(simplifiedView ? "显示导航和排期详情" : "隐藏导航和排期详情")}
-          onClick={onToggleSimplifiedView}>{simplifiedView ? <Eye aria-hidden="true" /> : <EyeOff aria-hidden="true" />}
-          <span>{t("简化视图")}</span></button>
         <div className="schedule-precision" role="group" aria-label={t("时间精度")}>
           {SCHEDULE_PRECISIONS.map((value) => <button type="button" key={value} aria-pressed={precision === value}
             onClick={() => changePrecision(value)}>{t(value === "day" ? "天" : value === "month" ? "月" : "周")}</button>)}

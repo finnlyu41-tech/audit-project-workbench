@@ -1,6 +1,6 @@
 import { openProjectNavigation } from './panel-helpers.js';
 import { expect, test } from "@playwright/test";
-import { openWorkbench, workspaceFixture } from "./helpers.js";
+import { openWorkbench, readStoredWorkspace, workspaceFixture } from "./helpers.js";
 
 // 1024 CSS px also covers a 1280px desktop at 125% browser zoom.
 for (const width of [1024, 1280, 1440, 1920]) {
@@ -128,25 +128,26 @@ test("company navigation and schedule company columns resize by dragging and per
   expect((await page.locator(".schedule-corner").boundingBox()).width).toBeCloseTo(scheduleAfter, 0);
 });
 
-test("simplified view compacts navigation and schedule while retaining core project identity", async ({ page }) => {
+test("one Pro switch compacts navigation, gates advanced views and retains core identity", async ({ page }) => {
   await page.setViewportSize({ width: 1280, height: 900 });
   await openWorkbench(page, workspaceFixture());
-
-  const navigationToggle = page.locator(".navigation-density-toggle");
+  const before = await readStoredWorkspace(page);
+  const toggle = page.getByRole("switch", { name: "Pro mode", exact: true });
   const detailedNavigationWidth = (await page.locator(".project-panel").boundingBox()).width;
-  await expect(navigationToggle).toHaveAttribute("aria-pressed", "false");
+  await expect(toggle).toBeChecked();
   await expect(page.locator(".tree-engagement-period")).toContainText("Alex Chan");
-  await navigationToggle.click();
-  await expect(navigationToggle).toHaveAttribute("aria-pressed", "true");
+  await toggle.click();
+  await expect(toggle).not.toBeChecked();
   await expect(page.locator(".tree-engagement-period")).not.toContainText("Alex Chan");
   await expect(page.locator(".workspace-tree .tree-progress")).toHaveCount(0);
   await expect.poll(async () => (await page.locator(".project-panel").boundingBox()).width)
     .toBeLessThan(detailedNavigationWidth);
   await expect.poll(async () => (await page.locator(".project-panel").boundingBox()).width).toBe(250);
-  const compactNavigationWidth = (await page.locator(".project-panel").boundingBox()).width;
   await expect(page.locator(".project-panel-resizer")).toBeHidden();
-  expect(await page.locator(".filter-tabs").evaluate((element) => getComputedStyle(element).gridTemplateColumns.split(" ").length)).toBe(4);
-  await expect.poll(() => page.evaluate(() => localStorage.getItem("audit-progress-workbench:simplified-view"))).toBe("true");
+  expect(await page.locator(".filter-tabs").evaluate(element => getComputedStyle(element).gridTemplateColumns.split(" ").length)).toBe(4);
+  await expect(page.locator(".navigation-density-toggle, .schedule-detail-toggle")).toHaveCount(0);
+  for (const name of ["Project schedule", "Management reports", "Template library"])
+    await expect(page.getByRole("button", { name, exact: true })).toHaveCount(0);
 
   await page.getByRole("tab", { name: "Projects", exact: true }).click();
   await expect(page.locator(".flat-engagement-type")).toHaveText("Audit");
@@ -154,25 +155,18 @@ test("simplified view compacts navigation and schedule while retaining core proj
   await expect(page.locator(".flat-engagement-company")).not.toContainText("December 31, 2026");
   await expect(page.locator(".flat-engagement-period")).toHaveText("YE December 31, 2026");
 
+  await toggle.click();
+  await expect.poll(() => readStoredWorkspace(page)).toEqual(before);
   await page.locator(".app-rail-button[aria-label='Project schedule']").click();
-  const compactRow = page.locator(".schedule-row-meta");
-  await expect(page.locator(".schedule-grid")).toHaveAttribute("data-simplified", "true");
-  await expect(page.locator(".schedule-reporting-period")).toHaveText("YE December 31, 2026");
-  await expect(page.locator(".schedule-project-type")).toContainText("Audit");
-  await expect(page.locator(".schedule-project-type")).not.toContainText("December 31, 2026");
-  await expect(page.locator(".schedule-project-type")).not.toContainText("Alex Chan");
-  const compactHeight = (await compactRow.boundingBox()).height;
-
-  await page.locator(".schedule-detail-toggle").click();
   await expect(page.locator(".schedule-grid")).not.toHaveAttribute("data-simplified", "true");
   await expect(page.locator(".schedule-reporting-period")).toHaveText("YE December 31, 2026");
+  await expect(page.locator(".schedule-project-type")).toContainText("Audit");
   await expect(page.locator(".schedule-project-type")).toContainText("Alex Chan");
-  expect((await compactRow.boundingBox()).height).toBeGreaterThan(compactHeight);
-
-  await openProjectNavigation(page);
-  await navigationToggle.click();
+  await toggle.click();
+  await expect(page.locator(".home-overview")).toBeVisible();
+  await expect(page.locator(".schedule-grid")).toHaveCount(0);
   await page.reload();
   await openProjectNavigation(page);
-  await expect(page.locator(".navigation-density-toggle")).toHaveAttribute("aria-pressed", "true");
-  expect((await page.locator(".project-panel").boundingBox()).width).toBeCloseTo(compactNavigationWidth, 0);
+  await expect(toggle).not.toBeChecked();
+  expect((await page.locator(".project-panel").boundingBox()).width).toBeCloseTo(250, 0);
 });

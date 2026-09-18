@@ -38,6 +38,9 @@
     border-radius: 5px; padding: 2px 6px; background: var(--control); color: var(--text); }
   .audit-workbench .annual-project-rows > article > .icon-only { width: 32px; height: 32px; margin: 0; justify-self: end; }
   .audit-workbench .annual-project-open:focus-visible { outline: 2px solid var(--wb-accent); outline-offset: -3px; }
+  .audit-workbench .entity-overview[data-simple] .annual-project-open {
+    grid-template-columns: minmax(0, 1.4fr) minmax(0, .8fr) minmax(0, 1fr) 18px;
+    grid-template-areas: "period owner schedule arrow"; }
   .audit-workbench .entity-outstanding-summary button :is(strong, small) { white-space: normal; overflow-wrap: anywhere; line-height: 1.45; }
   .audit-workbench .entity-outstanding-summary button strong { font-size: 14px; }
   .audit-workbench .entity-outstanding-summary button :is(small, em) { font-size: 13px; }
@@ -46,6 +49,8 @@
   @container apw-annual (max-width: 820px) {
     .audit-workbench .annual-project-open { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) 44px 18px;
       grid-template-areas: "period period progress arrow" "owner schedule schedule schedule"; }
+    .audit-workbench .entity-overview[data-simple] .annual-project-open { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) 18px;
+      grid-template-areas: "period period arrow" "owner schedule schedule"; }
     .annual-project-list > header { flex-wrap: wrap; align-items: start; }
   }
   @container apw-annual (max-width: 440px) {
@@ -54,6 +59,8 @@
     .annual-filter-options { grid-column: 1; }
     .audit-workbench .annual-project-open { grid-template-columns: minmax(0, 1fr) 38px 16px;
       grid-template-areas: "period progress arrow" "owner owner owner" "schedule schedule schedule"; gap: 12px 8px; padding: 14px 12px; }
+    .audit-workbench .entity-overview[data-simple] .annual-project-open { grid-template-columns: minmax(0, 1fr) 16px;
+      grid-template-areas: "period arrow" "owner owner" "schedule schedule"; }
   }
 }
 @media print { .annual-filters { display: none !important; } }

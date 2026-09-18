@@ -26,14 +26,16 @@ function deadlineBadge(item, t) {
 export function HomeOverview({ store, now, onOpen, onOpenDeadline, onNewCompany, onNewEngagement,
   onShowDeadlines, onShowProjects, onShowSchedule, recentVisits = [], onClearRecent, onOpenOutstanding, onBatchAnnual }) {
   const { language, t } = useUiLanguage();
+  const simple = store.businessMode !== "pro";
   const overview = React.useMemo(() => {
     const data = homeOverviewData(store, now);
-    const priorityItems = priorityItemsFor(data);
+    const priorityItems = priorityItemsFor(data).filter(item => !simple || !["manual_priority", "setup"].includes(item.category));
     return { ...data, priorityItems,
       deadlineAttentionCount: priorityItems.filter((item) => ["deadline", "upcoming"].includes(item.category)).length,
       immediateDeadlineCount: priorityItems.filter((item) => ["overdue", "due_today"].includes(item.urgency)).length };
-  }, [store, now]);
+  }, [store, now, simple]);
   const [priorityFilter, setPriorityFilter] = React.useState("all");
+  React.useEffect(() => { if (simple && ["manual", "setup"].includes(priorityFilter)) setPriorityFilter("all"); }, [simple, priorityFilter]);
   const [owner, setOwner] = React.useState("");
   const [priorityLimit, setPriorityLimit] = React.useState(5);
   const [emptyFiltersOpen, setEmptyFiltersOpen] = React.useState(false);
@@ -58,7 +60,7 @@ export function HomeOverview({ store, now, onOpen, onOpenDeadline, onNewCompany,
   };
   const summary = overview.immediateDeadlineCount
     ? t("先处理 {count} 项今天到期或已经逾期的工作。", { count: overview.immediateDeadlineCount })
-    : overview.activeRecords.some(record => ['urgent', 'high'].includes(projectPriority(record.engagement)))
+    : !simple && overview.activeRecords.some(record => ['urgent', 'high'].includes(projectPriority(record.engagement)))
       ? t("已指定 {count} 个紧急或高优先级项目。", { count: overview.activeRecords.filter(record => ['urgent', 'high'].includes(projectPriority(record.engagement))).length })
     : overview.deadlineAttentionCount
       ? t("目前没有逾期事项，接下来有 {count} 项期限需要关注。", { count: overview.deadlineAttentionCount })
@@ -111,16 +113,16 @@ export function HomeOverview({ store, now, onOpen, onOpenDeadline, onNewCompany,
     if (item.record) onOpen(item.record.kind, item.record.id);
   };
 
-  return <section className="home-overview">
+  return <section className="home-overview" data-simple={simple || undefined}>
     <header className="home-overview-heading"><div className="home-overview-title"><span><House aria-hidden="true" />{t("首页")}</span>
       <h2>{t("工作台总览")}</h2><p>{summary}</p></div><div className="home-overview-actions">
         <time>{overviewDate(now, language)}</time><div>
           <button type="button" className="button primary" onClick={onNewCompany}><Plus aria-hidden="true" />{t("新建公司")}</button>
           <button type="button" className="button secondary" onClick={() => onShowProjects("all")}><ListFilter aria-hidden="true" />{t("项目列表")}</button>
-          <button type="button" className="button secondary" onClick={onShowSchedule}><CalendarRange aria-hidden="true" />{t("项目排期")}</button>
+          {!simple && <button type="button" className="button secondary" onClick={onShowSchedule}><CalendarRange aria-hidden="true" />{t("项目排期")}</button>}
         </div></div></header>
 
-    <section className="home-metric-grid" aria-label={t("整体情况")}>
+    {!simple && <section className="home-metric-grid" aria-label={t("整体情况")}>
       <button type="button" onClick={() => onShowProjects("active")}><i><BarChart3 aria-hidden="true" /></i><span>{t("活跃项目")}</span>
         <strong>{overview.activeRecords.length}</strong><small>{t("平均完成 {value}%", { value: overview.averageProgress })}</small></button>
       <button type="button" onClick={() => onShowProjects("completed")}><i><CheckCircle2 aria-hidden="true" /></i><span>{t("已完成项目")}</span>
@@ -133,7 +135,7 @@ export function HomeOverview({ store, now, onOpen, onOpenDeadline, onNewCompany,
           window.requestAnimationFrame(() => { priorityRef.current?.focus(); priorityRef.current?.scrollIntoView({ block: "nearest" }); });
         }}><i><ListTodo aria-hidden="true" /></i>
         <span>{t("待清事项")}</span><strong>{overview.openOutstanding.length}</strong><small>{t("来自所有活跃项目")}</small></button>
-    </section>
+    </section>}
 
     {recent.length > 0 && <section className="home-recent" aria-label={t("最近访问")}><header><h3>{t("最近访问")}</h3>
       <button type="button" className="text-button" onClick={onClearRecent}>{t("清除访问记录")}</button></header>
@@ -151,12 +153,12 @@ export function HomeOverview({ store, now, onOpen, onOpenDeadline, onNewCompany,
       <option value="">{t("全部负责人")}</option>{owners.map((name) => <option key={name} value={name}>{name}</option>)}</select></label>
       {hasFilter && <button type="button" className="button secondary"
         onClick={clearFilters}>{t("清除筛选")}</button>}</div>
-    <details className="efficiency-compact"><summary>{t('常用筛选与年度工具')}</summary>
+    {!simple && <details className="efficiency-compact"><summary>{t('常用筛选与年度工具')}</summary>
       <SavedFilters scope="home" values={{ owner, priorityFilter }}
         validate={v => PRIORITY_FILTERS.includes(v.priorityFilter) && (!v.owner || owners.includes(v.owner))}
         onApply={v => { setOwner(v.owner || ''); changeFilter(v.priorityFilter); }} />
       {onBatchAnnual && <button type="button" className="button secondary" onClick={onBatchAnnual}>{t('批量建立下一年度')}</button>}
-    </details>
+    </details>}
     {dueFollowUps.length > 0 && <details className="efficiency-compact"><summary>{t('已到下次跟进日期')} · {dueFollowUps.length}</summary>
       {dueFollowUps.map(({ engagement, entity, item }) => <button key={`${engagement.id}:${item.id}`} type="button" className="efficiency-row"
         onClick={() => onOpenOutstanding?.(entity.kind === 'holding_company' ? 'group' : 'project', engagement.id, item.id)}>
@@ -167,7 +169,7 @@ export function HomeOverview({ store, now, onOpen, onOpenDeadline, onNewCompany,
       <section className="home-overview-panel home-priority-panel" ref={priorityRef} tabIndex="-1"><header><div><span>{t("下一步")}</span>
         <h3>{t("优先处理")}</h3></div>{(hasPriorities || hasFilter) && <strong aria-live="polite">{filteredPriorities.length}</strong>}</header>
         <div className="home-priority-filters" id={`${filterId}-priority`} hidden={!showFilters}
-          role="group" aria-label={t("优先事项筛选")}>{PRIORITY_FILTERS.map((value) =>
+          role="group" aria-label={t("优先事项筛选")}>{PRIORITY_FILTERS.filter(value => !simple || !["manual", "setup"].includes(value)).map((value) =>
           <button type="button" key={value} aria-pressed={priorityFilter === value} onClick={() => changeFilter(value)}>
             <span>{t(filterLabels[value])}</span><strong>{priorityItemsFor(overview, value, owner).length}</strong></button>)}</div>
         {visiblePriorities.length ? <div className="home-priority-list">{visiblePriorities.map((item, index) => {
@@ -184,7 +186,7 @@ export function HomeOverview({ store, now, onOpen, onOpenDeadline, onNewCompany,
         {priorityLimit > 5 && <footer><button type="button" className="text-button" onClick={() => setPriorityLimit(5)}>{t("只显示前 5 项")}</button></footer>}
       </section>
 
-      <section className="home-overview-panel home-active-panel"><header><div><span>{t("进行中")}</span><h3>{t("进行中的项目")}</h3><small>{t("按优先级排列，同级按截止日")}</small></div>
+      {!simple && <section className="home-overview-panel home-active-panel"><header><div><span>{t("进行中")}</span><h3>{t("进行中的项目")}</h3><small>{t("按优先级排列，同级按截止日")}</small></div>
         <button type="button" onClick={() => onShowProjects("active")}>{t("查看全部")}<ChevronRight aria-hidden="true" /></button></header>
         {activeRecords.length ? <div className="home-project-list">{activeRecords.slice(0, 6).map((record) =>
           <button type="button" className="home-project-row" data-engagement-id={record.id} key={record.id} onClick={() => onOpen(record.kind, record.id)}>
@@ -196,7 +198,7 @@ export function HomeOverview({ store, now, onOpen, onOpenDeadline, onNewCompany,
             <ChevronRight aria-hidden="true" /></button>)}</div>
           : <div className="home-overview-empty compact"><CheckCircle2 aria-hidden="true" /><strong>{t("没有进行中的项目")}</strong>
             <span>{store.entities.some((entity) => !entity.archived) ? t("从优先处理区建立年度项目。") : t("新建公司后即可建立项目。")}</span></div>}
-      </section>
+      </section>}
     </div>
   </section>;
 }
