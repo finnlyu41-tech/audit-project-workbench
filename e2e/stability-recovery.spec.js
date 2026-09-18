@@ -125,7 +125,7 @@ test('recovery exports exact original bytes and requires confirmation before a v
   await expect(recovery).toBeVisible(); const download = page.waitForEvent('download');
   await recovery.getByRole('button', { name: 'Export original data' }).click();
   expect(await fs.readFile(await (await download).path(), 'utf8')).toBe(raw);
-  const data = recoveryWorkspace();
+  const data = { ...recoveryWorkspace(), businessMode: "pro" };
   for (const accept of [false, true]) {
     const choose = page.waitForEvent('filechooser'); await recovery.getByRole('button', { name: 'Restore a valid backup' }).click();
     page.once('dialog', (prompt) => accept ? prompt.accept() : prompt.dismiss());
@@ -145,7 +145,7 @@ test('a cancelled ordinary restore preserves the current quick draft and all rec
   expect(await readStoredWorkspace(page)).toEqual(before);
 });
 test('a denied startup read cannot write an empty replacement and retry can recover access', async ({ page }) => {
-  const data = recoveryWorkspace();
+  const data = { ...recoveryWorkspace(), businessMode: "pro" };
   await page.addInitScript(({ key, data }) => {
     localStorage.setItem(key, JSON.stringify(data));
     const get = Storage.prototype.getItem; const set = Storage.prototype.setItem;

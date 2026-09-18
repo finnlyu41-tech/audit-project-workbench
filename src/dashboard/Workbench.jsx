@@ -283,7 +283,9 @@ function DashboardWorkbench({ initialSnapshot }) {
       } else {
         const entity = !advancedFiltersActive
           ? store.entities.find((item) => filter === "archived" ? item.archived : !item.archived) : null;
-        setSelection(entity ? { kind: "entity", id: entity.id } : null);
+        setSelection(current => entity
+          ? current?.kind === "entity" && current.id === entity.id ? current : { kind: "entity", id: entity.id }
+          : current === null ? current : null);
       }
     }
   }, [store, selection, filter, navigationFilters]);

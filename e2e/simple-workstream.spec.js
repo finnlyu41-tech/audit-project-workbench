@@ -3,6 +3,14 @@ import AxeBuilder from '@axe-core/playwright';
 import { openWorkbench, workspaceFixture, readStoredWorkspace, seriousViolations } from './helpers.js';
 import { toTraditional } from '../src/dashboard/traditional.js';
 
+const browserErrors = new WeakMap();
+test.beforeEach(async ({ page }) => {
+  const errors = []; browserErrors.set(page, errors);
+  page.on('pageerror', error => errors.push(error.message));
+  page.on('console', message => { if (message.type() === 'error') errors.push(message.text()); });
+});
+test.afterEach(async ({ page }) => { expect(browserErrors.get(page)).toEqual([]); });
+
 const savedModule = async page => (await readStoredWorkspace(page)).engagements[0].workstreams[0];
 async function settings(page) {
   await page.getByRole('button', { name: 'Configure selected workstream', exact: true }).click();
@@ -120,4 +128,16 @@ test('missing preference defaults to Simple globally and Pro choice survives rel
   await openWorkbench(restored, await readStoredWorkspace(page));
   await expect(restored.getByRole('switch', { name: 'Pro mode', exact: true })).toBeChecked();
   await restored.close();
+});
+
+
+test('completing every simple module keeps the empty active-filter view stable', async ({ page }) => {
+  const fixture = workspaceFixture();
+  for (const w of fixture.projects[0].workstreams) Object.assign(w, { mode: 'simple', simpleStatus: 'completed' });
+  await openWorkbench(page, fixture, { businessMode: 'simple' });
+  const toggle = page.getByRole('switch', { name: 'Pro mode', exact: true });
+  await toggle.click(); await expect(toggle).toBeChecked();
+  await toggle.click(); await expect(toggle).not.toBeChecked();
+  await expect.poll(async () => (await readStoredWorkspace(page)).businessMode).toBe('simple');
+  await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
 });
