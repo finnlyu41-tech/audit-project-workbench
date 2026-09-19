@@ -164,6 +164,7 @@ function DashboardWorkbench({ initialSnapshot }) {
     catch { return "companies"; }
   });
   const simplifiedView = store.businessMode !== "pro";
+  const effectiveNavigationView = simplifiedView ? "projects" : navigationView;
   const [templateType, setTemplateType] = React.useState("audit");
   const [templateTag, setTemplateTag] = React.useState("all");
   const [templateSort, setTemplateSort] = React.useState("updated");
@@ -1109,27 +1110,27 @@ function DashboardWorkbench({ initialSnapshot }) {
       <aside className="project-panel" aria-label={t("项目导航")}>
         {!sidebarCollapsed && <>
           <div className="project-panel-controls"><div className="project-panel-title"><div>
-            <strong>{t(navigationView === "projects" ? "项目列表" : "公司列表")}</strong></div><div className="project-panel-actions">
+            <strong>{t(effectiveNavigationView === "projects" ? "项目列表" : "公司列表")}</strong></div><div className="project-panel-actions">
               <button type="button" className="project-panel-new"
               aria-label={t("新建公司")} data-tooltip={t("新建公司")} data-tooltip-side="left"
               onClick={(event) => {
                 // Safari pointer activation need not focus its trigger; capture a real return target.
                 event.currentTarget.focus({ preventScroll: true }); setModal({ type: "create-entity" });
               }}><Plus aria-hidden="true" /><span>{t("新建公司")}</span></button></div></div>
-            <div className="navigation-view-tabs" role="tablist" aria-label={t("公司与项目视图")} onKeyDown={handleTabListKeyDown}>
+            {!simplifiedView && <div className="navigation-view-tabs" role="tablist" aria-label={t("公司与项目视图")} onKeyDown={handleTabListKeyDown}>
               {["companies", "projects"].map((value) => <button type="button" role="tab" key={value}
                 aria-selected={navigationView === value} tabIndex={tabIndexFor(navigationView === value)}
-                onClick={() => setNavigationView(value)}>{t(value === "companies" ? "公司" : "项目")}</button>)}</div>
+                onClick={() => setNavigationView(value)}>{t(value === "companies" ? "公司" : "项目")}</button>)}</div>}
             <div className="navigation-search-row"><label className="search-field"><Search aria-hidden="true" /><input value={search}
               onChange={(event) => setSearch(event.target.value)}
-              placeholder={t(navigationView === "projects" ? "搜索项目、公司或负责人" : "搜索公司或负责人")}
-              aria-label={t(navigationView === "projects" ? "搜索项目、公司或负责人" : "搜索公司、控股公司或负责人")} /></label>
-              <button type="button" className="navigation-filter-toggle" aria-expanded={navigationFiltersOpen}
+              placeholder={t(effectiveNavigationView === "projects" ? "搜索项目、公司或负责人" : "搜索公司或负责人")}
+              aria-label={t(effectiveNavigationView === "projects" ? "搜索项目、公司或负责人" : "搜索公司、控股公司或负责人")} /></label>
+              {!simplifiedView && <button type="button" className="navigation-filter-toggle" aria-expanded={navigationFiltersOpen}
                 aria-controls="navigation-filter-panel" aria-label={t(navigationFiltersOpen ? "收起导航筛选" : "打开导航筛选")}
                 data-active={activeNavigationFilterCount > 0 || undefined}
                 onClick={() => setNavigationFiltersOpen((current) => !current)}><ListFilter aria-hidden="true" />
-                {activeNavigationFilterCount > 0 && <strong>{activeNavigationFilterCount}</strong>}</button></div>
-            {navigationFiltersOpen && <section className="navigation-filter-panel" id="navigation-filter-panel"
+                {activeNavigationFilterCount > 0 && <strong>{activeNavigationFilterCount}</strong>}</button>}</div>
+            {!simplifiedView && navigationFiltersOpen && <section className="navigation-filter-panel" id="navigation-filter-panel"
               aria-label={t("导航筛选")}><label><span>{t("负责人")}</span><select value={navigationFilters.owner}
                 aria-label={t("负责人筛选")} onChange={updateNavigationFilter("owner")}><option value="">{t("全部负责人")}</option>
                 {navigationOwnerOptions.map((owner) => <option value={owner} key={owner}>{owner}</option>)}</select></label>
@@ -1159,7 +1160,7 @@ function DashboardWorkbench({ initialSnapshot }) {
             </button>)}</details>}
           <WorkspaceTree store={store} selection={selection} onSelect={(next) => openWorkspaceRecord(next.kind, next.id)} search={search} filter={filter}
             navigationFilters={navigationFilters} statuses={store.outstandingStatuses} onMove={moveNavigationItem}
-            viewMode={navigationView} simplifiedView={simplifiedView} /></>}
+            viewMode={effectiveNavigationView} simplifiedView={simplifiedView} /></>}
         {!sidebarCollapsed && <button type="button" className="project-panel-resizer" role="separator" aria-orientation="vertical"
           aria-label={t("拖动调整公司导航宽度")} aria-valuemin={MIN_NAVIGATION_WIDTH} aria-valuemax={MAX_NAVIGATION_WIDTH}
           aria-valuenow={navigationWidth} aria-keyshortcuts="ArrowLeft ArrowRight Home End"
