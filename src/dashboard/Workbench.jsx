@@ -77,6 +77,7 @@ const DEFAULT_NAVIGATION_WIDTH = 260;
 const MIN_NAVIGATION_WIDTH = 220;
 const MAX_NAVIGATION_WIDTH = 520;
 const COMPACT_NAVIGATION_WIDTH = 250;
+const EMPTY_NAVIGATION_FILTERS = Object.freeze({ owner: "", engagementType: "", reportingYear: "" });
 const EMPTY_GROUP_SAMPLE = Object.freeze({ id: "", name: "", nodes: [], readinessTemplates: {} });
 
 function clampNavigationWidth(value) {
@@ -164,6 +165,8 @@ function DashboardWorkbench({ initialSnapshot }) {
     catch { return "companies"; }
   });
   const simplifiedView = store.businessMode !== "pro";
+  const effectiveNavigationView = simplifiedView ? "projects" : navigationView;
+  const effectiveNavigationFilters = simplifiedView ? EMPTY_NAVIGATION_FILTERS : navigationFilters;
   const [templateType, setTemplateType] = React.useState("audit");
   const [templateTag, setTemplateTag] = React.useState("all");
   const [templateSort, setTemplateSort] = React.useState("updated");
@@ -246,9 +249,9 @@ function DashboardWorkbench({ initialSnapshot }) {
   }, [navigationView]);
   React.useEffect(() => { if (!compactLayout) setCompactOutstandingOpen(false); }, [compactLayout]);
   React.useEffect(() => {
-    const advancedFiltersActive = Object.values(navigationFilters).some(Boolean);
+    const advancedFiltersActive = Object.values(effectiveNavigationFilters).some(Boolean);
     const engagementMatchesFilter = (engagement) => {
-      if (!engagementMatchesNavigationFilters(engagement, navigationFilters)) return false;
+      if (!engagementMatchesNavigationFilters(engagement, effectiveNavigationFilters)) return false;
       const entity = entityForEngagement(store, engagement);
       const archived = Boolean(entity?.archived || engagement.archived);
       if (filter === "archived") return archived;
@@ -266,7 +269,7 @@ function DashboardWorkbench({ initialSnapshot }) {
     const selectedEntity = selection?.kind === "entity" ? store.entities.find((entity) => entity.id === selection.id) : null;
     const selectedEntityEngagements = selectedEntity ? engagementsForEntity(store, selectedEntity.id) : [];
     const selectedEntityMatchesAdvanced = !advancedFiltersActive
-      || selectedEntityEngagements.some((engagement) => engagementMatchesNavigationFilters(engagement, navigationFilters));
+      || selectedEntityEngagements.some((engagement) => engagementMatchesNavigationFilters(engagement, effectiveNavigationFilters));
     const selectedEntityVisible = selectedEntity && selectedEntityMatchesAdvanced && (filter === "all"
       ? !selectedEntity.archived
       : filter === "archived"
@@ -286,7 +289,7 @@ function DashboardWorkbench({ initialSnapshot }) {
           : current === null ? current : null);
       }
     }
-  }, [store, selection, filter, navigationFilters]);
+  }, [store, selection, filter, effectiveNavigationFilters]);
   React.useLayoutEffect(() => {
     if (!selection && store.entities.length) return;
     const history = navigationHistoryRef.current;
@@ -481,7 +484,7 @@ function DashboardWorkbench({ initialSnapshot }) {
     ...current, [field]: event.target.value,
   }));
   const clearNavigationFilters = () => setNavigationFilters({ owner: "", engagementType: "", reportingYear: "" });
-  const navigationCounts = navigationView === "projects"
+  const navigationCounts = effectiveNavigationView === "projects"
     ? engagementNavigationStatusCounts(store) : navigationStatusCounts(store);
 
   const updateProject = React.useCallback((projectId, updater) => setStore((current) => ({ ...current,
@@ -1109,27 +1112,27 @@ function DashboardWorkbench({ initialSnapshot }) {
       <aside className="project-panel" aria-label={t("项目导航")}>
         {!sidebarCollapsed && <>
           <div className="project-panel-controls"><div className="project-panel-title"><div>
-            <strong>{t(navigationView === "projects" ? "项目列表" : "公司列表")}</strong></div><div className="project-panel-actions">
+            <strong>{t(effectiveNavigationView === "projects" ? "项目列表" : "公司列表")}</strong></div><div className="project-panel-actions">
               <button type="button" className="project-panel-new"
               aria-label={t("新建公司")} data-tooltip={t("新建公司")} data-tooltip-side="left"
               onClick={(event) => {
                 // Safari pointer activation need not focus its trigger; capture a real return target.
                 event.currentTarget.focus({ preventScroll: true }); setModal({ type: "create-entity" });
               }}><Plus aria-hidden="true" /><span>{t("新建公司")}</span></button></div></div>
-            <div className="navigation-view-tabs" role="tablist" aria-label={t("公司与项目视图")} onKeyDown={handleTabListKeyDown}>
+            {!simplifiedView && <div className="navigation-view-tabs" role="tablist" aria-label={t("公司与项目视图")} onKeyDown={handleTabListKeyDown}>
               {["companies", "projects"].map((value) => <button type="button" role="tab" key={value}
                 aria-selected={navigationView === value} tabIndex={tabIndexFor(navigationView === value)}
-                onClick={() => setNavigationView(value)}>{t(value === "companies" ? "公司" : "项目")}</button>)}</div>
+                onClick={() => setNavigationView(value)}>{t(value === "companies" ? "公司" : "项目")}</button>)}</div>}
             <div className="navigation-search-row"><label className="search-field"><Search aria-hidden="true" /><input value={search}
               onChange={(event) => setSearch(event.target.value)}
-              placeholder={t(navigationView === "projects" ? "搜索项目、公司或负责人" : "搜索公司或负责人")}
-              aria-label={t(navigationView === "projects" ? "搜索项目、公司或负责人" : "搜索公司、控股公司或负责人")} /></label>
-              <button type="button" className="navigation-filter-toggle" aria-expanded={navigationFiltersOpen}
+              placeholder={t(effectiveNavigationView === "projects" ? "搜索项目、公司或负责人" : "搜索公司或负责人")}
+              aria-label={t(effectiveNavigationView === "projects" ? "搜索项目、公司或负责人" : "搜索公司、控股公司或负责人")} /></label>
+              {!simplifiedView && <button type="button" className="navigation-filter-toggle" aria-expanded={navigationFiltersOpen}
                 aria-controls="navigation-filter-panel" aria-label={t(navigationFiltersOpen ? "收起导航筛选" : "打开导航筛选")}
                 data-active={activeNavigationFilterCount > 0 || undefined}
                 onClick={() => setNavigationFiltersOpen((current) => !current)}><ListFilter aria-hidden="true" />
-                {activeNavigationFilterCount > 0 && <strong>{activeNavigationFilterCount}</strong>}</button></div>
-            {navigationFiltersOpen && <section className="navigation-filter-panel" id="navigation-filter-panel"
+                {activeNavigationFilterCount > 0 && <strong>{activeNavigationFilterCount}</strong>}</button>}</div>
+            {!simplifiedView && navigationFiltersOpen && <section className="navigation-filter-panel" id="navigation-filter-panel"
               aria-label={t("导航筛选")}><label><span>{t("负责人")}</span><select value={navigationFilters.owner}
                 aria-label={t("负责人筛选")} onChange={updateNavigationFilter("owner")}><option value="">{t("全部负责人")}</option>
                 {navigationOwnerOptions.map((owner) => <option value={owner} key={owner}>{owner}</option>)}</select></label>
@@ -1158,8 +1161,8 @@ function DashboardWorkbench({ initialSnapshot }) {
               <strong>{record.entity.legalName}</strong><small>{record.engagement ? reportingPeriodLabel(record.engagement, language) : t("公司主档")}</small>
             </button>)}</details>}
           <WorkspaceTree store={store} selection={selection} onSelect={(next) => openWorkspaceRecord(next.kind, next.id)} search={search} filter={filter}
-            navigationFilters={navigationFilters} statuses={store.outstandingStatuses} onMove={moveNavigationItem}
-            viewMode={navigationView} simplifiedView={simplifiedView} /></>}
+            navigationFilters={effectiveNavigationFilters} statuses={store.outstandingStatuses} onMove={moveNavigationItem}
+            viewMode={effectiveNavigationView} simplifiedView={simplifiedView} /></>}
         {!sidebarCollapsed && <button type="button" className="project-panel-resizer" role="separator" aria-orientation="vertical"
           aria-label={t("拖动调整公司导航宽度")} aria-valuemin={MIN_NAVIGATION_WIDTH} aria-valuemax={MAX_NAVIGATION_WIDTH}
           aria-valuenow={navigationWidth} aria-keyshortcuts="ArrowLeft ArrowRight Home End"
@@ -1210,7 +1213,7 @@ function DashboardWorkbench({ initialSnapshot }) {
             onRestore={() => { updateEntity(selectedEntitySource.id, (entity) => ({ ...entity, archived: false })); setFilter("all"); notify(t("公司已恢复")); }}
             onDelete={() => setModal({ type: "delete-entity", targetId: selectedEntitySource.id, name: selectedEntitySource.legalName })}
             onMerge={() => setModal({ type: "merge-entities", entityId: selectedEntitySource.id })} />
-          : selectedProject ? <ProjectDetail simplifiedView={simplifiedView} updateWorkstream={updateWorkstream} project={selectedProject} rawProject={selectedProjectSource} entityArchived={Boolean(selectedRecordEntity?.archived)} statuses={outstandingStatusViews}
+          : selectedProject ? <ProjectDetail onOpenCompany={() => openWorkspaceRecord("entity", selectedRecordEntity.id)} simplifiedView={simplifiedView} updateWorkstream={updateWorkstream} project={selectedProject} rawProject={selectedProjectSource} entityArchived={Boolean(selectedRecordEntity?.archived)} statuses={outstandingStatusViews}
           parentMembership={selectedProjectMembership} onWorkflowRevealed={() => setWorkflowReveal(null)} workflowReveal={workflowReveal?.targetId === selectedProjectSource.id ? workflowReveal : null}
           quickUpdate={selectedEngagement && <QuickUpdate key={`quick-update:${selectedEngagement.id}`} engagement={selectedEngagement}
             readOnly={Boolean(selectedEngagement.archived || selectedRecordEntity?.archived)} drafts={quickDrafts.current}
@@ -1219,7 +1222,7 @@ function DashboardWorkbench({ initialSnapshot }) {
           activeWorkstreamId={activeWorkstreamId} setActiveWorkstreamId={setActiveWorkstreamId} updateWorkflowNodes={updateWorkflowNodes}
           setModal={setModal} duplicateProject={duplicateProject} archiveTarget={archiveTarget} restoreTarget={restoreTarget}
           onReorderWorkstreams={reorderProjectWorkstreams} deadlineClock={deadlineClock} />
-          : selectedGroup ? <GroupDetail store={store} group={selectedGroup} statuses={outstandingStatusViews}
+          : selectedGroup ? <GroupDetail onOpenCompany={() => openWorkspaceRecord("entity", selectedRecordEntity.id)} store={store} group={selectedGroup} statuses={outstandingStatusViews}
             quickUpdate={selectedEngagement && <QuickUpdate key={`quick-update:${selectedEngagement.id}`} engagement={selectedEngagement}
               readOnly={Boolean(selectedEngagement.archived || selectedRecordEntity?.archived)}
               drafts={quickDrafts.current} onSave={saveQuickUpdate} onPriorityChange={saveProjectPriority} store={store}
@@ -1565,7 +1568,7 @@ function DetailFactAction({ label, children, onClick, actionLabel, icon: Icon = 
   </div>;
 }
 
-function ProjectDetail({ simplifiedView, updateWorkstream, project, rawProject, entityArchived = false, statuses, parentMembership, activeWorkstreamId, setActiveWorkstreamId,
+function ProjectDetail({ onOpenCompany, simplifiedView, updateWorkstream, project, rawProject, entityArchived = false, statuses, parentMembership, activeWorkstreamId, setActiveWorkstreamId,
   updateWorkflowNodes, setModal, duplicateProject, archiveTarget, restoreTarget, onReorderWorkstreams, deadlineClock, quickUpdate, workflowReveal, onWorkflowRevealed }) {
   const { language, t } = useUiLanguage();
   const draggingWorkstreamRef = React.useRef(null);
@@ -1648,30 +1651,32 @@ function ProjectDetail({ simplifiedView, updateWorkstream, project, rawProject, 
         onClick={() => setModal({ type: "tax-deadlines", targetKind: "project", targetId: rawProject.id,
           ...(readOnly ? {} : { editDeadlineId: taxSummary.next?.id ?? null }) })}>{taxFactValue}</DetailFactAction></dl>
   </>;
-  return <div className="workspace-detail-inner">
+  return <div className="workspace-detail-inner" data-simple={simplifiedView || undefined}>
     {readOnly && <div className="archive-banner"><strong>{t("已归档，只读")}</strong>
       <span>{t("归档记录不能编辑；恢复后才可继续更新。")}</span></div>}
     <header className="detail-header"><div className="detail-title"><div><span className="workspace-label">{t("项目工作区")}</span><h2>{primaryName}</h2></div>
-      <p>{subtitle}</p></div>
+      <p>{simplifiedView && onOpenCompany ? <><button type="button" className="text-button project-company-link"
+        title={t("公司主档")} onClick={onOpenCompany}>{companyName}</button>{periodLabel && ` · ${periodLabel}`}</> : subtitle}</p></div>
       <div className="detail-actions">{readOnly ? <>
         <button type="button" className="button secondary icon-only" aria-label={t("恢复")} data-tooltip={t("恢复")}
           onClick={() => restoreTarget("project", rawProject.id)}><ArchiveRestore aria-hidden="true" /></button>
         <button type="button" className="button danger-quiet icon-only" aria-label={t("永久删除")}
           data-tooltip={t("永久删除")} onClick={() => setModal({ type: "delete-target", targetKind: "project",
             targetId: rawProject.id, name: rawProject.name })}><Trash2 aria-hidden="true" /></button></> : <>
-        <button type="button" className="button primary icon-only" aria-label={t("编辑年度项目")}
-          data-tooltip={t("编辑年度项目")} onClick={() => setModal({ type: "edit-engagement", targetKind: "project", targetId: rawProject.id })}><Pencil aria-hidden="true" /></button>
+        <button type="button" className={`button ${simplifiedView ? "secondary" : "primary icon-only"}`} aria-label={t("编辑年度项目")}
+          data-tooltip={t("编辑年度项目")} onClick={() => setModal({ type: "edit-engagement", targetKind: "project", targetId: rawProject.id })}><Pencil aria-hidden="true" />{simplifiedView && t("编辑年度项目")}</button>
+{!simplifiedView && <>
         <button type="button" className="button secondary icon-only" aria-label={t("复制项目")}
           data-tooltip={t("复制项目")} onClick={() => duplicateProject(rawProject)}><Copy aria-hidden="true" /></button>
         <button type="button" className="button secondary icon-only" aria-label={t("归档项目")}
-          data-tooltip={t("归档项目")} onClick={() => archiveTarget("project", rawProject.id)}><Archive aria-hidden="true" /></button></>}</div>
+          data-tooltip={t("归档项目")} onClick={() => archiveTarget("project", rawProject.id)}><Archive aria-hidden="true" /></button>
+        </>}</>}</div>
     </header>
     {simplifiedView ? <>
       <div className="simple-project-summary"><strong>{t("已完成 {done}/{total}", { done: stats.completedWorkstreams, total: stats.workstreams })}</strong>
         {project.dueDate && <span>{t("截止：{date}", { date: formatDate(project.dueDate, language) })}</span>}
         <TaxDeadlineSummaryButton deadlines={rawProject.taxDeadlines} now={deadlineClock} compact
           onClick={() => setModal({ type: "tax-deadlines", targetKind: "project", targetId: rawProject.id })} /></div>
-      <details className="simple-project-details"><summary>{t("更多项目资料")}</summary>{moreDetails}</details>
     </> : moreDetails}
 
     <section className="workstream-overview"><header className="section-heading"><div><h3>{t("业务模块")}</h3>
@@ -1684,6 +1689,8 @@ function ProjectDetail({ simplifiedView, updateWorkstream, project, rawProject, 
           onClick={() => activeRawWorkstream && setModal({ type: "workstream-edit", targetKind: "project",
             targetId: rawProject.id, workstreamId: activeRawWorkstream.id })}><Settings2 aria-hidden="true" /></button>}</div>}</header>
       {project.workstreams.length ? <div className={project.workstreams.some(workstreamIsSimple) ? "simple-workstream-list" : "workstream-card-grid"}>
+        {project.workstreams.some(workstreamIsSimple) && <div className="simple-workstream-columns" aria-hidden="true">
+          <span>{t("业务模块")}</span><span>{t("模块状态")}</span><span>{t("截止日")}</span><span /></div>}
         {project.workstreams.map((workstream) => {
           const shared = { selected: workstream.id === activeWorkstream?.id, readOnly,
             openItems: rawProject.outstandingItems.filter(item => item.workstreamId === workstream.id && outstandingIsOpen(item, statuses)).length,
@@ -1706,6 +1713,13 @@ function ProjectDetail({ simplifiedView, updateWorkstream, project, rawProject, 
             <small>{t(readOnly ? "此公司没有业务模块。" : "选择此处添加第一个业务模块。")}</small></span></button>}
     </section>
 
+    {simplifiedView && <details className="simple-project-details"><summary>{t("更多项目资料")}</summary>{moreDetails}
+      {!readOnly && <div className="simple-project-management">
+        <button type="button" className="button secondary" onClick={() => duplicateProject(rawProject)}><Copy aria-hidden="true" />{t("复制项目")}</button>
+        <button type="button" className="button secondary" onClick={() => archiveTarget("project", rawProject.id)}><Archive aria-hidden="true" />{t("归档项目")}</button>
+      </div>}
+    </details>}
+
     {activeWorkstream && activeRawWorkstream && !workstreamIsSimple(activeRawWorkstream) && <section className="workflow-panel">
       <WorkflowNodes key={activeRawWorkstream.id} targetKind="project" targetId={rawProject.id} workstreamId={activeRawWorkstream.id}
         revealRequest={workflowReveal?.workstreamId === activeRawWorkstream.id ? workflowReveal : null} onRevealHandled={onWorkflowRevealed}
@@ -1717,7 +1731,7 @@ function ProjectDetail({ simplifiedView, updateWorkstream, project, rawProject, 
   </div>;
 }
 
-function GroupDetail({ store, group, statuses, updateWorkflowNodes, setModal, onOpenComponent, updateEngagement, setStore,
+function GroupDetail({ onOpenCompany, store, group, statuses, updateWorkflowNodes, setModal, onOpenComponent, updateEngagement, setStore,
   selectedGroupSample, archiveTarget, restoreTarget, deadlineClock, quickUpdate, onChangeMode, onCreateComponent, workflowReveal, onWorkflowRevealed }) {
   const { language, t } = useUiLanguage();
   const [tabChoice, setTab] = React.useState("overview");
@@ -1740,7 +1754,8 @@ function GroupDetail({ store, group, statuses, updateWorkflowNodes, setModal, on
     {readOnly && <div className="archive-banner"><strong>{t("已归档，只读")}</strong>
       <span>{t("归档记录不能编辑；恢复后才可继续更新。")}</span></div>}
     <header className="detail-header"><div className="detail-title"><div><span className="workspace-label">{t("集团工作区")}</span><h2>{primaryName}</h2></div>
-      <p>{subtitle}</p></div><div className="detail-actions">{readOnly ? <>
+      <p>{store.businessMode !== "pro" && onOpenCompany ? <><button type="button" className="text-button project-company-link"
+        title={t("公司主档")} onClick={onOpenCompany}>{group.name}</button>{reportingPeriodLabel(group, language) && ` · ${reportingPeriodLabel(group, language)}`}</> : subtitle}</p></div><div className="detail-actions">{readOnly ? <>
         <button type="button" className="button secondary icon-only" aria-label={t("恢复")} data-tooltip={t("恢复")}
           onClick={() => restoreTarget("group", group.id)}><ArchiveRestore aria-hidden="true" /></button>
         <button type="button" className="button danger-quiet icon-only" aria-label={t("永久删除")}

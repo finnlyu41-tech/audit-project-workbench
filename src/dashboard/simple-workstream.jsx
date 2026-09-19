@@ -29,14 +29,14 @@ export function SimpleWorkstream({ workstream, readOnly, selected, openItems = 0
       draggable={!readOnly} onDragStart={onDragStart} onDragEnd={onDragEnd} onKeyDown={onReorderKeyDown}
       aria-keyshortcuts={!readOnly ? 'Alt+ArrowUp Alt+ArrowDown' : undefined}>
       <strong>{name}</strong>{openItems > 0 && <small>{t('{count} 项未清', { count: openItems })}</small>}</button>
-    <label className="simple-workstream-status"><span>{t('模块状态')}</span><select disabled={readOnly} value={workstreamStatus(workstream)}
+    <label className="simple-workstream-status simple-workstream-primary-field"><span>{t('模块状态')}</span><select disabled={readOnly} value={workstreamStatus(workstream)}
       onChange={event => onChange({ simpleStatus: event.target.value })}>{WORKSTREAM_STATUSES.map(simpleStatus => <option key={simpleStatus} value={simpleStatus}>
         {t(workstreamStatusLabel({ simpleStatus }))}</option>)}</select></label>
-    <label><span>{t('负责人')}</span><InlineValue disabled={readOnly} value={workstream.owner}
-      onCommit={owner => onChange({ owner: owner.trim() })} /></label>
-    <label><span>{t('截止日')}</span><InlineValue type="date" disabled={readOnly} min={workstream.startDate || undefined}
+    <label className="simple-workstream-primary-field"><span>{t('截止日')}</span><InlineValue type="date" disabled={readOnly} min={workstream.startDate || undefined}
       value={workstream.dueDate} onCommit={dueDate => onChange({ dueDate })} /></label>
-    <details className="simple-workstream-more"><summary>{t('更多资料')}</summary><div>
+    <details className="simple-workstream-more"><summary>{t('详情')}</summary><div>
+      <label><span>{t('负责人')}</span><InlineValue disabled={readOnly} value={workstream.owner}
+        onCommit={owner => onChange({ owner: owner.trim() })} /></label>
       <label><span>{t('开始日')}</span><InlineValue type="date" disabled={readOnly} max={workstream.dueDate || undefined}
         value={workstream.startDate} onCommit={startDate => onChange({ startDate })} /></label>
       <label className="simple-workstream-notes"><span>{t('备注')}</span><InlineValue multiline disabled={readOnly}

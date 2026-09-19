@@ -10,6 +10,8 @@ const english = {
   "点击模块查看详情；左上角 Pro 开关统一切换所有公司的业务模块。": "Choose a workstream for details. The Pro switch at the top left controls all company workstreams.",
   "简化模式": "Simple mode",
   "更多资料": "More details",
+  "详情": "Details",
+  "筛选中": "Filters active",
   "更多项目资料": "More project details",
   "待处理": "On hold",
   "简化业务模块": "Simple workstream",

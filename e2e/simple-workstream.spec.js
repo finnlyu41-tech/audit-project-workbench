@@ -1,7 +1,7 @@
 import { test, expect } from '@playwright/test';
 import AxeBuilder from '@axe-core/playwright';
-import { openWorkbench, workspaceFixture, readStoredWorkspace, seriousViolations, localDateOffset } from './helpers.js';
-import { makeOutstandingItem, makeTaxDeadline } from '../src/dashboard/model.js';
+import { openWorkbench, workspaceFixture, hierarchyFixture, readStoredWorkspace, seriousViolations, localDateOffset } from './helpers.js';
+import { makeOutstandingItem, makeTaxDeadline, makeEntity, makeEngagement, canonicalStorePayload, normalizeStore } from '../src/dashboard/model.js';
 import { toTraditional } from '../src/dashboard/traditional.js';
 
 const browserErrors = new WeakMap();
@@ -27,9 +27,9 @@ test('switch mode, edit whole-module details, persist status and restore the ori
   await page.getByRole('switch', { name: 'Pro mode', exact: true }).click();
   const row = page.locator('.simple-workstream').first();
   await row.getByRole('combobox', { name: 'Workstream status', exact: true }).selectOption('on_hold');
+  await row.locator('summary').click();
   await row.getByLabel('Owner', { exact: true }).fill('Module coordinator');
   await row.getByLabel('Owner', { exact: true }).press('Enter');
-  await row.locator('summary').click();
   await row.getByLabel('Start', { exact: true }).fill('2026-09-01');
   await row.getByLabel('Due date', { exact: true }).fill('2026-09-30');
   await row.getByRole('textbox', { name: 'Notes', exact: true }).fill('Literal <review> 备注');
@@ -92,11 +92,11 @@ test('inline edits reject reversed dates, preserve composition and save before s
   expect(await due.evaluate(element => element.validity.rangeUnderflow)).toBe(true);
   expect(await readStoredWorkspace(page)).toEqual(before);
   await due.press('Escape'); await expect(due).toHaveValue(before.engagements[0].workstreams[0].dueDate);
+  await row.locator('summary').click();
   await owner.fill('草稿');
   await owner.dispatchEvent('keydown', { key: 'Enter', code: 'Enter', isComposing: true });
   await expect(owner).toBeFocused(); expect(await readStoredWorkspace(page)).toEqual(before);
   await owner.press('Escape'); await expect(owner).toHaveValue('Alex Chan');
-  await row.locator('summary').click();
   const start = row.getByLabel('Start', { exact: true });
   await start.fill('2026-12-01'); await start.press('Enter');
   expect(await start.evaluate(element => element.validity.rangeOverflow)).toBe(true);
@@ -160,6 +160,12 @@ for (const language of ['en', 'zh-Hans', 'zh-Hant']) test(`simple mode stays rea
   const row = page.locator('.simple-workstream').first();
   const expected = language === 'en' ? 'Workstream status' : language === 'zh-Hant' ? toTraditional('模块状态') : '模块状态';
   await expect(row.getByLabel(expected)).toHaveValue('in_progress');
+  for (const width of [375, 430, 800, 1280, 1440, 1920]) {
+    await page.setViewportSize({ width, height: 900 });
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1)).toBe(true);
+    expect(await row.evaluate(element => element.scrollWidth <= element.clientWidth + 1)).toBe(true);
+    if (width === 430 || width === 1440) await page.screenshot({ path: info.outputPath(`simple-compact-${language}-${width}.png`) });
+  }
   await row.locator('summary').click();
   await expect(page.locator('.workflow-panel')).toHaveCount(0);
   const before = await readStoredWorkspace(page);
@@ -184,9 +190,10 @@ test('archived simple workstreams keep their status and details read-only', asyn
   await picker.getByRole('option').filter({ hasText: 'Company master' }).click();
   await page.locator('.annual-project-open').click();
   await expect(page.locator('.simple-workstream').getByLabel('Workstream status')).toBeDisabled();
-  await expect(page.locator('.simple-workstream').getByLabel('Owner', { exact: true })).toBeDisabled();
+  await expect(page.locator('.simple-workstream').getByLabel('Owner', { exact: true })).toBeHidden();
   await expect(page.locator('.simple-workstream').getByLabel('Due date', { exact: true })).toBeDisabled();
   await page.locator('.simple-workstream summary').click();
+  await expect(page.locator('.simple-workstream').getByLabel('Owner', { exact: true })).toBeDisabled();
   await expect(page.locator('.simple-workstream').getByLabel('Notes', { exact: true })).toBeDisabled();
   await expect(page.getByRole('button', { name: 'Edit workstream details', exact: true })).toHaveCount(0);
   expect(await readStoredWorkspace(page)).toEqual(before);
@@ -221,4 +228,165 @@ test('completing every simple module keeps the empty active-filter view stable',
   await toggle.click(); await expect(toggle).not.toBeChecked();
   await expect.poll(async () => (await readStoredWorkspace(page)).businessMode).toBe('simple');
   await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
+});
+
+test('Simple rows expose only status and due date, with secondary fields and project actions disclosed', async ({ page }) => {
+  const changedAt = new Date(Date.now() + 60_000).toISOString();
+  await page.clock.setFixedTime(new Date(changedAt));
+  await openWorkbench(page, workspaceFixture(), { businessMode: 'simple' });
+  const before = await readStoredWorkspace(page);
+  const row = page.locator('.simple-workstream').first();
+  await expect(row.locator('input:visible, select:visible, textarea:visible')).toHaveCount(2);
+  await expect(row.getByLabel('Owner', { exact: true })).toBeHidden();
+  await expect(row.getByLabel('Start', { exact: true })).toBeHidden();
+  await expect(row.getByLabel('Notes', { exact: true })).toBeHidden();
+  expect((await row.boundingBox()).height).toBeLessThanOrEqual(80);
+  await expect(page.locator('.detail-actions > button')).toHaveCount(1);
+  await expect(page.locator('.detail-actions')).toContainText('Edit annual engagement');
+  const details = page.locator('.workspace-detail-inner > .simple-project-details');
+  expect((await details.boundingBox()).y).toBeGreaterThan((await page.locator('.simple-workstream-list').boundingBox()).y);
+  await expect(details.getByRole('button', { name: 'Archive project', exact: true })).toBeHidden();
+  await row.locator('summary').focus(); await page.keyboard.press('Enter');
+  await expect(row.getByLabel('Owner', { exact: true })).toHaveValue('Alex Chan');
+  await row.getByLabel('Owner', { exact: true }).fill('Fictional coordinator');
+  // Collapsing an editor must commit its last valid edit before hiding it.
+  await row.locator('summary').click();
+  await expect.poll(async () => (await savedModule(page)).owner).toBe('Fictional coordinator');
+  await expect(row.getByLabel('Owner', { exact: true })).toBeHidden();
+  const expected = structuredClone(before);
+  expected.engagements[0].workstreams[0].owner = 'Fictional coordinator';
+  expected.engagements[0].updatedAt = changedAt;
+  expected.engagements[0].workstreams[0].updatedAt = changedAt;
+  await expect.poll(() => readStoredWorkspace(page)).toEqual(expected);
+  await details.locator(':scope > summary').click();
+  await expect(details.getByRole('button', { name: 'Archive project', exact: true })).toBeVisible();
+  await expect(details.getByRole('button', { name: 'Duplicate a project', exact: true })).toBeVisible();
+  await details.locator(':scope > summary').click();
+  await page.getByRole('switch', { name: 'Pro mode', exact: true }).click();
+  await expect(page.locator('.detail-actions > button')).toHaveCount(3);
+  await page.getByRole('switch', { name: 'Pro mode', exact: true }).click();
+  await expect.poll(() => readStoredWorkspace(page)).toEqual(expected);
+  await row.locator('.simple-workstream-name').focus();
+  await page.keyboard.press('Alt+ArrowDown');
+  expected.engagements[0].workstreams.reverse();
+  await expect.poll(() => readStoredWorkspace(page)).toEqual(expected);
+});
+
+test('Simple home folds active filters without hiding their effect and keeps actions before history', async ({ page }) => {
+  const fixture = workspaceFixture();
+  fixture.projects[0].outstandingItems.push(makeOutstandingItem({ title: 'Fictional confirmation to follow up' }));
+  await openWorkbench(page, fixture, { businessMode: 'simple' });
+  await page.locator('.app-rail-button[aria-label="Home"]').click();
+  const before = await readStoredWorkspace(page);
+  const panel = page.locator('.home-priority-panel');
+  await expect(panel.getByRole('button', { name: 'Show filters', exact: true })).toHaveAttribute('aria-expanded', 'false');
+  await expect(page.getByLabel('Action list owner')).toBeHidden();
+  expect(await panel.evaluate(element => Boolean(element.compareDocumentPosition(document.querySelector('.home-recent')) & Node.DOCUMENT_POSITION_FOLLOWING))).toBe(true);
+  await panel.getByRole('button', { name: 'Show filters', exact: true }).click();
+  await page.getByLabel('Action list owner').selectOption('Alex Chan');
+  await panel.getByRole('group', { name: 'Priority filters' }).getByRole('button', { name: /Due today/ }).click();
+  await expect(panel.locator('.home-priority-list')).toHaveCount(0);
+  await panel.getByRole('button', { name: 'Hide filters', exact: true }).click();
+  await expect(page.getByLabel('Action list owner')).toBeHidden();
+  await expect(panel.getByText('Filters active', { exact: true })).toBeVisible();
+  await expect(panel.getByRole('button', { name: 'Clear filters', exact: true })).toBeVisible();
+  for (const width of [375, 430, 800, 1440]) {
+    await page.setViewportSize({ width, height: 900 });
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1)).toBe(true);
+    expect(await panel.evaluate(element => element.scrollWidth <= element.clientWidth + 1)).toBe(true);
+  }
+  await panel.getByRole('button', { name: 'Show filters', exact: true }).click();
+  await expect(page.getByLabel('Action list owner')).toHaveValue('Alex Chan');
+  await expect(panel.getByRole('group', { name: 'Priority filters' }).getByRole('button', { name: /Due today/ })).toHaveAttribute('aria-pressed', 'true');
+  await panel.getByRole('button', { name: 'Clear filters', exact: true }).click();
+  await expect(panel.getByRole('button', { name: 'Show filters', exact: true })).toBeFocused();
+  await expect(page.getByLabel('Action list owner')).toBeHidden();
+  await expect(panel.getByText('Filters active', { exact: true })).toHaveCount(0);
+  await expect(panel.locator('.home-priority-list')).toContainText('Fictional confirmation to follow up');
+  expect(seriousViolations(await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa']).analyze())).toEqual([]);
+  expect(await readStoredWorkspace(page)).toEqual(before);
+});
+
+test('Simple navigation lists annual projects, counts projects and suspends rather than erases Pro filters', async ({ page }) => {
+  const fixture = canonicalStorePayload(normalizeStore(workspaceFixture()));
+  fixture.entities.push(makeEntity({ legalName: 'Awaiting Engagement Limited' }));
+  fixture.engagements.push(makeEngagement({ entityId: fixture.entities[0].id, owner: 'Jamie Lee',
+    periodStart: '2025-01-01', periodEnd: '2025-12-31', engagementTypes: ['Bookkeeping'] }, { sourceMode: 'blank' }));
+  await openWorkbench(page, fixture);
+  const before = await readStoredWorkspace(page);
+  const toggle = page.getByRole('switch', { name: 'Pro mode', exact: true });
+  await expect(page.locator('.filter-tabs').getByRole('tab', { name: /^Active/ }).locator('strong')).toHaveText('3');
+  await page.getByRole('button', { name: 'Open navigation filters', exact: true }).click();
+  await page.getByLabel('Owner filter', { exact: true }).selectOption('Alex Chan');
+  await page.getByLabel('Engagement type filter', { exact: true }).selectOption({ label: 'Audit' });
+  await page.getByLabel('Reporting year filter', { exact: true }).selectOption('2026');
+  await expect(page.locator('.tree-engagement-row')).toHaveCount(1);
+  await toggle.click();
+  await expect(page.locator('.navigation-view-tabs, .navigation-filter-toggle, .navigation-filter-panel, .workspace-tree-bulk-actions')).toHaveCount(0);
+  await expect(page.locator('.flat-engagement-row')).toHaveCount(2);
+  await expect(page.locator('.filter-tabs').getByRole('tab', { name: /^Active/ }).locator('strong')).toHaveText('2');
+  await expect(page.locator('.filter-tabs').getByRole('tab', { name: /^All/ }).locator('strong')).toHaveText('2');
+  await page.locator('.flat-engagement-row').filter({ hasText: '2025' }).click();
+  await expect(page.locator('.detail-title h2')).toHaveText('Bookkeeping');
+  const search = page.getByRole('textbox', { name: 'Search projects, companies or owners', exact: true });
+  await search.fill('Jamie Lee');
+  await expect(page.locator('.flat-engagement-row')).toHaveCount(1);
+  await expect(page.locator('.flat-engagement-row')).toContainText('2025');
+  await search.fill('');
+  await expect(page.locator('.flat-engagement-row')).toHaveCount(2);
+  expect(await page.evaluate(() => localStorage.getItem('audit-progress-workbench:navigation-view'))).toBe('companies');
+  await toggle.click();
+  await expect(page.getByRole('tab', { name: 'Company', exact: true })).toHaveAttribute('aria-selected', 'true');
+  await expect(page.getByLabel('Owner filter', { exact: true })).toHaveValue('Alex Chan');
+  await expect(page.getByLabel('Engagement type filter', { exact: true })).toHaveValue('Audit');
+  await expect(page.getByLabel('Reporting year filter', { exact: true })).toHaveValue('2026');
+  await expect(page.locator('.tree-engagement-row')).toHaveCount(1);
+  await expect.poll(() => readStoredWorkspace(page)).toEqual(before);
+  await toggle.click(); await page.reload();
+  await expect(page.locator('.flat-engagement-row')).toHaveCount(2);
+  await expect(page.locator('.navigation-view-tabs')).toHaveCount(0);
+  await toggle.click();
+  await expect(page.getByRole('tab', { name: 'Company', exact: true })).toHaveAttribute('aria-selected', 'true');
+  await expect.poll(() => readStoredWorkspace(page)).toEqual(before);
+});
+
+test('Simple navigation retains company masters without projects and archived companies stay read-only', async ({ page }) => {
+  const fixture = canonicalStorePayload(normalizeStore(workspaceFixture()));
+  const pending = makeEntity({ legalName: 'Awaiting Scope Limited' });
+  const archived = makeEntity({ legalName: 'Archived Shell Limited', archived: true });
+  fixture.entities.push(pending, archived);
+  await openWorkbench(page, fixture, { businessMode: 'simple' });
+  const before = await readStoredWorkspace(page);
+  const pendingRow = page.locator(`.simple-company-row[data-entity-id="${pending.id}"]`);
+  await expect(pendingRow).toContainText('No annual engagements yet');
+  await expect(page.locator('.simple-company-row')).toHaveCount(1);
+  await pendingRow.click();
+  await expect(page.locator('.entity-overview')).toContainText('Awaiting Scope Limited');
+  await page.getByRole('button', { name: 'New annual engagement', exact: true }).click();
+  const dialog = page.getByRole('dialog');
+  await expect(dialog).toContainText('Awaiting Scope Limited');
+  await dialog.getByRole('button', { name: 'Cancel', exact: true }).click();
+  await page.locator('.filter-tabs').getByRole('tab', { name: /^Archived/ }).click();
+  await expect(pendingRow).toHaveCount(0);
+  await page.locator(`.simple-company-row[data-entity-id="${archived.id}"]`).click();
+  await expect(page.locator('.entity-overview .archive-banner')).toBeVisible();
+  await expect(page.getByRole('button', { name: 'New annual engagement', exact: true })).toHaveCount(0);
+  await page.locator('.filter-tabs').getByRole('tab', { name: /^All/ }).click();
+  await page.locator('.flat-engagement-row').click();
+  await page.locator('.project-company-link').click();
+  await expect(page.locator('.entity-overview')).toContainText('Example Services Limited');
+  await expect(page.locator('.annual-project-open')).toContainText('2026');
+  await expect.poll(() => readStoredWorkspace(page)).toEqual(before);
+});
+
+test('Simple flat navigation keeps holding-company master access without changing historical consolidation scope', async ({ page }) => {
+  const fixture = hierarchyFixture();
+  await openWorkbench(page, fixture, { businessMode: 'simple' });
+  const before = await readStoredWorkspace(page);
+  await page.locator('.filter-tabs').getByRole('tab', { name: /^All/ }).click();
+  const groupRow = page.locator('.flat-engagement-row').filter({ hasText: 'Global Holdings' });
+  await groupRow.click();
+  await page.locator('.project-company-link').click();
+  await expect(page.locator('.entity-overview')).toContainText('Global Holdings');
+  await expect.poll(() => readStoredWorkspace(page)).toEqual(before);
 });
