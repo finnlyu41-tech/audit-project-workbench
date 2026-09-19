@@ -41,7 +41,7 @@ export function HomeOverview({ store, now, onOpen, onOpenDeadline, onNewCompany,
   const [emptyFiltersOpen, setEmptyFiltersOpen] = React.useState(false);
   const hasPriorities = overview.priorityItems.length > 0;
   const hasFilter = Boolean(owner || priorityFilter !== "all");
-  const showFilters = hasPriorities || hasFilter || emptyFiltersOpen;
+  const showFilters = hasFilter || emptyFiltersOpen || (!simple && hasPriorities);
   const filterId = React.useId();
   const filterToggleRef = React.useRef(null);
   const ownerRef = React.useRef(null);
@@ -72,6 +72,12 @@ export function HomeOverview({ store, now, onOpen, onOpenDeadline, onNewCompany,
             ? t("公司主档已经建立，下一步可以建立年度项目。")
             : t("先建立第一家公司，再开始安排年度项目。");
   const visiblePriorities = filteredPriorities.slice(0, priorityLimit);
+  const recentSection = recent.length > 0 && <section className="home-recent" aria-label={t("最近访问")}><header><h3>{t("最近访问")}</h3>
+    <button type="button" className="text-button" onClick={onClearRecent}>{t("清除访问记录")}</button></header>
+    <div>{recent.slice(0, 4).map((record) => <button type="button" key={`${record.kind}:${record.id}`} onClick={() => onOpen(record.kind, record.id)}>
+      <span><strong>{record.entity.legalName}</strong><small>{record.engagement
+        ? `${engagementTypesLabel(record.engagement, language)} · ${yearEndOrPeriodLabel(record.engagement, language)}` : t("公司主档")}</small></span>
+      <ChevronRight aria-hidden="true" /></button>)}</div></section>;
 
   const priorityPresentation = (item) => {
     if (item.category === 'manual_priority') return { title: t("优先推进项目"),
@@ -137,13 +143,8 @@ export function HomeOverview({ store, now, onOpen, onOpenDeadline, onNewCompany,
         <span>{t("待清事项")}</span><strong>{overview.openOutstanding.length}</strong><small>{t("来自所有活跃项目")}</small></button>
     </section>}
 
-    {recent.length > 0 && <section className="home-recent" aria-label={t("最近访问")}><header><h3>{t("最近访问")}</h3>
-      <button type="button" className="text-button" onClick={onClearRecent}>{t("清除访问记录")}</button></header>
-      <div>{recent.slice(0, 4).map((record) => <button type="button" key={`${record.kind}:${record.id}`} onClick={() => onOpen(record.kind, record.id)}>
-        <span><strong>{record.entity.legalName}</strong><small>{record.engagement
-          ? `${engagementTypesLabel(record.engagement, language)} · ${yearEndOrPeriodLabel(record.engagement, language)}` : t("公司主档")}</small></span>
-        <ChevronRight aria-hidden="true" /></button>)}</div></section>}
-    {!hasPriorities && !hasFilter && <button type="button" className="button secondary home-empty-filter-toggle"
+    {!simple && recentSection}
+    {(simple || (!hasPriorities && !hasFilter)) && <button type="button" className="button secondary home-empty-filter-toggle"
       ref={filterToggleRef} aria-expanded={showFilters} aria-controls={`${filterId}-owner ${filterId}-priority`}
       onClick={() => setEmptyFiltersOpen((open) => !open)}><ListFilter aria-hidden="true" />
       {t(emptyFiltersOpen ? "收起筛选" : "显示筛选")}</button>}
@@ -200,5 +201,6 @@ export function HomeOverview({ store, now, onOpen, onOpenDeadline, onNewCompany,
             <span>{store.entities.some((entity) => !entity.archived) ? t("从优先处理区建立年度项目。") : t("新建公司后即可建立项目。")}</span></div>}
       </section>}
     </div>
+    {simple && recentSection}
   </section>;
 }
