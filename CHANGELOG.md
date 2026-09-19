@@ -2,6 +2,8 @@
 
 ## Quieter Simple daily updates — 2026-09-19
 
+- Embed the application icon in the entry HTML to avoid the missing domain-root favicon request, with no external assets or workspace changes. 入口内嵌站点图标，避免请求不存在的域名根目录图标；不增加外部资源，不改工作区数据。
+
 - Flatten Simple navigation to annual projects, keep company masters reachable, and prevent retained Pro filters from silently hiding Simple results. 简化导航直接列项目，保留公司主档入口；Pro 筛选不会暗中隐藏简化模式的项目。
 
 - Use compact module/status/due rows; disclose owner, start date and notes. Move project metadata and duplicate/archive actions below the daily work, keeping a labelled edit action.
