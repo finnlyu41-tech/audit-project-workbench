@@ -10,6 +10,12 @@ Run `pnpm check` before publishing. The command must complete the unit tests, fu
 - A production build is created only after both test suites pass.
 - GitHub Pages must publish `apw-build-sha.txt`, then the post-deploy smoke step must confirm it equals the workflow commit and that the deployed index plus referenced JS/CSS assets are reachable.
 
+## macOS WebKit test runtime
+
+The managed WebKit 2336 embedder can exhaust its native window-animation threads during long unattended macOS runs (upstream microsoft/playwright#42385). APW's development and production tests use the same small macOS-only launcher: it forwards all original flags and adds `-NSAutomaticWindowAnimationsEnabled NO` in the process-local argument domain. It does not write preferences, alter app/CSS animations, use a different browser version, or change retries, timeouts or assertions. Linux and Windows keep their normal launch options.
+
+macOS 上仅为测试浏览器关闭原生窗口动画，避免长时间运行时的启动阻塞；不修改系统偏好、应用动画或测试标准。失败报告仍须保留并诊断。
+
 ## Desktop smoke test
 
 Complete this short check in current desktop Chrome and Edge before a release that changes persistence or layout:

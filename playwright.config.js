@@ -1,4 +1,5 @@
 import { defineConfig, devices } from "@playwright/test";
+import { webkitLaunchOptions } from "./scripts/playwright-webkit.mjs";
 
 export default defineConfig({
   testDir: "./e2e",
@@ -29,7 +30,7 @@ export default defineConfig({
     { name: "webkit-stability", testMatch: ["**/simple-workstream.spec.js", "**/efficiency-entry.spec.js", "**/efficiency-batch.spec.js", "**/efficiency-output.spec.js", "**/efficiency-recovery.spec.js", "**/working-days.spec.js", "**/schedule-doi.spec.js", "**/schedule-usability.spec.js", "**/project-priority.spec.js", "**/workspace-space.spec.js", "**/group-usability.spec.js", "**/linked-file-safety.spec.js", "**/edge-safety.spec.js", "**/operation-boundaries.spec.js", "**/outstanding-light.spec.js", "**/outstanding-center.spec.js", "**/workspace-session.spec.js", "**/stability-recovery.spec.js", "**/group-quick-update.spec.js",
         "**/action-workbench.spec.js", "**/project-focus-summary.spec.js", "**/workstream-stage-summary.spec.js", "**/home-empty-state.spec.js", "**/holding-components.spec.js", "**/outstanding-continuous.spec.js",
         "**/client-follow-up.spec.js", "**/workflow-effort.spec.js"],
-      use: { browserName: "webkit", viewport: { width: 1440, height: 900 } } },
+      use: { browserName: "webkit", viewport: { width: 1440, height: 900 }, launchOptions: webkitLaunchOptions() } },
   ],
   outputDir: "test-results",
 });
