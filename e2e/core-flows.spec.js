@@ -186,6 +186,10 @@ test("one engagement can add and save three reporting years with one shared work
     "December 31, 2023", "December 31, 2024", "December 31, 2025",
   ]);
   await page.getByRole("switch", { name: "Pro mode", exact: true }).click();
+  // Leaving Schedule restores docked navigation asynchronously. Wait for that
+  // transition before the helper decides whether the navigation needs opening.
+  await expect(page.locator(".home-overview")).toBeVisible();
+  await expect(page.locator(".schedule-grid")).toHaveCount(0);
   await openProjectNavigation(page);
   await expect(page.locator(".tree-engagement-row .period-summary-compact"))
     .toHaveText("3 year-end dates · 2023–2025");
