@@ -77,6 +77,7 @@ const DEFAULT_NAVIGATION_WIDTH = 260;
 const MIN_NAVIGATION_WIDTH = 220;
 const MAX_NAVIGATION_WIDTH = 520;
 const COMPACT_NAVIGATION_WIDTH = 250;
+const EMPTY_NAVIGATION_FILTERS = Object.freeze({ owner: "", engagementType: "", reportingYear: "" });
 const EMPTY_GROUP_SAMPLE = Object.freeze({ id: "", name: "", nodes: [], readinessTemplates: {} });
 
 function clampNavigationWidth(value) {
@@ -165,6 +166,7 @@ function DashboardWorkbench({ initialSnapshot }) {
   });
   const simplifiedView = store.businessMode !== "pro";
   const effectiveNavigationView = simplifiedView ? "projects" : navigationView;
+  const effectiveNavigationFilters = simplifiedView ? EMPTY_NAVIGATION_FILTERS : navigationFilters;
   const [templateType, setTemplateType] = React.useState("audit");
   const [templateTag, setTemplateTag] = React.useState("all");
   const [templateSort, setTemplateSort] = React.useState("updated");
@@ -247,9 +249,9 @@ function DashboardWorkbench({ initialSnapshot }) {
   }, [navigationView]);
   React.useEffect(() => { if (!compactLayout) setCompactOutstandingOpen(false); }, [compactLayout]);
   React.useEffect(() => {
-    const advancedFiltersActive = Object.values(navigationFilters).some(Boolean);
+    const advancedFiltersActive = Object.values(effectiveNavigationFilters).some(Boolean);
     const engagementMatchesFilter = (engagement) => {
-      if (!engagementMatchesNavigationFilters(engagement, navigationFilters)) return false;
+      if (!engagementMatchesNavigationFilters(engagement, effectiveNavigationFilters)) return false;
       const entity = entityForEngagement(store, engagement);
       const archived = Boolean(entity?.archived || engagement.archived);
       if (filter === "archived") return archived;
@@ -267,7 +269,7 @@ function DashboardWorkbench({ initialSnapshot }) {
     const selectedEntity = selection?.kind === "entity" ? store.entities.find((entity) => entity.id === selection.id) : null;
     const selectedEntityEngagements = selectedEntity ? engagementsForEntity(store, selectedEntity.id) : [];
     const selectedEntityMatchesAdvanced = !advancedFiltersActive
-      || selectedEntityEngagements.some((engagement) => engagementMatchesNavigationFilters(engagement, navigationFilters));
+      || selectedEntityEngagements.some((engagement) => engagementMatchesNavigationFilters(engagement, effectiveNavigationFilters));
     const selectedEntityVisible = selectedEntity && selectedEntityMatchesAdvanced && (filter === "all"
       ? !selectedEntity.archived
       : filter === "archived"
@@ -287,7 +289,7 @@ function DashboardWorkbench({ initialSnapshot }) {
           : current === null ? current : null);
       }
     }
-  }, [store, selection, filter, navigationFilters]);
+  }, [store, selection, filter, effectiveNavigationFilters]);
   React.useLayoutEffect(() => {
     if (!selection && store.entities.length) return;
     const history = navigationHistoryRef.current;
@@ -482,7 +484,7 @@ function DashboardWorkbench({ initialSnapshot }) {
     ...current, [field]: event.target.value,
   }));
   const clearNavigationFilters = () => setNavigationFilters({ owner: "", engagementType: "", reportingYear: "" });
-  const navigationCounts = navigationView === "projects"
+  const navigationCounts = effectiveNavigationView === "projects"
     ? engagementNavigationStatusCounts(store) : navigationStatusCounts(store);
 
   const updateProject = React.useCallback((projectId, updater) => setStore((current) => ({ ...current,
@@ -1159,7 +1161,7 @@ function DashboardWorkbench({ initialSnapshot }) {
               <strong>{record.entity.legalName}</strong><small>{record.engagement ? reportingPeriodLabel(record.engagement, language) : t("公司主档")}</small>
             </button>)}</details>}
           <WorkspaceTree store={store} selection={selection} onSelect={(next) => openWorkspaceRecord(next.kind, next.id)} search={search} filter={filter}
-            navigationFilters={navigationFilters} statuses={store.outstandingStatuses} onMove={moveNavigationItem}
+            navigationFilters={effectiveNavigationFilters} statuses={store.outstandingStatuses} onMove={moveNavigationItem}
             viewMode={effectiveNavigationView} simplifiedView={simplifiedView} /></>}
         {!sidebarCollapsed && <button type="button" className="project-panel-resizer" role="separator" aria-orientation="vertical"
           aria-label={t("拖动调整公司导航宽度")} aria-valuemin={MIN_NAVIGATION_WIDTH} aria-valuemax={MAX_NAVIGATION_WIDTH}
@@ -1211,7 +1213,7 @@ function DashboardWorkbench({ initialSnapshot }) {
             onRestore={() => { updateEntity(selectedEntitySource.id, (entity) => ({ ...entity, archived: false })); setFilter("all"); notify(t("公司已恢复")); }}
             onDelete={() => setModal({ type: "delete-entity", targetId: selectedEntitySource.id, name: selectedEntitySource.legalName })}
             onMerge={() => setModal({ type: "merge-entities", entityId: selectedEntitySource.id })} />
-          : selectedProject ? <ProjectDetail simplifiedView={simplifiedView} updateWorkstream={updateWorkstream} project={selectedProject} rawProject={selectedProjectSource} entityArchived={Boolean(selectedRecordEntity?.archived)} statuses={outstandingStatusViews}
+          : selectedProject ? <ProjectDetail onOpenCompany={() => openWorkspaceRecord("entity", selectedRecordEntity.id)} simplifiedView={simplifiedView} updateWorkstream={updateWorkstream} project={selectedProject} rawProject={selectedProjectSource} entityArchived={Boolean(selectedRecordEntity?.archived)} statuses={outstandingStatusViews}
           parentMembership={selectedProjectMembership} onWorkflowRevealed={() => setWorkflowReveal(null)} workflowReveal={workflowReveal?.targetId === selectedProjectSource.id ? workflowReveal : null}
           quickUpdate={selectedEngagement && <QuickUpdate key={`quick-update:${selectedEngagement.id}`} engagement={selectedEngagement}
             readOnly={Boolean(selectedEngagement.archived || selectedRecordEntity?.archived)} drafts={quickDrafts.current}
@@ -1220,7 +1222,7 @@ function DashboardWorkbench({ initialSnapshot }) {
           activeWorkstreamId={activeWorkstreamId} setActiveWorkstreamId={setActiveWorkstreamId} updateWorkflowNodes={updateWorkflowNodes}
           setModal={setModal} duplicateProject={duplicateProject} archiveTarget={archiveTarget} restoreTarget={restoreTarget}
           onReorderWorkstreams={reorderProjectWorkstreams} deadlineClock={deadlineClock} />
-          : selectedGroup ? <GroupDetail store={store} group={selectedGroup} statuses={outstandingStatusViews}
+          : selectedGroup ? <GroupDetail onOpenCompany={() => openWorkspaceRecord("entity", selectedRecordEntity.id)} store={store} group={selectedGroup} statuses={outstandingStatusViews}
             quickUpdate={selectedEngagement && <QuickUpdate key={`quick-update:${selectedEngagement.id}`} engagement={selectedEngagement}
               readOnly={Boolean(selectedEngagement.archived || selectedRecordEntity?.archived)}
               drafts={quickDrafts.current} onSave={saveQuickUpdate} onPriorityChange={saveProjectPriority} store={store}
@@ -1566,7 +1568,7 @@ function DetailFactAction({ label, children, onClick, actionLabel, icon: Icon = 
   </div>;
 }
 
-function ProjectDetail({ simplifiedView, updateWorkstream, project, rawProject, entityArchived = false, statuses, parentMembership, activeWorkstreamId, setActiveWorkstreamId,
+function ProjectDetail({ onOpenCompany, simplifiedView, updateWorkstream, project, rawProject, entityArchived = false, statuses, parentMembership, activeWorkstreamId, setActiveWorkstreamId,
   updateWorkflowNodes, setModal, duplicateProject, archiveTarget, restoreTarget, onReorderWorkstreams, deadlineClock, quickUpdate, workflowReveal, onWorkflowRevealed }) {
   const { language, t } = useUiLanguage();
   const draggingWorkstreamRef = React.useRef(null);
@@ -1653,7 +1655,8 @@ function ProjectDetail({ simplifiedView, updateWorkstream, project, rawProject, 
     {readOnly && <div className="archive-banner"><strong>{t("已归档，只读")}</strong>
       <span>{t("归档记录不能编辑；恢复后才可继续更新。")}</span></div>}
     <header className="detail-header"><div className="detail-title"><div><span className="workspace-label">{t("项目工作区")}</span><h2>{primaryName}</h2></div>
-      <p>{subtitle}</p></div>
+      <p>{simplifiedView && onOpenCompany ? <><button type="button" className="text-button project-company-link"
+        title={t("公司主档")} onClick={onOpenCompany}>{companyName}</button>{periodLabel && ` · ${periodLabel}`}</> : subtitle}</p></div>
       <div className="detail-actions">{readOnly ? <>
         <button type="button" className="button secondary icon-only" aria-label={t("恢复")} data-tooltip={t("恢复")}
           onClick={() => restoreTarget("project", rawProject.id)}><ArchiveRestore aria-hidden="true" /></button>
@@ -1728,7 +1731,7 @@ function ProjectDetail({ simplifiedView, updateWorkstream, project, rawProject, 
   </div>;
 }
 
-function GroupDetail({ store, group, statuses, updateWorkflowNodes, setModal, onOpenComponent, updateEngagement, setStore,
+function GroupDetail({ onOpenCompany, store, group, statuses, updateWorkflowNodes, setModal, onOpenComponent, updateEngagement, setStore,
   selectedGroupSample, archiveTarget, restoreTarget, deadlineClock, quickUpdate, onChangeMode, onCreateComponent, workflowReveal, onWorkflowRevealed }) {
   const { language, t } = useUiLanguage();
   const [tabChoice, setTab] = React.useState("overview");
@@ -1751,7 +1754,8 @@ function GroupDetail({ store, group, statuses, updateWorkflowNodes, setModal, on
     {readOnly && <div className="archive-banner"><strong>{t("已归档，只读")}</strong>
       <span>{t("归档记录不能编辑；恢复后才可继续更新。")}</span></div>}
     <header className="detail-header"><div className="detail-title"><div><span className="workspace-label">{t("集团工作区")}</span><h2>{primaryName}</h2></div>
-      <p>{subtitle}</p></div><div className="detail-actions">{readOnly ? <>
+      <p>{store.businessMode !== "pro" && onOpenCompany ? <><button type="button" className="text-button project-company-link"
+        title={t("公司主档")} onClick={onOpenCompany}>{group.name}</button>{reportingPeriodLabel(group, language) && ` · ${reportingPeriodLabel(group, language)}`}</> : subtitle}</p></div><div className="detail-actions">{readOnly ? <>
         <button type="button" className="button secondary icon-only" aria-label={t("恢复")} data-tooltip={t("恢复")}
           onClick={() => restoreTarget("group", group.id)}><ArchiveRestore aria-hidden="true" /></button>
         <button type="button" className="button danger-quiet icon-only" aria-label={t("永久删除")}

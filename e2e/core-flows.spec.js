@@ -191,7 +191,7 @@ test("one engagement can add and save three reporting years with one shared work
   await expect(page.locator(".home-overview")).toBeVisible();
   await expect(page.locator(".schedule-grid")).toHaveCount(0);
   await openProjectNavigation(page);
-  await expect(page.locator(".tree-engagement-row .period-summary-compact"))
+  await expect(page.locator(".flat-engagement-row .period-summary-compact"))
     .toHaveText("3 year-end dates · 2023–2025");
 });
 

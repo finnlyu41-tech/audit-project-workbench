@@ -138,7 +138,7 @@ test("one Pro switch compacts navigation, gates advanced views and retains core 
   await expect(page.locator(".tree-engagement-period")).toContainText("Alex Chan");
   await toggle.click();
   await expect(toggle).not.toBeChecked();
-  await expect(page.locator(".tree-engagement-period")).not.toContainText("Alex Chan");
+  await expect(page.locator(".flat-engagement-company")).not.toContainText("Alex Chan");
   await expect(page.locator(".workspace-tree .tree-progress")).toHaveCount(0);
   await expect.poll(async () => (await page.locator(".project-panel").boundingBox()).width)
     .toBeLessThan(detailedNavigationWidth);
@@ -149,7 +149,7 @@ test("one Pro switch compacts navigation, gates advanced views and retains core 
   for (const name of ["Project schedule", "Management reports", "Template library"])
     await expect(page.getByRole("button", { name, exact: true })).toHaveCount(0);
 
-  await page.getByRole("tab", { name: "Projects", exact: true }).click();
+  await expect(page.locator(".navigation-view-tabs, .navigation-filter-toggle")).toHaveCount(0);
   await expect(page.locator(".flat-engagement-type")).toHaveText("Audit");
   await expect(page.locator(".flat-engagement-company")).toContainText("Example Services Limited");
   await expect(page.locator(".flat-engagement-company")).not.toContainText("December 31, 2026");

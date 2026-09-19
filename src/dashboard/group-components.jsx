@@ -196,8 +196,13 @@ function EntityEngagementWorkspaceList({ store, selection, onSelect, search, fil
       || (right.engagement.periodEnd || "").localeCompare(left.engagement.periodEnd || "")
       || left.entity.legalName.localeCompare(right.entity.legalName);
   });
+  // Keep companies without a first engagement reachable without a second navigation mode.
+  const engagedEntityIds = new Set(store.engagements.map(engagement => engagement.entityId));
+  const emptyCompanies = simplifiedView && filter !== "completed" ? store.entities.filter(entity =>
+    !engagedEntityIds.has(entity.id) && (filter === "archived" ? entity.archived : !entity.archived)
+    && (!query || [entity.legalName, ...(entity.aliases || [])].some(value => String(value).toLocaleLowerCase().includes(query)))) : [];
   return <div className="workspace-tree flat-engagement-list" data-simplified={simplifiedView || undefined}>
-    {rows.length ? rows.map(({ engagement, entity, kind, progress, complete, periodLabel, typeLabel, outstanding }) =>
+    {rows.map(({ engagement, entity, kind, progress, complete, periodLabel, typeLabel, outstanding }) =>
       <button type="button" className="tree-row flat-engagement-row" data-engagement-id={engagement.id} key={engagement.id}
         data-selected={selection?.kind === kind && selection.id === engagement.id || undefined}
         onClick={() => onSelect({ kind, id: engagement.id, entityId: entity.id })}>
@@ -207,8 +212,13 @@ function EntityEngagementWorkspaceList({ store, selection, onSelect, search, fil
           <small className="flat-engagement-company">{[entity.legalName, simplifiedView ? "" : engagement.owner]
             .filter(Boolean).join(" · ")}</small></span>
         {!simplifiedView && outstanding > 0 && <em>{outstanding}</em>}{!simplifiedView && <span className="tree-progress">{complete ? "✓" : `${progress}%`}</span>}
-      </button>) : <div className="list-empty"><strong>{t(store.engagements.length ? "没有符合筛选的年度项目" : "还没有年度项目")}</strong>
-      <span>{t(store.engagements.length ? "更改状态筛选或搜索内容。" : "先在公司主档中建立年度项目。")}</span></div>}
+      </button>)}
+    {emptyCompanies.map(entity => <button type="button" className="tree-row simple-company-row" key={entity.id}
+      data-entity-id={entity.id} data-selected={selection?.kind === "entity" && selection.id === entity.id || undefined}
+      onClick={() => onSelect({ kind: "entity", id: entity.id })}>
+      <span className="tree-copy"><strong>{entity.legalName}</strong><small>{t("还没有年度项目")}</small></span></button>)}
+    {!rows.length && !emptyCompanies.length && <div className="list-empty"><strong>{t(simplifiedView && !store.entities.length ? "还没有公司" : store.engagements.length ? "没有符合筛选的年度项目" : "还没有年度项目")}</strong>
+      <span>{t(simplifiedView && !store.entities.length ? "使用上方加号先建立公司主档。" : store.engagements.length ? "更改状态筛选或搜索内容。" : "先在公司主档中建立年度项目。")}</span></div>}
   </div>;
 }
 

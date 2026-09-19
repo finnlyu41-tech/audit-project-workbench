@@ -62,3 +62,6 @@
 .home-priority-filter-tools .button svg { width: 15px; height: 15px; }
 .home-priority-filter-tools .filter-active-label { color: var(--secondary); font-size: 12px; letter-spacing: normal; text-transform: none; }
 .home-overview[data-simple] .home-priority-panel > .home-action-filters { padding: 10px 12px; margin: 0; border-bottom: 1px solid var(--border); }
+
+.detail-title .project-company-link { padding: 0; color: inherit; font: inherit; text-decoration: underline; text-underline-offset: 3px; }
+.simple-company-row { grid-template-columns: minmax(0, 1fr); }

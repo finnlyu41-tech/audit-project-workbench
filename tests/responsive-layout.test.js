@@ -83,7 +83,7 @@ test("navigation filters show numeric counts without widening the compact tabs",
 test("navigation switches between a company hierarchy and a flat annual-project list", () => {
   assert.match(workbench, /NAVIGATION_VIEW_KEY = "audit-progress-workbench:navigation-view"/);
   assert.match(workbench, /className="navigation-view-tabs"/);
-  assert.match(workbench, /viewMode={navigationView}/);
+  assert.match(workbench, /viewMode={effectiveNavigationView}/);
   assert.match(groupComponents, /className="tree-row flat-engagement-row"/);
   assert.match(groupComponents, /yearEndOrPeriodLabel\(engagement, language\)/);
   assert.match(groupComponents, /className="workspace-tree-bulk-actions"/);
@@ -91,8 +91,11 @@ test("navigation switches between a company hierarchy and a flat annual-project 
 
 test("the workspace Pro mode is the only switch for navigation density and advanced views", () => {
   assert.match(workbench, /const simplifiedView = store\.businessMode !== "pro"/);
+  assert.match(workbench, /const effectiveNavigationView = simplifiedView \? "projects" : navigationView/);
+  assert.match(workbench, /const effectiveNavigationFilters = simplifiedView \? EMPTY_NAVIGATION_FILTERS : navigationFilters/);
+  assert.match(workbench, /const navigationCounts = effectiveNavigationView === "projects"/);
   assert.doesNotMatch(workbench, /SIMPLIFIED_VIEW_KEY|navigation-density-toggle|onToggleSimplifiedView/);
-  assert.match(workbench, /viewMode={navigationView} simplifiedView={simplifiedView}/);
+  assert.match(workbench, /viewMode={effectiveNavigationView} simplifiedView={simplifiedView}/);
   assert.match(workbench, /!simplifiedView && <button[^>]*data-active={workspaceView === "schedule"/);
   assert.match(workbench, /--effective-project-panel-width/);
   assert.match(groupComponents, /data-simplified={simplifiedView \|\| undefined}/);
@@ -109,7 +112,7 @@ test("navigation exposes combinable owner, engagement-type and reporting-year fi
   assert.match(workbench, /aria-label={t\("负责人筛选"\)}/);
   assert.match(workbench, /aria-label={t\("项目类型筛选"\)}/);
   assert.match(workbench, /aria-label={t\("报告年度筛选"\)}/);
-  assert.match(workbench, /navigationFilters={navigationFilters}/);
+  assert.match(workbench, /navigationFilters={effectiveNavigationFilters}/);
   assert.match(groupComponents, /engagementMatchesNavigationFilters\(engagement, navigationFilters\)/);
   assert.match(css, /\.navigation-filter-panel\s*{[^}]*display:\s*grid/);
 });
