@@ -41,7 +41,9 @@ export function HomeOverview({ store, now, onOpen, onOpenDeadline, onNewCompany,
   const [emptyFiltersOpen, setEmptyFiltersOpen] = React.useState(false);
   const hasPriorities = overview.priorityItems.length > 0;
   const hasFilter = Boolean(owner || priorityFilter !== "all");
-  const showFilters = hasFilter || emptyFiltersOpen || (!simple && hasPriorities);
+  const showFilters = simple ? emptyFiltersOpen : hasPriorities || hasFilter || emptyFiltersOpen;
+  // Reveal inherited/applied filters once, while still allowing the user to fold them.
+  React.useEffect(() => { if (simple && hasFilter) setEmptyFiltersOpen(true); }, [simple, hasFilter]);
   const filterId = React.useId();
   const filterToggleRef = React.useRef(null);
   const ownerRef = React.useRef(null);
@@ -119,6 +121,17 @@ export function HomeOverview({ store, now, onOpen, onOpenDeadline, onNewCompany,
     if (item.record) onOpen(item.record.kind, item.record.id);
   };
 
+  const filterToggle = (simple || (!hasPriorities && !hasFilter)) && <button type="button" className="button secondary home-empty-filter-toggle"
+    ref={filterToggleRef} aria-expanded={showFilters} aria-controls={`${filterId}-owner ${filterId}-priority`}
+    onClick={() => setEmptyFiltersOpen(open => !open)}><ListFilter aria-hidden="true" />
+    {t(showFilters ? "收起筛选" : "显示筛选")}</button>;
+  const ownerFilters = <div className="home-action-filters" id={`${filterId}-owner`} hidden={!showFilters}>
+    <label><span>{t("行动清单负责人")}</span><select ref={ownerRef} value={owner}
+      onChange={event => { setOwner(event.target.value); setPriorityLimit(5); }}>
+      <option value="">{t("全部负责人")}</option>{owners.map(name => <option key={name} value={name}>{name}</option>)}</select></label>
+    {!simple && hasFilter && <button type="button" className="button secondary" onClick={clearFilters}>{t("清除筛选")}</button>}
+  </div>;
+
   return <section className="home-overview" data-simple={simple || undefined}>
     <header className="home-overview-heading"><div className="home-overview-title"><span><House aria-hidden="true" />{t("首页")}</span>
       <h2>{t("工作台总览")}</h2><p>{summary}</p></div><div className="home-overview-actions">
@@ -144,16 +157,8 @@ export function HomeOverview({ store, now, onOpen, onOpenDeadline, onNewCompany,
     </section>}
 
     {!simple && recentSection}
-    {(simple || (!hasPriorities && !hasFilter)) && <button type="button" className="button secondary home-empty-filter-toggle"
-      ref={filterToggleRef} aria-expanded={showFilters} aria-controls={`${filterId}-owner ${filterId}-priority`}
-      onClick={() => setEmptyFiltersOpen((open) => !open)}><ListFilter aria-hidden="true" />
-      {t(emptyFiltersOpen ? "收起筛选" : "显示筛选")}</button>}
-    <div className="home-action-filters" id={`${filterId}-owner`} hidden={!showFilters}>
-      <label><span>{t("行动清单负责人")}</span><select ref={ownerRef} value={owner}
-      onChange={(event) => { setOwner(event.target.value); setPriorityLimit(5); }}>
-      <option value="">{t("全部负责人")}</option>{owners.map((name) => <option key={name} value={name}>{name}</option>)}</select></label>
-      {hasFilter && <button type="button" className="button secondary"
-        onClick={clearFilters}>{t("清除筛选")}</button>}</div>
+    {!simple && filterToggle}
+    {!simple && ownerFilters}
     {!simple && <details className="efficiency-compact"><summary>{t('常用筛选与年度工具')}</summary>
       <SavedFilters scope="home" values={{ owner, priorityFilter }}
         validate={v => PRIORITY_FILTERS.includes(v.priorityFilter) && (!v.owner || owners.includes(v.owner))}
@@ -168,7 +173,11 @@ export function HomeOverview({ store, now, onOpen, onOpenDeadline, onNewCompany,
     </details>}
     <div className="home-overview-columns">
       <section className="home-overview-panel home-priority-panel" ref={priorityRef} tabIndex="-1"><header><div><span>{t("下一步")}</span>
-        <h3>{t("优先处理")}</h3></div>{(hasPriorities || hasFilter) && <strong aria-live="polite">{filteredPriorities.length}</strong>}</header>
+        <h3>{t("优先处理")}</h3></div>
+        {simple && <div className="home-priority-filter-tools">{hasFilter && <><span className="filter-active-label">{t("筛选中")}</span>
+          <button type="button" className="text-button" onClick={clearFilters}>{t("清除筛选")}</button></>}{filterToggle}</div>}
+        {(hasPriorities || hasFilter) && <strong aria-live="polite">{filteredPriorities.length}</strong>}</header>
+        {simple && ownerFilters}
         <div className="home-priority-filters" id={`${filterId}-priority`} hidden={!showFilters}
           role="group" aria-label={t("优先事项筛选")}>{PRIORITY_FILTERS.filter(value => !simple || !["manual", "setup"].includes(value)).map((value) =>
           <button type="button" key={value} aria-pressed={priorityFilter === value} onClick={() => changeFilter(value)}>

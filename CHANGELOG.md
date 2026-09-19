@@ -1,5 +1,11 @@
 # Changelog
 
+## Quieter Simple daily updates — 2026-09-19
+
+- Use compact module/status/due rows; disclose owner, start date and notes. Move project metadata and duplicate/archive actions below the daily work, keeping a labelled edit action.
+- Put Home actions before recent visits, with filters in the list heading. Fold applied filters without concealing their active state or clear action. Pro behaviour and stored business data remain unchanged.
+- 简化模式收紧为「模块、状态、截止日」；低频资料及复制、归档收起。首页先待办后最近访问，筛选并入清单标题，可收起但不隐藏已应用条件。
+
 ## Compact Simple workspace — 2026-09-18
 
 - Use one global Pro switch for business workflows, navigation density and advanced schedule/report/template entry points.

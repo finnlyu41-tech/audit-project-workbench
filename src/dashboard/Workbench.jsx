@@ -1648,7 +1648,7 @@ function ProjectDetail({ simplifiedView, updateWorkstream, project, rawProject, 
         onClick={() => setModal({ type: "tax-deadlines", targetKind: "project", targetId: rawProject.id,
           ...(readOnly ? {} : { editDeadlineId: taxSummary.next?.id ?? null }) })}>{taxFactValue}</DetailFactAction></dl>
   </>;
-  return <div className="workspace-detail-inner">
+  return <div className="workspace-detail-inner" data-simple={simplifiedView || undefined}>
     {readOnly && <div className="archive-banner"><strong>{t("已归档，只读")}</strong>
       <span>{t("归档记录不能编辑；恢复后才可继续更新。")}</span></div>}
     <header className="detail-header"><div className="detail-title"><div><span className="workspace-label">{t("项目工作区")}</span><h2>{primaryName}</h2></div>
@@ -1659,19 +1659,20 @@ function ProjectDetail({ simplifiedView, updateWorkstream, project, rawProject, 
         <button type="button" className="button danger-quiet icon-only" aria-label={t("永久删除")}
           data-tooltip={t("永久删除")} onClick={() => setModal({ type: "delete-target", targetKind: "project",
             targetId: rawProject.id, name: rawProject.name })}><Trash2 aria-hidden="true" /></button></> : <>
-        <button type="button" className="button primary icon-only" aria-label={t("编辑年度项目")}
-          data-tooltip={t("编辑年度项目")} onClick={() => setModal({ type: "edit-engagement", targetKind: "project", targetId: rawProject.id })}><Pencil aria-hidden="true" /></button>
+        <button type="button" className={`button ${simplifiedView ? "secondary" : "primary icon-only"}`} aria-label={t("编辑年度项目")}
+          data-tooltip={t("编辑年度项目")} onClick={() => setModal({ type: "edit-engagement", targetKind: "project", targetId: rawProject.id })}><Pencil aria-hidden="true" />{simplifiedView && t("编辑年度项目")}</button>
+{!simplifiedView && <>
         <button type="button" className="button secondary icon-only" aria-label={t("复制项目")}
           data-tooltip={t("复制项目")} onClick={() => duplicateProject(rawProject)}><Copy aria-hidden="true" /></button>
         <button type="button" className="button secondary icon-only" aria-label={t("归档项目")}
-          data-tooltip={t("归档项目")} onClick={() => archiveTarget("project", rawProject.id)}><Archive aria-hidden="true" /></button></>}</div>
+          data-tooltip={t("归档项目")} onClick={() => archiveTarget("project", rawProject.id)}><Archive aria-hidden="true" /></button>
+        </>}</>}</div>
     </header>
     {simplifiedView ? <>
       <div className="simple-project-summary"><strong>{t("已完成 {done}/{total}", { done: stats.completedWorkstreams, total: stats.workstreams })}</strong>
         {project.dueDate && <span>{t("截止：{date}", { date: formatDate(project.dueDate, language) })}</span>}
         <TaxDeadlineSummaryButton deadlines={rawProject.taxDeadlines} now={deadlineClock} compact
           onClick={() => setModal({ type: "tax-deadlines", targetKind: "project", targetId: rawProject.id })} /></div>
-      <details className="simple-project-details"><summary>{t("更多项目资料")}</summary>{moreDetails}</details>
     </> : moreDetails}
 
     <section className="workstream-overview"><header className="section-heading"><div><h3>{t("业务模块")}</h3>
@@ -1684,6 +1685,8 @@ function ProjectDetail({ simplifiedView, updateWorkstream, project, rawProject, 
           onClick={() => activeRawWorkstream && setModal({ type: "workstream-edit", targetKind: "project",
             targetId: rawProject.id, workstreamId: activeRawWorkstream.id })}><Settings2 aria-hidden="true" /></button>}</div>}</header>
       {project.workstreams.length ? <div className={project.workstreams.some(workstreamIsSimple) ? "simple-workstream-list" : "workstream-card-grid"}>
+        {project.workstreams.some(workstreamIsSimple) && <div className="simple-workstream-columns" aria-hidden="true">
+          <span>{t("业务模块")}</span><span>{t("模块状态")}</span><span>{t("截止日")}</span><span /></div>}
         {project.workstreams.map((workstream) => {
           const shared = { selected: workstream.id === activeWorkstream?.id, readOnly,
             openItems: rawProject.outstandingItems.filter(item => item.workstreamId === workstream.id && outstandingIsOpen(item, statuses)).length,
@@ -1705,6 +1708,13 @@ function ProjectDetail({ simplifiedView, updateWorkstream, project, rawProject, 
           <ListPlus aria-hidden="true" /><span><strong>{t("尚未启用业务模块")}</strong>
             <small>{t(readOnly ? "此公司没有业务模块。" : "选择此处添加第一个业务模块。")}</small></span></button>}
     </section>
+
+    {simplifiedView && <details className="simple-project-details"><summary>{t("更多项目资料")}</summary>{moreDetails}
+      {!readOnly && <div className="simple-project-management">
+        <button type="button" className="button secondary" onClick={() => duplicateProject(rawProject)}><Copy aria-hidden="true" />{t("复制项目")}</button>
+        <button type="button" className="button secondary" onClick={() => archiveTarget("project", rawProject.id)}><Archive aria-hidden="true" />{t("归档项目")}</button>
+      </div>}
+    </details>}
 
     {activeWorkstream && activeRawWorkstream && !workstreamIsSimple(activeRawWorkstream) && <section className="workflow-panel">
       <WorkflowNodes key={activeRawWorkstream.id} targetKind="project" targetId={rawProject.id} workstreamId={activeRawWorkstream.id}
