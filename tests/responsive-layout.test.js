@@ -265,9 +265,13 @@ test("screen typography keeps supporting interface text readable", () => {
 test("only simple workstreams expose independent owner and dates; annual deadlines keep their scope", () => {
   const workstreamForm = components.match(/export function WorkstreamForm[\s\S]*?export function WorkstreamCard/)?.[0] || "";
   assert.doesNotMatch(v11Components, /applyOwnerToWorkstreams/);
-  const fullFields = workstreamForm.replace(/{values\.mode === "simple" && <>[\s\S]*?<\/>}/, "");
+  const simpleFields = workstreamForm.match(/{values\.mode === "simple" && <>[\s\S]*?<\/>}/)?.[0] || "";
+  const fullFields = workstreamForm.replace(simpleFields, "");
   assert.doesNotMatch(fullFields, /<input[^>]+value={values\.(owner|dueDate|startDate)}/);
-  assert.match(workstreamForm, /values\.mode === "simple" && <>[\s\S]*value={values\.owner}[\s\S]*value={values\.dueDate}/);
+  // Field scope is a contract; the approved disclosure may change display order.
+  for (const field of ["owner", "dueDate", "startDate"]) {
+    assert.ok(simpleFields.includes(`value={values.${field}}`), `${field} remains inside Simple mode`);
+  }
   assert.doesNotMatch(managementReport, /workstream\.owner|workstream\.dueDate/);
   assert.doesNotMatch(deadlineAlerts, /scope === "workstream"/);
 });
