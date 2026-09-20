@@ -145,7 +145,6 @@ test('Simple home keeps deadlines, outstanding, recent visits and backup while P
   await expect(page.locator('.home-metric-grid')).toBeVisible();
   await expect(page.getByRole('button', { name: 'Management reports', exact: true })).toBeVisible();
   await expect(page.locator('[data-category="manual_priority"]')).toBeVisible();
-  await page.getByRole('group', { name: 'Priority filters' }).getByRole('button', { name: /Manual priority/ })).toBeVisible();
   await page.getByRole('group', { name: 'Priority filters' }).getByRole('button', { name: /Manual priority/ }).click();
   await page.getByRole('switch', { name: 'Pro mode', exact: true }).click();
   await expect(page.getByRole('group', { name: 'Priority filters' }).getByRole('button', { name: /All actions/ })).toHaveAttribute('aria-pressed', 'true');
@@ -177,29 +176,6 @@ for (const language of ['en', 'zh-Hans', 'zh-Hant']) test(`simple mode stays rea
     if (width === 430 || width === 1440) await page.screenshot({ path: info.outputPath(`simple-${language}-${width}.png`) });
   }
   await page.screenshot({ path: info.outputPath(`simple-${language}.png`) });
-  expect(seriousViolations(await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa']).analyze())).toEqual([]);
-  expect(await readStoredWorkspace(page)).toEqual(before);
-  const editName = language === 'en' ? 'Edit workstream details' : language === 'zh-Hant' ? toTraditional('编辑模块资料') : '编辑模块资料';
-  await row.getByRole('button', { name: editName, exact: true }).click();
-  const dialog = page.getByRole('dialog');
-  const details = dialog.locator('.workstream-form-details');
-  await expect(details).not.toHaveAttribute('open');
-  await expect(dialog.locator('input:visible, select:visible, textarea:visible')).toHaveCount(3);
-  for (const width of [375, 430, 800, 1440]) {
-    await page.setViewportSize({ width, height: 900 });
-    expect(await dialog.evaluate(element => element.scrollWidth <= element.clientWidth + 1)).toBe(true);
-    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1)).toBe(true);
-    if (width === 430 || width === 1440) await page.screenshot({ path: info.outputPath(`simple-form-compact-${language}-${width}.png`) });
-  }
-  await details.locator('summary').focus(); await page.keyboard.press('Enter');
-  await expect(details).toHaveAttribute('open');
-  await expect(details.locator('textarea')).toHaveValue(before.engagements[0].workstreams[0].notes);
-  await expect(dialog.locator('input:visible, select:visible, textarea:visible')).toHaveCount(6);
-  for (const width of [430, 1440]) {
-    await page.setViewportSize({ width, height: 900 });
-    expect(await dialog.evaluate(element => element.scrollWidth <= element.clientWidth + 1)).toBe(true);
-    await page.screenshot({ path: info.outputPath(`simple-form-details-${language}-${width}.png`) });
-  }
   expect(seriousViolations(await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa']).analyze())).toEqual([]);
   expect(await readStoredWorkspace(page)).toEqual(before);
 });
@@ -308,7 +284,7 @@ test('Simple home folds active filters without hiding their effect and keeps act
   expect(await panel.evaluate(element => Boolean(element.compareDocumentPosition(document.querySelector('.home-recent')) & Node.DOCUMENT_POSITION_FOLLOWING))).toBe(true);
   await panel.getByRole('button', { name: 'Show filters', exact: true }).click();
   await page.getByLabel('Action list owner').selectOption('Alex Chan');
-  await panel.getByRole('group', { name: 'Priority filters' }).getByRole('button', { name: /Due today/ })).click();
+  await panel.getByRole('group', { name: 'Priority filters' }).getByRole('button', { name: /Due today/ }).click();
   await expect(panel.locator('.home-priority-list')).toHaveCount(0);
   await panel.getByRole('button', { name: 'Hide filters', exact: true }).click();
   await expect(page.getByLabel('Action list owner')).toBeHidden();
@@ -322,7 +298,7 @@ test('Simple home folds active filters without hiding their effect and keeps act
   await panel.getByRole('button', { name: 'Show filters', exact: true }).click();
   await expect(page.getByLabel('Action list owner')).toHaveValue('Alex Chan');
   await expect(panel.getByRole('group', { name: 'Priority filters' }).getByRole('button', { name: /Due today/ })).toHaveAttribute('aria-pressed', 'true');
-  await panel.getByRole('button', { name: 'Clear filters', exact: true })).click();
+  await panel.getByRole('button', { name: 'Clear filters', exact: true }).click();
   await expect(panel.getByRole('button', { name: 'Show filters', exact: true })).toBeFocused();
   await expect(page.getByLabel('Action list owner')).toBeHidden();
   await expect(panel.getByText('Filters active', { exact: true })).toHaveCount(0);
@@ -342,7 +318,7 @@ test('Simple navigation lists annual projects, counts projects and suspends rath
   await expect(page.locator('.filter-tabs').getByRole('tab', { name: /^Active/ }).locator('strong')).toHaveText('3');
   await page.getByRole('button', { name: 'Open navigation filters', exact: true }).click();
   await page.getByLabel('Owner filter', { exact: true }).selectOption('Alex Chan');
-  await page.getByLabel('Engagement type filter', { exact: true }).selectOption('Audit');
+  await page.getByLabel('Engagement type filter', { exact: true }).selectOption({ label: 'Audit' });
   await page.getByLabel('Reporting year filter', { exact: true }).selectOption('2026');
   await expect(page.locator('.tree-engagement-row')).toHaveCount(1);
   await toggle.click();
@@ -454,142 +430,4 @@ test('Simple entry includes a real self-contained app icon without network error
   await expect(icon).toHaveAttribute('href', href);
   await expect.poll(() => readStoredWorkspace(page)).toEqual(before);
   expect(failedResponses).toEqual([]);
-});
-
-async function simpleModuleEditor(page) {
-  const row = page.locator('.simple-workstream').first();
-  if (!(await row.locator('details').getAttribute('open')) && !(await row.locator('details').evaluate(element => element.open)))
-    await row.locator('summary').click();
-  await row.getByRole('button', { name: 'Edit workstream details', exact: true }).click();
-  return page.getByRole('dialog');
-}
-
-test('Simple module form saves primary edits without clearing folded owner, dates, notes or nodes', async ({ page }) => {
-  const changedAt = new Date(Date.now() + 60_000).toISOString();
-  await page.clock.setFixedTime(new Date(changedAt));
-  const fixture = workspaceFixture();
-  Object.assign(fixture.projects[0].workstreams[0], { startDate: '2026-09-01', notes: 'Keep literal <scope> 中文\nSecond line' });
-  await openWorkbench(page, fixture, { businessMode: 'simple' });
-  const before = await readStoredWorkspace(page);
-  const dialog = await simpleModuleEditor(page);
-  await expect(dialog.locator('.workstream-form-details')).not.toHaveAttribute('open');
-  await expect(dialog.locator('input:visible, select:visible, textarea:visible')).toHaveCount(3);
-  for (const label of ['Owner', 'Start', 'Notes']) await expect(dialog.getByLabel(label, { exact: true })).toBeHidden();
-  await dialog.getByLabel('Workstream status').selectOption('on_hold');
-  await dialog.getByLabel('Due date', { exact: true }).fill('2026-10-31');
-  await dialog.getByRole('button', { name: 'Save workstream', exact: true }).click();
-  const expected = structuredClone(before);
-  Object.assign(expected.engagements[0].workstreams[0], { simpleStatus: 'on_hold', dueDate: '2026-10-31', updatedAt: changedAt });
-  expected.engagements[0].updatedAt = changedAt;
-  await expect.poll(() => readStoredWorkspace(page)).toEqual(expected);
-  await page.reload();
-  await expect.poll(() => readStoredWorkspace(page)).toEqual(expected);
-  await simpleModuleEditor(page);
-  await dialog.locator('.workstream-form-details > summary').focus(); await page.keyboard.press('Enter');
-  await expect(dialog.getByLabel('Owner', { exact: true })).toHaveValue(before.engagements[0].workstreams[0].owner);
-  await expect(dialog.getByLabel('Start', { exact: true })).toHaveValue('2026-09-01');
-  await expect(dialog.getByLabel('Notes', { exact: true })).toHaveValue('Keep literal <scope> 中文\nSecond line');
-  await dialog.getByRole('button', { name: 'Cancel', exact: true }).click();
-  await expect(dialog).toHaveCount(0);
-  await expect.poll(() => readStoredWorkspace(page)).toEqual(expected);
-});
-
-test('Simple module form keeps folded new-module drafts and rejects blank custom names', async ({ page }) => {
-  const changedAt = new Date(Date.now() + 60_000).toISOString();
-  await page.clock.setFixedTime(new Date(changedAt));
-  await openWorkbench(page, workspaceFixture(), { businessMode: 'simple' });
-  const before = await readStoredWorkspace(page);
-  await page.getByRole('button', { name: 'Add workstream', exact: true }).click();
-  const dialog = page.getByRole('dialog');
-  const details = dialog.locator('.workstream-form-details');
-  await expect(dialog.locator('input:visible, select:visible, textarea:visible')).toHaveCount(3);
-  await dialog.getByLabel('Workstream type').selectOption('custom');
-  const customName = dialog.locator('input[required]');
-  await expect(customName).toBeVisible();
-  await expect(details).not.toHaveAttribute('open');
-  await customName.fill('   ');
-  await dialog.getByRole('button', { name: 'Add workstream', exact: true }).click();
-  await expect(customName).toBeFocused();
-  expect(await customName.evaluate(element => element.validity.valid)).toBe(false);
-  expect(await readStoredWorkspace(page)).toEqual(before);
-  await dialog.getByLabel('Workstream type').selectOption('bookkeeping');
-  await details.locator('summary').focus(); await page.keyboard.press('Enter');
-  await dialog.getByLabel('Owner', { exact: true }).fill(' Fictional coordinator ');
-  await dialog.getByLabel('Start', { exact: true }).fill('2026-09-01');
-  const notes = dialog.getByLabel('Notes', { exact: true });
-  await notes.fill('Literal <draft> 中文'); await notes.press('Enter'); await notes.pressSequentially('Second line');
-  await details.locator('summary').click();
-  await expect(notes).toBeHidden();
-  await dialog.getByLabel('Due date', { exact: true }).fill('2026-11-30');
-  await dialog.getByLabel('Workstream status').selectOption('in_progress');
-  await expect(details).not.toHaveAttribute('open');
-  expect(await readStoredWorkspace(page)).toEqual(before);
-  await dialog.getByRole('button', { name: 'Add workstream', exact: true }).click();
-  await expect.poll(async () => (await readStoredWorkspace(page)).engagements[0].workstreams.length).toBe(3);
-  const added = (await readStoredWorkspace(page)).engagements[0].workstreams[2];
-  expect(added).toMatchObject({ categoryId: 'bookkeeping', mode: 'simple', simpleStatus: 'in_progress', owner: 'Fictional coordinator',
-    startDate: '2026-09-01', dueDate: '2026-11-30', notes: 'Literal <draft> 中文\nSecond line', nodes: [] });
-  const expected = structuredClone(before);
-  expected.engagements[0].workstreams.push(added); expected.engagements[0].updatedAt = changedAt;
-  await expect.poll(() => readStoredWorkspace(page)).toEqual(expected);
-  await page.reload();
-  await expect.poll(() => readStoredWorkspace(page)).toEqual(expected);
-});
-
-test('Simple module form reveals invalid folded dates and preserves the discard confirmation', async ({ page }) => {
-  const fixture = workspaceFixture(); fixture.projects[0].workstreams[0].startDate = '2026-09-01';
-  await openWorkbench(page, fixture, { businessMode: 'simple' });
-  const before = await readStoredWorkspace(page);
-  const dialog = await simpleModuleEditor(page);
-  const details = dialog.locator('.workstream-form-details');
-  const due = dialog.getByLabel('Due date', { exact: true });
-  const start = dialog.getByLabel('Start', { exact: true });
-  await due.fill('2026-08-01');
-  await dialog.getByRole('button', { name: 'Save workstream', exact: true }).click();
-  await expect(details).toHaveAttribute('open');
-  await expect(start).toBeVisible();
-  expect(await due.evaluate(element => element.validity.rangeUnderflow)).toBe(true);
-  expect(await start.evaluate(element => element.validity.rangeOverflow)).toBe(true);
-  expect(await readStoredWorkspace(page)).toEqual(before);
-  await due.fill(before.engagements[0].workstreams[0].dueDate);
-  await details.locator('summary').click();
-  await expect(dialog).not.toHaveAttribute('data-dirty');
-  await dialog.getByRole('button', { name: 'Cancel', exact: true }).click();
-  await expect(dialog).toHaveCount(0);
-  await simpleModuleEditor(page);
-  await details.locator('summary').click();
-  await start.fill('2026-12-01');
-  await details.locator('summary').click();
-  expect(await start.evaluate(element => element.reportValidity())).toBe(false);
-  await expect(details).toHaveAttribute('open');
-  await expect(start).toBeFocused();
-  expect(await readStoredWorkspace(page)).toEqual(before);
-  await start.fill('2026-09-01');
-  const notes = dialog.getByLabel('Notes', { exact: true });
-  await notes.fill('Unsaved folded draft');
-  await details.locator('summary').click();
-  await expect(dialog).toHaveAttribute('data-dirty', 'true');
-  page.once('dialog', confirmation => confirmation.dismiss());
-  await dialog.getByRole('button', { name: 'Cancel', exact: true }).click();
-  await expect(dialog).toBeVisible();
-  await expect(notes).toHaveValue('Unsaved folded draft');
-  expect(await readStoredWorkspace(page)).toEqual(before);
-  page.once('dialog', confirmation => confirmation.accept());
-  await dialog.getByRole('button', { name: 'Cancel', exact: true }).click();
-  await expect(dialog).toHaveCount(0);
-  await expect.poll(() => readStoredWorkspace(page)).toEqual(before);
-});
-
-test('Pro module form retains its template chooser without Simple disclosures or data changes', async ({ page }) => {
-  await openWorkbench(page, workspaceFixture());
-  const before = await readStoredWorkspace(page);
-  await page.getByRole('button', { name: 'Add workstream', exact: true }).click();
-  const dialog = page.getByRole('dialog');
-  await dialog.getByLabel('Workstream type').selectOption('bookkeeping');
-  await expect(dialog.getByLabel('Workstream template', { exact: true })).toBeVisible();
-  await expect(dialog.locator('.workstream-form-details')).toHaveCount(0);
-  await expect(dialog.getByLabel('Workstream status', { exact: true })).toHaveCount(0);
-  await dialog.getByRole('button', { name: 'Cancel', exact: true }).click();
-  await expect(dialog).toHaveCount(0);
-  await expect.poll(() => readStoredWorkspace(page)).toEqual(before);
 });

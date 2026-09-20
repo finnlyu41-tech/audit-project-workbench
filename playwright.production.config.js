@@ -12,7 +12,7 @@ export default {
     reuseExistingServer: false,
     timeout: 120_000,
   },
-  testMatch: ['**/simple-workstream.spec.js', '**/core-flows.spec.js', '**/project-focus-summary.spec.js', '**/workstream-stage-summary.spec.js', '**/home-empty-state.spec.js', '**/stability-recovery.spec.js', '**/efficiency-entry.spec.js', '**/efficiency-batch.spec.js', '**/efficiency-output.spec.js', '**/efficiency-recovery.spec.js'],
+  testMatch: ['**/simple-workstream.spec.js', '**/simple-workstream-form.spec.js', '**/core-flows.spec.js', '**/project-focus-summary.spec.js', '**/workstream-stage-summary.spec.js', '**/home-empty-state.spec.js', '**/stability-recovery.spec.js', '**/efficiency-entry.spec.js', '**/efficiency-batch.spec.js', '**/efficiency-output.spec.js', '**/efficiency-recovery.spec.js'],
   projects: [
     base.projects[0],
     { name: 'webkit-production', use: { ...base.projects[1].use } },
