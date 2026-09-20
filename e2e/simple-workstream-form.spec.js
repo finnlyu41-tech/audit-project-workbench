@@ -28,7 +28,14 @@ test('Simple module form saves primary edits without clearing folded owner, date
   const dialog = await simpleModuleEditor(page);
   await expect(dialog.locator('.workstream-form-details')).not.toHaveAttribute('open');
   await expect(dialog.locator('input:visible, select:visible, textarea:visible')).toHaveCount(3);
-  for (const label of ['Owner', 'Start', 'Notes']) await expect(dialog.getByLabel(label, { exact: true })).toBeHidden();
+  for (const label of ['Owner', 'Start']) {
+    await expect(dialog.getByLabel(label, { exact: true })).toHaveCount(1);
+    await expect(dialog.getByLabel(label, { exact: true })).toBeHidden();
+  }
+  // Role names exclude textarea contents and select options; exact label text does not.
+  const foldedNotes = dialog.getByRole('textbox', { name: 'Notes', exact: true, includeHidden: true });
+  await expect(foldedNotes).toHaveCount(1);
+  await expect(foldedNotes).toBeHidden();
   await dialog.getByLabel('Workstream status').selectOption('on_hold');
   await dialog.getByLabel('Due date', { exact: true }).fill('2026-10-31');
   await dialog.getByRole('button', { name: 'Save workstream', exact: true }).click();
@@ -42,7 +49,7 @@ test('Simple module form saves primary edits without clearing folded owner, date
   await dialog.locator('.workstream-form-details > summary').focus(); await page.keyboard.press('Enter');
   await expect(dialog.getByLabel('Owner', { exact: true })).toHaveValue(before.engagements[0].workstreams[0].owner);
   await expect(dialog.getByLabel('Start', { exact: true })).toHaveValue('2026-09-01');
-  await expect(dialog.getByLabel('Notes', { exact: true })).toHaveValue('Keep literal <scope> 中文\nSecond line');
+  await expect(dialog.getByRole('textbox', { name: 'Notes', exact: true, includeHidden: true })).toHaveValue('Keep literal <scope> 中文\nSecond line');
   await dialog.getByRole('button', { name: 'Cancel', exact: true }).click();
   await expect(dialog).toHaveCount(0);
   await expect.poll(() => readStoredWorkspace(page)).toEqual(expected);
@@ -70,7 +77,7 @@ test('Simple module form keeps folded new-module drafts and rejects blank custom
   await details.locator('summary').focus(); await page.keyboard.press('Enter');
   await dialog.getByLabel('Owner', { exact: true }).fill(' Fictional coordinator ');
   await dialog.getByLabel('Start', { exact: true }).fill('2026-09-01');
-  const notes = dialog.getByLabel('Notes', { exact: true });
+  const notes = dialog.getByRole('textbox', { name: 'Notes', exact: true, includeHidden: true });
   await notes.fill('Literal <draft> 中文'); await notes.press('Enter'); await notes.pressSequentially('Second line');
   await details.locator('summary').click();
   await expect(notes).toBeHidden();
@@ -119,7 +126,7 @@ test('Simple module form reveals invalid folded dates and preserves the discard 
   await expect(start).toBeFocused();
   expect(await readStoredWorkspace(page)).toEqual(before);
   await start.fill('2026-09-01');
-  const notes = dialog.getByLabel('Notes', { exact: true });
+  const notes = dialog.getByRole('textbox', { name: 'Notes', exact: true, includeHidden: true });
   await notes.fill('Unsaved folded draft');
   await details.locator('summary').click();
   await expect(dialog).toHaveAttribute('data-dirty', 'true');
@@ -139,7 +146,7 @@ test('Pro module form retains its template chooser without Simple disclosures or
   const before = await readStoredWorkspace(page);
   await page.getByRole('button', { name: 'Add workstream', exact: true }).click();
   const dialog = page.getByRole('dialog');
-  await expect(dialog.getByLabel('Workstream template', { exact: true })).toBeVisible();
+  await expect(dialog.getByRole('combobox', { name: 'Workstream template', exact: true })).toBeVisible();
   await expect(dialog.locator('.workstream-form-details')).toHaveCount(0);
   await expect(dialog.getByLabel('Workstream status', { exact: true })).toHaveCount(0);
   await dialog.getByRole('button', { name: 'Cancel', exact: true }).click();
@@ -168,6 +175,8 @@ for (const language of ['en', 'zh-Hans', 'zh-Hant']) test(`Simple module form st
   await details.locator('summary').focus(); await page.keyboard.press('Enter');
   await expect(details).toHaveAttribute('open');
   await expect(details.locator('textarea')).toHaveValue(before.engagements[0].workstreams[0].notes);
+  const notesName = language === 'en' ? 'Notes' : language === 'zh-Hant' ? toTraditional('备注') : '备注';
+  await expect(details.locator('textarea')).toHaveAccessibleName(notesName);
   await expect(dialog.locator('input:visible, select:visible, textarea:visible')).toHaveCount(6);
   for (const width of [430, 1440]) {
     await page.setViewportSize({ width, height: 900 });
