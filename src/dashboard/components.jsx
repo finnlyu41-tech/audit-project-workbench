@@ -221,14 +221,18 @@ export function WorkstreamForm({ initial, businessMode = "simple", availableCate
     {values.type === "custom" && values.categoryId === "custom" && <label><span>{t("自定义模块名称 *")}</span><RequiredTextInput autoFocus aria-label={t("自定义模块名称 *")} value={values.customName}
       onChange={update("customName")} placeholder={t("例如：公司秘书服务")} /></label>}
     {values.mode === "simple" && <>
-      <p className="muted">{t("直接管理整个模块的状态，不设节点或完成条件。")}</p>
-      {initial?.nodes?.length > 0 && <p>{t("原有节点保留，开启 Pro 后恢复；简化状态独立记录。")}</p>}
       <label><span>{t("模块状态")}</span><select value={values.simpleStatus} onChange={update("simpleStatus")}>
         {WORKSTREAM_STATUSES.map(simpleStatus => <option key={simpleStatus} value={simpleStatus}>{t(workstreamStatusLabel({ simpleStatus }))}</option>)}</select></label>
-      <label><span>{t("负责人")}</span><input value={values.owner} onChange={update("owner")} /></label>
-      <label><span>{t("开始日")}</span><input type="date" max={values.dueDate || undefined} value={values.startDate} onChange={update("startDate")} /></label>
       <label><span>{t("截止日")}</span><input type="date" min={values.startDate || undefined} value={values.dueDate} onChange={update("dueDate")} /></label>
-      <label><span>{t("备注")}</span><textarea value={values.notes} onChange={update("notes")} /></label>
+      <details className="simple-project-details workstream-form-details"
+        onInvalidCapture={(event) => { event.currentTarget.open = true; }}>
+        <summary>{t("详情")}</summary><div className="form-grid" data-columns="1">
+          <label><span>{t("负责人")}</span><input value={values.owner} onChange={update("owner")} /></label>
+          <label><span>{t("开始日")}</span><input type="date" max={values.dueDate || undefined} value={values.startDate} onChange={update("startDate")} /></label>
+          <label><span>{t("备注")}</span><textarea value={values.notes} onChange={update("notes")} /></label>
+          <p className="muted">{t("直接管理整个模块的状态，不设节点或完成条件。")}</p>
+          {initial?.nodes?.length > 0 && <p>{t("原有节点保留，开启 Pro 后恢复；简化状态独立记录。")}</p>}
+        </div></details>
     </>}
     {!initial && values.mode !== "simple" && <label><span>{t("业务范本")}</span><select value={values.sampleId} onChange={update("sampleId")}>
       <option value="">{t("空白流程")}</option>{typeSamples.map((sample) => <option value={sample.id} key={sample.id}>{sample.name}</option>)}</select></label>}
