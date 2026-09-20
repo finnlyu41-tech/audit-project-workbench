@@ -390,3 +390,44 @@ test('Simple flat navigation keeps holding-company master access without changin
   await expect(page.locator('.entity-overview')).toContainText('Global Holdings');
   await expect.poll(() => readStoredWorkspace(page)).toEqual(before);
 });
+
+test('Simple entry includes a real self-contained app icon without network errors or data changes', async ({ page }) => {
+  const failedResponses = [];
+  page.on('response', response => {
+    if (response.status() >= 400) failedResponses.push({ url: response.url(), status: response.status() });
+  });
+  await openWorkbench(page, workspaceFixture(), { businessMode: 'simple' });
+  const before = await readStoredWorkspace(page);
+  const icon = page.locator('head link[rel~="icon"]');
+  await expect(icon).toHaveCount(1);
+  await expect(icon).toHaveAttribute('type', 'image/svg+xml');
+  await expect(icon).toHaveAttribute('href', /^data:image\/svg\+xml,/);
+  const href = await icon.getAttribute('href');
+  const decoded = await icon.evaluate(async link => {
+    const image = new Image();
+    image.src = link.href;
+    await image.decode();
+    const canvas = document.createElement('canvas');
+    canvas.width = image.naturalWidth;
+    canvas.height = image.naturalHeight;
+    const context = canvas.getContext('2d');
+    context.drawImage(image, 0, 0);
+    const pixels = context.getImageData(0, 0, canvas.width, canvas.height).data;
+    const colours = new Set();
+    let paintedPixels = 0;
+    for (let index = 0; index < pixels.length; index += 4) {
+      if (!pixels[index + 3]) continue;
+      paintedPixels += 1;
+      colours.add(`${pixels[index]},${pixels[index + 1]},${pixels[index + 2]}`);
+    }
+    return { width: image.naturalWidth, height: image.naturalHeight, paintedPixels, colours: colours.size };
+  });
+  expect(decoded).toMatchObject({ width: 32, height: 32 });
+  expect(decoded.paintedPixels).toBeGreaterThan(500);
+  expect(decoded.colours).toBeGreaterThan(1);
+  await page.reload();
+  await expect(page.locator('.audit-workbench')).toBeVisible();
+  await expect(icon).toHaveAttribute('href', href);
+  await expect.poll(() => readStoredWorkspace(page)).toEqual(before);
+  expect(failedResponses).toEqual([]);
+});
