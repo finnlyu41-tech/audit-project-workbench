@@ -6,7 +6,9 @@ export default defineConfig({
   fullyParallel: true,
   forbidOnly: Boolean(process.env.CI),
   retries: 0,
-  workers: process.env.CI ? 2 : undefined,
+  // Three isolated workers fit the public 4-vCPU runner and leave time for the
+  // complete production gate inside the unchanged 40-minute job budget.
+  workers: process.env.CI ? 3 : undefined,
   reporter: process.env.CI
     ? [["line"], ["html", { open: "never", outputFolder: "playwright-report/dev" }], ["json", { outputFile: "playwright-results/dev.json" }]]
     : [["list"], ["html", { open: "never", outputFolder: "playwright-report" }]],
