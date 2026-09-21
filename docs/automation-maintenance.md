@@ -21,6 +21,16 @@ CI groups concurrent checks by PR/ref and cancels obsolete runs only for the sam
 
 Development and production browser reports are stored separately, with machine-readable JSON and an exact-head/tested-merge receipt. Reports upload on success and failure, so a later invocation can inspect completed evidence instead of rebuilding it. The receipt explicitly does not claim deployment or scheduler verification.
 
+## CI worker headroom
+
+The public-repository Linux runner has four vCPUs. Use three Playwright workers in CI; local runs keep Playwright's default. Production inherits the same setting. This uses the existing runner, not extra jobs or machines, and does not change any test, per-test timeout, retries, failure criteria or the 40-minute workflow-job budget.
+
+On merge `31c3206`, runs `35621864864` and `35621864953` (attempt 1) passed all 471 unit, 944 development and 240 production tests, but GitHub cancelled their production steps at the job's 40-minute boundary before release completion. The annotations explicitly report that budget limit; the receipts correctly keep `verification_passed=false`. Do not treat those cancelled runs as a verified deployment or repeatedly rerun them for timing luck. Verify the concurrency change with complete new-head gates and the subsequent release.
+
+公开仓库现有 Linux 执行机使用 3 个并行测试进程，为生产检查和收尾留出余量；不增加机器、任务或定时调度，不减少测试，不延长单例或总任务时限。之前超时取消的记录继续保留，不能当成上线成功。
+
+References: [GitHub standard runner resources](https://docs.github.com/en/actions/reference/runners/github-hosted-runners#standard-github-hosted-runners-for-public-repositories), [Playwright worker limits](https://playwright.dev/docs/test-parallel#limit-workers).
+
 ## Failure routing
 
 Authentication, tool connection, dependency installation, unit failure, browser assertion, production build and Pages propagation are different failures. Diagnose the actual failing phase. A missing screenshot/report is not a passing test. Do not increase timeouts, remove assertions or repeatedly rerun an unchanged failed head merely to obtain a green badge. A verified temporary runner/network outage may justify one documented retry.
