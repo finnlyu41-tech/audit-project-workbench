@@ -153,3 +153,52 @@ for (const restored of [false, true]) for (const viewport of [{ width: 1440, hei
     await expect(page.getByRole('button', { name: 'Restore into form', exact: true })).toHaveCount(0);
   });
 }
+
+for (const restored of [false, true]) for (const viewport of [{ width: 1440, height: 900 }, { width: 800, height: 560 }]) {
+  test(`company draft feedback cannot move Cancel during a ${restored ? 'restored' : 'new'} edit at ${viewport.width}px`, async ({ page }, info) => {
+    await page.setViewportSize(viewport); await openEfficiency(page, undefined, { home: true });
+    const before = await readStoredWorkspace(page); await enableDrafts(page);
+    const otherDraft = { key: 'quick:unrelated-fictional-record', baseline: '{}', data: { note: 'Keep this other draft' },
+      expires: await page.evaluate(() => Date.now() + 3600000) };
+    await page.evaluate(({ key, row }) => localStorage.setItem(key, JSON.stringify([row])), { key: LOCAL_DRAFTS_KEY, row: otherDraft });
+    const newCompany = page.locator('.home-overview').getByRole('button', { name: 'New company', exact: true });
+    await newCompany.click();
+    const name = 'Unsubmitted pointer test company';
+    if (restored) {
+      await dialog(page).getByLabel('Legal entity *', { exact: true }).fill(name);
+      await expect.poll(async () => (await draftRows(page)).find(row => row.key === 'company:new')?.data.values.legalName).toBe(name);
+      await refreshDiscardBrowserPrompt(page); await page.locator('.app-rail-button[aria-label="Home"]').click();
+      await newCompany.click();
+    }
+    await holdDraftFeedback(page);
+    if (restored) await dialog(page).getByRole('button', { name: 'Restore into form', exact: true }).click();
+    else await dialog(page).getByLabel('Legal entity *', { exact: true }).fill(name);
+    await expect(dialog(page).getByLabel('Legal entity *', { exact: true })).toHaveValue(name);
+    await expect.poll(() => page.evaluate(() => window.syntheticHeldDraftFeedback.length)).toBeGreaterThan(0);
+    const cancel = dialog(page).getByRole('button', { name: 'Cancel', exact: true });
+    await cancel.scrollIntoViewIfNeeded(); const position = await draftActionPosition(cancel);
+    await page.mouse.move(position.x + position.width / 2, position.y + position.height / 2);
+    let confirmations = 0;
+    page.on('dialog', async confirmation => { confirmations += 1; await confirmation.accept(); });
+    await page.mouse.down();
+    let afterFeedback;
+    try {
+      await page.evaluate(() => window.syntheticHeldDraftFeedback.splice(0).forEach(callback => callback()));
+      await expect(dialog(page).locator('.local-draft-offer').getByRole('status')).toHaveText('Temporary draft retained in this browser; not submitted.');
+      afterFeedback = await draftActionPosition(cancel);
+      await page.screenshot({ path: info.outputPath('company-draft-feedback-during-click.png') });
+    } finally { await page.mouse.up(); }
+    // Native transforms may introduce subpixel float noise, not layout movement.
+    for (const coordinate of ['x', 'y', 'width', 'height']) expect(afterFeedback[coordinate]).toBeCloseTo(position[coordinate], 2);
+    await expect(dialog(page)).toHaveCount(0);
+    expect(confirmations).toBe(1);
+    await expect.poll(() => draftRows(page)).toEqual([otherDraft]);
+    await expect.poll(() => readStoredWorkspace(page)).toEqual(before);
+    await page.reload(); await page.locator('.app-rail-button[aria-label="Home"]').click();
+    await newCompany.click();
+    await expect(dialog(page).getByRole('button', { name: 'Restore into form', exact: true })).toHaveCount(0);
+    await expect(dialog(page).getByLabel('Legal entity *', { exact: true })).toHaveValue('');
+    await expect.poll(() => draftRows(page)).toEqual([otherDraft]);
+    await expect.poll(() => readStoredWorkspace(page)).toEqual(before);
+  });
+}

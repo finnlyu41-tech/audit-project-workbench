@@ -80,14 +80,23 @@ export function useRecoverableDraft(key, baseline, data, onRestore, { active = t
     }, 350);
     return () => window.clearTimeout(timer.current);
   }, [key, baselineSignature, enabled, pending, signature, initialSignature, active, t]);
-  const panel = enabled && (pending || message) ? <section className="local-draft-offer" aria-label={t('临时草稿恢复')}>
+  // Modal centring makes an inserted status move every field and action.
+  // Reserve only modal feedback; inline editors already place it after actions.
+  const reserveStatus = Boolean(context && active);
+  const statusMessages = ['临时草稿已在本浏览器保留；尚未提交。', '临时草稿保存失败；请保留此窗口并手动复制内容。',
+    '无法清除本地草稿，请保留当前内容并检查浏览器存储。'];
+  const panel = enabled && (pending || message || reserveStatus) ? <section className="local-draft-offer"
+    data-draft-idle={!pending && !message || undefined} aria-label={pending || message ? t('临时草稿恢复') : undefined}>
     {pending ? <><strong>{t(pending.stale ? '原记录已变化，旧草稿不能直接恢复。' : '找到未提交草稿，是否继续编辑？')}</strong>
       <div className="efficiency-actions">{!pending.stale && <button type="button" className="button secondary" onClick={() => {
         try { onRestore(structuredClone(pending.data)); setPending(null); suppressed.current = false; }
         catch { setPending(previous => ({ ...previous, stale: true })); setMessage(t('草稿结构无法恢复，请查看原文并手动核对。')); }
       }}>{t('恢复到表单')}</button>}<button type="button" className="button secondary" onClick={clear}>{t('丢弃此草稿')}</button></div>
       {pending.stale && <details><summary>{t('查看旧草稿原文')}</summary><textarea readOnly aria-label={t('旧草稿原文')} rows="6" value={JSON.stringify(pending.data, null, 2)} /></details>}</>
-      : <p role="status">{message}</p>}
+      : reserveStatus ? <div className="local-draft-status-slot">
+        {statusMessages.map(text => <p className="local-draft-status-measure" aria-hidden="true" key={text}>{t(text)}</p>)}
+        <p role="status">{message}</p>
+      </div> : <p role="status">{message}</p>}
   </section> : null;
   return { panel, clear };
 }
