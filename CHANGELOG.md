@@ -1,5 +1,10 @@
 # Changelog
 
+## Stable modal draft feedback - 2026-09-21
+
+- Keep modal controls stationary when optional draft-save feedback arrives. Measure the existing translated status messages in a hidden, non-interactive slot; recovery-disabled forms and inline editors keep their existing layout. Cancel confirmation, draft removal and business data are unchanged.
+- 启用草稿恢复时，弹窗预留提示文字所需空间，避免异步提示推移保存／取消按钮；未启用时界面不变。保留取消确认、仅清除当前草稿和业务资料保护。
+
 ## Quieter Simple daily updates — 2026-09-19
 
 - Embed the application icon in the entry HTML to avoid the missing domain-root favicon request, with no external assets or workspace changes. 入口内嵌站点图标，避免请求不存在的域名根目录图标；不增加外部资源，不改工作区数据。
