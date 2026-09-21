@@ -1586,6 +1586,13 @@ function ProjectDetail({ onOpenCompany, simplifiedView, updateWorkstream, projec
   const primaryName = engagementTypesLabel(rawProject, language) || t("项目类型未设置");
   const subtitle = [companyName, periodLabel].filter(Boolean).join(" · ")
     || t("尚未填写法律实体及报告期间");
+  const projectScheduleLabel = project.dueDate
+    ? t("截止：{date}", { date: formatDate(project.dueDate, language) }) : t("未设置截止日");
+  const openProjectSchedule = (event) => {
+    if (readOnly) return;
+    event.currentTarget.focus();
+    setModal({ type: "edit-engagement", targetKind: "project", targetId: rawProject.id, quickField: "schedule" });
+  };
   const finishWorkstreamDrag = () => {
     draggingWorkstreamRef.current = null;
     setDraggingWorkstreamId(null);
@@ -1634,7 +1641,7 @@ function ProjectDetail({ onOpenCompany, simplifiedView, updateWorkstream, projec
       {project.owner || t("未设置")}</DetailFactAction>
       <DetailFactAction className="date-range-fact" label={t("项目排期")} icon={CalendarRange}
         actionLabel={`${t("编辑项目资料")}：${t("项目排期")}`}
-        onClick={!readOnly ? () => setModal({ type: "edit-engagement", targetKind: "project", targetId: rawProject.id, quickField: "schedule" }) : null}>
+        onClick={!readOnly ? openProjectSchedule : null}>
         <time>{project.startDate ? formatDate(project.startDate, language) : t("未设置开始日")}</time>
         <span aria-hidden="true">→</span><time>{project.dueDate ? formatDate(project.dueDate, language) : t("未设置截止日")}</time>
       </DetailFactAction>
@@ -1674,7 +1681,9 @@ function ProjectDetail({ onOpenCompany, simplifiedView, updateWorkstream, projec
     </header>
     {simplifiedView ? <>
       <div className="simple-project-summary"><strong>{t("已完成 {done}/{total}", { done: stats.completedWorkstreams, total: stats.workstreams })}</strong>
-        {project.dueDate && <span>{t("截止：{date}", { date: formatDate(project.dueDate, language) })}</span>}
+        {readOnly ? project.dueDate && <span>{projectScheduleLabel}</span>
+          : <button type="button" className="text-button simple-project-schedule" aria-haspopup="dialog"
+            aria-label={`${t("项目排期")} · ${projectScheduleLabel}`} onClick={openProjectSchedule}>{projectScheduleLabel}</button>}
         <TaxDeadlineSummaryButton deadlines={rawProject.taxDeadlines} now={deadlineClock} compact
           onClick={() => setModal({ type: "tax-deadlines", targetKind: "project", targetId: rawProject.id })} /></div>
     </> : moreDetails}
