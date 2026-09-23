@@ -45,7 +45,7 @@ import { activeOutstandingItems,
   localizeGroupWorkflowNodes, localizeOutstandingStatuses, localizeReadinessConditions, localizeSample, localizeWorkstream, makeBlankGroupSample,
   makeBlankSample, makeEngagement, makeEntity, makeGroup, makeGroupMember, makeNode, makeProject, makeWorkstream,
   mergeEntities, moveEntity, moveWorkspaceItem,
-  engagementNavigationStatusCounts, navigationStatusCounts, normalizeStore, outstandingIsOpen, preserveLegacyRecovery, projectStats, reconcileWorkbenchStore, redactSampleCompanies, reorderWorkstreams, reorderWorkspaceSchedule, reportingPeriodLabel, syncEngagementToCurrentStructure, taxDeadlineSummary, uid, V10_RECOVERY_KEY,
+  engagementNavigationStatusCounts, navigationStatusCounts, normalizeStore, outstandingIsOpen, preserveLegacyRecovery, projectStats, reconcileWorkbenchStore, redactSampleCompanies, reorderWorkstreams, reorderWorkspaceSchedule, reportingPeriodLabel, syncEngagementToCurrentStructure, taxDeadlineSummary, uid,
   workstreamStats, workflowStats, workstreamCategoryLabel, workstreamTypeLabel } from "./model.js";
 import { LanguageProvider, useUiLanguage } from "./i18n.jsx";
 import { DeadlineAlertCentre } from "./deadline-alerts.jsx";
@@ -792,17 +792,6 @@ function DashboardWorkbench({ initialSnapshot }) {
     anchor.href = url; anchor.download = outputFileName({ purpose: "audit-project-workbench", generic: true, extension: "json" }); anchor.click();
     URL.revokeObjectURL(url); closeMenu(); notify(t("已请求下载备份，请确认文件已保存。"));
   };
-  const hasV10Recovery = (() => { try { return Boolean(localStorage.getItem(V10_RECOVERY_KEY)); } catch { return false; } })();
-  const downloadV10Recovery = () => {
-    try {
-      const payload = localStorage.getItem(V10_RECOVERY_KEY);
-      if (!payload) return;
-      const blob = new Blob([`${JSON.stringify(JSON.parse(payload), null, 2)}\n`], { type: "application/json" });
-      const url = URL.createObjectURL(blob); const anchor = document.createElement("a");
-      anchor.href = url; anchor.download = `audit-project-workbench-v10-recovery-${new Date().toISOString().slice(0, 10)}.json`; anchor.click();
-      URL.revokeObjectURL(url); closeMenu(); notify(t("已请求下载 V10 恢复副本，请确认文件已保存。"));
-    } catch { window.alert(t("无法读取 V10 恢复副本。")); }
-  };
   const templatePackageErrorText = (error) => t({
     file_too_large: "范本包超过 5 MB 上限。",
     invalid_json: "范本包不是有效的 JSON 文件。",
@@ -1095,7 +1084,6 @@ function DashboardWorkbench({ initialSnapshot }) {
               <button type="button" aria-label={t("恢复备份")} onClick={() => { closeMenu(); importRef.current?.click(); }}>{t("恢复备份")}…</button>
               <button type="button" onClick={() => { closeMenu(); compareBackupRef.current?.click(); }}>{t("比较备份")}</button>
               <button type="button" aria-label={t("导出备份")} onClick={exportBackup}>{t("导出备份")}</button>
-              {hasV10Recovery && <button type="button" aria-label={t("下载 V10 恢复副本")} onClick={downloadV10Recovery}>{t("下载 V10 恢复副本")}</button>}
               <button type="button" className="toolbar-menu-danger" aria-label={t("初始化工作台")}
                 onClick={() => { closeMenu(); setModal({ type: "initialize-workbench" }); }}>
                 {t("初始化工作台")}…</button></div></details>

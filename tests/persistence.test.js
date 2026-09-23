@@ -114,7 +114,7 @@ test("linked-file reads validate and normalize old backups into the V11 structur
   assert.equal(snapshot.store.engagements.length, 1);
 });
 
-test("the first legacy migration retains one exact downloadable recovery source", () => {
+test("the first legacy migration retains one exact recovery source without replacing it", () => {
   const values = new Map();
   const storage = { getItem(key) { return values.get(key) || null; }, setItem(key, value) { values.set(key, value); } };
   const legacy = JSON.stringify({ version: 10, projects: [], groups: [] });

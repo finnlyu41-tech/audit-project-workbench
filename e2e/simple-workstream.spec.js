@@ -1,7 +1,8 @@
+import fs from 'node:fs/promises';
 import { test, expect } from '@playwright/test';
 import AxeBuilder from '@axe-core/playwright';
 import { openWorkbench, workspaceFixture, hierarchyFixture, readStoredWorkspace, seriousViolations, localDateOffset } from './helpers.js';
-import { makeOutstandingItem, makeTaxDeadline, makeEntity, makeEngagement, canonicalStorePayload, normalizeStore } from '../src/dashboard/model.js';
+import { V10_RECOVERY_KEY, makeOutstandingItem, makeTaxDeadline, makeEntity, makeEngagement, canonicalStorePayload, normalizeStore } from '../src/dashboard/model.js';
 import { outstandingCenterFixture } from '../tests/fixtures/outstanding-center.js';
 import { toTraditional } from '../src/dashboard/traditional.js';
 
@@ -813,4 +814,63 @@ test('real Pro checklist changes recompute only that module and the result is sh
   await expect(page.locator('.simple-project-summary')).toContainText('2/2 completed');
   await expect(page.locator('.simple-workstream').first().getByLabel('Workstream status')).toHaveValue('completed');
   await expect.poll(() => readStoredWorkspace(page)).toEqual(expectedSimple);
+});
+
+test('backup menu omits obsolete version commands without deleting migration data or breaking export and restore', async ({ page }, info) => {
+  const legacy = { ...workspaceFixture(), version: 10, entities: undefined, engagements: undefined, businessMode: 'simple' };
+  const originalSource = JSON.stringify(legacy);
+  await openWorkbench(page, legacy, { businessMode: 'simple' });
+  const recovery = () => page.evaluate(key => localStorage.getItem(key), V10_RECOVERY_KEY);
+  await expect.poll(recovery).toBe(originalSource);
+  const before = await readStoredWorkspace(page);
+  await page.reload();
+  const expected = structuredClone(before);
+  const summary = page.locator('summary:has(.persistence-save-dot)');
+  const menu = page.locator('.toolbar-menu').filter({ has: summary });
+  for (const [language, labels] of [
+    ['en', ['Restore backup', 'Compare backup', 'Export backup', 'Initialise workbench']],
+    ['zh-Hans', ['恢复备份', '比较备份', '导出备份', '初始化工作台']],
+    ['zh-Hant', ['恢复备份', '比较备份', '导出备份', '初始化工作台'].map(toTraditional)],
+  ]) {
+    await page.evaluate(value => localStorage.setItem('audit-progress-workbench:language', value), language);
+    await page.reload();
+    for (const pro of [false, true]) {
+      const toggle = page.locator('.business-mode-toggle');
+      if ((await toggle.getAttribute('aria-checked')) !== String(pro)) await toggle.click();
+      expected.businessMode = pro ? 'pro' : 'simple';
+      for (const module of expected.engagements[0].workstreams) {
+        if (pro) delete module.mode; else module.mode = 'simple';
+      }
+      await expect.poll(() => readStoredWorkspace(page)).toEqual(expected);
+      await summary.click();
+      await expect(menu).not.toContainText(/V10|V11/);
+      await expect(menu.getByRole('button')).toHaveCount(4);
+      for (const name of labels) await expect(menu.getByRole('button', { name, exact: true })).toBeVisible();
+      if (language === 'zh-Hans' && !pro) await page.screenshot({ path: info.outputPath('backup-menu-current-actions.png') });
+      await summary.click();
+      expect(await recovery()).toBe(originalSource);
+    }
+  }
+  await page.locator('.business-mode-toggle').click();
+  await page.evaluate(() => localStorage.setItem('audit-progress-workbench:language', 'en'));
+  await page.reload();
+  await expect.poll(() => readStoredWorkspace(page)).toEqual(before);
+  await summary.click();
+  const downloadEvent = page.waitForEvent('download');
+  await menu.getByRole('button', { name: 'Export backup', exact: true }).click();
+  const download = await downloadEvent;
+  const payload = await fs.readFile(await download.path(), 'utf8');
+  expect(JSON.parse(payload)).toEqual(before);
+  expect(await recovery()).toBe(originalSource);
+  await summary.click();
+  const chooserEvent = page.waitForEvent('filechooser');
+  await menu.getByRole('button', { name: 'Restore backup', exact: true }).click();
+  page.once('dialog', prompt => prompt.accept());
+  await (await chooserEvent).setFiles({ name: 'fictional-menu-roundtrip.json', mimeType: 'application/json', buffer: Buffer.from(payload) });
+  await expect(page.getByRole('heading', { name: 'Work overview', exact: true })).toBeVisible();
+  await expect.poll(() => readStoredWorkspace(page)).toEqual(before);
+  expect(await recovery()).toBe(originalSource);
+  await summary.click();
+  await expect(menu).not.toContainText(/V10|V11/);
+  await expect(menu.getByRole('button')).toHaveCount(4);
 });
