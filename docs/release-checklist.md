@@ -25,7 +25,7 @@ Complete this short check in current desktop Chrome and Edge before a release th
 - Close and reopen the browser, reconnect the linked file when prompted, and confirm the browser safety copy remains available if permission is denied.
 - Modify both the browser copy and linked file, then confirm the conflict dialog preserves the replaced version as a recovery download.
 - Verify the native leave warning appears only while linked-file data is unsynchronised and the preference is enabled.
-- Export a V10 backup and load it into V11. Confirm the one-time recovery download, one entity plus one engagement per legacy record, hierarchy, workstreams, outstanding items, tax-deadline revision history and template metadata.
+- Load a valid V10 backup into V11. Confirm exact pre-migration source bytes remain in the recovery slot, one entity plus one engagement per legacy record, hierarchy, workstreams, outstanding items, tax-deadline revision history and template metadata. The routine menu omits the legacy-only download; current backup export/restore remain available.
 - Create a sole proprietorship or other custom entity type, confirm holding-company controls remain independent, and verify relationship-role fields appear only after selecting a parent.
 - Create first periods from DOI under both calendar and April-to-March defaults. Confirm the overview shows the exact year-end for a full year and `For the period from … (DOI) to …` for the first period.
 - At a short viewport height, verify annual-engagement forms scroll to every field and action. Check back/forward view history, direct next-year creation, wrapped card text and overflow hover/focus labels.

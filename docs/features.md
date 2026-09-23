@@ -35,7 +35,7 @@ This reference retains the detailed capability list. For operating behavior and 
 - 英文为新使用者的默认界面，并提供完整的简体中文和繁体中文切换；内置内容随语言切换，自定义范本、项目类型和使用者资料保持原文。
 - 在常见桌面宽度和浏览器缩放下优先保持紧凑信息密度；进度统一使用绿色圆环，卡片和表格文字会完整换行，极窄位置可悬停或键盘聚焦查看完整值。长表单在弹窗内独立滚动；工作区提供返回／前进视图历史，编辑年度项目时可直接建立下一年度。
 - 公司主档和年度项目分别管理归档生命周期；年度项目可单独归档，公司主档则须先归档旗下所有活跃项目。归档详情只读，永久删除公司时会明确包含旗下年度项目和公司级税务期限。
-- 支持将 V1–V10 浏览器资料、备份和本地文件迁移为 V11；迁移不会按名称自动合并公司，并会保留一份可下载的迁移前 V10 恢复副本。重复公司可通过预览工具由使用者确认合并。
+- 支持将 V1–V10 浏览器资料、备份和本地文件迁移为 V11；迁移不会按名称自动合并公司，并会保留原始迁移前副本。日常备份菜单不再显示旧版本专用入口。重复公司可通过预览工具由使用者确认合并。
 - 默认使用本机浏览器自动保存，也可关联持续同步的 `.apw.json` 本地文件；浏览器安全副本、明确的同步状态、重新授权、双向冲突保护、未同步离开提醒、JSON 备份及安全初始化共同防止静默遗失资料。
 
 ## Features in detail
@@ -66,7 +66,7 @@ This reference retains the detailed capability list. For operating behavior and 
 - English is the default for new users, with complete Simplified Chinese and Traditional Chinese interfaces available; built-in content follows the interface language while custom content remains unchanged.
 - Responsive desktop rules reflow panes, controls and forms cleanly under narrower windows and browser zoom. Important boxed text wraps in full where practical, remaining overflow exposes the complete value on hover/focus, long dialogs scroll internally, and compact view-history controls revisit prior screens. Annual-engagement editing can open the next-year form directly.
 - Company masters and annual engagements have separate archive lifecycles. An engagement can be archived alone; a company master requires all active engagements to be archived first. Archived records are read-only, and company deletion explicitly includes all annual engagements and company-level tax deadlines.
-- V1–V10 browser data, backups and linked files can migrate to V11 without name-based merging. The first migration retains a downloadable V10 recovery source, while a previewed tool lets the user merge genuine duplicate company masters intentionally.
+- V1–V10 browser data, backups and linked files can migrate to V11 without name-based merging. The original migration source remains preserved, but its legacy-only download is no longer in the routine backup menu. A previewed tool lets the user merge genuine duplicate company masters intentionally.
 - Browser-local autosave by default, with an optional continuously synced `.apw.json` local file, a browser safety copy, explicit save status, permission recovery, two-sided conflict protection, unsynced-leave warnings, JSON backup and protected initialisation.
 
 ## Priority-action empty state / 优先事项空状态

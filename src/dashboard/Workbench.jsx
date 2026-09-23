@@ -1,4 +1,4 @@
-import { workstreamIsSimple } from "./workstream-mode.js";
+import { workstreamIsSimple, withWorkstreamNodes } from "./workstream-mode.js";
 import { SimpleWorkstream } from "./simple-workstream.jsx";
 import { BackupCompare } from "./efficiency-backup.jsx";
 import { SavedFilters } from "./efficiency-controls.jsx";
@@ -45,8 +45,8 @@ import { activeOutstandingItems,
   localizeGroupWorkflowNodes, localizeOutstandingStatuses, localizeReadinessConditions, localizeSample, localizeWorkstream, makeBlankGroupSample,
   makeBlankSample, makeEngagement, makeEntity, makeGroup, makeGroupMember, makeNode, makeProject, makeWorkstream,
   mergeEntities, moveEntity, moveWorkspaceItem,
-  engagementNavigationStatusCounts, navigationStatusCounts, normalizeStore, outstandingIsOpen, preserveLegacyRecovery, projectStats, reconcileWorkbenchStore, redactSampleCompanies, reorderWorkstreams, reorderWorkspaceSchedule, reportingPeriodLabel, syncEngagementToCurrentStructure, taxDeadlineSummary, uid, V10_RECOVERY_KEY,
-  workstreamStats, workstreamCategoryLabel, workstreamTypeLabel } from "./model.js";
+  engagementNavigationStatusCounts, navigationStatusCounts, normalizeStore, outstandingIsOpen, preserveLegacyRecovery, projectStats, reconcileWorkbenchStore, redactSampleCompanies, reorderWorkstreams, reorderWorkspaceSchedule, reportingPeriodLabel, syncEngagementToCurrentStructure, taxDeadlineSummary, uid,
+  workstreamStats, workflowStats, workstreamCategoryLabel, workstreamTypeLabel } from "./model.js";
 import { LanguageProvider, useUiLanguage } from "./i18n.jsx";
 import { DeadlineAlertCentre } from "./deadline-alerts.jsx";
 import { ProjectSchedule } from "./timeline.jsx";
@@ -401,7 +401,9 @@ function DashboardWorkbench({ initialSnapshot }) {
     const item = target?.engagement?.outstandingItems?.find((entry) => entry.id === itemId);
     if (!item) { setMessage(t("待清事项已不存在。")); return; }
     revealWorkspaceRecord(kind, id);
-    setOutstandingCollapsed(false); setCompactOutstandingOpen(true);
+    if (!(simplifiedView && target.kind === "project")) {
+      setOutstandingCollapsed(false); setCompactOutstandingOpen(true);
+    }
     setOutstandingReveal({ targetId: id, itemId, sequence: ++revealSequence.current });
   };
   const openScheduleEditor = React.useCallback((kind, id) => {
@@ -616,7 +618,7 @@ function DashboardWorkbench({ initialSnapshot }) {
   const updateWorkflowNodes = (targetKind, targetId, workstreamId, updater) => {
     if (targetKind === "group") updateGroup(targetId, (group) => ({ ...group, nodes: updater(group.nodes) }));
     else updateProject(targetId, (project) => ({ ...project, workstreams: project.workstreams.map((workstream) =>
-      workstream.id === workstreamId ? { ...workstream, nodes: updater(workstream.nodes), updatedAt: new Date().toISOString() } : workstream) }));
+      workstream.id === workstreamId ? { ...withWorkstreamNodes(workstream, updater(workstream.nodes)), updatedAt: new Date().toISOString() } : workstream) }));
   };
 
   const createEntity = (values, { createEngagement = false } = {}) => {
@@ -790,17 +792,6 @@ function DashboardWorkbench({ initialSnapshot }) {
     anchor.href = url; anchor.download = outputFileName({ purpose: "audit-project-workbench", generic: true, extension: "json" }); anchor.click();
     URL.revokeObjectURL(url); closeMenu(); notify(t("已请求下载备份，请确认文件已保存。"));
   };
-  const hasV10Recovery = (() => { try { return Boolean(localStorage.getItem(V10_RECOVERY_KEY)); } catch { return false; } })();
-  const downloadV10Recovery = () => {
-    try {
-      const payload = localStorage.getItem(V10_RECOVERY_KEY);
-      if (!payload) return;
-      const blob = new Blob([`${JSON.stringify(JSON.parse(payload), null, 2)}\n`], { type: "application/json" });
-      const url = URL.createObjectURL(blob); const anchor = document.createElement("a");
-      anchor.href = url; anchor.download = `audit-project-workbench-v10-recovery-${new Date().toISOString().slice(0, 10)}.json`; anchor.click();
-      URL.revokeObjectURL(url); closeMenu(); notify(t("已请求下载 V10 恢复副本，请确认文件已保存。"));
-    } catch { window.alert(t("无法读取 V10 恢复副本。")); }
-  };
   const templatePackageErrorText = (error) => t({
     file_too_large: "范本包超过 5 MB 上限。",
     invalid_json: "范本包不是有效的 JSON 文件。",
@@ -843,7 +834,7 @@ function DashboardWorkbench({ initialSnapshot }) {
     setModal(null);
   };
   const revealSavedOutstanding = (sourceId, itemId) => {
-    setOutstandingCollapsed(false); setCompactOutstandingOpen(true);
+    if (!embeddedProjectOutstanding) { setOutstandingCollapsed(false); setCompactOutstandingOpen(true); }
     // Reveal in the list being used (including company/portfolio), not the source annual view.
     setOutstandingReveal({ targetId: outstandingTarget.id,
       sourceId, itemId, sequence: ++revealSequence.current });
@@ -902,6 +893,7 @@ function DashboardWorkbench({ initialSnapshot }) {
     : outstandingKind === "entity" ? selectedEntitySource : { id: "workspace" };
   const outstandingReadOnly = outstandingKind === "entity" ? Boolean(selectedEntitySource?.archived)
     : ["project", "group"].includes(outstandingKind) && Boolean(outstandingTarget.archived || selectedRecordEntity?.archived);
+  const embeddedProjectOutstanding = simplifiedView && outstandingKind === "project";
   const activeOutstandingCount = outstandingEntriesForScope(store, outstandingKind, outstandingTarget, outstandingReadOnly)
     .filter(entry => outstandingIsOpen(entry.item, store.outstandingStatuses)).length;
   const languageLabel = language === "en" ? "English" : language === "zh-Hant" ? "繁體中文" : "简体中文";
@@ -911,6 +903,12 @@ function DashboardWorkbench({ initialSnapshot }) {
   const outstandingPanelCollapsed = outstandingOverlay ? !compactOutstandingOpen : outstandingCollapsed;
   const expandOutstandingPanel = () => outstandingOverlay ? setCompactOutstandingOpen(true) : setOutstandingCollapsed(false);
   const collapseOutstandingPanel = () => outstandingOverlay ? setCompactOutstandingOpen(false) : setOutstandingCollapsed(true);
+  // Exactly one list is mounted: in the project body or in the existing sidebar.
+  const outstandingCenter = <OutstandingCenter embedded={embeddedProjectOutstanding} key={`${outstandingKind}:${outstandingTarget.id}:${consolidationIsSimple(outstandingTarget)}`}
+    revealRequest={outstandingReveal} onRevealHandled={() => setOutstandingReveal(null)} store={store}
+    target={outstandingTarget} targetKind={outstandingKind} statuses={outstandingStatusViews}
+    updateProject={updateProject} updateGroup={updateGroup} setModal={setModal} onOpenItem={revealOutstandingItem}
+    notify={notify} readOnly={outstandingReadOnly} activeWorkstreamId={outstandingKind === 'project' ? activeWorkstreamId : null} />;
   const navigationEntryExists = (entry) => {
     if (!entry) return false;
     if (entry.workspaceView !== "detail") return true;
@@ -1086,7 +1084,6 @@ function DashboardWorkbench({ initialSnapshot }) {
               <button type="button" aria-label={t("恢复备份")} onClick={() => { closeMenu(); importRef.current?.click(); }}>{t("恢复备份")}…</button>
               <button type="button" onClick={() => { closeMenu(); compareBackupRef.current?.click(); }}>{t("比较备份")}</button>
               <button type="button" aria-label={t("导出备份")} onClick={exportBackup}>{t("导出备份")}</button>
-              {hasV10Recovery && <button type="button" aria-label={t("下载 V10 恢复副本")} onClick={downloadV10Recovery}>{t("下载 V10 恢复副本")}</button>}
               <button type="button" className="toolbar-menu-danger" aria-label={t("初始化工作台")}
                 onClick={() => { closeMenu(); setModal({ type: "initialize-workbench" }); }}>
                 {t("初始化工作台")}…</button></div></details>
@@ -1107,6 +1104,7 @@ function DashboardWorkbench({ initialSnapshot }) {
     <section className="workbench-layout" data-schedule={scheduleFocus || undefined} data-navigation-overlay={navigationOverlay || undefined} data-home={workspaceView === "home" || undefined} data-sidebar-collapsed={sidebarCollapsed || undefined}
       data-compact-layout={outstandingOverlay || undefined} data-outstanding-collapsed={outstandingPanelCollapsed || undefined}
       data-resizing-navigation={resizingNavigation || undefined} data-simplified-view={simplifiedView || undefined}
+      data-inline-outstanding={embeddedProjectOutstanding || undefined}
       style={{ "--project-panel-width": `${navigationWidth}px`,
         "--effective-project-panel-width": `${simplifiedView ? Math.min(navigationWidth, COMPACT_NAVIGATION_WIDTH) : navigationWidth}px` }}>
       <aside className="project-panel" aria-label={t("项目导航")}>
@@ -1213,7 +1211,7 @@ function DashboardWorkbench({ initialSnapshot }) {
             onRestore={() => { updateEntity(selectedEntitySource.id, (entity) => ({ ...entity, archived: false })); setFilter("all"); notify(t("公司已恢复")); }}
             onDelete={() => setModal({ type: "delete-entity", targetId: selectedEntitySource.id, name: selectedEntitySource.legalName })}
             onMerge={() => setModal({ type: "merge-entities", entityId: selectedEntitySource.id })} />
-          : selectedProject ? <ProjectDetail onOpenCompany={() => openWorkspaceRecord("entity", selectedRecordEntity.id)} simplifiedView={simplifiedView} updateWorkstream={updateWorkstream} project={selectedProject} rawProject={selectedProjectSource} entityArchived={Boolean(selectedRecordEntity?.archived)} statuses={outstandingStatusViews}
+          : selectedProject ? <ProjectDetail outstandingPanel={embeddedProjectOutstanding ? outstandingCenter : null} outstandingCount={activeOutstandingCount} onOpenCompany={() => openWorkspaceRecord("entity", selectedRecordEntity.id)} simplifiedView={simplifiedView} updateWorkstream={updateWorkstream} project={selectedProject} rawProject={selectedProjectSource} entityArchived={Boolean(selectedRecordEntity?.archived)} statuses={outstandingStatusViews}
           parentMembership={selectedProjectMembership} onWorkflowRevealed={() => setWorkflowReveal(null)} workflowReveal={workflowReveal?.targetId === selectedProjectSource.id ? workflowReveal : null}
           quickUpdate={selectedEngagement && <QuickUpdate key={`quick-update:${selectedEngagement.id}`} engagement={selectedEngagement}
             readOnly={Boolean(selectedEngagement.archived || selectedRecordEntity?.archived)} drafts={quickDrafts.current}
@@ -1241,7 +1239,7 @@ function DashboardWorkbench({ initialSnapshot }) {
             : <div className="detail-empty"><span className="empty-mark">◎</span><h2>{t("选择公司或年度项目")}</h2>
               <p>{t("选择公司查看主档和历年项目；选择年度项目进入业务工作区。")}</p></div>}
       </main>
-      <aside className="outstanding-center-shell" aria-label={t("待清中心")}>
+      {!embeddedProjectOutstanding && <aside className="outstanding-center-shell" aria-label={t("待清中心")}>
         {outstandingPanelCollapsed ? <button type="button" className="outstanding-rail-toggle" aria-expanded="false"
           aria-label={t("展开待清中心")} data-tooltip={t("展开待清中心")}
           data-tooltip-side="left" onClick={expandOutstandingPanel}>
@@ -1250,12 +1248,8 @@ function DashboardWorkbench({ initialSnapshot }) {
             <button type="button" className="icon-only" aria-label={t("收起待清中心")}
               data-tooltip={t("收起待清中心")} data-tooltip-side="left" onClick={collapseOutstandingPanel}>
               <PanelRightClose aria-hidden="true" /></button></header>
-          <OutstandingCenter key={`${outstandingKind}:${outstandingTarget.id}:${consolidationIsSimple(outstandingTarget)}`}
-            revealRequest={outstandingReveal} onRevealHandled={() => setOutstandingReveal(null)} store={store}
-            target={outstandingTarget} targetKind={outstandingKind} statuses={outstandingStatusViews}
-            updateProject={updateProject} updateGroup={updateGroup} setModal={setModal} onOpenItem={revealOutstandingItem}
-            notify={notify} readOnly={outstandingReadOnly} activeWorkstreamId={outstandingKind === 'project' ? activeWorkstreamId : null} /></>}
-      </aside>
+          {outstandingCenter}</>}
+      </aside>}
     </section>
 
     {undoTransaction && <div className="efficiency-undo" role="status"><span>{t('批量更改已应用。')}</span>
@@ -1568,9 +1562,15 @@ function DetailFactAction({ label, children, onClick, actionLabel, icon: Icon = 
   </div>;
 }
 
-function ProjectDetail({ onOpenCompany, simplifiedView, updateWorkstream, project, rawProject, entityArchived = false, statuses, parentMembership, activeWorkstreamId, setActiveWorkstreamId,
+function ProjectDetail({ outstandingPanel, outstandingCount, onOpenCompany, simplifiedView, updateWorkstream, project, rawProject, entityArchived = false, statuses, parentMembership, activeWorkstreamId, setActiveWorkstreamId,
   updateWorkflowNodes, setModal, duplicateProject, archiveTarget, restoreTarget, onReorderWorkstreams, deadlineClock, quickUpdate, workflowReveal, onWorkflowRevealed }) {
   const { language, t } = useUiLanguage();
+  const outstandingRef = React.useRef(null);
+  const outstandingSectionId = React.useId();
+  const reachOutstanding = () => {
+    outstandingRef.current?.focus({ preventScroll: true });
+    outstandingRef.current?.scrollIntoView({ block: "start", inline: "nearest" });
+  };
   const draggingWorkstreamRef = React.useRef(null);
   const [draggingWorkstreamId, setDraggingWorkstreamId] = React.useState(null);
   const [workstreamDropTarget, setWorkstreamDropTarget] = React.useState(null);
@@ -1661,9 +1661,10 @@ function ProjectDetail({ onOpenCompany, simplifiedView, updateWorkstream, projec
   return <div className="workspace-detail-inner" data-simple={simplifiedView || undefined}>
     {readOnly && <div className="archive-banner"><strong>{t("已归档，只读")}</strong>
       <span>{t("归档记录不能编辑；恢复后才可继续更新。")}</span></div>}
-    <header className="detail-header"><div className="detail-title"><div><span className="workspace-label">{t("项目工作区")}</span><h2>{primaryName}</h2></div>
-      <p>{simplifiedView && onOpenCompany ? <><button type="button" className="text-button project-company-link"
-        title={t("公司主档")} onClick={onOpenCompany}>{companyName}</button>{periodLabel && ` · ${periodLabel}`}</> : subtitle}</p></div>
+    <header className="detail-header"><div className="detail-title"><div><span className="workspace-label">{t("项目工作区")}</span>
+      <h2>{simplifiedView ? <button type="button" className="text-button project-company-link"
+        title={t("公司主档")} onClick={onOpenCompany}>{companyName}</button> : primaryName}</h2></div>
+      <p>{simplifiedView ? [primaryName, periodLabel].filter(Boolean).join(" · ") : subtitle}</p></div>
       <div className="detail-actions">{readOnly ? <>
         <button type="button" className="button secondary icon-only" aria-label={t("恢复")} data-tooltip={t("恢复")}
           onClick={() => restoreTarget("project", rawProject.id)}><ArchiveRestore aria-hidden="true" /></button>
@@ -1680,10 +1681,12 @@ function ProjectDetail({ onOpenCompany, simplifiedView, updateWorkstream, projec
         </>}</>}</div>
     </header>
     {simplifiedView ? <>
-      <div className="simple-project-summary"><strong>{t("已完成 {done}/{total}", { done: stats.completedWorkstreams, total: stats.workstreams })}</strong>
+      <div className="simple-project-summary"><strong>{t("业务模块")} · {t("已完成 {done}/{total}", { done: stats.completedWorkstreams, total: stats.workstreams })}</strong>
         {readOnly ? project.dueDate && <span>{projectScheduleLabel}</span>
           : <button type="button" className="text-button simple-project-schedule" aria-haspopup="dialog"
             aria-label={`${t("项目排期")} · ${projectScheduleLabel}`} onClick={openProjectSchedule}>{projectScheduleLabel}</button>}
+        {outstandingPanel && <button type="button" className="text-button simple-project-outstanding-link"
+          aria-controls={outstandingSectionId} onClick={reachOutstanding}>{t("{count} 项未清", { count: outstandingCount })}</button>}
         <TaxDeadlineSummaryButton deadlines={rawProject.taxDeadlines} now={deadlineClock} compact
           onClick={() => setModal({ type: "tax-deadlines", targetKind: "project", targetId: rawProject.id })} /></div>
     </> : moreDetails}
@@ -1722,6 +1725,12 @@ function ProjectDetail({ onOpenCompany, simplifiedView, updateWorkstream, projec
             <small>{t(readOnly ? "此公司没有业务模块。" : "选择此处添加第一个业务模块。")}</small></span></button>}
     </section>
 
+    {outstandingPanel && <section className="simple-project-outstanding" ref={outstandingRef}
+      id={outstandingSectionId} tabIndex="-1" aria-label={t("本项目待清")}>
+      <header className="section-heading"><h3>{t("本项目待清")}</h3></header>
+      {outstandingPanel}
+    </section>}
+
     {simplifiedView && <details className="simple-project-details"><summary>{t("更多项目资料")}</summary>{moreDetails}
       {!readOnly && <div className="simple-project-management">
         <button type="button" className="button secondary" onClick={() => duplicateProject(rawProject)}><Copy aria-hidden="true" />{t("复制项目")}</button>
@@ -1735,7 +1744,7 @@ function ProjectDetail({ onOpenCompany, simplifiedView, updateWorkstream, projec
         nodes={activeWorkstream.nodes} updateWorkflowNodes={updateWorkflowNodes} setModal={setModal} readOnly={readOnly}
         label={t("模块节点")} title={workstreamTypeLabel(activeWorkstream.type, language, activeWorkstream.customName)}
         description={t("点击节点查看完成条件；再次点击可收起详情。")}
-        percentage={workstreamStats(activeWorkstream).percentage} />
+        percentage={workflowStats(activeWorkstream).percentage} />
     </section>}
   </div>;
 }

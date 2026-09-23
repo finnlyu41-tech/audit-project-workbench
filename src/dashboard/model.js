@@ -1,4 +1,5 @@
-import { workstreamIsSimple, workstreamModeFields, simpleWorkstreamStats } from "./workstream-mode.js";
+import { workstreamIsSimple, workstreamModeFields, simpleWorkstreamStats, hasWorkstreamStatus, nodeIsComplete, workflowStats } from "./workstream-mode.js";
+export { nodeIsComplete, workflowStats } from "./workstream-mode.js";
 import { entityEfficiencyFields, engagementEfficiencyFields, outstandingEfficiencyFields } from "./efficiency-data.js";
 import { schedulePlanFields } from "./working-days.js";
 import { periodAfterEnd } from "./reporting-period-tools.js";
@@ -2398,10 +2399,6 @@ export function preserveLegacyRecovery(value, storage = globalThis.localStorage)
   }
 }
 
-export function nodeIsComplete(node) {
-  return node.conditions.length > 0 && node.conditions.every((condition) => condition.done);
-}
-
 export function nodeStatus(node) {
   if (!node.conditions.length) return "待设置条件";
   if (nodeIsComplete(node)) return "已完成";
@@ -2409,48 +2406,36 @@ export function nodeStatus(node) {
   return "未开始";
 }
 
-export function workflowStats(target) {
-  const nodes = Array.isArray(target) ? target : (target?.nodes || []);
-  const conditions = nodes.flatMap((node) => node.conditions);
-  const completedConditions = conditions.filter((condition) => condition.done).length;
-  const completedNodes = nodes.filter(nodeIsComplete).length;
-  return {
-    conditions: conditions.length,
-    completedConditions,
-    nodes: nodes.length,
-    completedNodes,
-    percentage: conditions.length ? Math.round((completedConditions / conditions.length) * 100) : 0,
-    complete: nodes.length > 0 && nodes.every(nodeIsComplete),
-    started: completedConditions > 0,
-  };
-}
-
 export function workstreamStats(workstream) {
-  return workstreamIsSimple(workstream) ? simpleWorkstreamStats(workstream) : workflowStats(workstream?.nodes || []);
+  const detailed = workflowStats(workstream?.nodes || []);
+  const outcome = hasWorkstreamStatus(workstream) ? simpleWorkstreamStats(workstream) : detailed;
+  return { ...(workstreamIsSimple(workstream) ? simpleWorkstreamStats(workstream) : detailed),
+    percentage: outcome.percentage, complete: outcome.complete, started: outcome.started };
 }
 
 export function projectStats(project) {
   if (!Array.isArray(project?.workstreams)) return workflowStats(project);
-  const workstreamResults = project.workstreams.map((workstream) => ({ id: workstream.id, ...workstreamStats(workstream) }));
-  const conditions = workstreamResults.reduce((sum, stats) => sum + stats.conditions, 0);
-  const completedConditions = workstreamResults.reduce((sum, stats) => sum + stats.completedConditions, 0);
-  const nodes = workstreamResults.reduce((sum, stats) => sum + stats.nodes, 0);
-  const completedNodes = workstreamResults.reduce((sum, stats) => sum + stats.completedNodes, 0);
-  const completedWorkstreams = workstreamResults.filter((stats) => stats.complete).length;
-  const simple = project.workstreams.filter(workstreamIsSimple);
-  const units = conditions + simple.length;
-  const done = completedConditions + simple.filter(w => simpleWorkstreamStats(w).complete).length;
+  const results = project.workstreams.map(workstreamStats);
+  const sum = (rows, key) => rows.reduce((total, row) => total + row[key], 0);
+  const completedWorkstreams = results.filter(stats => stats.complete).length;
+  // Manual outcomes count once in either view; otherwise use the actual checklist.
+  let units = 0, done = 0;
+  for (const workstream of project.workstreams) {
+    const stats = hasWorkstreamStatus(workstream) ? simpleWorkstreamStats(workstream) : workflowStats(workstream);
+    units += stats.conditions || 1;
+    done += stats.conditions ? stats.completedConditions : Number(stats.complete);
+  }
   return {
-    workstreams: workstreamResults.length,
+    workstreams: results.length,
     completedWorkstreams,
-    inProgressWorkstreams: workstreamResults.filter((stats) => !stats.complete).length,
-    conditions,
-    completedConditions,
-    nodes,
-    completedNodes,
-    percentage: units ? Math.round((done / units) * 100) : 0,
-    complete: workstreamResults.length > 0 && completedWorkstreams === workstreamResults.length,
-    started: workstreamResults.some(stats => stats.started),
+    inProgressWorkstreams: results.length - completedWorkstreams,
+    conditions: sum(results, 'conditions'),
+    completedConditions: sum(results, 'completedConditions'),
+    nodes: sum(results, 'nodes'),
+    completedNodes: sum(results, 'completedNodes'),
+    percentage: units ? Math.round(done / units * 100) : 0,
+    complete: results.length > 0 && completedWorkstreams === results.length,
+    started: results.some(stats => stats.started),
   };
 }
 

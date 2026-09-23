@@ -46,7 +46,7 @@
 .simple-project-details { margin-block: 12px; }
 .simple-project-details > summary { cursor: pointer; color: var(--secondary); padding: 8px 0; }
 .home-overview[data-simple] .home-overview-columns { grid-template-columns: minmax(0, 1fr); }
-.workstream-card[data-simple] .workstream-card-top { grid-template-columns: max-content minmax(0, 1fr); }
+.workstream-card-top:has(.workstream-card-status) { grid-template-columns: max-content minmax(0, 1fr); }
 .workstream-card-status { min-width: 54px; font-weight: 600; white-space: nowrap; }
 
 .business-mode-toggle { display: flex; flex-direction: column; gap: 3px; font-size: 12px; font-weight: 700; }

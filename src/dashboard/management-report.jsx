@@ -188,9 +188,9 @@ function ProjectRecordReport({ report, statuses }) {
         <strong>{formatDate(report.startDate, language)} → {formatDate(report.dueDate, language)}</strong></div></section>
     <section className="management-report-section"><header><div><h3>{t("业务模块")}</h3><span>{t("并行进度与当前节点")}</span></div></header>
       {report.workstreams.length ? <div className="record-workstream-grid">{report.workstreams.map((workstream) => <article key={workstream.id}><header><strong>
-        {workstreamTypeLabel(workstream.type, language, workstream.customName)}</strong><span>{workstream.mode === "simple" ? t(workstream.status) : `${workstream.stats.percentage}%`}</span></header>
+        {workstreamTypeLabel(workstream.type, language, workstream.customName)}</strong><span>{workstream.status ? t(workstream.status) : `${workstream.stats.percentage}%`}</span></header>
         <footer><span>{workstream.mode === "simple" ? t("简化模式") : t("{done}/{total} 个节点", { done: workstream.stats.completedNodes, total: workstream.stats.nodes })}</span>
-          <strong>{workstream.mode === "simple" ? t(workstream.status) : workstream.currentStage?.title || t("全部节点已完成")}</strong></footer></article>)}</div>
+          <strong>{workstream.mode === "simple" ? t(workstream.status) : workstream.currentStage?.title || t(workstream.stats.nodes ? "全部节点已完成" : "尚未添加阶段")}</strong></footer></article>)}</div>
         : <div className="management-report-empty compact"><strong>{t("尚未启用业务模块")}</strong></div>}</section>
     <RecordRiskTables report={report} statuses={statuses} />
   </>;
