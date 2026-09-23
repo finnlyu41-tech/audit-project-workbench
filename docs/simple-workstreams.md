@@ -4,6 +4,8 @@ The **Pro** switch at the top of the left toolbar applies to all active company 
 
 Simple modules use compact rows with shared column labels: module, status and due date. Expand Details for owner, start date, notes and module settings. Project metadata, duplicate and archive actions sit below the module list; the header retains one labelled edit action. Text and date edits save when leaving the field; Enter saves a single-line field and Escape discards its unsaved draft. Reversed dates are rejected. Not started, In progress, On hold and Completed remain independent of the retained Pro workflow. Only Completed contributes a completed unit; Outstanding remains independent. Existing simple statuses survive toggling; a module without one starts Not started, without inferring completion from old detailed nodes.
 
+Ordinary-company Simple project pages show company identity, engagement type and actual reporting periods, followed by modules, the current engagement’s outstanding list, and secondary project details. The list is visible without opening a side panel and uses the existing status, add/edit and continuous-entry controls. Its summary count reaches the list without silently resetting applied filters. Resizing preserves the mounted list and its filters; Home, company overviews, holding pages and Pro keep their existing sidebar. Clearing outstanding items does not complete a module or an audit. Long lists use the page scroll and are not truncated.
+
 Select the due date in the Simple project summary to open the existing schedule-only editor, without expanding project metadata or the full annual form. A project without a deadline offers the same shortcut. Only that annual project’s schedule is edited; reporting periods, module deadlines and tax deadlines stay separate. Archived projects and archived companies show dates read-only.
 
 The Simple add/edit form also starts with category, status and due date. Owner, start date, notes and mode explanations sit in Details; a required custom name remains visible. Folding preserves entered and existing values, and an invalid folded field opens its section for correction. Form edits apply only through Add/Save; cancelling a changed draft still asks before discarding it. Pro's template form is unchanged.
@@ -17,6 +19,8 @@ The workspace choice is saved and included in backups. Old backups without the s
 左侧工具栏顶部的 **Pro 开关**统一控制当前工作区所有公司、所有未归档年度的业务模块和界面详略。默认关闭；打开后恢复原有阶段、完成条件、完整导航、排期、报告和范本库。不再另设「简化视图」开关，也不改变控股公司的合并模式。
 
 简化模式以紧凑行显示模块、状态和截止日；负责人、开始日、备注和模块设置收在「详情」。项目资料、复制和归档放在模块清单下方，页首只保留带文字的编辑按钮。文字和日期离开输入框时保存，单行输入可用 Enter 保存，Escape 撤销当前草稿；日期先后仍须有效。首页先显示期限和待清事项，再显示最近访问；筛选按钮并入清单标题，有筛选条件时仍可收起，并保留「筛选中」及清除按钮。百分比、进度圈及低频资料继续收起。提醒、待清中心和备份恢复始终可用。
+
+普通公司简化项目页先显示公司名称、项目类型和实际报告期间，再依次显示业务模块、本项目待清及更多项目资料。待清清单直接可用，无须展开侧栏；继续使用原有状态、添加／编辑及连续新增功能。顶部未清数量可定位到清单，不会暗中重置已应用筛选。窗口缩放保留同一份清单和筛选；首页、公司总览、控股公司与 Pro 仍使用原侧栏。待清归零不等于模块或审计完成；长清单随页面滚动，不截断事项。
 
 点击简化项目摘要中的截止日可直接打开排期小窗，不必展开更多资料或打开完整年度项目表。未设置截止日时仍保留入口；只修改该年度项目排期，报告期间、模块截止日和税务期限保持独立，已归档项目或公司只读。
 

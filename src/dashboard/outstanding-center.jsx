@@ -7,7 +7,7 @@ import { collectGroupOutstandingEntries, reportingPeriodLabel, outstandingIsOpen
 import { filterOutstandingEntries, outstandingEntryKey, outstandingVisibilityCounts, groupOutstandingEntries } from './outstanding-center-model.js';
 
 export function OutstandingCenter({ store, target, targetKind, statuses, updateProject, updateGroup, setModal, onOpenItem,
-  notify, readOnly = false, activeWorkstreamId = null, revealRequest = null, onRevealHandled }) {
+  notify, embedded = false, readOnly = false, activeWorkstreamId = null, revealRequest = null, onRevealHandled }) {
   const { language, t } = useUiLanguage();
   const [visibilityFilter, setVisibilityFilter] = React.useState("open");
   const [statusFilter, setStatusFilter] = React.useState("all");
@@ -190,7 +190,7 @@ export function OutstandingCenter({ store, target, targetKind, statuses, updateP
       {!singleSource && <div className="outstanding-context-summary"><strong>
         {targetKind === 'entity' ? target.legalName : t("全部活跃项目")}</strong>
         <span>{t("按来源公司和年度列示；点击事项可查看原记录。")}</span></div>}
-      {targetKind === 'project' && <div className="outstanding-context-summary">
+      {targetKind === 'project' && !embedded && <div className="outstanding-context-summary">
         <strong>{company?.legalName || target.entity || target.name}</strong>
         <span>{reportingPeriodLabel(currentEngagement || target, language)}</span>
       </div>}

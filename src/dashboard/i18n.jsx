@@ -13,6 +13,7 @@ const english = {
   "详情": "Details",
   "筛选中": "Filters active",
   "更多项目资料": "More project details",
+  "本项目待清": "This engagement’s outstanding items",
   "待处理": "On hold",
   "简化业务模块": "Simple workstream",
   "模块模式": "Workstream mode",
