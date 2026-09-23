@@ -1,4 +1,4 @@
-import { workstreamIsSimple, workstreamStatus, workstreamStatusLabel, WORKSTREAM_STATUSES } from "./workstream-mode.js";
+import { workstreamIsSimple, hasWorkstreamStatus, workstreamStatus, workstreamStatusLabel, WORKSTREAM_STATUSES } from "./workstream-mode.js";
 import { OutlineImporter } from "./efficiency-controls.jsx";
 import React from "react";
 import { RequiredTextInput } from "./required-text-input.jsx";
@@ -230,8 +230,8 @@ export function WorkstreamForm({ initial, businessMode = "simple", availableCate
           <label><span>{t("负责人")}</span><input value={values.owner} onChange={update("owner")} /></label>
           <label><span>{t("开始日")}</span><input type="date" max={values.dueDate || undefined} value={values.startDate} onChange={update("startDate")} /></label>
           <label><span>{t("备注")}</span><textarea value={values.notes} onChange={update("notes")} /></label>
-          <p className="muted">{t("直接管理整个模块的状态，不设节点或完成条件。")}</p>
-          {initial?.nodes?.length > 0 && <p>{t("原有节点保留，开启 Pro 后恢复；简化状态独立记录。")}</p>}
+          <p className="muted">{t("直接更新模块状态，不改节点。")}</p>
+          {initial?.nodes?.length > 0 && <p>{t("切换模式保留状态，不改节点。")}</p>}
         </div></details>
     </>}
     {!initial && values.mode !== "simple" && <label><span>{t("业务范本")}</span><select value={values.sampleId} onChange={update("sampleId")}>
@@ -257,12 +257,12 @@ export function WorkstreamCard({ workstream, selected, openItems = 0, onSelect, 
       aria-description={!readOnly ? t("按住模块卡片即可拖动排序；按 Alt 加方向键也可移动") : undefined}
       aria-keyshortcuts={!readOnly ? "Alt+ArrowLeft Alt+ArrowRight Alt+ArrowUp Alt+ArrowDown" : undefined}
       onKeyDown={onReorderKeyDown}>
-    <span className="workstream-card-top">{simple ? <span className="workstream-card-status">{t(workstreamStatusLabel(workstream))}</span> : <ProgressBar value={stats.percentage} compact />}
+    <span className="workstream-card-top">{simple || hasWorkstreamStatus(workstream) ? <span className="workstream-card-status">{t(workstreamStatusLabel(workstream))}</span> : <ProgressBar value={stats.percentage} compact />}
       <span><strong>{label}</strong>
         <small className="workstream-card-stage-count">{simple ? t("简化模式") : stats.nodes
           ? t("{done}/{total} 个阶段已完成", { done: stats.completedNodes, total: stats.nodes }) : t("未开始")}</small>
         <small className="workstream-card-next-stage">{simple ? (workstream.owner || t("未设置负责人")) : nextNode
-          ? t("下一阶段：{name}", { name: nextNode.title }) : t(stats.complete ? "所有阶段已完成" : "尚未添加阶段")}</small>
+          ? t("下一阶段：{name}", { name: nextNode.title }) : t(stats.nodes ? "所有阶段已完成" : "尚未添加阶段")}</small>
       </span></span>
     {openItems > 0 && <span className="workstream-card-meta"><small>{t("{count} 项未清", { count: openItems })}</small></span>}</button>
   </article>;
@@ -484,7 +484,7 @@ export function UserGuide() {
         "年度项目建立后，可在工作区选择“添加业务模块”，设置类别和起始范本。", "选择模块卡片查看其节点；选择卡片右上角的“设置”可移除模块。"], result: "负责人和项目日期统一由年度项目管理，模块只保留流程与进度。" },
       { title: "移除业务模块", steps: ["选择业务模块卡片内的“设置”。", "选择“移除模块”并确认。",
         "原本属于该模块的待清事项会保留，并自动改为项目级事项；已关联的税务期限只会解除模块关联。"], result: "最后一个模块也可以移除；年度项目会保留为空项目，之后仍可重新添加模块。" },
-      { title: "判断项目完成", steps: ["每个业务模块会显示已完成节点及自身进度。", "只有模块内所有节点的全部达成条件完成，该模块才算完成。",
+      { title: "判断项目完成", steps: ["每个业务模块会显示已完成节点及自身进度。", "手动状态跨模式保留，否则按节点计算。",
         "只有项目内全部启用模块完成，项目才会进入“已完成”筛选。"], result: "项目导航显示完成模块数，不使用容易误导的混合百分比。" },
     ] },
     { id: "tax", title: "税务期限", summary: "把法定税务期限与内部项目排期分开管理。", topics: [

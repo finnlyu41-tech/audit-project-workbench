@@ -2,6 +2,7 @@
 
 ## Simple daily project surface — 2026-09-23
 
+- Keep module/project completion stable across Simple and Pro. Preserve recorded manual outcomes and real stage checks separately; only deliberate checklist edits recalculate an outcome. 完成状态不再因模式切换而反转；保留既有手动状态，不代替用户勾选审计节点。
 - Put the existing current-engagement outstanding list beneath Simple workstreams, without a second sidebar or editor. Show company identity first and keep project details secondary; preserve scoped updates, filters, source links and archived read-only behavior.
 - 普通公司简化项目页按「公司与期间 → 模块 → 本项目待清 → 更多资料」排列，取消重复右侧面板；沿用现有编辑、筛选、来源定位、保存及归档保护。
 

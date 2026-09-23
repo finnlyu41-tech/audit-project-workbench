@@ -1,4 +1,4 @@
-import { workstreamIsSimple, workstreamStatusLabel, activeWorkstreamNodes } from "./workstream-mode.js";
+import { workstreamIsSimple, hasWorkstreamStatus, workstreamStatusLabel, activeWorkstreamNodes } from "./workstream-mode.js";
 import { consolidationIsSimple } from "./consolidation-mode.js";
 import {
   collectGroupOutstandingEntries,
@@ -311,7 +311,7 @@ function projectRecordReport(store, project, now) {
         customName: workstream.customName || "",
         stats: workstreamResult,
         mode: workstreamIsSimple(workstream) ? "simple" : "full",
-        status: workstreamIsSimple(workstream) ? workstreamStatusLabel(workstream) : null,
+        status: workstreamIsSimple(workstream) || hasWorkstreamStatus(workstream) ? workstreamStatusLabel(workstream) : null,
         currentStage: currentStage ? { id: currentStage.id, title: currentStage.title } : null,
       };
     }),

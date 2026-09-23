@@ -1,4 +1,4 @@
-import { workstreamIsSimple } from "./workstream-mode.js";
+import { workstreamIsSimple, withWorkstreamNodes } from "./workstream-mode.js";
 import { SimpleWorkstream } from "./simple-workstream.jsx";
 import { BackupCompare } from "./efficiency-backup.jsx";
 import { SavedFilters } from "./efficiency-controls.jsx";
@@ -46,7 +46,7 @@ import { activeOutstandingItems,
   makeBlankSample, makeEngagement, makeEntity, makeGroup, makeGroupMember, makeNode, makeProject, makeWorkstream,
   mergeEntities, moveEntity, moveWorkspaceItem,
   engagementNavigationStatusCounts, navigationStatusCounts, normalizeStore, outstandingIsOpen, preserveLegacyRecovery, projectStats, reconcileWorkbenchStore, redactSampleCompanies, reorderWorkstreams, reorderWorkspaceSchedule, reportingPeriodLabel, syncEngagementToCurrentStructure, taxDeadlineSummary, uid, V10_RECOVERY_KEY,
-  workstreamStats, workstreamCategoryLabel, workstreamTypeLabel } from "./model.js";
+  workstreamStats, workflowStats, workstreamCategoryLabel, workstreamTypeLabel } from "./model.js";
 import { LanguageProvider, useUiLanguage } from "./i18n.jsx";
 import { DeadlineAlertCentre } from "./deadline-alerts.jsx";
 import { ProjectSchedule } from "./timeline.jsx";
@@ -618,7 +618,7 @@ function DashboardWorkbench({ initialSnapshot }) {
   const updateWorkflowNodes = (targetKind, targetId, workstreamId, updater) => {
     if (targetKind === "group") updateGroup(targetId, (group) => ({ ...group, nodes: updater(group.nodes) }));
     else updateProject(targetId, (project) => ({ ...project, workstreams: project.workstreams.map((workstream) =>
-      workstream.id === workstreamId ? { ...workstream, nodes: updater(workstream.nodes), updatedAt: new Date().toISOString() } : workstream) }));
+      workstream.id === workstreamId ? { ...withWorkstreamNodes(workstream, updater(workstream.nodes)), updatedAt: new Date().toISOString() } : workstream) }));
   };
 
   const createEntity = (values, { createEngagement = false } = {}) => {
@@ -1756,7 +1756,7 @@ function ProjectDetail({ outstandingPanel, outstandingCount, onOpenCompany, simp
         nodes={activeWorkstream.nodes} updateWorkflowNodes={updateWorkflowNodes} setModal={setModal} readOnly={readOnly}
         label={t("模块节点")} title={workstreamTypeLabel(activeWorkstream.type, language, activeWorkstream.customName)}
         description={t("点击节点查看完成条件；再次点击可收起详情。")}
-        percentage={workstreamStats(activeWorkstream).percentage} />
+        percentage={workflowStats(activeWorkstream).percentage} />
     </section>}
   </div>;
 }

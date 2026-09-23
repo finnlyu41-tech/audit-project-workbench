@@ -225,7 +225,7 @@ test("completion progress uses one compact green ring instead of horizontal bars
   assert.match(components, /--progress-angle/);
   assert.match(css, /\.progress-track\s*{[^}]*border-radius:\s*50%;[^}]*conic-gradient/);
   assert.match(css, /\.progress-track\[data-compact\]\s*{[^}]*width:\s*32px/);
-  assert.match(components, /className="workstream-card-top">{simple \?[^\n]+: <ProgressBar value={stats\.percentage} compact/);
+  assert.match(components, /className="workstream-card-top">{simple \|\| hasWorkstreamStatus\(workstream\) \?[^\n]+: <ProgressBar value={stats\.percentage} compact/);
   assert.doesNotMatch(components, /className="workstream-card-progress"/);
   assert.doesNotMatch(css, /\.progress-track > span\s*{[^}]*width:/);
 });

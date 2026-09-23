@@ -235,15 +235,34 @@ test('missing preference defaults to Simple globally and Pro choice survives rel
 });
 
 
-test('completing every simple module keeps the empty active-filter view stable', async ({ page }) => {
+test('completed Simple projects stay in Completed in Pro and after reload without checking retained stages', async ({ page }) => {
   const fixture = workspaceFixture();
   for (const w of fixture.projects[0].workstreams) Object.assign(w, { mode: 'simple', simpleStatus: 'completed' });
+  fixture.projects[0].outstandingItems.push(makeOutstandingItem({ title: 'Still awaiting client reply' }));
   await openWorkbench(page, fixture, { businessMode: 'simple' });
+  const before = await readStoredWorkspace(page);
+  const completed = page.locator('.filter-tabs').getByRole('tab', { name: /^Completed/ });
+  await expect(completed.locator('strong')).toHaveText('1');
+  await completed.click(); await page.locator('.flat-engagement-row').click();
+  await expect(page.locator('.simple-project-summary')).toContainText('2/2 completed');
   const toggle = page.getByRole('switch', { name: 'Pro mode', exact: true });
   await toggle.click(); await expect(toggle).toBeChecked();
+  await expect(completed.locator('strong')).toHaveText('1');
+  await expect(page.locator('.workstream-card[data-complete]')).toHaveCount(2);
+  await expect(page.locator('.workstream-card-status').first()).toHaveText('Completed');
+  await expect(page.locator('.workstream-card-stage-count').first()).toHaveText('0/2 stages completed');
+  const expectedPro = structuredClone(before); expectedPro.businessMode = 'pro';
+  for (const w of expectedPro.engagements[0].workstreams) delete w.mode;
+  await expect.poll(() => readStoredWorkspace(page)).toEqual(expectedPro);
+  await page.reload(); await expect(toggle).toBeChecked();
+  await expect(completed.locator('strong')).toHaveText('1');
+  await expect.poll(() => readStoredWorkspace(page)).toEqual(expectedPro);
   await toggle.click(); await expect(toggle).not.toBeChecked();
-  await expect.poll(async () => (await readStoredWorkspace(page)).businessMode).toBe('simple');
-  await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
+  await expect(completed.locator('strong')).toHaveText('1');
+  await completed.click(); await page.locator('.flat-engagement-row').click();
+  await expect(page.locator('.simple-project-summary')).toContainText('2/2 completed');
+  await expect(page.locator('.simple-project-outstanding-link')).toHaveText('1 open');
+  await expect.poll(() => readStoredWorkspace(page)).toEqual(before);
 });
 
 test('Simple rows expose only status and due date, with secondary fields and project actions disclosed', async ({ page }) => {
@@ -747,4 +766,51 @@ test('Simple daily empty modules and cleared history stay distinct and do not im
   await expect(section.locator('.outstanding-item')).toContainText('Previously cleared daily item');
   await expect(section.locator('.outstanding-active-filters')).toBeVisible();
   expect(await readStoredWorkspace(page)).toEqual(before);
+});
+
+
+test('real Pro checklist changes recompute only that module and the result is shared with Simple', async ({ page }) => {
+  const changedAt = new Date(Date.now() + 60_000).toISOString();
+  await page.clock.setFixedTime(new Date(changedAt));
+  const fixture = workspaceFixture();
+  for (const w of fixture.projects[0].workstreams) w.simpleStatus = 'completed';
+  await openWorkbench(page, fixture, { businessMode: 'pro' });
+  await page.locator('.filter-tabs').getByRole('tab', { name: /^All/ }).click();
+  await page.getByRole('tab', { name: 'Projects', exact: true }).click();
+  await page.locator('.flat-engagement-row').click();
+  const firstCard = page.locator('.workstream-card').first();
+  await firstCard.locator('.workstream-card-select').click();
+  const initialStage = page.getByRole('tab', { name: /Engagement setup/ });
+  if (await initialStage.getAttribute('aria-selected') !== 'true') await initialStage.click();
+  const before = await readStoredWorkspace(page);
+  const scope = page.getByRole('checkbox', { name: 'Scope confirmed', exact: true });
+  await expect(scope).not.toBeChecked();
+  await scope.check();
+  const expected = structuredClone(before), module = expected.engagements[0].workstreams[0];
+  delete module.simpleStatus;
+  module.nodes[0].conditions[0].done = true;
+  module.updatedAt = changedAt; expected.engagements[0].updatedAt = changedAt;
+  await expect.poll(() => readStoredWorkspace(page)).toEqual(expected);
+  await expect(page.locator('.filter-tabs').getByRole('tab', { name: /^Completed/ }).locator('strong')).toHaveText('0');
+  const toggle = page.getByRole('switch', { name: 'Pro mode', exact: true });
+  await toggle.click();
+  await expect(page.locator('.simple-workstream').first().getByLabel('Workstream status')).toHaveValue('in_progress');
+  await expect(page.locator('.simple-workstream').nth(1).getByLabel('Workstream status')).toHaveValue('completed');
+  await expect(page.locator('.simple-project-summary')).toContainText('1/2 completed');
+  await toggle.click();
+  if (!(await page.locator('.workflow-panel').isVisible())) await firstCard.locator('.workstream-card-select').click();
+  const setupTab = page.getByRole('tab', { name: /Engagement setup/ });
+  if (await setupTab.getAttribute('aria-selected') !== 'true') await setupTab.click();
+  await page.getByRole('checkbox', { name: 'Independence confirmed', exact: true }).check();
+  await page.getByRole('tab', { name: /Audit execution/ }).click();
+  await page.getByRole('checkbox', { name: 'Testing completed', exact: true }).check();
+  module.nodes[0].conditions[1].done = true;
+  module.nodes[1].conditions[0].done = true;
+  await expect.poll(() => readStoredWorkspace(page)).toEqual(expected);
+  await toggle.click();
+  const expectedSimple = structuredClone(expected); expectedSimple.businessMode = 'simple';
+  for (const w of expectedSimple.engagements[0].workstreams) w.mode = 'simple';
+  await expect(page.locator('.simple-project-summary')).toContainText('2/2 completed');
+  await expect(page.locator('.simple-workstream').first().getByLabel('Workstream status')).toHaveValue('completed');
+  await expect.poll(() => readStoredWorkspace(page)).toEqual(expectedSimple);
 });
