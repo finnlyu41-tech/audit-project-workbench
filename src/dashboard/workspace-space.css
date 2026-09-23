@@ -124,3 +124,17 @@
   .simple-project-outstanding:focus-visible { outline: 2px solid var(--wb-accent); outline-offset: 2px; }
 }
 @media print { .simple-project-outstanding, .simple-project-outstanding-link { display: none !important; } }
+
+/* Company identity is never ellipsized on the daily project surface. */
+@media screen {
+  .audit-workbench .workspace-detail-inner[data-simple] .detail-title h2 {
+    white-space: normal; overflow: visible; overflow-wrap: anywhere; text-overflow: clip;
+  }
+  .workspace-detail-inner[data-simple] .detail-title h2 .project-company-link {
+    display: block; max-width: 100%; white-space: normal; overflow-wrap: anywhere; text-align: start;
+  }
+}
+@container workspace (max-width: 620px) {
+  .audit-workbench .workspace-detail-inner[data-simple] .detail-header { flex-direction: column; align-items: stretch; }
+  .workspace-detail-inner[data-simple] .detail-actions { margin-left: 0; justify-content: flex-start; }
+}

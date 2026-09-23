@@ -155,6 +155,7 @@ test('Simple home keeps deadlines, outstanding, recent visits and backup while P
 for (const language of ['en', 'zh-Hans', 'zh-Hant']) test(`simple mode stays readable and accessible in ${language}`, async ({ page }, info) => {
   const fixture = workspaceFixture(); Object.assign(fixture.projects[0].workstreams[0], { mode: 'simple', simpleStatus: 'in_progress',
     notes: 'Example literal notes <review> 中文 with a long unbroken reference '.repeat(4) });
+  fixture.projects[0].entity = 'Example Literal Company ' + 'LongReference'.repeat(6);
   fixture.projects[0].outstandingItems.push(makeOutstandingItem({ title: 'Literal <client> ' + 'LongReference'.repeat(12), note: 'Literal note 中文' }));
   await openWorkbench(page, fixture, { businessMode: 'simple' });
   await page.evaluate(value => localStorage.setItem('audit-progress-workbench:language', value), language);
@@ -166,6 +167,7 @@ for (const language of ['en', 'zh-Hans', 'zh-Hant']) test(`simple mode stays rea
     await page.setViewportSize({ width, height: 900 });
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1)).toBe(true);
     expect(await row.evaluate(element => element.scrollWidth <= element.clientWidth + 1)).toBe(true);
+    expect(await page.locator('.detail-title h2').evaluate(element => element.scrollWidth <= element.clientWidth + 1)).toBe(true);
     await expect(page.locator('.simple-project-outstanding .outstanding-item')).toHaveCount(1);
     expect(await page.locator('.simple-project-outstanding').evaluate(element => element.scrollWidth <= element.clientWidth + 1)).toBe(true);
     if (width === 430 || width === 1440) await page.screenshot({ path: info.outputPath(`simple-compact-${language}-${width}.png`) });
