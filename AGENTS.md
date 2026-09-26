@@ -16,6 +16,6 @@ Use isolated fictional workspaces. Do not read or modify Database, client compan
 
 ## Complete the release, then report
 
-When existing authorization permits a change, merge only the inspected head after its checks pass. Verify both main CI and Pages for the resulting merge SHA, then the public commit marker and core assets. Never call a candidate, green PR or deploy request a verified live release. Preserve exact run IDs, attempts and SHA values in the result.
+When existing authorization permits a change, merge only the inspected head after its checks pass. Verify the complete main CI chain and its successful Pages deploy job for the resulting merge SHA, then the public commit marker and core assets. Historical separate Pages workflows remain failure evidence; the current single-run artifact chain is defined in `docs/automation-maintenance.md`. Never call a candidate, green PR or deploy request a verified live release. Preserve exact run IDs, attempts and SHA values in the result.
 
 For recurring maintenance, report each invocation, including no-change, waiting and blocked results. Use one small scope or complete existing work rather than manufacturing a new change every time. Do not promise background completion without a real enabled scheduler. Follow `docs/automation-maintenance.md` for failure triage and handoff.

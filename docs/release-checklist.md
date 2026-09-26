@@ -86,6 +86,6 @@ Run `pnpm test:stability` for the focused dual-engine gate and follow `docs/stab
 ## Automated maintenance receipts
 
 - Begin recurring maintenance with `pnpm automation:status` or equivalent connected GitHub reads. Resume exact-head pending/failed work; do not manufacture new PRs.
-- CI and Pages retain separate development/production JSON reports and `playwright-results/receipt.json`, including head SHA, tested merge SHA, run ID/attempt and phase outcomes on success or failure.
+- The single CI/Pages chain retains both engine reports, the complete production report and `playwright-results/receipt.json`. Verify exact repository/head/tested SHA/run/attempt, complete case inventories and failure receipts. Deploy only the immutable artifact ID produced after all phases pass; check its digest, release manifest and bytes without rebuilding. Partial re-runs must not mix attempts.
 - Pages `verify-pages.mjs` compares the commit marker, release manifest and exact public index/JS/CSS bytes. HTTP 200 alone is not sufficient, and a fresh marker with stale HTML must fail.
 - Repository checks do not verify an external scheduler. Record scheduler task identity/status separately when the actual management interface is available.

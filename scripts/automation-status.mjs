@@ -23,7 +23,7 @@ export function pagesDeploymentVerified(jobs, sha) {
 }
 
 export function decideAutomationAction(snapshot) {
-  const { mainSha, pulls = [], runs = [], liveSha = null, liveCheck = 'not-needed', deploymentVerified = false } = snapshot;
+  const { mainSha, pulls = [], runs = [], liveSha = null, liveCheck = 'not-needed', deploymentVerified = false, releaseJobs = [] } = snapshot;
   if (!/^[0-9a-f]{40}$/.test(mainSha || '')) throw new Error('Missing or invalid main SHA');
   const state = { repository: REPOSITORY, main_sha: mainSha, open_prs: pulls.map(pr => pr.number) };
   if (pulls.length > 1) return { ...state, action: 'CONSOLIDATE_OPEN_PRS', reason: 'Review overlapping work before starting another branch.' };
@@ -37,12 +37,16 @@ export function decideAutomationAction(snapshot) {
     if (ci.conclusion !== 'success') return { ...detail, action: 'DIAGNOSE_PR_FAILURE', reason: 'Read the exact failed step and artifact; do not blindly rerun or create a replacement PR.' };
     return { ...detail, action: 'RESUME_PR_REVIEW', draft: Boolean(pr.draft), reason: 'Finish review of this passing head; merge still requires authorization and a head check.' };
   }
-  const ci = latest(runs, mainSha, CI), pages = latest(runs, mainSha, PAGES);
-  const detail = { ...state, ci: describe(ci), pages: describe(pages) };
+  const ci = latest(runs.filter(run => run.event !== 'pull_request' && (!run.head_branch || run.head_branch === 'main')), mainSha, CI);
+  const deploy = releaseJobs.find(job => job.name === 'deploy' && job.head_sha === mainSha && job.run_id === ci?.id);
+  const pages = deploy || latest(runs, mainSha, PAGES);
+  const detail = { ...state, ci: describe(ci), pages: describe(pages), ...(deploy ? { release_pipeline: 'same-run-artifact' } : {}) };
   if ([ci, pages].some(run => completed(run) && run.conclusion !== 'success'))
     return { ...detail, action: 'DIAGNOSE_RELEASE_FAILURE', reason: 'The exact main commit has a failed or cancelled release gate.' };
   if (!ci || !pages || !completed(ci) || !completed(pages))
     return { ...detail, action: 'WAIT_RELEASE', reason: 'Main CI and Pages must both finish for this exact commit.' };
+  if (deploy && !pagesDeploymentVerified([deploy], mainSha)) return { ...detail, action: 'VERIFY_DEPLOYMENT',
+    deployment_verified: false, reason: 'The deployment job has no successful exact-commit asset verification.' };
   if (liveSha === mainSha) return { ...detail, action: 'READY_FOR_SCOPED_WORK', live_sha: liveSha,
     deployment_verified: true, verification_source: 'live_marker',
     reason: 'Current release gates and public commit marker agree. Report no-change runs too; a new change is not mandatory.' };
@@ -76,7 +80,16 @@ export async function collectAutomationStatus() {
     if (data.total_count > 100) throw new Error('Workflow history exceeds this bounded read; manual inspection required');
     return data.workflow_runs;
   });
-  let liveSha = null, liveCheck = 'not-needed', deploymentVerified = false;
+  let liveSha = null, liveCheck = 'not-needed', deploymentVerified = false, releaseJobs = [];
+  if (!pulls.length) {
+    const ci = latest(runs.filter(run => run.event !== 'pull_request' && (!run.head_branch || run.head_branch === 'main')), mainSha, CI);
+    if (ci) {
+      const result = github(`repos/${REPOSITORY}/actions/runs/${ci.id}/jobs?per_page=100`);
+      if (result.total_count > 100) throw new Error('Incomplete release job inventory');
+      releaseJobs = result.jobs;
+      deploymentVerified = pagesDeploymentVerified(releaseJobs, mainSha);
+    }
+  }
   if (!pulls.length) {
     try {
       const response = await fetch(`${LIVE_URL}apw-build-sha.txt?verify=${mainSha}`, {
@@ -86,7 +99,7 @@ export async function collectAutomationStatus() {
       liveCheck = `HTTP ${response.status}`;
     } catch { liveCheck = 'unavailable'; }
   }
-  if (!pulls.length && liveSha === null) {
+  if (!pulls.length && liveSha === null && !deploymentVerified) {
     const pages = latest(runs, mainSha, PAGES);
     if (pages && completed(pages) && pages.conclusion === 'success') {
       try {
@@ -97,7 +110,7 @@ export async function collectAutomationStatus() {
     }
   }
   return { checked_at: new Date().toISOString(), scheduler_inspected: false, live_check: liveCheck,
-    ...decideAutomationAction({ mainSha, pulls, runs, liveSha, liveCheck, deploymentVerified }) };
+    ...decideAutomationAction({ mainSha, pulls, runs, liveSha, liveCheck, deploymentVerified, releaseJobs }) };
 
 }
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {

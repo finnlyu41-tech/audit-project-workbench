@@ -9,17 +9,22 @@ on:
 permissions:
   contents: read
 
-# Cancel superseded checks for the same PR, never an active production release.
+env:
+  HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+
+# One chain per version. Only superseded PR checks may cancel an active run.
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
-  check:
+  unit:
     runs-on: ubuntu-latest
     timeout-minutes: 40
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
       - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
         with:
           version: 11.19.0
@@ -28,37 +33,204 @@ jobs:
           node-version: 22
           cache: pnpm
       - run: pnpm install --frozen-lockfile
-      - run: pnpm exec playwright install --with-deps chromium webkit
       - name: Unit tests
         id: unit
         run: pnpm test
+      - name: Record unit phase
+        if: always()
+        env:
+          PHASE_OUTCOME: ${{ steps.unit.outcome }}
+        run: node scripts/pipeline-evidence.mjs phase unit
+      - name: Upload unit evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: unit-${{ github.run_id }}-${{ github.run_attempt }}
+          path: playwright-results/
+          if-no-files-found: error
+          retention-days: 14
+
+  browser:
+    needs: unit
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - project: chromium
+            browser: chromium
+          - project: webkit-stability
+            browser: webkit
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+        with:
+          version: 11.19.0
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm exec playwright install --with-deps ${{ matrix.browser }}
       - name: Browser regression
         id: browser
-        run: pnpm test:e2e
+        run: pnpm test:e2e --project=${{ matrix.project }}
+      - name: Record browser phase
+        if: always()
+        env:
+          PHASE_OUTCOME: ${{ steps.browser.outcome }}
+        run: node scripts/pipeline-evidence.mjs phase ${{ matrix.project }}
+      - name: Upload browser-test report
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: browser-${{ matrix.project }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            playwright-report
+            test-results
+            playwright-results
+          if-no-files-found: error
+          retention-days: 14
+
+  # Keep the existing required check name. It fails rather than silently passing
+  # when a prerequisite failed or evidence belongs to another run/attempt/SHA.
+  check:
+    needs: [unit, browser]
+    if: ${{ !cancelled() }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    outputs:
+      pages_artifact_id: ${{ steps.artifact.outputs.artifact_id }}
+      manifest_sha256: ${{ steps.seal.outputs.manifest_sha256 }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Require successful prerequisites
+        env:
+          UNIT_RESULT: ${{ needs.unit.result }}
+          BROWSER_RESULT: ${{ needs.browser.result }}
+        run: test "$UNIT_RESULT" = success && test "$BROWSER_RESULT" = success
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+        with:
+          version: 11.19.0
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: unit-${{ github.run_id }}-${{ github.run_attempt }}
+          path: evidence/unit
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: browser-chromium-${{ github.run_id }}-${{ github.run_attempt }}
+          path: evidence/chromium
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: browser-webkit-stability-${{ github.run_id }}-${{ github.run_attempt }}
+          path: evidence/webkit-stability
+      - name: Verify complete same-version test inventory
+        run: |
+          mkdir -p playwright-results
+          node node_modules/@playwright/test/cli.js test --list --reporter=json > playwright-results/inventory.json
+          node scripts/pipeline-evidence.mjs combine
+          node node_modules/@playwright/test/cli.js test --config=playwright.production.config.js --list --reporter=json > playwright-results/production-inventory.json
+      - run: pnpm exec playwright install --with-deps chromium webkit
       - name: Production build
         id: build
         run: pnpm build
+      - name: Stamp the build before production testing
+        id: stamp
+        run: |
+          node scripts/verify-pages.mjs stamp dist "$GITHUB_SHA"
+          echo "manifest_sha256=$(sha256sum dist/apw-release.json | cut -d' ' -f1)" >> "$GITHUB_OUTPUT"
       - name: Production browser regression
         id: production
         run: pnpm test:production
       - name: Record exact-commit verification receipt
         if: always()
         env:
-          HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
-          OUTCOME_UNIT: ${{ steps.unit.outcome }}
-          OUTCOME_BROWSER: ${{ steps.browser.outcome }}
+          OUTCOME_UNIT: ${{ needs.unit.result }}
+          OUTCOME_BROWSER: ${{ needs.browser.result }}
           OUTCOME_BUILD: ${{ steps.build.outcome }}
           OUTCOME_PRODUCTION: ${{ steps.production.outcome }}
-        run: node scripts/verification-receipt.mjs
-      - name: Upload browser-test report
+        run: node scripts/pipeline-evidence.mjs final
+      - name: Upload final browser-test report
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: playwright-report
+          name: playwright-report-${{ github.run_id }}-${{ github.run_attempt }}
           path: |
             playwright-report
-            test-results
             test-results-production
             playwright-results
-          if-no-files-found: warn
+          if-no-files-found: error
           retention-days: 14
+      - name: Bind successful receipt to unchanged tested assets
+        id: seal
+        env:
+          TESTED_MANIFEST_DIGEST: ${{ steps.stamp.outputs.manifest_sha256 }}
+        run: node scripts/pipeline-evidence.mjs seal dist
+      - name: Upload the verified Pages artifact
+        id: artifact
+        uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
+        with:
+          name: github-pages-${{ github.sha }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: dist
+          retention-days: 7
+
+  deploy:
+    needs: check
+    if: ${{ github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch') }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    concurrency:
+      group: github-pages
+      cancel-in-progress: false
+    permissions:
+      contents: read
+      actions: read
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 22
+      - name: Download exactly the verified artifact
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          artifact-ids: ${{ needs.check.outputs.pages_artifact_id }}
+          path: ${{ runner.temp }}/apw-pages
+          merge-multiple: true
+      - name: Verify same-run artifact and receipt
+        env:
+          VERIFIED_MANIFEST_DIGEST: ${{ needs.check.outputs.manifest_sha256 }}
+        run: |
+          python3 scripts/unpack-pages.py "$RUNNER_TEMP/apw-pages/artifact.tar" "$RUNNER_TEMP/apw-verified"
+          node scripts/pipeline-evidence.mjs verify "$RUNNER_TEMP/apw-verified"
+      - name: Refuse a superseded release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: test "$(gh api "repos/$GITHUB_REPOSITORY/git/ref/heads/main" --jq '.object.sha')" = "$GITHUB_SHA"
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@368f82528645a54fb793d4d04e342629a3f51346 # v5.0.1
+        with:
+          artifact_name: github-pages-${{ github.sha }}-${{ github.run_id }}-${{ github.run_attempt }}
+      - name: Verify deployed commit and core assets
+        env:
+          PAGE_URL: ${{ steps.deployment.outputs.page_url }}
+          VERIFIED_MANIFEST_DIGEST: ${{ needs.check.outputs.manifest_sha256 }}
+        run: node scripts/verify-pages.mjs verify "$PAGE_URL" "$GITHUB_SHA" "$VERIFIED_MANIFEST_DIGEST"
