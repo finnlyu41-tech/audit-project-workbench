@@ -1,5 +1,10 @@
 # Changelog
 
+## Verified release chain — 2026-09-26
+
+- Run the complete gates once per revision, split the existing browser engines into bounded jobs, and deploy only the same verified artifact. Preserve failure evidence, exact-commit checks and public-file verification.
+- 完整验收一次后发布同一构建；两种浏览器分开执行，避免与生产检查争用单任务时限。保留全部测试、失败证据与线上校验。
+
 ## Simple daily project surface — 2026-09-23
 
 - Remove the legacy-only recovery download from the routine backup menu; retain existing source bytes, migration and current backup tools. 移除日常菜单的旧版本恢复下载入口；保留原始恢复资料、迁移和常用备份功能。

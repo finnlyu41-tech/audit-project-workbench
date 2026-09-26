@@ -43,3 +43,15 @@ test('unsafe manifest paths, duplicate files and wrong commits are rejected',asy
 test('unexpected origins do not trigger a request',async()=>{
  let calls=0;await assert.rejects(verifyReleaseOnce('https://example.test/',sha,()=>{calls++;}));assert.equal(calls,0);
 });
+
+test('public manifest must match the trusted same-run artifact even when commit and listed assets agree',async t=>{
+ const {createHash}=await import('node:crypto');const f=await fixture(t);
+ const raw=await fs.readFile(path.join(f.dir,'apw-release.json'));
+ const digest=createHash('sha256').update(raw).digest('hex');
+ assert.equal((await verifyReleaseOnce(base,sha,f.fetcher,20000,digest)).verified,true);
+ await fs.writeFile(path.join(f.dir,'apw-release.json'),JSON.stringify({...f.manifest,extra:'substituted metadata'}));
+ await assert.rejects(verifyReleaseOnce(base,sha,f.fetcher,20000,digest),/differs from the verified artifact/);
+ let calls=0;
+ await assert.rejects(verifyReleaseOnce(base,sha,()=>{calls++;},20000,'invalid'),/Invalid trusted/);
+ assert.equal(calls,0);
+});

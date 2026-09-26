@@ -15,21 +15,32 @@ The repair waits for the complete selected-file payload to reach browser storage
 3. Apply only a focused, authorized repair. Preserve unrelated commits. Check the remote head again before pushing, and match the head before merge.
 4. Distinguish local checks, PR checks, merge, main CI, Pages and actual public verification. Report every invocation, even when there is no code change. Never substitute an old passing SHA for the current one.
 
-## Workflow safeguards
+## Single verified release chain — approved 2026-09-26
 
-CI groups concurrent checks by PR/ref and cancels obsolete runs only for the same PR. Pages serializes releases without interrupting the active deployment; GitHub can still supersede pending jobs. Each job has a bounded 40-minute timeout. The four existing `pnpm check` commands run as distinct named phases, in the same order; none is omitted.
+The owner approved replacing the duplicate CI/Pages runs after #97's Pages job exceeded its 40-minute budget. `ci.yml` now owns one same-run chain; `pages.yml` is removed, not left as a second trigger:
 
-Development and production browser reports are stored separately, with machine-readable JSON and an exact-head/tested-merge receipt. Reports upload on success and failure, so a later invocation can inspect completed evidence instead of rebuilding it. The receipt explicitly does not claim deployment or scheduler verification.
+1. **Unit:** run the existing complete unit command once.
+2. **Browser:** run the existing Chromium and WebKit projects in separate jobs, with the same three workers, tests, timeouts and zero retries. Both must finish; `fail-fast: false` retains the other engine's evidence.
+3. **Check:** require successful prerequisites, download their exact run/attempt artifacts, and compare actual case IDs against a fresh full inventory from the checked-out commit. Build once, stamp its core-file hashes, run the complete production suite on that build, and seal its successful receipt into the release manifest. Re-check hashes before packaging so a changed build cannot be substituted after tests.
+4. **Deploy:** only trusted `main` push/manual runs can publish. Download the exact artifact ID from `check`, fail on digest mismatch, inspect the archive safely, and validate commit/run/attempt/receipt and core-file bytes. Refuse a superseded main SHA. Deploy that same artifact by its unique name; do not rebuild or repeat application tests. Finally verify the public marker and core-file hashes.
 
-## CI worker headroom
+Each job retains the existing 40-minute cap; the complete browser and production phases no longer compete for one job budget. This is a bounded dependency graph on standard runners, not a new scheduler or paid runner. Actual cloud duration still requires measurement; splitting does not promise immunity from every infrastructure failure.
 
-The public-repository Linux runner has four vCPUs. Use three Playwright workers in CI; local runs keep Playwright's default. Production inherits the same setting. This uses the existing runner, not extra jobs or machines, and does not change any test, per-test timeout, retries, failure criteria or the 40-minute workflow-job budget.
+All PRs run the full gates and packaging checks, but have no Pages/id-token write permissions and cannot deploy. A merged main commit is validated afresh; a PR's tested merge ref is not substituted for main. Only the deploy job has Pages permissions, behind the existing `github-pages` environment.
 
-On merge `31c3206`, runs `35621864864` and `35621864953` (attempt 1) passed all 471 unit, 944 development and 240 production tests, but GitHub cancelled their production steps at the job's 40-minute boundary before release completion. The annotations explicitly report that budget limit; the receipts correctly keep `verification_passed=false`. Do not treat those cancelled runs as a verified deployment or repeatedly rerun them for timing luck. Verify the concurrency change with complete new-head gates and the subsequent release.
+Phase evidence includes repository, head SHA, tested SHA, run ID and attempt. Missing engines, changed report bytes, a substituted/skipped/retried test, a false receipt or mismatched provenance fail closed. Reports and traces are retained for 14 days; the immutable Pages artifact for 7 days. Re-run **all jobs** only after diagnosing a justified transient failure: partial re-runs deliberately cannot mix old-attempt evidence with a new receipt. Expired artifacts require a fresh complete run.
 
-公开仓库现有 Linux 执行机使用 3 个并行测试进程，为生产检查和收尾留出余量；不增加机器、任务或定时调度，不减少测试，不延长单例或总任务时限。之前超时取消的记录继续保留，不能当成上线成功。
+`automation:status` recognises the named `deploy` job within the exact CI run and still reads historical separate Pages runs. Neither a successful `check` job nor a skipped deploy counts as a live release. Public-byte verification remains mandatory; no external scheduler state is inferred.
 
-References: [GitHub standard runner resources](https://docs.github.com/en/actions/reference/runners/github-hosted-runners#standard-github-hosted-runners-for-public-repositories), [Playwright worker limits](https://playwright.dev/docs/test-parallel#limit-workers).
+中文：完整验收一次，发布同一份已验收构建。两种浏览器分开执行，但不删测试、不增加重试、不放宽 40 分钟单任务时限。所有证据与产物绑定同一仓库、提交、运行及尝试；缺少或混入旧证据就停止。仅 main 通过完整检查后能发布，发布阶段不重新构建，也不重复测试。
+
+### Preserved failure evidence
+
+On merge `31c3206`, runs `35621864864` / `35621864953` passed their test assertions but were cancelled at the job budget; #96 changed workers from two to three. On merge `a4d9261`, main CI `35842923759` passed in 39m12s, but Pages `35842923770` was cancelled during production checks. Its receipt correctly has `verification_passed=false`, deploy was skipped, and public SHA remained `6be5fa5`. These records are failures, not successful releases or a reason to rerun for luck.
+
+The approved repair removes the repeated full run and gives each engine and production its own bounded job. It does not claim the prior three-worker adjustment permanently solved timing.
+
+References: [GitHub same-workflow Pages jobs](https://docs.github.com/en/pages/getting-started-with-github-pages/using-custom-workflows-with-github-pages), [workflow artifacts](https://docs.github.com/en/actions/tutorials/store-and-share-data), [official artifact download](https://github.com/actions/download-artifact).
 
 ## Failure routing
 

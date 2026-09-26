@@ -32,7 +32,8 @@ export function validateManifest(manifest, expectedSha) {
     throw new Error('Release manifest is missing core files or exceeds limits');
   return manifest;
 }
-export async function verifyReleaseOnce(base, sha, fetcher = fetch, timeout = 20_000) {
+export async function verifyReleaseOnce(base, sha, fetcher = fetch, timeout = 20_000, expectedManifestDigest = null) {
+  if (expectedManifestDigest !== null && !/^[0-9a-f]{64}$/.test(expectedManifestDigest)) throw new Error('Invalid trusted manifest digest');
   const url = new URL(base);
   if (url.protocol !== 'https:' || url.hostname !== 'finnlyu41-tech.github.io'
     || url.pathname !== '/audit-project-workbench/' || url.search || url.hash || !validSha(sha))
@@ -49,7 +50,10 @@ export async function verifyReleaseOnce(base, sha, fetcher = fetch, timeout = 20
   };
   const marker = (await get('apw-build-sha.txt',100)).toString('utf8').trim();
   if (marker !== sha) throw new Error(`Public commit is ${marker || '<empty>'}, expected ${sha}`);
-  const manifest = validateManifest(JSON.parse((await get('apw-release.json',50_000)).toString('utf8')),sha);
+  const manifestBytes = await get('apw-release.json',50_000);
+  if (expectedManifestDigest !== null && hash(manifestBytes) !== expectedManifestDigest)
+    throw new Error('Public manifest differs from the verified artifact');
+  const manifest = validateManifest(JSON.parse(manifestBytes.toString('utf8')),sha);
   const verified = await Promise.all(manifest.files.map(async file => {
     const data = await get(file.path,file.bytes);
     if (data.length !== file.bytes || hash(data) !== file.sha256) throw new Error(`${file.path}: content differs from the release build`);
@@ -59,14 +63,14 @@ export async function verifyReleaseOnce(base, sha, fetcher = fetch, timeout = 20
 }
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
   try {
-    const [mode,target,sha] = process.argv.slice(2);
+    const [mode,target,sha,manifestDigest] = process.argv.slice(2);
     if (mode === 'stamp') console.log(JSON.stringify(await stampRelease(target,sha)));
     else if (mode === 'verify') {
       // Only deployment propagation is retried, within a fixed total budget.
       // Application tests and data-changing actions are never retried here.
       const end = Date.now()+240_000; let result, lastError;
       for (let attempt=1; attempt<=24 && Date.now()<end; attempt++) {
-        try { result=await verifyReleaseOnce(target,sha,fetch,Math.max(1,Math.min(20_000,Math.floor((end-Date.now())/3)))); break; }
+        try { result=await verifyReleaseOnce(target,sha,fetch,Math.max(1,Math.min(20_000,Math.floor((end-Date.now())/3))),manifestDigest ?? null); break; }
         catch(error) { lastError=error; console.error(`Propagation check ${attempt}: ${error.message}`); }
         if(attempt<24 && Date.now()<end) await new Promise(resolve=>setTimeout(resolve,Math.min(5000,end-Date.now())));
       }

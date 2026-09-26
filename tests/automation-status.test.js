@@ -48,3 +48,18 @@ test('Pages verification fallback requires the exact successful deploy verificat
  assert.equal(pagesDeploymentVerified([job(main,[step('Deploy to GitHub Pages')])],main),false);
  assert.equal(pagesDeploymentVerified([job(main,[step(undefined,'failure')])],main),false);
 });
+
+test('same-run deployment is recognised only with the real verified deploy job', () => {
+ const step={name:'Verify deployed commit and core assets',status:'completed',conclusion:'success'};
+ const deploy={id:22,run_id:11,name:'deploy',head_sha:main,status:'completed',conclusion:'success',steps:[step]};
+ const base={mainSha:main,pulls:[],runs:[run(11,main)],releaseJobs:[deploy],liveSha:main};
+ assert.equal(decide(base).action,'READY_FOR_SCOPED_WORK');
+ assert.equal(decide(base).release_pipeline,'same-run-artifact');
+ assert.equal(decide({...base,releaseJobs:[]}).action,'WAIT_RELEASE');
+ assert.equal(decide({...base,releaseJobs:[{...deploy,run_id:10}]}).action,'WAIT_RELEASE');
+ assert.equal(decide({...base,releaseJobs:[{...deploy,head_sha:old}]}).action,'WAIT_RELEASE');
+ assert.equal(decide({...base,releaseJobs:[{...deploy,steps:[]}]}).action,'VERIFY_DEPLOYMENT');
+ assert.equal(decide({...base,releaseJobs:[{...deploy,status:'in_progress',conclusion:null}]}).action,'WAIT_RELEASE');
+ assert.equal(decide({...base,releaseJobs:[{...deploy,conclusion:'skipped'}]}).action,'DIAGNOSE_RELEASE_FAILURE');
+ assert.equal(decide({...base,liveSha:old}).action,'VERIFY_DEPLOYMENT');
+});
